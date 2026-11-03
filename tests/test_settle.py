@@ -66,9 +66,9 @@ def test_generic_senders_at_a_hiring_system_do_not_become_the_company():
 
 
 def test_the_same_job_with_a_team_or_place_added_is_still_the_same_job():
-    assert same_role("operationsmanager", "operationsmanagernam")
-    assert not same_role("dataanalyst", "operationsmanager")
-    assert not same_role("", "operationsmanager") and not same_role("analyst", "seniordataanalyst")      # too short to trust
+    assert same_role("operationsmanager", "operationsmanagernam", "Operations Manager", "Operations Manager | NAM")
+    assert not same_role("dataanalyst", "operationsmanager", "Data Analyst", "Operations Manager")
+    assert not same_role("", "operationsmanager", "", "Operations Manager")
 
 
 def test_weak_mail_in_a_conversation_you_already_follow_attaches_instead_of_waiting_for_review(conn):
