@@ -201,6 +201,11 @@ def for_application(conn: sqlite3.Connection, app_id: int) -> list[dict]:
     return derive(conn, app_id)
 
 
+def titles_from(people: list[dict]) -> dict[str, str]:
+    """Address -> title, from people already worked out."""
+    return {c["email"]: c["title"] for c in people if c["email"] and c["title"]}
+
+
 def titles(conn: sqlite3.Connection, app_id: int) -> dict[str, str]:
     """Address -> title within one application, for showing a title beside a sender's name on that application's emails."""
     return {c["email"]: c["title"] for c in derive(conn, app_id) if c["email"] and c["title"]}

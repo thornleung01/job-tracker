@@ -26,10 +26,10 @@ IGNORED_KEEP_DAYS = 30
 def _remember_ignored(conn: sqlite3.Connection, account_id: int, msg: Message, when: str, reason: str) -> None:
     """Mail a learned rule ignored stays restorable for a while: you can say "this was a real job"."""
     conn.execute(
-        "INSERT OR IGNORE INTO ignored_mail (account_id, provider_msg_id, thread_id, received_at, sender, subject, body, web_link, reason, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO ignored_mail (account_id, provider_msg_id, thread_id, received_at, sender, subject, body, web_link, reason, created_at, bulk) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (account_id, msg.id, msg.thread_id, when, f"{msg.sender_name} <{msg.sender_email}>", msg.subject, msg.body[:BODY_LIMIT],
-         msg.web_link, reason, db.iso(datetime.now(timezone.utc))),
+         msg.web_link, reason, db.iso(datetime.now(timezone.utc)), int(msg.bulk)),
     )
     cutoff = db.iso(datetime.now(timezone.utc) - timedelta(days=IGNORED_KEEP_DAYS))
     conn.execute("DELETE FROM ignored_mail WHERE created_at < ?", (cutoff,))
@@ -40,7 +40,7 @@ def decide(conn: sqlite3.Connection, account_id: int, msg: Message, cls, when: s
     company, role = extract_company_role(msg)
     ckey, rkey = company_key(company), role_key(role)
 
-    match = find_application(conn, account_id, msg.thread_id, ckey, rkey, event=cls.event)
+    match = find_application(conn, account_id, msg.thread_id, ckey, rkey, event=cls.event, role=role)
     needs_review = cls.confidence == "low" or match.kind == "ambiguous"
     # Weak wording is fine when the mail clearly belongs to a conversation already being followed (same thread, or the
     # one open application at that company): a "heard back" can only add to what is known, never invent anything.
@@ -93,12 +93,12 @@ def process_message(conn: sqlite3.Connection, account_id: int, msg: Message, lea
 
         conn.execute(
             "INSERT INTO emails (account_id, provider_msg_id, thread_id, received_at, sender, "
-            "subject, body, related, event, confidence, application_id, needs_review, web_link, reason) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
+            "subject, body, related, event, confidence, application_id, needs_review, web_link, reason, bulk) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)",
             (
                 account_id, msg.id, msg.thread_id, when,
                 f"{msg.sender_name} <{msg.sender_email}>", msg.subject, msg.body[:BODY_LIMIT],
-                cls.event, cls.confidence, app_id, int(needs_review), msg.web_link, cls.reason,
+                cls.event, cls.confidence, app_id, int(needs_review), msg.web_link, cls.reason, int(msg.bulk),
             ),
         )
     return "review" if needs_review else "applied-to-application"
@@ -216,8 +216,8 @@ def process_messages(conn: sqlite3.Connection, account_id: int, messages: list[M
     for msg in sorted(messages, key=lambda m: m.received_at):
         try:
             result = process_message(conn, account_id, msg, learned)
-        except sqlite3.Error:
-            # A database problem (locked, a concurrent sync) is temporary. Leave the email unmarked so the
+        except sqlite3.OperationalError:
+            # A locked or busy database (a concurrent sync) is temporary. Leave the email unmarked so the
             # next sync tries it again; marking it "not job mail" would lose a real reply for good.
             result = "retry"
         except Exception:

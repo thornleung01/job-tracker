@@ -149,6 +149,12 @@ CREATE TABLE IF NOT EXISTS contact_edits (
     title TEXT,
     hidden INTEGER NOT NULL DEFAULT 0
 );
+-- Ids can be reused after the newest application is deleted, so what is keyed to an application goes with it.
+CREATE TRIGGER IF NOT EXISTS applications_gone AFTER DELETE ON applications
+BEGIN
+    DELETE FROM contact_edits WHERE key LIKE OLD.id || '|%';
+    UPDATE feedback SET application_id = NULL WHERE application_id = OLD.id;
+END;
 CREATE TABLE IF NOT EXISTS learned_rules (
     id INTEGER PRIMARY KEY,
     kind TEXT NOT NULL CHECK (kind IN ('block_sender', 'block_domain', 'allow_sender', 'distrust_pattern')),
@@ -179,19 +185,31 @@ def iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_READY: set[str] = set()      # databases whose schema is already in place in this process
+
+
 def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
-    if str(path) != ":memory:":
+    memory = str(path) == ":memory:"
+    if not memory:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
+    # A database file that is new (or was deleted and made again) always gets its schema; one seen before is not rebuilt on every request.
+    setup = memory or not Path(path).exists() or str(path) not in _READY
     # FastAPI runs sync handlers in a threadpool, so a connection can hop threads.
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    if str(path) != ":memory:":
+    if not setup:
+        return conn
+    if not memory:
         conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
     # CREATE TABLE IF NOT EXISTS won't add columns to a table that already exists.
     if "web_link" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
         conn.execute("ALTER TABLE emails ADD COLUMN web_link TEXT")
+    if "bulk" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
+        conn.execute("ALTER TABLE emails ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0")
+    if "bulk" not in {r["name"] for r in conn.execute("PRAGMA table_info(ignored_mail)")}:
+        conn.execute("ALTER TABLE ignored_mail ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0")
     if "hold" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
         conn.execute("ALTER TABLE emails ADD COLUMN hold INTEGER NOT NULL DEFAULT 0")
     if "reason" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
@@ -200,6 +218,8 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
         conn.execute("ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
     if "can_reply" not in {r["name"] for r in conn.execute("PRAGMA table_info(accounts)")}:
         conn.execute("ALTER TABLE accounts ADD COLUMN can_reply INTEGER NOT NULL DEFAULT 0")
+    if not memory:
+        _READY.add(str(path))
     return conn
 
 

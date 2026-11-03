@@ -96,7 +96,7 @@ def score_posting(profile: dict, posting: dict, now: datetime | None = None) -> 
     # Penalties.
     haystack = normalize(f"{title} {description}")
     for word in profile.get("exclude") or []:
-        if word.strip() and re.search(rf"\b{re.escape(normalize(word))}\b", haystack):
+        if normalize(word) and re.search(rf"\b{re.escape(normalize(word))}\b", haystack):
             score -= EXCLUDE_PENALTY
             reasons.append(f"Contains “{word}”")
     level = profile.get("seniority") or ""

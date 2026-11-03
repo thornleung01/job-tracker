@@ -24,7 +24,7 @@ def _message(row: sqlite3.Row) -> Message:
         id=row["provider_msg_id"], thread_id=row["thread_id"] or "", sender_name=name.strip(),
         sender_email=(address.rstrip(">") if address else name).strip(), subject=row["subject"] or "",
         received_at=datetime.strptime(row["received_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
-        body=row["body"] or "",
+        body=row["body"] or "", bulk=bool(row["bulk"]),
     )
 
 
@@ -67,8 +67,8 @@ def recheck(conn: sqlite3.Connection) -> dict[str, int]:
             if row["id"] in why:                       # a learned rule did this: keep it restorable for a while
                 msg = _message(row)
                 sync_module._remember_ignored(conn, row["account_id"], msg, row["received_at"], why[row["id"]])
-                conn.execute("UPDATE ignored_mail SET thread_id = ?, web_link = ? WHERE account_id = ? AND provider_msg_id = ?",
-                             (row["thread_id"], row["web_link"], row["account_id"], row["provider_msg_id"]))
+                conn.execute("UPDATE ignored_mail SET thread_id = ?, web_link = ?, bulk = ? WHERE account_id = ? AND provider_msg_id = ?",
+                             (row["thread_id"], row["web_link"], row["bulk"], row["account_id"], row["provider_msg_id"]))
         for email_id in cleared:      # the same as dismissing it in Needs review
             clear_email(conn, email_id)
         for app_id in touched:

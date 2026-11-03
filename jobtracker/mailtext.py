@@ -122,7 +122,10 @@ def _inline(text: str) -> str:
     for m in _URL.finditer(text):
         out.append(str(escape(text[last:m.start()])))
         url = m.group(0).rstrip(".,;:!?")
-        host = (urlparse(url).hostname or "link").removeprefix("www.")
+        try:
+            host = (urlparse(url).hostname or "link").removeprefix("www.")
+        except ValueError:          # "http://[abc" and the like: show it as a plain link rather than failing the page
+            host = "link"
         out.append(f'<span class="url" title="{escape(url)}">{escape(host)}</span>')
         last = m.start() + len(url)
     out.append(str(escape(text[last:])))

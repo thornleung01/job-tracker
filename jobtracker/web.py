@@ -120,7 +120,7 @@ def _suggestions(conn) -> list[dict]:
     return items
 
 
-def _panel_ctx(conn, app_id: int, *, error=None, form=None, swaps=False, include_emails=True, status=None) -> dict:
+def _panel_ctx(conn, app_id: int, *, error=None, form=None, swaps=False, include_emails=True, status=None, titles=None) -> dict:
     """Everything _panel.html needs. `swaps` adds the hidden elements that refresh the list row in place."""
     a = conn.execute("SELECT * FROM applications WHERE id = ?", (app_id,)).fetchone()
     if not a:
@@ -132,7 +132,7 @@ def _panel_ctx(conn, app_id: int, *, error=None, form=None, swaps=False, include
         "entries": items, "total": total, "stages": STAGES, "error": error, "form": form or {},
         "today": activity.today().isoformat(), "swaps": swaps, "counts": _counts(conn) if swaps else None,
         "include_emails": include_emails, "status": status, "step_groups": activity.STEP_GROUPS,
-        "latest_email": next((i["id"] for i in items if i["kind"] == "email"), None), "titles": contactsmod.titles(conn, app_id),
+        "latest_email": next((i["id"] for i in items if i["kind"] == "email"), None), "titles": titles if titles is not None else contactsmod.titles(conn, app_id),
     }
 
 
@@ -236,7 +236,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         )
         rows = [dict(r, idle_days=_days_since(r["last_activity"])) for r in conn.execute(sql, params)]
         # ?open=3,7 renders those rows already expanded (also what the page does without JavaScript).
-        open_ids = {int(x) for x in open.split(",") if x.strip().isdigit()}
+        open_ids = {int(x) for x in open.split(",") if re.fullmatch(r"[0-9]{1,9}", x.strip())}
         panels = {r["id"]: _panel_ctx(conn, r["id"]) for r in rows if r["id"] in open_ids}
         filters = {k: v for k, v in {"stage": stage, "q": q.strip(), "account": account or ""}.items() if v}
         sorting = {} if (sort, direction) == ("last_activity", "desc") else {"sort": sort, "dir": direction}
@@ -275,10 +275,11 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
                           key=lambda t: (t["when"], t["kind"] == "sent", t["id"]), reverse=True)
         others = conn.execute("SELECT id, company, role FROM applications WHERE id != ? ORDER BY company", (app_id,)).fetchall()
         # The detail page keeps its own full email timeline, so the panel only lists notes and steps.
-        p = _panel_ctx(conn, app_id, error=request.query_params.get("error"), include_emails=False)
+        people = contactsmod.for_application(conn, app_id)
+        p = _panel_ctx(conn, app_id, error=request.query_params.get("error"), include_emails=False, titles=contactsmod.titles_from(people))
         return templates.TemplateResponse(request, "detail.html", {
             "a": application, "emails": emails, "timeline": timeline, "latest_email_id": emails[0]["id"] if emails else None,
-            "stages": STAGES, "others": others, "p": p, "people": contactsmod.for_application(conn, app_id), "kind_label": contactsmod.KIND_LABEL, "titles": contactsmod.titles(conn, app_id),
+            "stages": STAGES, "others": others, "p": p, "people": people, "kind_label": contactsmod.KIND_LABEL, "titles": contactsmod.titles_from(people),
             "notice": request.query_params.get("notice"), "reply_error": request.query_params.get("reply_error"),
         })
 
@@ -359,7 +360,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         name, _, address = row["sender"].partition("<")
         msg = Message(row["provider_msg_id"], row["thread_id"] or "", name.strip(), address.rstrip(">").strip(), row["subject"],
                       datetime.strptime(row["received_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc), row["body"],
-                      web_link=row["web_link"])
+                      web_link=row["web_link"], bulk=bool(row["bulk"]))
         outcome = process_message(conn, row["account_id"], msg)
         if outcome == "ignored":
             done = "Rule undone, but this email doesn't read like a job email, so it stays ignored."
@@ -831,6 +832,12 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             conn.execute("UPDATE emails SET application_id = ? WHERE application_id = ?", (into, app_id))
             conn.execute("UPDATE activity SET application_id = ? WHERE application_id = ?", (into, app_id))
             conn.execute("UPDATE job_postings SET application_id = ? WHERE application_id = ?", (into, app_id))
+            conn.execute("UPDATE sent_replies SET application_id = ? WHERE application_id = ?", (into, app_id))
+            conn.execute("UPDATE feedback SET application_id = ? WHERE application_id = ?", (into, app_id))
+            for edit in conn.execute("SELECT * FROM contact_edits WHERE key LIKE ?", (f"{app_id}|%",)).fetchall():
+                conn.execute("INSERT OR IGNORE INTO contact_edits (key, name, title, hidden) VALUES (?, ?, ?, ?)",
+                             (f"{into}|" + edit["key"].split("|", 1)[1], edit["name"], edit["title"], edit["hidden"]))
+                conn.execute("DELETE FROM contact_edits WHERE key = ?", (edit["key"],))
             conn.execute(f"UPDATE applications SET {sets} WHERE id = ?", (*fields.values(), into))
             conn.execute("DELETE FROM applications WHERE id = ?", (app_id,))
         return back(f"/app/{into}")
