@@ -1,0 +1,109 @@
+{#- Notes, steps and history for one application. Used under each list row and on the detail page. Expects `p`. -#}
+{% set r = p.r %}{% set aid = p.a.id %}
+<div class="panel-inner" data-app="{{ aid }}">
+  <div class="panel-status small muted" role="status" tabindex="-1">{{ p.status or '' }}</div>
+  {% if p.error %}<div class="notice err" role="alert">{{ p.error }}</div>{% endif %}
+
+  <div class="panel-forms">
+    <form method="post" action="/app/{{ aid }}/step" data-panel-form>
+      <h3 class="panel-h">Log a step</h3>
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:1 1 180px">
+          <label class="field small" for="step-label-{{ aid }}">Step</label>
+          <select id="step-label-{{ aid }}" name="label" required style="width:100%">
+            <option value="" hidden>Choose a step</option>
+            {% for group, steps in p.step_groups %}
+            <optgroup label="{{ group }}">
+              {% for s in steps %}<option value="{{ s }}" {{ 'selected' if p.form.label == s }}>{{ s }}</option>{% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="field small" for="step-day-{{ aid }}">Date</label>
+          <input id="step-day-{{ aid }}" type="date" name="day" value="{{ p.form.day or p.today }}" max="{{ p.today }}">
+        </div>
+      </div>
+      <label class="field small" for="step-body-{{ aid }}" style="margin-top:8px">Note (optional)</label>
+      <textarea id="step-body-{{ aid }}" name="body" rows="2" maxlength="2000" style="min-height:64px">{{ p.form.body or '' }}</textarea>
+      <p class="help" style="margin-top:4px">Choosing a stage (like Interview) also moves the application to it. Other steps only go in the history.</p>
+      <button class="primary">Log step</button>
+    </form>
+  </div>
+
+  <h3 class="panel-h" style="margin-top:16px">History</h3>
+  {% if p.entries %}
+  <ol class="hist">
+    {% for i in p.entries %}
+    <li>
+      {% if i.kind == 'email' %}
+      <details class="mail">
+        <summary class="hist-head">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="tag tag-email">Email</span>
+          <strong>{{ i.title }}</strong>{% if i.detail %} <span class="small muted">(detected: {{ i.detail }})</span>{% endif %}
+          {% if i.id == p.latest_email %}<span class="tag latest">Latest</span>{% endif %}
+          <span class="small muted hist-date"><time class="local" datetime="{{ i.when }}" data-fmt="short">{{ i.when[:16].replace('T', ' ') }} UTC</time></span>
+        </summary>
+        <div class="mail-body">
+          {% set nm = i.sender|sender_name %}{% set ad = i.sender|sender_addr %}
+          <p class="mail-meta"><span class="who">{{ nm or ad }}</span>{% if p.titles.get(ad) %}<span class="role">{{ p.titles[ad] }}</span>{% endif %}{% if nm and ad %}<span class="addr">{{ ad }}</span>{% endif %}<span class="when"><time class="local" datetime="{{ i.when }}" data-rel>{{ i.when[:16].replace('T', ' ') }} UTC</time> · {{ i.account }}</span></p>
+          {{ i.body|mailtext }}
+          {% if i.truncated %}<p class="small muted" style="margin:4px 0 0">Only the first part of the email is stored here.</p>{% endif %}
+          {% with r_id = i.id, r_can = i.can_reply, rp = i.reply, r_to = (i.sender|sender_addr), r_subject = i.subject, r_open = i.open, r_account = i.account %}
+          {% include "_reply.html" %}
+          {% endwith %}
+        </div>
+      </details>
+      {% elif i.kind == 'sent' %}
+      <details class="mail">
+        <summary class="hist-head">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="tag">Reply sent</span>
+          <strong>{{ i.title }}</strong> <span class="small muted">to {{ i.to }}</span>
+          <span class="small muted hist-date"><time class="local" datetime="{{ i.when }}" data-fmt="short">{{ i.when[:16].replace('T', ' ') }} UTC</time></span>
+        </summary>
+        <div class="mail-body"><div class="mail-text"><p style="white-space:pre-line">{{ i.body }}</p></div></div>
+      </details>
+      {% else %}
+      <div class="hist-head">
+        <span class="tag tag-{{ i.kind }}">{{ i.kind|capitalize }}</span>
+        {% if i.kind == 'note' %}<span class="hist-text">{{ i.body }}</span>
+        {% else %}<strong>{{ i.title }}</strong>{% endif %}
+        <span class="small muted hist-date">{{ i.when[:10] }}</span>
+        <form method="post" action="/app/{{ aid }}/activity/{{ i.id }}/delete" class="inline" data-panel-form
+              onsubmit="return confirm('Delete this {{ i.kind }}? A stage change it made stays.')">
+          <button class="danger small hist-del" aria-label="Delete {{ i.kind }} from {{ i.when[:10] }}">Delete</button>
+        </form>
+      </div>
+      {% if i.kind == 'step' and i.body %}<div class="hist-body">{{ i.body }}</div>{% endif %}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if p.total > p.entries|length %}
+  <p class="small muted">Showing the latest {{ p.entries|length }} of {{ p.total }}. <a href="/app/{{ aid }}">Open the full page</a> for the rest.</p>
+  {% endif %}
+  {% else %}
+  <p class="muted small">Nothing logged yet. Log a step above, with a note if you like.</p>
+  {% endif %}
+
+  {% if p.include_emails %}
+  <form method="post" action="/app/{{ aid }}/delete" style="margin-top:14px;display:inline-block;margin-right:8px"
+        onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched.')">
+    <input type="hidden" name="emails" value="clear"><button class="danger small">Delete</button>
+  </form>
+  <form method="post" action="/app/{{ aid }}/not-application" style="margin-top:14px;display:inline-block"
+        onsubmit="return confirm('Remove this and teach the app it was not a job application? Mail like it will be ignored from now on.')">
+    <button class="danger small" title="Removes it and learns to ignore mail like the emails that made it">Not an application</button>
+  </form>
+  {% endif %}
+
+  {% if p.swaps %}
+  <div class="swaps" hidden>
+    <div data-swap-target="stage-{{ aid }}">{% include "_stage_cell.html" %}</div>
+    <div data-swap-target="last-{{ aid }}">{% include "_last_cell.html" %}</div>
+    {% for s, n in p.counts.items() %}<div data-swap-target="count-{{ s }}">{{ n }}</div>{% endfor %}
+  </div>
+  {% endif %}
+</div>

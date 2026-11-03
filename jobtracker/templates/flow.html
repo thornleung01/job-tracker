@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Flow · Job Tracker{% endblock %}
+{% block content %}
+<style>
+  /* Text, surface and hairlines come from the app tokens. Only the chart colors live here:
+     a warm sand-to-bronze ordinal ramp for the stages (validated for contrast in both themes),
+     muted green and brick for the two outcomes, and a quiet grey for "no outcome yet". */
+  .viz-root {
+    --viz-surface: var(--surface); --ink2: var(--muted); --hair: var(--line);
+    --ord-1: #b9ae96; --ord-2: #8f8266; --ord-3: #66593f; --ord-4: #3a3525;
+    --good: #3b7f59; --crit: #b0493a; --neutral: #8c8883;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      --ord-1: #7d7155; --ord-2: #9a8c6a; --ord-3: #b9a97f; --ord-4: #dccb9c;
+      --good: #5fb583; --crit: #e0705e; --neutral: #8a867c;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    --ord-1: #7d7155; --ord-2: #9a8c6a; --ord-3: #b9a97f; --ord-4: #dccb9c;
+    --good: #5fb583; --crit: #e0705e; --neutral: #8a867c;
+  }
+  .viz-root .scroll { overflow-x: auto; }
+  .viz-root svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  .viz-root .link { fill: none; stroke-opacity: .38; pointer-events: none; transition: stroke-opacity .12s; }
+  .viz-root .hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: default; }
+  .viz-root svg.dim .link { stroke-opacity: .1; }
+  .viz-root svg.dim .link.hl { stroke-opacity: .72; }
+  .viz-root .node { cursor: default; }
+  .viz-root .node:focus-visible, .viz-root .hit:focus-visible { outline: none; }
+  .viz-root .hit:focus-visible { stroke: var(--ink); stroke-opacity: .22; }
+  .viz-root .node:focus-visible rect { stroke: var(--ink); stroke-width: 2px; }
+  .viz-root .lbl { fill: var(--ink); font-size: 14px; font-weight: 600; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz-root .sub { fill: var(--ink2); font-size: 13px; font-weight: 400; }
+  .viz-root .tip { position: absolute; z-index: var(--z-tip); pointer-events: none; background: var(--viz-surface); color: var(--ink);
+                   border: 1px solid var(--field-line); border-radius: var(--r); padding: 10px 14px; font-size: 0.875rem; line-height: 1.45;
+                   max-width: 280px; }
+  .viz-root .ico { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .viz-root .tip b { font-weight: 600; } .viz-root .tip .t2 { color: var(--ink2); }
+  .viz-root table { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+  .viz-root .mobile-only { display: none; margin: 0 0 8px; }
+  @media (max-width: 720px) { .viz-root .mobile-only { display: block; } }
+  .viz-root th { text-align: left; color: var(--ink2); font-weight: 600; }
+  .viz-root th, .viz-root td { padding: 5px 8px; border-top: 1px solid var(--hair); }
+  .viz-root td.num, .viz-root th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .viz-root .lede { font: 400 clamp(1.25rem, 2.2vw, 1.5rem)/1.45 var(--font-display); letter-spacing: -0.005em; margin: 0 0 20px; max-width: 46ch; text-wrap: pretty; }
+  .viz-root .lede strong { font-weight: 600; }
+  .viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+</style>
+
+<h1 class="page">Application flow</h1>
+<p class="muted" style="margin:0 0 var(--gap);max-width:60ch">Where your applications went. Each band's width is the number of applications that took that path.</p>
+
+<form method="get" class="row" style="margin-bottom:var(--gap)">
+  <select name="account" aria-label="Account">
+    <option value="0">All accounts</option>
+    {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if a.id == account }}>{{ a.address }}</option>{% endfor %}
+  </select>
+  <select name="days" aria-label="Period">
+    {% for v, label in periods %}<option value="{{ v }}" {{ 'selected' if v == days }}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="primary">Apply</button>
+</form>
+
+<div class="card viz-root" style="position:relative">
+  {% if data.total %}
+  <p class="lede">Of <strong>{{ data.total }}</strong> {{ 'application' if data.total == 1 else 'applications' }}, <strong>{{ data.heard_back }}</strong> heard back ({{ (100 * data.heard_back / data.total)|round|int }}%), <strong>{{ data.interviews }}</strong> reached an interview, <strong>{{ data.offers }}</strong> {{ 'led to an offer' if data.offers == 1 else 'led to offers' }} and <strong>{{ data.rejected }}</strong> {{ 'was' if data.rejected == 1 else 'were' }} rejected.</p>
+  <div class="share" role="group" aria-label="Share this chart">
+    <button type="button" id="share-save">Save as image</button>
+    <button type="button" id="share-copy">Copy image</button>
+    <button type="button" id="share-native" hidden>Share</button>
+    <span class="small muted">The image shows totals only: no company names or email addresses.</span>
+  </div>
+  <p class="small muted" id="share-status" role="status" style="min-height:1.5em;margin:4px 0 12px"></p>
+  <p class="small mobile-only" style="color:var(--ink2)">The chart is wide: swipe sideways to see all of it. The table below has the same numbers.</p>
+  <div class="scroll"><svg id="sankey" role="group" aria-label="Sankey diagram of application stages. A table with the same numbers follows."></svg></div>
+  <div id="tip" class="tip" hidden></div>
+
+  <details style="margin-top:12px">
+    <summary class="disclosure"><span class="chev" aria-hidden="true"></span>Table view</summary>
+    <table style="margin-top:8px">
+      <thead><tr><th>Stage</th><th class="num">Applications</th><th class="num">Share</th></tr></thead>
+      <tbody>{% for n in data.nodes %}<tr><td>{{ n.id }}</td><td class="num">{{ n.value }}</td><td class="num">{{ n.pct }}%</td></tr>{% endfor %}</tbody>
+    </table>
+    <table style="margin-top:14px">
+      <thead><tr><th>From</th><th>To</th><th class="num">Applications</th><th class="num">Share</th></tr></thead>
+      <tbody>{% for l in data.links %}<tr><td>{{ l.source }}</td><td>{{ l.target }}</td><td class="num">{{ l.value }}</td><td class="num">{{ l.pct }}%</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  <script type="application/json" id="flow-data">{{ data|tojson }}</script>
+  {% else %}
+  <p class="muted" style="margin:8px 0">No applications to chart{% if account or days %} for this filter{% endif %}. Sync your mail, or add one on the Applications page.</p>
+  {% endif %}
+</div>
+
+{% if data.total %}
+<script>
+(() => {
+  const data = JSON.parse(document.getElementById('flow-data').textContent);
+  const svg = document.getElementById('sankey');
+  const tip = document.getElementById('tip');
+  const NS = 'http://www.w3.org/2000/svg';
+  // Touch screens have no hover: tapping anywhere outside the chart closes the tooltip, and on a
+  // narrow screen the table (the readable version of this chart) starts open.
+  document.addEventListener('click', e => { if (!svg.contains(e.target)) { tip.hidden = true; clear(); } });
+  if (matchMedia('(max-width: 720px)').matches) document.querySelector('.viz-root details').open = true;
+
+  const W = 1000, mt = 52, mb = 18, ml = 120, mr = 140, nodeW = 14, innerH = 420, COLS = 5, MIN_H = 8, MAX_PX_PER_APP = 40;
+  const H = mt + innerH + mb;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const colX = c => ml + c * ((W - ml - mr - nodeW) / (COLS - 1));
+  const color = {
+    'Applied': 'var(--ord-1)', 'Heard back': 'var(--ord-2)', 'Assessment': 'var(--ord-3)', 'Interview': 'var(--ord-4)',
+    'Offer': 'var(--good)', 'Rejected': 'var(--crit)', 'No response yet': 'var(--neutral)', 'Still open': 'var(--neutral)',
+  };
+  const display = id => id;   // Offer and Rejected also get a drawn icon next to the label, so the outcome isn't color alone
+  const apps = n => `${n} application${n === 1 ? '' : 's'}`;
+
+  // --- Graph. A flow that skips columns is routed through invisible pass-through nodes, one per
+  // column it crosses, so it travels in its own lane instead of running behind the real nodes.
+  const real = data.nodes.map(n => ({ ...n, real: true, in: [], out: [] }));
+  const byId = Object.fromEntries(real.map(n => [n.id, n]));
+  const flows = data.links.map(l => ({ ...l, s: byId[l.source], t: byId[l.target], segs: [] }));
+  const pass = [], segs = [];
+  const addSeg = (a, b, flow) => {
+    const sg = { s: a, t: b, value: flow.value, flow };
+    a.out.push(sg); b.in.push(sg); segs.push(sg); flow.segs.push(sg);
+  };
+  flows.forEach(f => {
+    let prev = f.s;
+    for (let c = f.s.col + 1; c < f.t.col; c++) {
+      const v = { id: `${f.source}>${f.target}@${c}`, col: c, real: false, in: [], out: [], value: f.value };
+      pass.push(v); addSeg(prev, v, f); prev = v;
+    }
+    addSeg(prev, f.t, f);
+  });
+  const all = [...real, ...pass];
+  const sum = arr => arr.reduce((a, s) => a + s.value, 0);
+  all.forEach(n => { n.size = Math.max(sum(n.in), sum(n.out)); n.w = n.real ? nodeW : 0; });
+
+  const cols = [...Array(COLS)].map((_, c) => all.filter(n => n.col === c));   // top-to-bottom order, reordered below
+  const gapFor = (c, a, b) => (c === 0 || c === COLS - 1) ? 28 : b.real ? 46 : a.real ? 14 : 6;   // room for labels above real nodes
+  const gapsOf = col => col.slice(1).reduce((t, n, i) => t + gapFor(col[0].col, col[i], n), 0);
+  const heightOf = (n, k) => n.real ? Math.max(n.size * k, MIN_H) : n.size * k;
+
+  function layout() {
+    let k = MAX_PX_PER_APP;
+    for (let i = 0; i < 8; i++) {
+      cols.forEach(col => {
+        if (!col.length) return;
+        const gaps = gapsOf(col), used = col.reduce((t, n) => t + heightOf(n, k), 0) + gaps;
+        if (used > innerH) k *= (innerH - gaps) / (used - gaps);
+      });
+    }
+    cols.forEach((col, c) => {
+      if (!col.length) return;
+      const total = col.reduce((t, n) => t + heightOf(n, k), 0) + gapsOf(col);
+      let y = mt + (innerH - total) / 2;
+      col.forEach((n, i) => {
+        if (i) y += gapFor(c, col[i - 1], n);
+        n.h = heightOf(n, k); n.y = y; n.x = colX(c) + (n.real ? 0 : nodeW / 2);
+        y += n.h;
+      });
+    });
+    return k;
+  }
+
+  // Reorder the two middle columns so flows cross as little as possible (barycenter method).
+  let ky = layout();
+  const center = n => n.y + n.h / 2;
+  for (let round = 0; round < 12; round++) {
+    (round % 2 ? [3, 2] : [2, 3]).forEach(c => {
+      const score = new Map(cols[c].map((n, i) => {
+        const nb = [...n.in.map(s => [s.s, s.value]), ...n.out.map(s => [s.t, s.value])];
+        const w = nb.reduce((t, [, v]) => t + v, 0);
+        return [n, w ? nb.reduce((t, [m, v]) => t + center(m) * v, 0) / w : center(n)];
+      }));
+      cols[c].sort((a, b) => score.get(a) - score.get(b));
+    });
+    ky = layout();
+  }
+
+  // Where each flow enters and leaves a node, stacked in the order of the nodes it connects to.
+  all.forEach(n => {
+    let o = n.y; n.out.sort((a, b) => center(a.t) - center(b.t)).forEach(s => { s.sy = o + s.value * ky / 2; o += s.value * ky; });
+    let i = n.y; n.in.sort((a, b) => center(a.s) - center(b.s)).forEach(s => { s.ty = i + s.value * ky / 2; i += s.value * ky; });
+  });
+
+  // --- Drawing
+  const el = (name, attrs, parent) => {
+    const e = document.createElementNS(NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e); return e;
+  };
+  const gLinks = el('g', {}), gHits = el('g', {}), gNodes = el('g', {}), gText = el('g', {});
+  const flowHtml = f => `<b>${f.source} → ${f.target}</b><br>${apps(f.value)} <span class="t2">· ${f.pct}% of all</span>`;
+
+  segs.forEach(sg => {
+    const x0 = sg.s.x + sg.s.w, x1 = sg.t.x, xm = (x0 + x1) / 2;
+    const d = `M${x0},${sg.sy} C${xm},${sg.sy} ${xm},${sg.ty} ${x1},${sg.ty}`;
+    const width = Math.max(sg.value * ky, 1.5);
+    sg.vis = el('path', { d, class: 'link', stroke: color[sg.flow.t.id], 'stroke-width': width }, gLinks);
+    const first = sg === sg.flow.segs[0];   // one keyboard stop and one spoken label per flow
+    const attrs = { d, class: 'hit', 'stroke-width': Math.max(width, 14) };
+    if (first) Object.assign(attrs, { tabindex: 0, role: 'img', 'aria-label': `${sg.flow.source} to ${sg.flow.target}: ${apps(sg.value)}, ${sg.flow.pct}% of all` });
+    else attrs['aria-hidden'] = 'true';
+    bind(el('path', attrs, gHits), flowHtml(sg.flow), () => highlight([sg.flow]));
+  });
+
+  real.forEach(n => {
+    const g = el('g', { class: 'node', tabindex: 0, role: 'img', 'aria-label': `${n.id}: ${apps(n.value)}, ${n.pct}% of all` }, gNodes);
+    el('rect', { x: n.x, y: n.y, width: nodeW, height: n.h, rx: 2, fill: color[n.id] }, g);
+    const outs = n.out.map(s => `${s.flow.target} ${s.value}`).join(', ');
+    const html = `<b>${display(n.id)}</b><br>${apps(n.value)} <span class="t2">· ${n.pct}% of all</span>` +
+                 (outs ? `<br><span class="t2">Next: ${outs}</span>` : '');
+    bind(g, html, () => highlight([...n.in, ...n.out].map(s => s.flow)));
+
+    let x, y, anchor;
+    if (n.col === 0) { x = n.x - 10; y = n.y + n.h / 2 - 2; anchor = 'end'; }
+    else if (n.col === COLS - 1) { x = n.x + nodeW + 10; y = n.y + n.h / 2 - 2; anchor = 'start'; }
+    else { x = n.x + nodeW / 2; y = n.y - 20; anchor = 'middle'; }
+    if (n.id === 'Offer' || n.id === 'Rejected') {
+      const d = n.id === 'Offer'
+        ? `M${x},${y - 4.5} l3.6,3.6 l6.4,-7.8`                              // check
+        : `M${x + 0.5},${y - 9.5} l8.6,8.6 M${x + 9.1},${y - 9.5} l-8.6,8.6`;  // cross
+      el('path', { d, class: 'ico', 'aria-hidden': 'true' }, gText);
+      x += 18;
+    }
+    const t1 = el('text', { x, y, 'text-anchor': anchor, class: 'lbl' }, gText); t1.textContent = display(n.id);
+    const t2 = el('text', { x, y: y + 15, 'text-anchor': anchor, class: 'lbl sub' }, gText); t2.textContent = `${n.value} · ${n.pct}%`;
+  });
+
+  function highlight(fs) { svg.classList.add('dim'); fs.forEach(f => f.segs.forEach(s => s.vis.classList.add('hl'))); }
+  function clear() { svg.classList.remove('dim'); segs.forEach(s => s.vis.classList.remove('hl')); }
+
+  function bind(target, html, onShow) {
+    const show = (x, y) => {
+      tip.innerHTML = html; tip.hidden = false; onShow();
+      const box = tip.parentElement.getBoundingClientRect();
+      let left = x - box.left + 14, top = y - box.top + 14;
+      if (left + tip.offsetWidth > box.width) left = x - box.left - tip.offsetWidth - 14;
+      tip.style.left = Math.max(4, left) + 'px'; tip.style.top = top + 'px';
+    };
+    const hide = () => { tip.hidden = true; clear(); };
+    target.addEventListener('mousemove', e => show(e.clientX, e.clientY));
+    target.addEventListener('mouseleave', hide);
+    target.addEventListener('focus', () => { const r = target.getBoundingClientRect(); show(r.left + r.width / 2, r.top + r.height / 2); });
+    target.addEventListener('blur', hide);
+  }
+
+  // --- Share. Draws the sentence and the chart into one PNG, in the page, so nothing is uploaded anywhere.
+  const viz = document.querySelector('.viz-root');
+  const status = document.getElementById('share-status');
+  const say = text => { status.textContent = text; };
+  const fontAsDataUrl = async url => {
+    const blob = await (await fetch(url)).blob();
+    return new Promise(done => { const r = new FileReader(); r.onload = () => done(r.result); r.readAsDataURL(blob); });
+  };
+
+  async function renderPng() {
+    const cs = getComputedStyle(viz), v = n => cs.getPropertyValue(n).trim();
+    const ink = v('--ink'), muted = v('--ink2'), surface = v('--viz-surface');
+    await Promise.all([document.fonts.load('400 30px "Source Serif 4"'), document.fonts.load('600 30px "Source Serif 4"'), document.fonts.load('400 15px Figtree')]);
+
+    // The chart: a standalone copy of the SVG with colors resolved and the font embedded.
+    const clone = svg.cloneNode(true);
+    clone.querySelectorAll('.hit').forEach(n => n.remove());
+    ['role', 'aria-label', 'tabindex', 'class'].forEach(a => clone.removeAttribute(a));
+    clone.querySelectorAll('[tabindex],[role],[aria-label]').forEach(n => ['tabindex', 'role', 'aria-label'].forEach(a => n.removeAttribute(a)));
+    const [, , vbW, vbH] = svg.getAttribute('viewBox').split(' ').map(Number);
+    clone.setAttribute('width', vbW); clone.setAttribute('height', vbH);
+    const font = await fontAsDataUrl('/static/fonts/Figtree-latin-wght.woff2');
+    const style = `<style>@font-face{font-family:"Figtree";src:url(${font}) format("woff2");font-weight:300 900}
+      text{font-family:"Figtree",sans-serif}
+      .lbl{fill:${ink};font-size:14px;font-weight:600;paint-order:stroke;stroke:${surface};stroke-width:4px;stroke-linejoin:round}
+      .sub{fill:${muted};font-size:13px;font-weight:400}
+      .link{fill:none;stroke-opacity:.38}
+      .ico{fill:none;stroke:${ink};stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}</style>`;
+    let markup = new XMLSerializer().serializeToString(clone).replace(/var\((--[\w-]+)\)/g, (_, name) => v(name));
+    markup = markup.replace(/(<svg[^>]*>)/, `$1${style}`);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
+    await img.decode();
+
+    // The sentence, wrapped, with the numbers in the heavier weight.
+    const W = 1200, PAD = 56, SIZE = 30, LH = 44, SCALE = 2, FOOT = 40;
+    const probe = document.createElement('canvas').getContext('2d');
+    const face = w => `${w} ${SIZE}px "Source Serif 4", Georgia, serif`;
+    const runs = [];
+    viz.querySelector('.lede').childNodes.forEach(n => (n.textContent || '').split(/(\s+)/).filter(Boolean)
+      .forEach(t => runs.push({ t, w: n.nodeType === 1 ? 600 : 400 })));
+    const lines = [[]]; let x = 0;
+    for (const r of runs) {
+      probe.font = face(r.w);
+      const width = probe.measureText(r.t).width, blank = /^\s+$/.test(r.t);
+      if (x + width > W - 2 * PAD && !blank && lines.at(-1).length) { lines.push([]); x = 0; }
+      if (blank && x === 0) continue;
+      lines.at(-1).push({ ...r, width }); x += width;
+    }
+    const chartW = W - 2 * PAD, chartH = Math.round(chartW * vbH / vbW);
+    const H = PAD + lines.length * LH + 28 + chartH + FOOT + PAD / 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = W * SCALE; canvas.height = H * SCALE;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+    ctx.fillStyle = surface; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = ink; ctx.textBaseline = 'alphabetic';
+    lines.forEach((line, i) => {
+      let px = PAD;
+      line.forEach(r => { ctx.font = face(r.w); ctx.fillText(r.t, px, PAD + (i + 1) * LH - 12); px += r.width; });
+    });
+    const top = PAD + lines.length * LH + 28;
+    ctx.drawImage(img, PAD, top, chartW, chartH);
+    const period = document.querySelector('select[name="days"]')?.selectedOptions[0]?.textContent || '';
+    const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    ctx.font = '400 15px Figtree, system-ui, sans-serif'; ctx.fillStyle = muted;
+    ctx.fillText(['Job Tracker', period, date].filter(Boolean).join('  ·  '), PAD, top + chartH + 28);
+    return new Promise((done, fail) => canvas.toBlob(b => (b ? done(b) : fail(new Error('no image'))), 'image/png'));
+  }
+
+  const fileName = () => {   // your local date, the same one the image footer shows
+    const d = new Date(), two = n => String(n).padStart(2, '0');
+    return `job-search-flow-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}.png`;
+  };
+  async function run(button, work) {
+    button.disabled = true; button.setAttribute('aria-busy', 'true'); say('Preparing the image');
+    try { await work(); }
+    catch (err) { if (err?.name !== 'AbortError') say("Couldn't make the image here. Try Save as image."); else say(''); }
+    finally { button.disabled = false; button.removeAttribute('aria-busy'); }
+  }
+  document.getElementById('share-save').addEventListener('click', e => run(e.currentTarget, async () => {
+    const url = URL.createObjectURL(await renderPng());
+    const a = Object.assign(document.createElement('a'), { href: url, download: fileName() });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    say(`Saved ${fileName()}`);
+  }));
+  document.getElementById('share-copy').addEventListener('click', e => run(e.currentTarget, async () => {
+    if (!navigator.clipboard?.write || !window.ClipboardItem) throw new Error('clipboard');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderPng() })]);
+    say('Image copied. Paste it into a message or document.');
+  }));
+  const nativeShare = document.getElementById('share-native');
+  if (navigator.canShare && navigator.canShare({ files: [new File([''], 'a.png', { type: 'image/png' })] })) {
+    nativeShare.hidden = false;
+    nativeShare.addEventListener('click', e => run(e.currentTarget, async () => {
+      const file = new File([await renderPng()], fileName(), { type: 'image/png' });
+      await navigator.share({ files: [file], title: 'My job search' });
+      say('Shared.');
+    }));
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

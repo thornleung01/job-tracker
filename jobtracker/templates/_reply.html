@@ -1,0 +1,22 @@
+{# Needs: r_id (email id), r_can (replying is on for the account), rp (reply_link result, or None when the sender takes no replies), r_to, r_subject, r_open (mailbox_link result), r_account #}
+<div class="mail-actions">
+  {% if r_can and rp %}
+  <details class="action primary reply">
+    <summary>Reply</summary>
+    <form method="post" action="/email/{{ r_id }}/reply" class="reply-form" data-busy="Sending..."
+          onsubmit="return confirm('Send this reply to {{ r_to }}?')">
+      <p class="small muted" style="margin:0 0 8px">To <b>{{ r_to }}</b> from {{ r_account }}. Subject: {{ r_subject }}</p>
+      <label class="sr" for="rb-{{ r_id }}">Your reply</label>
+      <textarea id="rb-{{ r_id }}" name="body" rows="7" maxlength="5000" required placeholder="Write your reply"></textarea>
+      <input type="hidden" name="token" value="{{ new_token() }}">
+      <div class="row" style="margin-top:10px"><button class="primary">Send reply</button>
+        <span class="small muted">Only {{ r_to }} receives it. It appears in this timeline.</span></div>
+    </form>
+  </details>
+  {% elif rp %}
+  <a class="btn primary" href="{{ rp[1] }}" target="_blank" rel="noopener noreferrer">{{ rp[0] }}</a>
+  {% endif %}
+  {% if r_open %}<a class="btn" href="{{ r_open[1] }}" target="_blank" rel="noopener noreferrer">{{ r_open[0] }}</a>{% endif %}
+  {% if not rp %}<span class="small muted">This sender doesn't take replies.</span>{% endif %}
+</div>
+{% if rp and not r_can %}<p class="small muted" style="margin:8px 0 0">Want to reply from here? <a href="/settings#accounts">Allow replying</a> for {{ r_account }}.</p>{% endif %}

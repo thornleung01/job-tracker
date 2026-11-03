@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Jobs · Job Tracker{% endblock %}
+{% block content %}
+<style>
+  .job-list { list-style: none; margin: 0; padding: 0; }
+  .job { display: grid; grid-template-columns: 1fr auto; gap: 8px 24px; padding: 20px var(--pad); border-top: 1px solid var(--line); }
+  .job:first-child { border-top: 0; }
+  .job-title { font: 500 1.25rem/1.25 var(--font-display); letter-spacing: -0.005em; margin: 0; }
+  .job-title a { text-decoration: none; } .job-title a:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+  .job-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .job-meta { color: var(--muted); font-size: 0.9375rem; margin-top: 2px; }
+  .job-why { margin-top: 8px; font-size: 0.9375rem; }
+  .job-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+  .job-actions button, .job-actions a.btn { min-height: 38px; padding: 0 16px; font-size: 0.9375rem; }
+  .score { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  @media (max-width: 720px) { .job { grid-template-columns: 1fr; } .job-actions { justify-content: flex-start; } }
+  .empty { padding: 32px var(--pad); color: var(--muted); max-width: 62ch; }
+  .empty strong { color: var(--ink); font-weight: 600; }
+  .stack > * + * { margin-top: 28px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px; } @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .checks label { display: flex; align-items: center; gap: 10px; min-height: var(--tap); }
+  .checks input { width: 18px; height: 18px; }
+  ol.steps { padding-left: 20px; margin: 8px 0 0; } ol.steps li { margin: 6px 0; }
+  .src { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--line); }
+  .src:first-of-type { border-top: 0; }
+  h2.sec { font-size: 1.5rem; line-height: 1.2; margin: 0 0 6px; }
+  .notif { padding: 16px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .notif:first-of-type { border-top: 0; }
+  .notif.unread strong { font-weight: 700; }
+</style>
+
+<h1 class="page">Jobs</h1>
+
+{% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
+{% if error %}<div class="notice err" role="alert" tabindex="-1" data-focus>{{ error }}</div>{% endif %}
+{% if saved_msg %}<div class="notice" role="status" tabindex="-1" data-focus>{{ saved_msg }}</div>{% endif %}
+
+<nav class="tabs" aria-label="Jobs sections">
+  <a class="tab" href="/jobs?tab=matches" {% if tab == 'matches' %}aria-current="true"{% endif %}>Matches <span class="n">{{ counts.new }}</span></a>
+  <a class="tab" href="/jobs?tab=notifications" {% if tab == 'notifications' %}aria-current="true"{% endif %}>Notifications {% if unread %}<span class="n">{{ unread }}</span>{% endif %}</a>
+  <a class="tab" href="/jobs?tab=profile" {% if tab == 'profile' %}aria-current="true"{% endif %}>Your profile</a>
+  <a class="tab" href="/jobs?tab=sources" {% if tab == 'sources' %}aria-current="true"{% endif %}>Sources</a>
+</nav>
+
+{% if tab == 'matches' %}
+  <div class="row" style="justify-content:space-between;margin-bottom:var(--gap)">
+    <nav class="tabs" aria-label="Which jobs" style="margin:0">
+      {% for key, label in view_labels.items() %}
+      <a class="tab" href="/jobs?tab=matches&view={{ key }}" {% if view == key %}aria-current="true"{% endif %}>{{ label }} <span class="n">{{ counts[key] }}</span></a>
+      {% endfor %}
+    </nav>
+    <form method="post" action="/jobs/refresh" data-busy="Looking..."><button class="primary">Look for jobs now</button></form>
+  </div>
+
+  <form method="get" class="row" style="margin-bottom:12px;align-items:flex-end">
+    <input type="hidden" name="tab" value="matches"><input type="hidden" name="view" value="{{ view }}">
+    <div class="fgroup"><label for="f-min">Show</label>
+      <select id="f-min" name="min" onchange="this.form.requestSubmit()">
+        {% for v, label in score_choices %}<option value="{{ v }}" {{ 'selected' if v == floor }}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <noscript><button>Apply</button></noscript>
+  </form>
+
+  <div class="card" style="padding:0">
+  {% if postings %}
+    <ul class="job-list">
+    {% for p in postings %}
+      <li class="job">
+        <div>
+          <div class="job-head">
+            <h2 class="job-title">{% if safe_url(p.url) %}<a href="{{ safe_url(p.url) }}" target="_blank" rel="noopener noreferrer">{{ p.title }}</a>{% else %}{{ p.title }}{% endif %}</h2>
+            <span class="badge score {{ 'Offer' if p.score >= 80 else ('Heard-back' if p.score >= 65 else 'Applied') }}" title="How well this fits your profile">{{ p.score }}</span>
+          </div>
+          <div class="job-meta">{{ p.company or 'Company not shown' }}{% if p.location %} · {{ p.location }}{% endif %} · {{ source_label(p.source) }}</div>
+          {% if p.reasons %}<div class="job-why">{{ p.reasons|join(' · ') }}</div>{% endif %}
+        </div>
+        <div class="job-actions">
+          {% if safe_url(p.url) %}<a class="btn" href="{{ safe_url(p.url) }}" target="_blank" rel="noopener noreferrer">Open posting</a>{% endif %}
+          {% if p.status != 'applied' %}
+          <form method="post" action="/jobs/{{ p.id }}/applied"><input type="hidden" name="next" value="{{ next_url }}"><button class="primary">I applied</button></form>
+          {% else %}<a class="btn" href="/app/{{ p.application_id }}">View application</a>{% endif %}
+          <form method="post" action="/jobs/{{ p.id }}/status"><input type="hidden" name="next" value="{{ next_url }}">
+            <button name="status" value="{{ 'new' if p.status == 'saved' else 'saved' }}">{{ 'Unsave' if p.status == 'saved' else 'Save' }}</button></form>
+          <form method="post" action="/jobs/{{ p.id }}/status"><input type="hidden" name="next" value="{{ next_url }}">
+            <button name="status" value="{{ 'new' if p.status == 'dismissed' else 'dismissed' }}" class="{{ '' if p.status == 'dismissed' else 'danger' }}">{{ 'Restore' if p.status == 'dismissed' else 'Dismiss' }}</button></form>
+        </div>
+      </li>
+    {% endfor %}
+    </ul>
+  {% elif not ready %}
+    <div class="empty"><strong>Start with your resume.</strong> Jobs are matched against your skills and the roles you want. <a href="/jobs?tab=profile">Add your resume or skills</a>, then connect a source.</div>
+  {% else %}
+    <div class="empty"><strong>Nothing here yet.</strong>
+      {% if view == 'new' and floor > 0 %}No new job scores {{ floor }} or more. Try "Any score", or{% else %}Jobs arrive with each sync. You can also{% endif %}
+      press <em>Look for jobs now</em>. Add places to look on the <a href="/jobs?tab=sources">Sources</a> tab.</div>
+  {% endif %}
+  </div>
+
+{% elif tab == 'notifications' %}
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <h2 class="sec">Notifications</h2>
+      {% if unread %}<form method="post" action="/jobs/notifications/read"><button>Mark all read</button></form>{% endif %}
+    </div>
+    <p class="help">A pop-up appears on this PC when a sync finds new jobs that score {{ profile.min_score }} or more. Each one is listed here too.</p>
+    {% for n in notifications %}
+      <div class="notif {{ 'unread' if not n.read }}"><div><strong>{{ n.text }}</strong></div>
+        <div class="small muted"><time class="local" datetime="{{ n.created_at }}">{{ n.created_at[:16].replace('T', ' ') }} UTC</time> · <a href="/jobs?tab=matches">See matches</a></div></div>
+    {% else %}
+      <p class="muted">No notifications yet. They start once a sync finds a job that fits.</p>
+    {% endfor %}
+    <p class="small muted" style="margin-top:16px">To check pop-ups work on this PC, run <code>python -m jobtracker notify --test</code>.</p>
+  </div>
+
+{% elif tab == 'profile' %}
+  <div class="stack">
+  <section class="card" aria-labelledby="h-resume">
+    <h2 class="sec" id="h-resume">Your resume</h2>
+    <p class="help">It's read on this PC to find your skills and job titles. The text stays here and is never sent anywhere.</p>
+    {% if profile.resume_text %}<p class="small">Resume loaded ({{ profile.resume_text|length }} characters).</p>{% endif %}
+    <form method="post" action="/jobs/profile/resume" enctype="multipart/form-data" class="row" data-busy="Reading...">
+      <input type="file" name="file" accept=".pdf,.docx,.txt" required aria-label="Resume file" style="border-radius:var(--r);padding:8px 12px;min-height:var(--tap)">
+      <button class="primary">{{ 'Replace resume' if profile.resume_text else 'Read my resume' }}</button>
+    </form>
+    <p class="help" style="margin-top:8px">PDF, Word (.docx) or plain text, up to 5 MB. A scanned image of a resume can't be read.</p>
+    {% if profile.resume_text %}<form method="post" action="/jobs/profile/resume/remove" style="margin-top:8px"><button class="danger">Remove the resume text</button></form>{% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="h-prof">
+    <h2 class="sec" id="h-prof">What to look for</h2>
+    <p class="help">One entry per line. Change anything the resume reader got wrong. Saving scores every job again.</p>
+    <form method="post" action="/jobs/profile">
+      <div class="grid2">
+        <div class="fgroup"><label for="p-titles">Job titles you want</label>
+          <textarea id="p-titles" name="titles" rows="4" placeholder="Data Analyst">{{ lists.titles }}</textarea></div>
+        <div class="fgroup"><label for="p-cities">Cities</label>
+          <textarea id="p-cities" name="cities" rows="4" placeholder="Toronto">{{ lists.cities }}</textarea></div>
+        <div class="fgroup"><label for="p-must">Must-have skills</label>
+          <textarea id="p-must" name="skills_must" rows="5" placeholder="SQL">{{ lists.skills_must }}</textarea>
+          <p class="help">Count double when a job asks for them.</p></div>
+        <div class="fgroup"><label for="p-nice">Other skills you have</label>
+          <textarea id="p-nice" name="skills_nice" rows="5" placeholder="Tableau">{{ lists.skills_nice }}</textarea></div>
+        <div class="fgroup"><label for="p-exclude">Words to avoid</label>
+          <textarea id="p-exclude" name="exclude" rows="3" placeholder="security clearance">{{ lists.exclude }}</textarea>
+          <p class="help">A job containing one of these loses points.</p></div>
+        <div>
+          <div class="fgroup"><label for="p-level">Your level</label>
+            <select id="p-level" name="seniority">
+              {% for s in seniority_levels %}<option value="{{ s }}" {{ 'selected' if s == profile.seniority }}>{{ s|capitalize if s else 'Not set' }}</option>{% endfor %}
+            </select></div>
+          <div class="fgroup" style="margin-top:16px"><label for="p-min">Notify me for scores of at least</label>
+            <select id="p-min" name="min_score">{% for v in min_scores %}<option value="{{ v }}" {{ 'selected' if v == profile.min_score }}>{{ v }}</option>{% endfor %}</select></div>
+        </div>
+      </div>
+      <div class="checks" style="margin-top:12px">
+        <label><input type="checkbox" name="remote" {{ 'checked' if profile.remote }}>Include remote jobs</label>
+        <div class="field small" style="margin-top:8px">Countries to search</div>
+        {% for code, name in countries.items() %}<label><input type="checkbox" name="countries" value="{{ code }}" {{ 'checked' if code in profile.countries }}>{{ name }}</label>{% endfor %}
+      </div>
+      <button class="primary" style="margin-top:16px">Save and score again</button>
+    </form>
+  </section>
+  </div>
+
+{% elif tab == 'sources' %}
+  <div class="stack">
+  <section class="card" aria-labelledby="h-alerts">
+    <h2 class="sec" id="h-alerts">LinkedIn and Indeed alerts</h2>
+    <p class="help">This app can't log in to these sites for you (they don't allow it). Instead, let them email you, and this app reads those emails.</p>
+    <ol class="steps">
+      <li>On LinkedIn or Indeed, search for the jobs you want, then switch on <strong>Job alert</strong> (daily is plenty).</li>
+      <li>Use the same email address you connected in Settings.</li>
+      <li>Each sync reads the alert emails and adds their jobs here. They never show up as applications.</li>
+    </ol>
+    <p class="small muted" style="margin-top:12px">Found so far:
+      LinkedIn {{ alert_counts.get('linkedin', 0) }} · Indeed {{ alert_counts.get('indeed', 0) }}.
+      Alert emails only list a title, company and place, so those jobs are scored on those and marked "partial info".</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-feeds">
+    <h2 class="sec" id="h-feeds">Company career pages</h2>
+    <p class="help">Paste a careers address from Greenhouse, Lever, Ashby or SmartRecruiters (for example <code>boards.greenhouse.io/acme</code>). Their job lists are public and checked about once an hour.</p>
+    <form method="post" action="/jobs/sources/feed" class="row" style="align-items:flex-end" data-busy="Checking...">
+      <div class="fgroup" style="flex:2 1 280px"><label for="s-url">Careers page address</label><input id="s-url" name="url" placeholder="https://boards.greenhouse.io/acme" required style="width:100%"></div>
+      <div class="fgroup" style="flex:1 1 160px"><label for="s-name">Company name (optional)</label><input id="s-name" name="name" style="width:100%"></div>
+      <button class="primary">Add company</button>
+    </form>
+    <div style="margin-top:16px">
+    {% for s in sources %}
+      <div class="src"><div><strong>{{ s.company }}</strong> <span class="small muted">{{ s.platform }}</span>
+        <div class="small {{ '' if not s.last_error else 'status-bad' }}" style="{{ 'color:var(--rejected)' if s.last_error else 'color:var(--muted)' }}">
+          {% if s.last_error %}{{ s.last_error }}{% elif s.last_checked %}Checked <time class="local" datetime="{{ s.last_checked }}">{{ s.last_checked[:16].replace('T', ' ') }} UTC</time>{% else %}Not checked yet{% endif %}</div></div>
+        <form method="post" action="/jobs/sources/{{ s.id }}/remove"><button class="danger">Remove</button></form></div>
+    {% else %}
+      <p class="muted small">No companies yet.</p>
+    {% endfor %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-adz">
+    <h2 class="sec" id="h-adz">Adzuna search</h2>
+    <p class="help">A free search across many job boards. Get an app ID and key at <a href="https://developer.adzuna.com/" target="_blank" rel="noopener noreferrer">developer.adzuna.com</a>. Only your job titles and cities are sent to Adzuna, never your resume.</p>
+    {% if adzuna_ready %}
+      <p class="small">Connected{% if adzuna_row and adzuna_row.last_checked %}, last searched <time class="local" datetime="{{ adzuna_row.last_checked }}">{{ adzuna_row.last_checked[:16].replace('T', ' ') }} UTC</time>{% endif %}.
+        {% if adzuna_row and adzuna_row.last_error %}<span style="color:var(--rejected)">{{ adzuna_row.last_error }}</span>{% endif %}</p>
+      {% if adzuna_searches %}<p class="small muted">Each run does {{ adzuna_searches|length }} search{{ 'es' if adzuna_searches|length != 1 }} (up to {{ max_searches }}), at most every 6 hours: {% for what, where, country in adzuna_searches[:6] %}“{{ what }}”{% if where %} in {{ where }}{% endif %} ({{ country|upper }}){{ ', ' if not loop.last }}{% endfor %}{% if adzuna_searches|length > 6 %}, …{% endif %}.</p>
+      {% else %}<p class="small muted">Add job titles on your profile so it knows what to search for.</p>{% endif %}
+      <form method="post" action="/jobs/sources/adzuna/remove"><button class="danger">Remove Adzuna</button></form>
+    {% else %}
+    <form method="post" action="/jobs/sources/adzuna" class="row" style="align-items:flex-end" data-busy="Checking...">
+      <div class="fgroup"><label for="a-id">App ID</label><input id="a-id" name="app_id" autocomplete="off" required></div>
+      <div class="fgroup"><label for="a-key">App key</label><input id="a-key" name="app_key" type="password" autocomplete="off" required></div>
+      <button class="primary">Connect Adzuna</button>
+    </form>
+    {% endif %}
+  </section>
+  </div>
+{% endif %}
+
+<script>
+  document.querySelectorAll('time.local').forEach(el => {
+    const d = new Date(el.getAttribute('datetime'));
+    if (!isNaN(d)) el.textContent = d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  });
+  const note = document.querySelector('.notice[data-focus]');
+  if (note) note.focus();
+</script>
+{% endblock %}

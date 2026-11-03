@@ -1,0 +1,1 @@
+{% if r.idle_days is none %}Unknown{% else %}<time datetime="{{ r.last_activity[:10] }}" title="{{ r.last_activity[:10] }}">{{ 'Today' if r.idle_days <= 0 else ('1 day ago' if r.idle_days == 1 else r.idle_days ~ ' days ago') }}</time>{% endif %}

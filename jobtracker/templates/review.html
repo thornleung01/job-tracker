@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Needs review · Job Tracker{% endblock %}
+{% block content %}
+<h1 class="page">Needs review</h1>
+{% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
+{% if error %}<div class="notice err" role="alert" tabindex="-1" data-focus>{{ error }}</div>{% endif %}
+<p class="muted">The tracker wasn't sure about these, so it didn't change any stage. Pick what each one is. <b>Every answer teaches it:</b> mail you mark "Not job mail" is ignored next time.</p>
+{% for e in emails %}
+<article class="card">
+  {% set nm = e.sender|sender_name %}{% set ad = e.sender|sender_addr %}
+  <header class="mail-head">
+    <h2 class="mail-subject">{{ e.subject or '(no subject)' }}</h2>
+    <p class="mail-meta"><span class="who">{{ nm or ad }}</span>{% if nm and ad %}<span class="addr">{{ ad }}</span>{% endif %}<span class="when"><time class="local" datetime="{{ e.received_at }}" data-rel>{{ e.received_at[:16].replace('T', ' ') }} UTC</time></span></p>
+    <p class="mail-guess">Looks like <b>{{ e.event|replace('_', ' ')|capitalize if e.event else 'something unclear' }}</b>, {{ e.confidence }} confidence</p>
+  </header>
+  {{ e.body|mailtext }}
+  {% set o = mailbox_link(e.provider, e.address, e.thread_id, e.web_link) %}
+  {% with r_id = e.id, r_can = e.can_reply, rp = reply_link(e.provider, e.address, e.sender, e.subject, e.web_link), r_to = (e.sender|sender_addr), r_subject = (e.subject or ''), r_open = o, r_account = (e.provider|capitalize ~ ' ' ~ e.address) %}
+  {% include "_reply.html" %}
+  {% endwith %}
+
+  <form method="post" action="/review/{{ e.id }}" class="row" style="margin-top:12px">
+    <select name="stage" aria-label="Stage">{% for s in stages %}<option {{ 'selected' if s == e.guess_stage }}>{{ s }}</option>{% endfor %}</select>
+    <select name="app_id" aria-label="Existing application">
+      <option value="0">Existing application…</option>
+      {% for a in apps %}<option value="{{ a.id }}">{{ a.company }} · {{ a.role }}</option>{% endfor %}
+    </select>
+    <button name="action" value="assign">Add to it</button>
+  </form>
+  <form method="post" action="/review/{{ e.id }}" class="row" style="margin-top:8px">
+    <input name="company" pattern=".*\S.*" value="{{ e.guess_company if e.guess_company != 'Unknown company' else '' }}" placeholder="Company" aria-label="Company">
+    <input name="role" value="{{ e.guess_role if e.guess_role != 'Unknown role' else '' }}" placeholder="Role" aria-label="Role">
+    <select name="stage" aria-label="Stage">{% for s in stages %}<option {{ 'selected' if s == e.guess_stage }}>{{ s }}</option>{% endfor %}</select>
+    <button name="action" value="new" class="primary">New application</button>
+    <button name="action" value="dismiss" class="danger" title="Not about a job application; its content is erased and the app learns to ignore mail like it">Not job mail</button>
+  </form>
+</article>
+{% else %}
+<p class="muted">Nothing to review.</p>
+{% endfor %}
+
+<section class="card" id="learned" aria-labelledby="h-learned">
+  <h2 id="h-learned" class="section">What the app has learned</h2>
+  {% if learned %}
+  <p class="help">Built from your answers. They apply to new mail and to mail already saved. Undo any that are wrong.</p>
+  {% for r in learned %}
+  <div class="row" style="justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)">
+    <span>{{ r.text }}</span>
+    <form method="post" action="/learned/{{ r.id }}/undo"><button class="small">Undo</button></form>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted" style="margin:0">Nothing yet. When something here isn't a job email, press <b>Not job mail</b>. On an application, <b>Not an application</b> does the same and removes it.</p>
+  {% endif %}
+</section>
+
+{% if ignored %}
+<section class="card" id="ignored" aria-labelledby="h-ignored">
+  <h2 id="h-ignored" class="section">Ignored because of what it learned</h2>
+  <p class="help">Kept for 30 days in case a rule was too eager. If one of these was a real job email, say so: the rule is undone and the email is read again.</p>
+  {% for m in ignored %}
+  <div class="row" style="justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)">
+    <span style="min-width:0;overflow-wrap:anywhere"><b>{{ m.subject or '(no subject)' }}</b><br><span class="small muted">{{ m.sender }} · {{ m.received_at[:10] }}</span></span>
+    <form method="post" action="/ignored/{{ m.id }}/real"><button class="small">This was a real job</button></form>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

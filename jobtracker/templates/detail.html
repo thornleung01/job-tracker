@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ a.company }} · Job Tracker<script>
+  // Arriving from a person's "Reply here" or an email link: bring that email into view, and open its reply box if it has one.
+  (() => {
+    if (!location.hash.startsWith('#email-')) return;
+    const card = document.getElementById(location.hash.slice(1));
+    if (!card) return;
+    card.scrollIntoView({ block: 'start' });
+    const box = card.querySelector('details.reply');
+    if (box && document.referrer && new URLSearchParams(location.search).has('reply')) box.open = true;
+  })();
+</script>
+{% endblock %}
+{% block content %}
+<a class="back" href="/"><span class="chev" aria-hidden="true"></span>All applications</a>
+{% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
+{% if reply_error %}<div class="notice err" role="alert" tabindex="-1" data-focus>{{ reply_error }}</div>{% endif %}
+<div class="card">
+  <h1 class="page" style="margin:0">{{ a.company }}</h1>
+  <div class="muted">{{ a.role }}</div>
+  <div class="row" style="margin-top:12px">
+    <span class="badge {{ a.stage|replace(' ', '-') }}">{{ a.stage }}</span>
+    <span class="small muted">Applied {{ a.applied_at[:10] if a.applied_at else 'unknown' }} · last activity {{ a.last_activity[:10] }}</span>
+    {% if a.locked %}<span class="small muted">· Stage set by you. Syncs won't change it.</span>{% endif %}
+  </div>
+  <details class="more" style="margin-top:10px"><summary>Edit company or role</summary>
+    <form method="post" action="/app/{{ a.id }}/edit" class="row" style="margin-top:8px">
+      <label class="sr" for="ed-company">Company</label><input id="ed-company" name="company" value="{{ a.company }}" maxlength="80" required>
+      <label class="sr" for="ed-role">Role</label><input id="ed-role" name="role" value="{{ a.role if a.role != 'Unknown role' else '' }}" placeholder="Role" maxlength="100">
+      <button>Save</button>
+    </form>
+  </details>
+  <div class="row" style="margin-top:14px">
+    <form method="post" action="/app/{{ a.id }}/stage" class="row">
+      <select name="stage" aria-label="Set stage">{% for s in stages %}<option {{ 'selected' if s == a.stage }}>{{ s }}</option>{% endfor %}</select>
+      <button>Set stage</button>
+    </form>
+    {% if a.locked %}<form method="post" action="/app/{{ a.id }}/unlock" class="inline"><button>Unlock</button></form>{% endif %}
+    {% if others %}
+    <form method="post" action="/app/{{ a.id }}/merge" class="row">
+      <select name="into" aria-label="Merge into">{% for o in others %}<option value="{{ o.id }}">{{ o.company }} · {{ o.role }}</option>{% endfor %}</select>
+      <button>Merge into…</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/app/{{ a.id }}/not-application" class="inline" onsubmit="return confirm('Remove this and teach the app it was not a job application? Mail like it will be ignored from now on.')"><button class="danger" title="Removes it and learns to ignore mail like the emails that made it">Not an application</button></form>
+    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched.')"><input type="hidden" name="emails" value="clear"><button class="danger">Delete</button></form>
+    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application and send its emails to Needs review so you can place them yourself?')"><input type="hidden" name="emails" value="review"><button class="danger" title="Use this when the emails belong to a different application">Delete, keep emails for review</button></form>
+  </div>
+</div>
+
+<section class="card" aria-labelledby="h-people">
+  <h2 id="h-people" class="section">People</h2>
+  {% if people %}
+  <p class="help">Who you've dealt with on this application, and what they do here, from its emails.</p>
+  <ul class="people">
+  {% for c in people %}
+    <li>{% with back = '/app/' ~ a.id %}{% include "_person.html" %}{% endwith %}</li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted" style="margin:0">No people yet. A recruiter or interviewer shows up here once their email belongs to this application.</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="h-notes">
+  <h2 id="h-notes" class="section">Notes and steps</h2>
+  {% include "_panel.html" %}
+</section>
+
+<h2 class="section spaced">Email timeline <span class="small muted" style="font-family:var(--font-ui);font-weight:400">newest first</span></h2>
+{% for t in timeline %}
+{% if t.kind == 'sent' %}
+{% set s = t.row %}
+<article class="card sent">
+  <header class="mail-head">
+    <h3 class="mail-subject">{{ s.subject }}</h3>
+    <p class="mail-meta"><span class="who">You</span><span class="addr">to {{ s.to_addr }}</span><span class="when"><span class="tag">Reply sent</span> <time class="local" datetime="{{ s.created_at }}" data-rel>{{ s.created_at[:16].replace('T', ' ') }} UTC</time></span></p>
+  </header>
+  <div class="mail-text"><p style="white-space:pre-line">{{ s.body }}</p></div>
+</article>
+{% else %}
+{% set e = t.row %}
+<article class="card" id="email-{{ e.id }}">
+  {% set nm = e.sender|sender_name %}{% set ad = e.sender|sender_addr %}
+  <header class="mail-head">
+    <h3 class="mail-subject">{{ e.subject or '(no subject)' }}</h3>
+    <p class="mail-meta"><span class="who">{{ nm or ad }}</span>{% if titles.get(ad) %}<span class="role">{{ titles[ad] }}</span>{% endif %}{% if nm and ad %}<span class="addr">{{ ad }}</span>{% endif %}<span class="when">{% if e.id == latest_email_id %}<span class="tag latest">Latest</span> {% endif %}<time class="local" datetime="{{ e.received_at }}" data-rel>{{ e.received_at[:16].replace('T', ' ') }} UTC</time> · {{ e.provider|capitalize }} {{ e.address }}</span></p>
+    {% if e.event %}<p class="mail-guess">Read as <b>{{ e.event|replace('_', ' ')|capitalize }}</b> ({{ e.confidence }} confidence)</p>{% endif %}
+  </header>
+  {{ e.body|mailtext }}
+  {% with r_id = e.id, r_can = e.can_reply, rp = reply_link(e.provider, e.address, e.sender, e.subject, e.web_link), r_to = (e.sender|sender_addr), r_subject = (e.subject or ''), r_open = mailbox_link(e.provider, e.address, e.thread_id, e.web_link), r_account = (e.provider|capitalize ~ ' ' ~ e.address) %}
+  {% include "_reply.html" %}
+  {% endwith %}
+</article>
+{% endif %}
+{% else %}
+<p class="muted">No emails linked{% if a.manual %} (added manually){% endif %}.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en"{% if ui.theme != 'system' %} data-theme="{{ ui.theme }}"{% endif %} data-density="{{ ui.density }}" data-corners="{{ ui.corners }}" data-accent="{{ ui.accent }}" style="--accent-l: {{ ui.accent_light }}; --accent-d: {{ ui.accent_dark }};">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%2332302f'/%3E%3Cpath d='M9.5 16.5l4.2 4.2 8.8-9.4' fill='none' stroke='%23fcfcfb' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/SourceSerif4-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/Figtree-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<title>{% block title %}Job Tracker{% endblock %}</title>
+<style>
+  /* Typefaces are served from the app so it works offline. */
+  @font-face { font-family: "Source Serif 4"; src: url("/static/fonts/SourceSerif4-latin-wght.woff2") format("woff2"); font-weight: 200 900; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Figtree"; src: url("/static/fonts/Figtree-latin-wght.woff2") format("woff2"); font-weight: 300 900; font-style: normal; font-display: swap; }
+
+  :root {
+    color-scheme: light;
+    /* Warm graphite on linen. Light surfaces separate by hairline, never by shadow. */
+    --bg: #faf8f5; --surface: #fdfdfc; --linen: #f6f4ef; --fog: #f1f0f0;
+    --ink: #32302f; --muted: #686664; --line: #e4e2e1;
+    --field-line: #8c8986;          /* control borders: 3:1 against the surface, unlike the decorative --line */
+    --accent: var(--accent-l); --accent-ink: #fdfdfc;
+    --applied: #5b5855; --heard: #3f5671; --assess: #78560c; --interview: #69477a; --offer: #2b6747; --rejected: #9a4232;
+    --font-display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    --font-ui: "Figtree", system-ui, "Segoe UI", sans-serif;
+    --r-pill: 999px; --r-lg: 24px; --r: 12px;
+    --pad: 28px; --cell-y: 16px; --gap: 24px;
+    --tap: 44px;                    /* minimum control height */
+    --z-tip: 20; --z-pop: 30; --z-skip: 100;     /* the only layers this app uses */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #12110e; --surface: #1b1915; --linen: #16140f; --fog: #26231d;
+      --ink: #efece5; --muted: #a8a397; --line: #35322b; --field-line: #8a8578;
+      --accent: var(--accent-d); --accent-ink: #14130f;
+      --applied: #b4afa4; --heard: #9db4d6; --assess: #d9b45a; --interview: #cba9d6; --offer: #8fcfa8; --rejected: #e69a8a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12110e; --surface: #1b1915; --linen: #16140f; --fog: #26231d;
+    --ink: #efece5; --muted: #a8a397; --line: #35322b; --field-line: #8a8578;
+    --accent: var(--accent-d); --accent-ink: #14130f;
+    --applied: #b4afa4; --heard: #9db4d6; --assess: #d9b45a; --interview: #cba9d6; --offer: #8fcfa8; --rejected: #e69a8a;
+  }
+  :root[data-density="compact"] { --pad: 16px; --cell-y: 8px; --gap: 12px; --tap: 36px; }
+  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; } }
+  :root[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scrollbar-color: var(--field-line) transparent; }
+  /* Sizes are in rem so the page follows the browser's text-size setting. */
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.55 var(--font-ui); caret-color: var(--ink); -webkit-font-smoothing: antialiased; }
+  :root[data-density="compact"] body { font-size: 0.9375rem; }
+  ::selection { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
+  a { color: inherit; text-underline-offset: 3px; }
+  a, button, summary, label, select { touch-action: manipulation; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  /* Header and navigation */
+  header.top { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; margin-bottom: 40px; }
+  .brand { font: 500 1.625rem/1 var(--font-display); letter-spacing: -0.01em; flex: 1; }
+  header.top nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  form.who { margin: 0; }
+  form.who select { min-height: 40px; font-weight: 500; padding-left: 18px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  header.top nav a { text-decoration: none; color: var(--muted); padding: 0 18px; min-height: var(--tap); display: inline-flex; align-items: center;
+                     border-radius: var(--r-pill); font-weight: 500; }
+  header.top nav a:hover { color: var(--ink); background: var(--fog); }
+  header.top nav a.icon-link { padding: 0 12px; }
+  header.top nav a.icon-link svg { display: block; }
+  header.top nav a[aria-current="page"] { color: var(--ink); background: var(--fog); }
+  header.top nav a .count { margin-left: 8px; min-width: 22px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
+                            font-size: 0.75rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+  .skip { position: absolute; left: -9999px; }
+  .skip:focus { left: 16px; top: 8px; background: var(--surface); padding: 10px 18px; border-radius: var(--r-pill); z-index: var(--z-skip); }
+  h1.page { font: 500 clamp(2rem, 4vw, 2.75rem)/1.12 var(--font-display); letter-spacing: -0.015em; margin: 0 0 var(--gap); text-wrap: balance; }
+  h2 { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }
+  h2.section { font-size: 1.625rem; line-height: 1.2; margin: 0 0 16px; }   /* outranks the 1.125rem sub-headings inside it */
+  h2.section.spaced { margin-top: 40px; }
+  a.back { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); color: var(--muted); text-decoration: none; }
+  a.back:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  .back .chev { transform: rotate(135deg); }
+  /* Disclosures use the same drawn chevron as the list rows, not the browser's triangle. */
+  summary.disclosure { list-style: none; display: flex; align-items: center; gap: 12px; cursor: pointer; min-height: var(--tap); font-weight: 500; }
+  summary.disclosure::-webkit-details-marker { display: none; }
+  details[open] > summary.disclosure .chev { transform: rotate(45deg); }
+
+  /* Stage badges: quiet tonal pills; the word carries the meaning, color only supports it. */
+  .badge { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 3px 12px; border-radius: var(--r-pill);
+           background: var(--fog); white-space: nowrap; letter-spacing: 0.01em; }
+  .Applied { color: var(--applied); } .Heard-back { color: var(--heard); } .Assessment { color: var(--assess); }
+  .Interview { color: var(--interview); } .Offer { color: var(--offer); } .Rejected { color: var(--rejected); }
+
+  /* Controls: pills. Primary is filled, secondary is outlined, nothing casts a shadow. */
+  button, .btn { font: 500 1rem/1 var(--font-ui); letter-spacing: 0.015em; cursor: pointer; border: 1px solid var(--ink); background: transparent; color: var(--ink);
+                 padding: 0 24px; border-radius: var(--r-pill); min-height: var(--tap); }
+  button:hover:not(:disabled), a.btn:hover { background: var(--fog); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), var(--bg) 14%); }
+  button.danger { color: var(--rejected); border-color: color-mix(in srgb, var(--rejected) 55%, transparent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button[aria-busy="true"] { cursor: progress; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 3px; }
+  input, select, textarea { font: inherit; padding: 0 20px; border: 1px solid var(--field-line); border-radius: var(--r-pill);
+                            background: var(--surface); color: var(--ink); max-width: 100%; }
+  input:not([type="checkbox"]):not([type="radio"]), select { min-height: var(--tap); }
+  input[type="date"] { padding-right: 14px; }
+  input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
+  input:focus, select:focus, textarea:focus { border-color: var(--ink); }
+
+  /* Dropdowns: the popup is themed too, not the system's square blue list. It is still a real <select>
+     (keyboard, typing to jump, screen readers). Browsers without customizable selects keep the native one. */
+  @supports (appearance: base-select) {
+    select, select::picker(select) { appearance: base-select; }
+    select { display: inline-flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 18px 0 22px; cursor: pointer; }
+    select::picker-icon { content: ""; flex: none; width: 7px; height: 7px; margin-top: -3px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+                          transform: rotate(45deg); }
+    select:open::picker-icon { transform: rotate(-135deg); margin-top: 3px; border-color: var(--ink); }
+    select::picker(select) { margin-top: 8px; padding: 8px; max-height: min(360px, 60vh); border: 1px solid var(--field-line); border-radius: var(--r);
+                             background: var(--surface); color: var(--ink); box-shadow: none; }
+    select option { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 6px 16px; border-radius: var(--r-pill);
+                    font: inherit; color: var(--ink); cursor: pointer; }
+    select option:hover, select option:focus-visible { background: var(--fog); outline: none; }
+    select optgroup option { font-weight: 400; }
+    select option:checked { font-weight: 600; }
+    select option::checkmark { order: 1; margin-left: auto; content: ""; flex: none; width: 10px; height: 5px;
+                               border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: rotate(-45deg) translateY(-1px); }
+    select optgroup { padding: 10px 0 2px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+    select optgroup + optgroup { margin-top: 6px; border-top: 1px solid var(--line); }
+    select optgroup option { font-size: 1rem; }
+    select option:disabled { color: var(--muted); cursor: default; }
+    select option[hidden] { display: none; }   /* a prompt like "Choose a step" shows in the box, not as a row */
+  }
+  ::placeholder { color: var(--muted); opacity: 1; }
+  /* iOS zooms the page when a field under 16px gets focus. */
+  @media (max-width: 720px) { input, select, textarea { font-size: 16px; } }
+  textarea { width: 100%; min-height: 96px; resize: vertical; padding: 14px 18px; border-radius: var(--r); line-height: 1.5; }
+  label.field { display: block; font-weight: 600; margin-bottom: 4px; }
+  .help { color: var(--muted); font-size: 0.875rem; margin: 0 0 8px; }
+
+  /* Surfaces */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--pad); margin-bottom: var(--gap); }
+  .muted { color: var(--muted); } .small { font-size: 0.875rem; }
+  .fgroup { display: flex; flex-direction: column; gap: 6px; }
+  .fgroup > label { font-size: 0.875rem; font-weight: 500; color: var(--muted); padding-left: 4px; }
+  .result-line { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; min-height: 28px; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 14px; background: var(--fog); border-radius: var(--r-pill); font-size: 0.875rem; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  /* Stage filter tabs: a standard tab row with counts, not metric cards. */
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 var(--gap); }
+  .tab { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); padding: 0 20px; border-radius: var(--r-pill); text-decoration: none;
+         border: 1px solid var(--line); background: var(--surface); font-weight: 500; }
+  .tab:hover { border-color: var(--ink); }
+  .tab .n { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
+  .tab[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .tab[aria-current="true"] .n { color: inherit; opacity: .8; }
+  @media (max-width: 720px) { .tab { padding: 0 14px; gap: 8px; } .tabs { gap: 6px; } }
+  /* Four nav items fit one row at phone width instead of orphaning the last one. */
+  @media (max-width: 520px) {
+    header.top nav { width: 100%; gap: 0; justify-content: space-between; }
+    header.top nav a { padding: 0 5px; font-size: 0.875rem; }
+    header.top nav a .count { margin-left: 5px; min-width: 20px; padding: 1px 6px; }
+    /* The Settings icon sits in the title row, so the four words get the whole row below. */
+    header.top { position: relative; }
+    header.top nav a.icon-link { position: absolute; top: -4px; right: -8px; padding: 0 12px; }
+    header.top nav a:not(.icon-link) { padding: 0 4px; }
+  }
+
+  /* Notices: a full hairline box with a drawn icon, never a colored side-stripe. */
+  .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 20px; background: var(--surface); border: 1px solid var(--field-line);
+            border-radius: var(--r); margin-bottom: var(--gap); }
+  .notice::before { content: ""; flex: none; width: 20px; height: 20px; margin-top: 2px; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 9v5M10 6.2v.1'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 9v5M10 6.2v.1'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .notice.err { border-color: var(--rejected); }
+  .notice.err::before { color: var(--rejected);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 2.5l8 14H2z'/%3E%3Cpath d='M10 8v4M10 14.3v.1'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 2.5l8 14H2z'/%3E%3Cpath d='M10 8v4M10 14.3v.1'/%3E%3C/svg%3E"); }
+  form.inline { display: inline; }
+  /* Email text: it should read like a message, not a log file. Quotes and footers fold away; links show their domain. */
+  .mail-head { margin-bottom: 14px; }
+  .mail-subject { font: 500 1.375rem/1.25 var(--font-display); letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
+  .mail-meta { margin: 0; color: var(--muted); font-size: 0.875rem; display: flex; gap: 2px 8px; flex-wrap: wrap; align-items: baseline; }
+  .mail-meta .who { color: var(--ink); font-weight: 600; }
+  .mail-meta .role { color: var(--ink); }
+  .mail-meta .addr { overflow-wrap: anywhere; }
+  .mail-meta .when { flex-basis: 100%; font-size: 0.8125rem; }
+  .mail-guess { margin: 8px 0 0; font-size: 0.875rem; color: var(--muted); }
+  .mail-guess b { color: var(--ink); font-weight: 600; }
+  .mail-text { max-width: 68ch; font: 400 0.9375rem/1.7 var(--font-ui); color: var(--ink); }
+  .mail-text p { margin: 0 0 0.7em; overflow-wrap: anywhere; }
+  .mail-text p:last-child { margin-bottom: 0; }
+  .mail-text p.sig { margin-bottom: 0.1em; color: var(--muted); }
+  .mail-text ul { margin: 0 0 0.8em; padding-left: 1.25em; }
+  .mail-text li { margin-bottom: 0.25em; overflow-wrap: anywhere; }
+  .mail-text .url { color: var(--muted); border-bottom: 1px dotted var(--field-line); font-size: 0.9em; white-space: nowrap; }
+  .mail-empty { color: var(--muted); }
+  .mail-fold { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 2px; }
+  .mail-fold > summary { cursor: pointer; color: var(--muted); font-size: 0.875rem; font-weight: 500; min-height: 40px; display: flex; align-items: center; }
+  .mail-fold[open] > summary { color: var(--ink); }
+  .mail-fold > :not(summary) { color: var(--muted); }
+
+  /* The list */
+  table.list { width: 100%; border-collapse: collapse; }
+  table.list th { text-align: left; font-size: 0.875rem; color: var(--muted); font-weight: 500; padding: 4px 16px; white-space: nowrap; }
+  table.list td { padding: var(--cell-y) 16px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  table.list td.small { white-space: nowrap; }   /* dates stay on one line; the card scrolls sideways on a phone */
+  tr.app-row:hover td { background: var(--linen); }
+  table.list th a.sort { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; min-height: var(--tap); }
+  table.list th a.sort:hover { color: var(--ink); }
+  table.list th[aria-sort="ascending"] a.sort, table.list th[aria-sort="descending"] a.sort { color: var(--ink); }
+  .sort-ind { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: 0; }
+  th[aria-sort="ascending"] .sort-ind { border-bottom: 5px solid currentColor; opacity: 1; }
+  th[aria-sort="descending"] .sort-ind { border-top: 5px solid currentColor; opacity: 1; }
+  table.list th:first-child, table.list td:first-child { padding-left: var(--pad); }
+  table.list th:last-child, table.list td:last-child { padding-right: var(--pad); }
+  table.list tr.panel-row > td { padding: 0; }   /* the open row's panel supplies its own padding */
+  .role-sub { display: none; font-size: 0.875rem; color: var(--muted); }
+  /* On a phone the list keeps Company, Stage and Last activity; the role moves under the company name. */
+  /* On a phone each application becomes a small stacked block, so nothing has to scroll sideways:
+       name and role on the left, stage on the right, last activity on its own line below.
+     The column headers become a row of sort buttons. The table roles in the markup keep it a table
+     for screen readers, because display: block would otherwise strip them. */
+  @media (max-width: 720px) {
+    .role-sub { display: block; margin: -2px 0 0 20px; }
+    .list-card table.list, .list-card table.list tbody, .list-card table.list thead { display: block; }
+    .list-card table.list thead tr { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; }
+    .list-card table.list th, .list-card table.list th:first-child, .list-card table.list th:last-child { display: block; padding: 0; }
+    .list-card table.list th a.sort { padding: 0 16px; border-radius: var(--r-pill); background: var(--fog); min-height: var(--tap); font-weight: 500; }
+    /* The column the list is sorted by is the filled one. */
+    .list-card table.list th[aria-sort="ascending"] a.sort, .list-card table.list th[aria-sort="descending"] a.sort { background: var(--accent); color: var(--accent-ink); }
+    .list-card table.list tr.app-row { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    .list-card table.list tr.app-row > td, .list-card table.list tr.app-row > td:first-child, .list-card table.list tr.app-row > td:last-child { display: block; padding: 0; border: 0; background: none; }
+    .list-card tr.app-row:hover, .list-card tr.app-row.is-open { background: var(--linen); }
+    .list-card td[data-col="company"] { grid-column: 1; }
+    .list-card td[data-col="stage"] { grid-column: 2; grid-row: 1; justify-self: end; }
+    .list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 1 / -1; padding-left: 20px; margin-top: 2px; }
+    .list-card table.list tr.panel-row { display: block; }
+    .list-card table.list tr.panel-row[hidden] { display: none; }
+    .list-card table.list tr.panel-row > td { display: block; }
+    /* Role, Applied and Emails make way for the stacked layout (the role shows under the company name). */
+    .list-card table.list th[data-col="role"], .list-card table.list tr.app-row > td[data-col="role"],
+    .list-card table.list th[data-col="applied"], .list-card table.list tr.app-row > td[data-col="applied"],
+    .list-card table.list th[data-col="emails"], .list-card table.list tr.app-row > td[data-col="emails"] { display: none; }
+  }
+
+  /* Expandable application rows */
+  a.expander { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; min-height: var(--tap); padding-right: 6px; }
+  a.expander strong { font: 500 1.1875rem/1.2 var(--font-display); letter-spacing: -0.005em; }
+  a.expander:hover strong { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .chev { width: 8px; height: 8px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); flex: none; }
+  a.expander[aria-expanded="true"] .chev { transform: rotate(45deg); }
+  a.open-link { color: var(--muted); margin-left: 4px; padding: 12px 8px; display: inline-block; font-size: 0.875rem; }
+  tr.app-row { cursor: pointer; }
+  tr.app-row.is-open td { background: var(--linen); }
+  tr.panel-row > td { padding: 0; border-top: 0; background: var(--linen); }
+  .panel-inner { padding: 8px var(--pad) var(--pad); cursor: auto; }
+  .card:not(.list-card) .panel-inner { padding: 0; }   /* on the detail page the card already pads it */
+  /* The list scrolls sideways on a phone. Keep an open row's panel as wide as the visible card and pinned
+     to its left edge, so its forms and history never run off-screen. */
+  .list-card { container-type: inline-size; }
+  @supports (width: 1cqw) { .list-card .panel-inner { position: sticky; left: 0; width: 100cqw; } }
+  .panel-forms { display: grid; grid-template-columns: minmax(0, 560px); gap: 32px; align-items: start; }
+  .panel-h { font: 500 1.125rem/1.3 var(--font-display); margin: 12px 0 8px; }
+  .panel-status { min-height: 1.2em; outline: none; }
+  ol.hist { list-style: none; margin: 0; padding: 0; }
+  ol.hist li { padding: 12px 0; border-top: 1px solid var(--line); }
+  .hist-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .hist-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1 1 240px; }
+  .hist-date { margin-left: auto; }
+  .hist-body { margin: 6px 0 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 0.9375rem; }
+  .tag { font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: var(--r-pill); background: var(--fog); color: var(--muted); }
+  .tag-step, .tag-note { color: var(--ink); }
+  details.company > summary { flex-wrap: wrap; gap: 6px 12px; }
+  details.company > summary .company-name { font: 500 1.5rem/1.2 var(--font-display); letter-spacing: -0.01em; }
+  details.company > summary .company-role { font-size: 0.9375rem; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  details.company[open] > summary { margin-bottom: 6px; }
+  details.company[open] > summary .chev { transform: rotate(45deg); }
+  .person { padding: 14px 0; border-top: 1px solid var(--line); }
+  ul.people > li:first-child .person { border-top: 0; padding-top: 4px; }
+  .person-head { display: flex; gap: 6px 10px; align-items: baseline; flex-wrap: wrap; }
+  .person-name { font: 500 1.25rem/1.2 var(--font-display); letter-spacing: -0.01em; margin: 0; }
+  .person-title { margin: 2px 0 6px; }
+  .person-meta { margin: 0; color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+  ul.thread { list-style: none; padding: 0; margin: 6px 0 0; }
+  ul.thread li { display: flex; flex-wrap: wrap; gap: 2px 12px; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  ul.thread li:first-child { border-top: 0; }
+  ul.people { list-style: none; padding: 0; margin: 0 0 6px; }
+  .mail-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; margin-top: 14px; }
+  /* Disclosures. `more` tucks a secondary form or list under a quiet line with the drawn chevron; `action` is the same idea as a pill
+     control that sits in an action row (Reply, Edit, the emails list) and opens full width beneath it. The browser's triangle never shows. */
+  details.more { margin-top: 2px; }
+  details.more > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: var(--tap); color: var(--muted); font-weight: 500; }
+  details.more > summary::-webkit-details-marker, details.action > summary::-webkit-details-marker { display: none; }
+  details.more > summary::before { content: ""; width: 8px; height: 8px; flex: none; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); }
+  details.more[open] > summary { color: var(--ink); }
+  details.more[open] > summary::before { transform: rotate(45deg); }
+  details.action { flex: 0 0 auto; }
+  details.action[open] { flex: 1 1 100%; }
+  details.action > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 24px; border-radius: var(--r-pill);
+                             border: 1px solid var(--ink); color: var(--ink); font-weight: 500; letter-spacing: 0.015em; }
+  details.action > summary:hover { background: var(--fog); }
+  details.action.primary > summary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  details.action.primary > summary:hover { background: color-mix(in srgb, var(--accent), var(--bg) 14%); }
+  details.action[open] > summary { background: transparent; color: var(--ink); border-color: var(--field-line); }
+  details.action > :not(summary) { margin-top: 12px; }
+  .reply-form { margin-top: 12px; max-width: 68ch; }
+  .reply-form textarea { width: 100%; box-sizing: border-box; }
+  article.sent { background: var(--linen-panel, var(--fog)); }
+  .tag.latest { background: var(--accent); color: var(--accent-ink); }
+  a.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.hist-del { min-height: 34px; padding: 0 14px; font-size: 0.875rem; }
+  details.mail > summary { list-style: none; cursor: pointer; min-height: 34px; }
+  details.mail > summary::-webkit-details-marker { display: none; }
+  details.mail[open] > summary .chev { transform: rotate(45deg); }
+  details.mail > summary strong { font-weight: 600; }
+  details.mail > summary:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+  .mail-body { margin: 8px 0 6px 24px; padding: 2px 0 2px 20px; border-left: 1px solid var(--line); }
+  .mail-body .mail-meta { margin-bottom: 12px; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    button, a, .tab, input, select, textarea { transition: background-color .16s ease-out, border-color .16s ease-out, color .16s ease-out; }
+    .chev, details.more > summary::before { transition: transform .16s ease-out; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Job Tracker</div>
+    {% set path = request.url.path %}
+    {% if profiles and profiles|length > 1 %}
+    <form class="who" method="post" action="/profiles/switch">
+      <label class="sr" for="who">Profile</label>
+      <select id="who" name="profile" data-autosubmit>
+        {% for p in profiles %}<option value="{{ p.id }}" {{ 'selected' if p.id == profile_id }}>{{ p.name }}</option>{% endfor %}
+      </select>
+      <input type="hidden" name="next" value="{{ path }}">
+      <noscript><button>Switch</button></noscript>
+    </form>
+    {% endif %}
+    <nav aria-label="Main">
+      <a href="/jobs" {% if path.startswith('/jobs') %}aria-current="page"{% endif %}>Jobs{% if jobs_new %}<span class="count" aria-label="{{ jobs_new }} new matches">{{ jobs_new }}</span>{% endif %}</a>
+      <a href="/" {% if path == '/' or path.startswith('/app') %}aria-current="page"{% endif %}>Applications</a>
+      <a href="/contacts" {% if path.startswith('/contacts') %}aria-current="page"{% endif %}>People</a>
+      <a href="/flow" {% if path == '/flow' %}aria-current="page"{% endif %}>Flow</a>
+      <a href="/review" {% if path == '/review' %}aria-current="page"{% endif %}>Needs review</a>
+      <a href="/settings" class="icon-link" aria-label="Settings" title="Settings" {% if path == '/settings' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </a>
+    </nav>
+  </header>
+  <main id="main">
+  {% block content %}{% endblock %}
+  </main>
+</div>
+<script>
+  // Times are stored in UTC. Show them in your own time zone, with how long ago, and keep doing it for panels that load later.
+  (() => {
+    const ago = d => {
+      const s = (Date.now() - d) / 1000;
+      if (s < 0) return '';
+      if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
+      if (s < 86400) return Math.round(s / 3600) + ' h ago';
+      const days = Math.floor(s / 86400);
+      return days === 1 ? 'yesterday' : days + ' days ago';
+    };
+    const localize = root => root.querySelectorAll && root.querySelectorAll('time.local:not([data-done])').forEach(el => {
+      const d = new Date(el.getAttribute('datetime'));
+      if (isNaN(d)) return;
+      const opts = el.dataset.fmt === 'short' ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' };
+      el.textContent = d.toLocaleString([], opts) + (el.hasAttribute('data-rel') && ago(d) ? ' \u00b7 ' + ago(d) : '');
+      el.title = d.toLocaleString([], { dateStyle: 'full', timeStyle: 'long' });
+      el.dataset.done = '1';
+    });
+    localize(document);
+    new MutationObserver(list => list.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && localize(n)))).observe(document.body, { childList: true, subtree: true });
+  })();
+  // The profile picker switches as soon as you choose.
+  document.addEventListener('change', e => { if (e.target.matches('select[data-autosubmit]')) e.target.form.requestSubmit(); });
+  // Forms with data-busy="Working..." show progress and can't be pressed twice while they run.
+  document.addEventListener('submit', e => {
+    const form = e.target, msg = form.dataset && form.dataset.busy;
+    if (!msg || e.defaultPrevented) return;
+    const btn = e.submitter || form.querySelector('button');
+    if (!btn) return;
+    btn.setAttribute('aria-busy', 'true');
+    btn.dataset.label = btn.textContent;
+    setTimeout(() => { btn.disabled = true; btn.textContent = msg; }, 0);   // after the browser has read the form
+  });
+  addEventListener('pageshow', e => {   // coming back with the Back button
+    if (!e.persisted) return;
+    document.querySelectorAll('button[aria-busy="true"]').forEach(b => {
+      b.disabled = false; b.removeAttribute('aria-busy'); if (b.dataset.label) b.textContent = b.dataset.label;
+    });
+  });
+</script>
+</body>
+</html>

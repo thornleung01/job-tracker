@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}People · Job Tracker<script>
+  // Expand all / Collapse all for the company dropdowns.
+  document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () =>
+    document.querySelectorAll('details.company').forEach(d => { d.open = b.dataset.fold === 'open'; })));
+</script>
+{% endblock %}
+{% block content %}
+<h1 class="page">People</h1>
+<p class="muted">Who you are talking to on each application, and what they do there, worked out from that application's emails: signatures, and names in interview invites. A title belongs to the application it was found in. Fix any that is wrong.</p>
+{% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
+
+<form method="get" class="row" style="margin-bottom:var(--gap);align-items:flex-end">
+  <div class="fgroup" style="flex:1 1 240px">
+    <label for="c-q">Search</label>
+    <input id="c-q" name="q" value="{{ q }}" placeholder="Name, title, company or role" style="width:100%" autocomplete="off">
+  </div>
+  <button class="primary">Search</button>
+  {% if q %}<a class="small" href="/contacts" style="padding:10px 4px">Clear</a>{% endif %}
+</form>
+
+<div class="result-line" role="status">{% if q %}{{ shown }} of {{ total }}{% else %}{{ total }}{% endif %} {{ 'person' if total == 1 else 'people' }} across {{ groups|length }} application{{ '' if groups|length == 1 else 's' }}</div>
+
+{% if groups|length > 1 %}
+<div class="row" style="margin-bottom:var(--gap)">
+  <button type="button" data-fold="open">Expand all</button>
+  <button type="button" data-fold="close">Collapse all</button>
+</div>
+{% endif %}
+
+{% for g in groups %}
+{# Every company is a dropdown. It opens by itself when there is only one, or when you searched and so want to see what matched. #}
+<details class="card company" id="g-{{ g.id }}" {{ 'open' if q or groups|length == 1 }}>
+  <summary class="disclosure">
+    <span class="chev" aria-hidden="true"></span>
+    <span class="company-name">{{ g.company }}</span>
+    {% if g.role and g.role != 'Unknown role' %}<span class="muted company-role">{{ g.role }}</span>{% endif %}
+    <span class="tag">{{ g.people|length }} {{ 'person' if g.people|length == 1 else 'people' }}</span>
+  </summary>
+  <ul class="people">
+  {% for c in g.people %}
+    <li>{% with back = '/contacts' %}{% include "_person.html" %}{% endwith %}</li>
+  {% endfor %}
+  </ul>
+  <p class="small muted" style="margin:6px 0 0"><a href="/app/{{ g.id }}">Open this application</a></p>
+</details>
+{% else %}
+<p class="muted">{% if q %}Nobody matches "{{ q }}".{% else %}No people yet. They appear once emails from real people, such as a recruiter or an interviewer, belong to an application.{% endif %}</p>
+{% endfor %}
+{% endblock %}

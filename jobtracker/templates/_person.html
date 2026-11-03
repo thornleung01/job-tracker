@@ -1,0 +1,32 @@
+{# One person on one application. Needs: c (a contact), back (the page an edit returns to) #}
+<div class="person">
+  <div class="person-head"><strong>{{ c.name }}</strong>{% if c.kind %}<span class="tag">{{ kind_label[c.kind] }}</span>{% endif %}{% if c.edited %}<span class="tag">Edited by you</span>{% endif %}</div>
+  <p class="person-title">{% if c.title %}{{ c.title }}{% else %}<span class="muted">No title found in this application's emails</span>{% endif %}</p>
+  <p class="person-meta">{% if c.email %}{{ c.email }}{% else %}No address, named in an invite{% endif %} · last <time class="local" datetime="{{ c.last }}" data-rel>{{ c.last[:10] }}</time></p>
+  <div class="mail-actions">
+    {% if c.compose %}<a class="btn primary" href="{{ c.compose[1] }}" target="_blank" rel="noopener noreferrer" title="Opens a new message to {{ c.email }} in {{ c.compose[0].replace('Reply in ', '') }}">Email {{ c.name.split()[0] }}</a>{% endif %}
+    {% if c.reply_here and c.reply_email_id %}<a class="btn" href="/app/{{ c.app_id }}?reply=1#email-{{ c.reply_email_id }}" title="Jump to their latest email and write a reply here">Reply here</a>{% endif %}
+    {% if c.mail_count %}
+    <details class="action"><summary>{{ c.mail_count }} email{{ '' if c.mail_count == 1 else 's' }}</summary>
+      <p class="small muted" style="margin:0">Newest first</p>
+      <ul class="thread">
+      {% for m in c.mails %}
+        <li><span><a href="/app/{{ c.app_id }}#email-{{ m.id }}">{{ m.subject }}</a></span><span class="small muted"><time class="local" datetime="{{ m.when }}" data-fmt="short">{{ m.when[:10] }}</time> · {{ 'from them' if m.how == 'from' else 'names them' }}</span></li>
+      {% endfor %}
+      </ul>
+      {% if c.mail_count > c.mails|length %}<p class="small muted" style="margin:4px 0 0">Showing the latest {{ c.mails|length }} of {{ c.mail_count }}.</p>{% endif %}
+    </details>
+    {% endif %}
+    <details class="action"><summary>Edit</summary>
+      <form method="post" action="/contacts/edit" class="row" style="align-items:flex-end">
+        <input type="hidden" name="key" value="{{ c.key }}"><input type="hidden" name="next" value="{{ back }}">
+        <div class="fgroup"><label for="n-{{ c.key }}">Name</label><input id="n-{{ c.key }}" name="name" value="{{ c.name }}" maxlength="80" required></div>
+        <div class="fgroup" style="flex:1 1 220px"><label for="t-{{ c.key }}">Title for this role</label><input id="t-{{ c.key }}" name="title" value="{{ c.title }}" maxlength="100" placeholder="e.g. Hiring manager" style="width:100%"></div>
+        <button>Save</button>
+      </form>
+      <form method="post" action="/contacts/hide" onsubmit="return confirm('Remove {{ c.name }} from this application?')" style="margin-top:8px">
+        <input type="hidden" name="key" value="{{ c.key }}"><input type="hidden" name="next" value="{{ back }}"><button class="danger">Not a person</button>
+      </form>
+    </details>
+  </div>
+</div>
