@@ -1,4 +1,4 @@
-"""The Wealthsimple-style restyle: self-hosted type, accent options, and the craft-floor rules."""
+"""The Wealthsimple restyle (use-ws-styling tokens): self-hosted type, accent options, and the craft-floor rules."""
 import re
 
 import pytest
@@ -26,11 +26,13 @@ def env(tmp_path):
 def test_fonts_are_served_from_the_app_not_a_cdn(env):
     _, client = env
     html = client.get("/").text
-    assert 'url("/static/fonts/SourceSerif4-latin-wght.woff2")' in html and 'url("/static/fonts/Figtree-latin-wght.woff2")' in html
+    assert 'url("/static/fonts/Figtree-latin-wght.woff2")' in html and "Source Serif" not in html and "SourceSerif" not in html
     assert "fonts.googleapis.com" not in html and "cdn." not in html and "font-display: swap" in html
-    for name in ("SourceSerif4-latin-wght.woff2", "Figtree-latin-wght.woff2"):
-        r = client.get(f"/static/fonts/{name}")
-        assert r.status_code == 200 and r.content[:4] == b"wOF2"
+    # Wealthsimple Sans Display is named first so a device that has it uses it; Figtree is the shipped stand-in.
+    assert '--font-ui: "Wealthsimple Sans Display", "Figtree"' in html
+    r = client.get("/static/fonts/Figtree-latin-wght.woff2")
+    assert r.status_code == 200 and r.content[:4] == b"wOF2"
+    assert client.get("/static/fonts/SourceSerif4-latin-wght.woff2").status_code == 404
     assert client.get("/static/fonts/LICENSES.md").status_code == 200
 
 
@@ -60,24 +62,40 @@ def ratio(a, b):
 @pytest.mark.parametrize("name", list(settings.ACCENTS))
 def test_every_accent_gives_readable_button_text_in_both_themes(name):
     light, dark = settings.ACCENTS[name]
-    assert ratio("#fdfdfc", light) >= 4.5    # paper text on the light-theme fill
-    assert ratio("#14130f", dark) >= 4.5     # near-black text on the dark-theme fill
+    assert ratio("#ffffff", light) >= 4.5    # white text on the light-theme fill
+    assert ratio("#000000", dark) >= 4.5     # black text on the dark-theme fill
 
 
-def test_warm_tokens_and_pill_controls(env):
+def test_wealthsimple_tokens_and_raised_pill_controls(env):
     _, client = env
     css = client.get("/").text
-    for token in ("--bg: #faf8f5", "--ink: #32302f", "--muted: #686664", "--line: #e4e2e1", "--r-pill: 999px", "--r-lg: 24px"):
+    for token in ("--bg: #f2f2f2", "--surface: #fafafa", "--surface-hover: #ffffff", "--ink: #000000", "--r-pill: 999px", "--r-lg: 20px", "--pad: 16px"):
         assert token in css
-    assert "border-radius: var(--r-pill)" in css and "--bg: #12110e" in css      # dark is warm bronze-black
-    assert "box-shadow" not in re.sub(r"/\*.*?\*/", "", css.split("<style>")[1].split("</style>")[0], flags=re.S).replace(
-        "box-shadow: none", ""), "no shadows anywhere in the shared styles"
+    assert "border-radius: var(--r-pill)" in css and "--bg: #000000" in css and "--surface: #171717" in css   # dark theme
+    # Cards and secondary buttons are raised: white inner stroke, 5% outer stroke, soft drop shadow.
+    assert "--raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08)" in css
+    assert "box-shadow: var(--raise)" in css and "linear-gradient(180deg, var(--accent), var(--accent-end))" in css
+    # Buttons reset the user-agent border and press in to 97%; rows inside a card change tone instead.
+    assert "cursor: pointer; border: none;" in css and "transform: scale(0.97)" in css
+    assert "tr.app-row:active td { background: var(--fog); }" in css
+    assert "padding: 40px 16px 96px" in css                      # 16px page gutter at every width
+    assert "--section: 32px" in css and "--section: 64px" in css  # 32px between sections on a phone, 64px on the web
+
+
+def test_wealthsimple_type_rules(env):
+    _, client = env
+    css = client.get("/").text
+    style = re.sub(r"@font-face[^\n]*", "", css.split("<style>")[1].split("</style>")[0])   # the variable font's 300-900 range is not a used weight
+    assert "text-transform" not in style                                   # sentence case everywhere
+    assert "font-variant-numeric" not in style and "tabular-nums" not in style
+    assert "a { color: inherit; text-decoration: none; }" in style and "text-decoration: underline" not in style
+    assert not re.search(r"font-weight:\s*(?:[1236]00|800|900)\b", style)    # weights are 400, 500 and 700 only
 
 
 def test_sharp_corners_flatten_every_radius(env):
     _, client = env
     css = client.get("/").text
-    assert '[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; }' in css
+    assert '[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; --r-seg: 3px; }' in css
 
 
 def test_browser_surfaces_are_themed(env):
@@ -91,6 +109,7 @@ def test_notices_have_a_full_border_and_a_drawn_icon_not_a_side_stripe(env):
     _, client = env
     css = client.get("/").text
     assert "border-left: 3px" not in css and ".notice::before" in css and "mask" in css
+    assert "--ico-info" in css and "--ico-alert" in css                  # Lucide info and triangle-alert, not hand-drawn paths
 
 
 def test_flow_page_uses_a_sentence_and_drawn_icons_not_glyphs(env):
@@ -119,7 +138,7 @@ def test_detail_page_has_one_inset_and_clear_heading_levels(env):
     assert '<h2 id="h-notes" class="section">Notes and steps</h2>' in html
     assert '<h2 class="section spaced">Email timeline ' in html and "newest first" in html
     assert "font-size:17px" not in html
-    assert "h2.section { font-size: 1.625rem" in html and ".panel-h { font: 500 1.125rem" in html   # section outranks sub-heading
+    assert "h2.section { font-size: 1.25rem" in html and ".panel-h { font: 500 1rem" in html   # section outranks sub-heading
 
 
 def test_back_link_and_disclosures_use_the_drawn_chevron_not_glyphs(env):
@@ -131,6 +150,7 @@ def test_back_link_and_disclosures_use_the_drawn_chevron_not_glyphs(env):
     for page in ("/", "/flow"):
         assert 'summary class="disclosure"' in client.get(page).text
     assert "summary.disclosure::-webkit-details-marker { display: none; }" in detail
+    assert "--ico-chevron-right" in detail and "border-right: 1.5px" not in detail     # the Lucide chevron, not a drawn border corner
 
 
 def test_phone_layout_keeps_company_stage_and_last_activity(env):
@@ -148,7 +168,7 @@ def test_phone_rows_stack_instead_of_scrolling_and_stay_a_table_for_screen_reade
     assert '<tbody role="rowgroup">' in html and 'class="app-row" role="row"' in html and '<td role="cell" data-col="company">' in html
     assert 'role="columnheader"' in html
     for rule in (".list-card table.list tr.app-row { display: grid; grid-template-columns: 1fr auto;",
-                 '.list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 1 / -1; padding-left: 20px;',
+                 '.list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 1 / -1; padding-left: 28px;',
                  ".list-card table.list tr.panel-row[hidden] { display: none; }"):   # block display would otherwise un-hide closed panels
         assert rule in html
     # Scoped to the application list: the Settings accounts table must stay an ordinary table.
@@ -232,10 +252,10 @@ def test_dropdowns_are_themed_not_the_system_popup(env):
     assert "@supports (appearance: base-select)" in css and "select::picker(select)" in css
     for rule in ("select::picker-icon", "select option::checkmark", "select option:hover", "select:open::picker-icon"):
         assert rule in css
-    assert "box-shadow: none" in css.split("select::picker(select) { margin-top")[1].split("}")[0]   # hairline popup, no shadow
+    assert "box-shadow: var(--raise)" in css.split("select::picker(select) { margin-top")[1].split("}")[0]   # the popup is a raised Primary-card surface
     assert "border-radius: var(--r-pill)" in css.split("select option {")[1].split("}")[0]  # pill-shaped rows, like the buttons
     # Options in a group must not inherit the group heading's bold weight.
-    assert css.index("select optgroup option { font-weight: 400; }") < css.index("select option:checked { font-weight: 600; }")
+    assert css.index("select optgroup option { font-weight: 400; }") < css.index("select option:checked { font-weight: 500; }")
 
 
 def test_phone_nav_fits_one_row(env):
@@ -250,16 +270,19 @@ def test_settings_accounts_table_lines_up_with_the_card_text(env):
     assert ".scroll-x table.list th:first-child, .scroll-x table.list td:first-child { padding-left: 0; }" in html
 
 
-def test_flow_labels_are_larger_and_the_dark_ramp_starts_lighter(env):
+def test_flow_labels_are_larger_and_stages_use_the_data_viz_palette(env):
     _, client = env
     html = client.get("/flow").text
     assert ".viz-root .lbl { fill: var(--ink); font-size: 14px" in html and ".viz-root .sub { fill: var(--ink2); font-size: 13px" in html
-    assert html.count("--ord-1: #7d7155") == 2        # system-dark and forced-dark, 3.65:1 on the dark card
-    assert "#675c45" not in html
+    # Stages take data-viz 01 to 04 in order, the same in light, system-dark and forced-dark.
+    assert html.count("--ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;") == 3
+    assert "#7d7155" not in html and "Source Serif" not in html
+    assert "tabular-nums" not in html and "M20 6 9 17l-5-5" in html          # Lucide check on the Offer node
 
 
-def test_serif_is_used_for_headlines_and_company_names(env):
+def test_headlines_and_company_names_are_sans(env):
     _, client = env
     html = client.get("/").text
-    assert "h1.page { font: 500 clamp(2rem, 4vw, 2.75rem)/1.12 var(--font-display)" in html
-    assert "a.expander strong { font: 500 1.1875rem/1.2 var(--font-display)" in html
+    assert "h1.page { font: 500 clamp(2rem, 4vw, 2.5rem)/1.2 var(--font-ui)" in html
+    assert "a.expander strong { font: 500 1rem/1.4 var(--font-ui)" in html
+    assert "--font-display" not in html and "serif" not in html.replace("sans-serif", "")

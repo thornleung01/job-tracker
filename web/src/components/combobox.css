@@ -1,0 +1,15 @@
+/* Search suggestions: same look as the themed dropdown popups. */
+.combo-wrap { position: relative; }
+.combo-list { position: absolute; z-index: var(--z-pop); top: 100%; left: 0; right: 0; margin: 8px 0 0; padding: 8px; list-style: none;
+              max-height: min(360px, 60vh); overflow-y: auto; background: var(--surface); border: none; border-radius: var(--r); box-shadow: var(--raise); }
+.combo-list[hidden] { display: none; }
+.combo-group { padding: 10px 14px 2px; font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
+.combo-group:first-child { padding-top: 4px; }
+.combo-list [role="option"] { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 40px; padding: 6px 14px;
+                              border-radius: var(--r-pill); cursor: pointer; }
+.combo-list [role="option"]:hover, .combo-list [role="option"][aria-selected="true"] { background: var(--hover); }
+.combo-list [role="option"]:active { background: var(--fog); }
+.combo-list [role="option"] b { font-weight: 700; }
+.combo-list .n { flex: none; font-size: 0.8125rem; color: var(--muted); }
+.combo-empty { padding: 10px 14px; color: var(--muted); font-size: 0.9375rem; }
+.combo-wrap input { width: 100%; }

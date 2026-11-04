@@ -1,0 +1,4 @@
+/* App shell additions on top of styles/base.css. Tokens only: no hard-coded colours or radii. */
+.loading { margin: 0; padding: 8px 0; }
+main:focus, main h1:focus, h1[tabindex="-1"]:focus { outline: none; }   /* programmatic focus after navigation, not a control */
+.wrap > .notice[role="alert"] + .row { margin-bottom: var(--gap); }

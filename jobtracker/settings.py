@@ -9,7 +9,7 @@ DENSITIES = ["comfortable", "compact"]
 CORNERS = ["soft", "sharp"]
 # name -> (light accent, dark accent). Both are checked for text contrast on the button.
 ACCENTS = {
-    "graphite": ("#32302f", "#ece9e2"),
+    "graphite": ("#000000", "#ffffff"),
     "bronze": ("#5c4b24", "#d9c28a"),
     "forest": ("#2f5d46", "#8cc7a6"),
     "clay": ("#8f4a32", "#e0a184"),

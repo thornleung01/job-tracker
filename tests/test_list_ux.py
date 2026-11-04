@@ -143,7 +143,7 @@ def test_shared_styles_have_touch_targets_states_and_scalable_type(env):
     _, client = env
     css = client.get("/").text
     assert "--tap: 44px" in css and "(pointer: coarse)" in css and "min-height: var(--tap)" in css
-    assert "button:disabled" in css and "font: 1rem/1.55" in css and "tabular-nums" in css
+    assert "button:disabled" in css and "font: 400 1rem/1.4" in css and "tabular-nums" not in css   # proportional figures everywhere
     assert "font-size: 16px" in css            # stops iOS zooming into fields on focus
     flow = client.get("/flow").text
     assert 'rel="icon"' in flow and 'name="color-scheme"' in flow

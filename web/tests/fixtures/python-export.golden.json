@@ -1,0 +1,1669 @@
+{
+  "now": "2026-11-04T23:34:53Z",
+  "sankey": {
+    "0:0": {
+      "total": 39,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 39,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 13,
+          "pct": 33
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 15,
+          "pct": 38
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 8,
+          "pct": 21
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 7,
+          "pct": 18
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 4,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 5,
+          "pct": 13
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 6,
+          "pct": 15
+        }
+      ],
+      "heard_back": 25,
+      "interviews": 13,
+      "offers": 2,
+      "rejected": 15
+    },
+    "0:30": {
+      "total": 4,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 4,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 4,
+          "pct": 100
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 1,
+          "pct": 25
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 3,
+          "pct": 75
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 1,
+          "pct": 25
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 3,
+          "pct": 75
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 4,
+          "pct": 100
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 1,
+          "pct": 25
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 3,
+          "pct": 75
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 25
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 3,
+          "pct": 75
+        }
+      ],
+      "heard_back": 4,
+      "interviews": 3,
+      "offers": 0,
+      "rejected": 1
+    },
+    "0:60": {
+      "total": 20,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 20,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 14,
+          "pct": 70
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 6,
+          "pct": 30
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 6,
+          "pct": 30
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 8,
+          "pct": 40
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 8,
+          "pct": 40
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 5,
+          "pct": 25
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 14,
+          "pct": 70
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 6,
+          "pct": 30
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 6,
+          "pct": 30
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 5,
+          "pct": 25
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 15
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 3,
+          "pct": 15
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 15
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 2,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 5,
+          "pct": 25
+        }
+      ],
+      "heard_back": 14,
+      "interviews": 8,
+      "offers": 1,
+      "rejected": 8
+    },
+    "0:90": {
+      "total": 39,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 39,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 13,
+          "pct": 33
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 15,
+          "pct": 38
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 8,
+          "pct": 21
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 7,
+          "pct": 18
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 4,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 5,
+          "pct": 13
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 6,
+          "pct": 15
+        }
+      ],
+      "heard_back": 25,
+      "interviews": 13,
+      "offers": 2,
+      "rejected": 15
+    },
+    "0:180": {
+      "total": 39,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 39,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 13,
+          "pct": 33
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 15,
+          "pct": 38
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 8,
+          "pct": 21
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 25,
+          "pct": 64
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 14,
+          "pct": 36
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 10,
+          "pct": 26
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 7,
+          "pct": 18
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 6,
+          "pct": 15
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 4,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 2,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 5,
+          "pct": 13
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 6,
+          "pct": 15
+        }
+      ],
+      "heard_back": 25,
+      "interviews": 13,
+      "offers": 2,
+      "rejected": 15
+    },
+    "1:0": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 5,
+          "pct": 26
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 3,
+          "pct": 16
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 6
+    },
+    "1:30": {
+      "total": 1,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 1,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 1,
+          "pct": 100
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 1,
+          "pct": 100
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 1,
+          "pct": 100
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 1,
+          "pct": 100
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 1,
+          "pct": 100
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 1,
+          "pct": 100
+        }
+      ],
+      "heard_back": 1,
+      "interviews": 1,
+      "offers": 0,
+      "rejected": 0
+    },
+    "1:60": {
+      "total": 10,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 10,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 7,
+          "pct": 70
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 3,
+          "pct": 30
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 2,
+          "pct": 20
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 3,
+          "pct": 30
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 5,
+          "pct": 50
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 2,
+          "pct": 20
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 7,
+          "pct": 70
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 3,
+          "pct": 30
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 2,
+          "pct": 20
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 2,
+          "pct": 20
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 30
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 1,
+          "pct": 10
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 10
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 2,
+          "pct": 20
+        }
+      ],
+      "heard_back": 7,
+      "interviews": 3,
+      "offers": 0,
+      "rejected": 5
+    },
+    "1:90": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 5,
+          "pct": 26
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 3,
+          "pct": 16
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 6
+    },
+    "1:180": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 5,
+          "pct": 26
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Heard back",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 3,
+          "pct": 16
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 6
+    },
+    "2:0": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 9,
+          "pct": 47
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 9
+    },
+    "2:30": {
+      "total": 2,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 2,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 2,
+          "pct": 100
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 1,
+          "pct": 50
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 2,
+          "pct": 100
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 50
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 1,
+          "pct": 50
+        }
+      ],
+      "heard_back": 2,
+      "interviews": 1,
+      "offers": 0,
+      "rejected": 1
+    },
+    "2:60": {
+      "total": 9,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 9,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 6,
+          "pct": 67
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 3,
+          "pct": 33
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 4,
+          "pct": 44
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 4,
+          "pct": 44
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 11
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 3,
+          "pct": 33
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 2,
+          "pct": 22
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 6,
+          "pct": 67
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 3,
+          "pct": 33
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 4,
+          "pct": 44
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 2,
+          "pct": 22
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 2,
+          "pct": 22
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 2,
+          "pct": 22
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 11
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 1,
+          "pct": 11
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 2,
+          "pct": 22
+        }
+      ],
+      "heard_back": 6,
+      "interviews": 4,
+      "offers": 1,
+      "rejected": 3
+    },
+    "2:90": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 9,
+          "pct": 47
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 9
+    },
+    "2:180": {
+      "total": 19,
+      "nodes": [
+        {
+          "id": "Applied",
+          "col": 0,
+          "value": 19,
+          "pct": 100
+        },
+        {
+          "id": "Heard back",
+          "col": 1,
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "id": "No response yet",
+          "col": 1,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Assessment",
+          "col": 2,
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "id": "Interview",
+          "col": 3,
+          "value": 6,
+          "pct": 32
+        },
+        {
+          "id": "Offer",
+          "col": 4,
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "id": "Rejected",
+          "col": 4,
+          "value": 9,
+          "pct": 47
+        },
+        {
+          "id": "Still open",
+          "col": 4,
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "links": [
+        {
+          "source": "Applied",
+          "target": "Heard back",
+          "value": 12,
+          "pct": 63
+        },
+        {
+          "source": "Applied",
+          "target": "No response yet",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Assessment",
+          "value": 7,
+          "pct": 37
+        },
+        {
+          "source": "Heard back",
+          "target": "Interview",
+          "value": 2,
+          "pct": 11
+        },
+        {
+          "source": "Heard back",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Assessment",
+          "target": "Interview",
+          "value": 4,
+          "pct": 21
+        },
+        {
+          "source": "Assessment",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Offer",
+          "value": 1,
+          "pct": 5
+        },
+        {
+          "source": "Interview",
+          "target": "Rejected",
+          "value": 3,
+          "pct": 16
+        },
+        {
+          "source": "Interview",
+          "target": "Still open",
+          "value": 2,
+          "pct": 11
+        }
+      ],
+      "heard_back": 12,
+      "interviews": 6,
+      "offers": 1,
+      "rejected": 9
+    }
+  },
+  "contacts": [],
+  "counts": {
+    "accounts": 2,
+    "applications": 39,
+    "emails": 80,
+    "activity": 6,
+    "feedback": 2,
+    "ignored_mail": 1,
+    "learned_rules": 3,
+    "contact_edits": 1
+  }
+}

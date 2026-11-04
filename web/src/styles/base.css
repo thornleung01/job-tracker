@@ -1,0 +1,347 @@
+/* Shared stylesheet, ported verbatim from jobtracker/templates/base.html (the local edition). Keep the two in step. See DESIGN.md. */
+  /* Typeface: Wealthsimple Sans Display is used when it is installed on the device. Figtree is the self-hosted stand-in, so the app works offline. */
+  @font-face { font-family: "Figtree"; src: url("../assets/fonts/Figtree-latin-wght.woff2") format("woff2"); font-weight: 300 900; font-style: normal; font-display: swap; }
+
+  :root {
+    color-scheme: light;
+    /* Wealthsimple prototype tokens. Cards, buttons and popups are raised with a white inner stroke, a 5% outer stroke and a soft drop shadow. */
+    --bg: #f2f2f2; --surface: #fafafa; --surface-hover: #ffffff; --linen: #ebebeb;
+    --fog: rgba(0,0,0,.05); --hover: rgba(0,0,0,.04);   /* inactive-bg, a touch stronger than the 3% reference so badges and the current tab stay visible */
+    --ink: #000000; --muted: rgba(0,0,0,.55); --line: rgba(0,0,0,.08);
+    --field-line: #8c8c8c;          /* control borders: 3:1 against the surface, unlike the decorative --line */
+    --accent: var(--accent-l); --accent-ink: #ffffff; --accent-end: color-mix(in srgb, var(--accent), #fff 16%);
+    --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
+    --raise-btn: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10);
+    --btn-hi: rgba(255,255,255,.12); --btn-lo: rgba(0,0,0,.5); --btn-drop: rgba(0,0,0,.35);
+    --applied: #5e5e5e; --heard: #305faa; --assess: #7e6812; --interview: #69477a; --offer: #357941; --rejected: #c02416;
+    --font-ui: "Wealthsimple Sans Display", "Figtree", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
+    --r-pill: 999px; --r-lg: 20px; --r: 12px; --r-seg: 8px;
+    --pad: 16px; --cell-y: 16px; --gap: 24px; --section: 32px;
+    --tap: 44px;                    /* minimum control height */
+    --z-tip: 20; --z-pop: 30; --z-skip: 100;     /* the only layers this app uses */
+    /* Lucide icons (stroke 3 at 16px renders as 2px), drawn as masks so they take the surrounding text colour. */
+    --ico-chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+    --ico-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --ico-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+    --ico-arrow-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 7-7 7 7'/%3E%3Cpath d='M12 19V5'/%3E%3C/svg%3E");
+    --ico-arrow-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='m19 12-7 7-7-7'/%3E%3C/svg%3E");
+    --ico-info: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+    --ico-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+  }
+  @media (min-width: 721px) { :root { --section: 64px; } }   /* 32px between sections on a phone, 64px on the web */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #000000; --surface: #171717; --surface-hover: #1f1f1f; --linen: #0f0f0f;
+      --fog: rgba(255,255,255,.07); --hover: rgba(255,255,255,.04);
+      --ink: #ffffff; --muted: rgba(255,255,255,.5); --line: rgba(255,255,255,.12); --field-line: #8a8a8a;
+      --accent: var(--accent-d); --accent-ink: #000000; --accent-end: color-mix(in srgb, var(--accent), #000 12%);
+      --raise: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.5);
+      --raise-btn: var(--raise);
+      --btn-hi: rgba(255,255,255,.55); --btn-lo: rgba(0,0,0,.2); --btn-drop: rgba(0,0,0,.5);
+      --applied: #b4b4b4; --heard: #bacdf4; --assess: #f5dd56; --interview: #cba9d6; --offer: #6dc382; --rejected: #f27868;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #000000; --surface: #171717; --surface-hover: #1f1f1f; --linen: #0f0f0f;
+    --fog: rgba(255,255,255,.07); --hover: rgba(255,255,255,.04);
+    --ink: #ffffff; --muted: rgba(255,255,255,.5); --line: rgba(255,255,255,.12); --field-line: #8a8a8a;
+    --accent: var(--accent-d); --accent-ink: #000000; --accent-end: color-mix(in srgb, var(--accent), #000 12%);
+    --raise: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.5);
+    --raise-btn: var(--raise);
+    --btn-hi: rgba(255,255,255,.55); --btn-lo: rgba(0,0,0,.2); --btn-drop: rgba(0,0,0,.5);
+    --applied: #b4b4b4; --heard: #bacdf4; --assess: #f5dd56; --interview: #cba9d6; --offer: #6dc382; --rejected: #f27868;
+  }
+  :root[data-density="compact"] { --pad: 12px; --cell-y: 8px; --gap: 12px; --section: 24px; --tap: 36px; }
+  @media (min-width: 721px) { :root[data-density="compact"] { --section: 40px; } }
+  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; } }
+  :root[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; --r-seg: 3px; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scrollbar-color: var(--field-line) transparent; }
+  /* Sizes are in rem so the page follows the browser's text-size setting. Weights are 400, 500 and 700 only. */
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1rem/1.4 var(--font-ui); letter-spacing: 0.02px; caret-color: var(--ink); -webkit-font-smoothing: antialiased; }
+  :root[data-density="compact"] body { font-size: 0.9375rem; }
+  ::selection { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
+  a { color: inherit; text-decoration: none; }
+  a, button, summary, label, select { touch-action: manipulation; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 16px 96px; }   /* the page gutter is 16px at every width */
+
+  /* Header and navigation */
+  header.top { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; margin-bottom: var(--section); }
+  .brand { font: 700 1.5625rem/1.2 var(--font-ui); letter-spacing: -0.25px; flex: 1; }
+  header.top nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  form.who { margin: 0; }
+  form.who select { min-height: 40px; font-weight: 500; padding-left: 18px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  header.top nav a { text-decoration: none; color: var(--muted); padding: 0 18px; min-height: var(--tap); display: inline-flex; align-items: center;
+                     border-radius: var(--r-pill); font-weight: 500; }
+  header.top nav a:hover { color: var(--ink); background: var(--hover); }
+  header.top nav a.icon-link { padding: 0 10px; }
+  header.top nav a.icon-link svg { display: block; }
+  header.top nav a[aria-current="page"] { color: var(--ink); background: var(--fog); }
+  header.top nav a .count { margin-left: 8px; min-width: 22px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
+                            font-size: 0.75rem; font-weight: 700; text-align: center; }
+  .skip { position: absolute; left: -9999px; }
+  .skip:focus { left: 16px; top: 8px; background: var(--surface); padding: 10px 18px; border-radius: var(--r-pill); z-index: var(--z-skip); }
+  h1.page { font: 500 clamp(2rem, 4vw, 2.5rem)/1.2 var(--font-ui); letter-spacing: -0.8px; margin: 0 0 var(--gap); text-wrap: balance; }
+  h2 { font-family: var(--font-ui); font-weight: 500; letter-spacing: -0.2px; }
+  h2.section { font-size: 1.25rem; line-height: 1.4; margin: 0 0 16px; }   /* outranks the 1rem sub-headings inside it */
+  h2.section.spaced { margin-top: 32px; }
+  a.back { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); color: var(--muted); text-decoration: none; }
+  a.back:hover { color: var(--ink); }
+  .back .chev { transform: rotate(180deg); }
+  /* Disclosures use the same Lucide chevron as the list rows, not the browser's triangle. */
+  summary.disclosure { list-style: none; display: flex; align-items: center; gap: 12px; cursor: pointer; min-height: var(--tap); font-weight: 500; }
+  summary.disclosure::-webkit-details-marker { display: none; }
+  details[open] > summary.disclosure .chev { transform: rotate(90deg); }
+
+  /* Stage badges: quiet tonal pills; the word carries the meaning, color only supports it. */
+  .badge { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 3px 12px; border-radius: var(--r-pill);
+           background: var(--fog); white-space: nowrap; letter-spacing: 0.18px; }
+  .Applied { color: var(--applied); } .Heard-back { color: var(--heard); } .Assessment { color: var(--assess); }
+  .Interview { color: var(--interview); } .Offer { color: var(--offer); } .Rejected { color: var(--rejected); }
+
+  /* Buttons are pills. Secondary (the default) is raised like a Primary card, Primary is a dark glass gradient, quiet ones are tertiary.
+     Always reset the user-agent border; the strokes come from the shadows. */
+  button, .btn { font: 500 1rem/1 var(--font-ui); letter-spacing: 0.02px; cursor: pointer; border: none; background: var(--surface); color: var(--ink);
+                 box-shadow: var(--raise-btn); padding: 0 24px; border-radius: var(--r-pill); min-height: var(--tap); }
+  button:hover:not(:disabled), a.btn:hover { background: var(--surface-hover); }
+  button:active:not(:disabled), a.btn:active { transform: scale(0.97); }
+  button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
+                   box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
+  button.primary:hover:not(:disabled) { background: linear-gradient(180deg, color-mix(in srgb, var(--accent), var(--bg) 14%), color-mix(in srgb, var(--accent-end), var(--bg) 14%)); }
+  button.danger { color: var(--rejected); }
+  button.quiet, button.hist-del { background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.07)); box-shadow: none; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button[aria-busy="true"] { cursor: progress; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 3px; }
+  input, select, textarea { font: inherit; padding: 0 20px; border: 1px solid var(--field-line); border-radius: var(--r-pill);
+                            background: var(--surface); color: var(--ink); max-width: 100%; }
+  input:not([type="checkbox"]):not([type="radio"]), select { min-height: var(--tap); }
+  input[type="date"] { padding-right: 14px; }
+  input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
+  input:focus, select:focus, textarea:focus { border-color: var(--ink); }
+
+  /* Dropdowns: the popup is themed too, not the system's square blue list. It is still a real <select>
+     (keyboard, typing to jump, screen readers). Browsers without customizable selects keep the native one. */
+  @supports (appearance: base-select) {
+    select, select::picker(select) { appearance: base-select; }
+    select { display: inline-flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 18px 0 22px; cursor: pointer; }
+    select::picker-icon { content: ""; flex: none; width: 16px; height: 16px; background: currentColor; color: var(--muted);
+                          -webkit-mask: var(--ico-chevron-down) center / contain no-repeat; mask: var(--ico-chevron-down) center / contain no-repeat; }
+    select:open::picker-icon { transform: rotate(180deg); color: var(--ink); }
+    select::picker(select) { margin-top: 8px; padding: 8px; max-height: min(360px, 60vh); border: none; border-radius: var(--r);
+                             background: var(--surface); color: var(--ink); box-shadow: var(--raise); }
+    select option { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 6px 16px; border-radius: var(--r-pill);
+                    font: inherit; color: var(--ink); cursor: pointer; }
+    select option:hover, select option:focus-visible { background: var(--hover); outline: none; }
+    select optgroup option { font-weight: 400; }
+    select option:checked { font-weight: 500; }
+    select option::checkmark { order: 1; margin-left: auto; content: ""; flex: none; width: 16px; height: 16px; background: currentColor;
+                               -webkit-mask: var(--ico-check) center / contain no-repeat; mask: var(--ico-check) center / contain no-repeat; }
+    select optgroup { padding: 10px 0 2px; font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
+    select optgroup + optgroup { margin-top: 6px; border-top: 1px solid var(--line); }
+    select optgroup option { font-size: 1rem; }
+    select option:disabled { color: var(--muted); cursor: default; }
+    select option[hidden] { display: none; }   /* a prompt like "Choose a step" shows in the box, not as a row */
+  }
+  ::placeholder { color: var(--muted); opacity: 1; }
+  /* iOS zooms the page when a field under 16px gets focus. */
+  @media (max-width: 720px) { input, select, textarea { font-size: 16px; } }
+  textarea { width: 100%; min-height: 96px; resize: vertical; padding: 14px 18px; border-radius: var(--r); line-height: 1.5; }
+  label.field { display: block; font-weight: 500; margin-bottom: 4px; }
+  .help { color: var(--muted); font-size: 0.875rem; margin: 0 0 8px; }
+
+  /* Surfaces: the Primary card, 20px radius, raised by its strokes and a soft shadow rather than a border. */
+  .card { background: var(--surface); box-shadow: var(--raise); border-radius: var(--r-lg); padding: var(--pad); margin-bottom: var(--section); }
+  .muted { color: var(--muted); } .small { font-size: 0.875rem; }
+  .fgroup { display: flex; flex-direction: column; gap: 6px; }
+  .fgroup > label { font-size: 0.875rem; font-weight: 500; color: var(--muted); padding-left: 4px; }
+  .result-line { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; min-height: 28px; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 14px; background: var(--fog); border-radius: var(--r-pill); font-size: 0.875rem; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  /* Stage filter tabs: the Minimal segmented control. No track; the current option gets a grey rounded-rectangle indicator. */
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 var(--gap); }
+  .tab { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 16px; border-radius: var(--r-seg); text-decoration: none;
+         background: transparent; color: var(--muted); font-weight: 400; }
+  .tab:hover { background: var(--hover); color: var(--ink); }
+  .tab:active { background: var(--fog); }
+  .tab .n { color: var(--muted); font-weight: 400; }
+  .tab[aria-current="true"] { background: var(--fog); color: var(--ink); font-weight: 500; }
+  .tab[aria-current="true"] .n { color: inherit; }
+  @media (max-width: 720px) { .tab { padding: 0 12px; gap: 6px; } .tabs { gap: 2px; } }
+  /* Four nav items fit one row at phone width instead of orphaning the last one. */
+  @media (max-width: 520px) {
+    header.top nav { width: 100%; gap: 0; justify-content: space-between; }
+    header.top nav a { padding: 0 5px; font-size: 0.875rem; }
+    header.top nav a .count { margin-left: 5px; min-width: 20px; padding: 1px 6px; }
+    /* The Settings icon sits in the title row, so the four words get the whole row below. */
+    header.top { position: relative; }
+    header.top nav a.icon-link { position: absolute; top: -4px; right: -8px; padding: 0 10px; }
+    header.top nav a:not(.icon-link) { padding: 0 4px; }
+  }
+
+  /* Notices: a full hairline box with a Lucide icon, never a colored side-stripe. */
+  .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 20px; background: var(--surface); border: 1px solid var(--field-line);
+            border-radius: var(--r); margin-bottom: var(--gap); }
+  .notice::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 3px; background: currentColor;
+    -webkit-mask: var(--ico-info) center / contain no-repeat; mask: var(--ico-info) center / contain no-repeat; }
+  .notice.err { border-color: var(--rejected); }
+  .notice.err::before { color: var(--rejected); -webkit-mask-image: var(--ico-alert); mask-image: var(--ico-alert); }
+  form.inline { display: inline; }
+  /* Email text: it should read like a message, not a log file. Quotes and footers fold away; links show their domain. */
+  .mail-head { margin-bottom: 14px; }
+  .mail-subject { font: 500 1.25rem/1.4 var(--font-ui); letter-spacing: -0.2px; margin: 0 0 6px; text-wrap: balance; }
+  .mail-meta { margin: 0; color: var(--muted); font-size: 0.875rem; display: flex; gap: 2px 8px; flex-wrap: wrap; align-items: baseline; }
+  .mail-meta .who { color: var(--ink); font-weight: 700; }
+  .mail-meta .role { color: var(--ink); }
+  .mail-meta .addr { overflow-wrap: anywhere; }
+  .mail-meta .when { flex-basis: 100%; font-size: 0.8125rem; }
+  .mail-guess { margin: 8px 0 0; font-size: 0.875rem; color: var(--muted); }
+  .mail-guess b { color: var(--ink); font-weight: 700; }
+  .mail-text { max-width: 68ch; font: 400 0.9375rem/1.7 var(--font-ui); color: var(--ink); }
+  .mail-text p { margin: 0 0 0.7em; overflow-wrap: anywhere; }
+  .mail-text p:last-child { margin-bottom: 0; }
+  .mail-text p.sig { margin-bottom: 0.1em; color: var(--muted); }
+  .mail-text ul { margin: 0 0 0.8em; padding-left: 1.25em; }
+  .mail-text li { margin-bottom: 0.25em; overflow-wrap: anywhere; }
+  .mail-text .url { color: var(--muted); border-bottom: 1px dotted var(--field-line); font-size: 0.9em; white-space: nowrap; }
+  .mail-empty { color: var(--muted); }
+  .mail-fold { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 2px; }
+  .mail-fold > summary { cursor: pointer; color: var(--muted); font-size: 0.875rem; font-weight: 500; min-height: 40px; display: flex; align-items: center; }
+  .mail-fold[open] > summary { color: var(--ink); }
+  .mail-fold > :not(summary) { color: var(--muted); }
+
+  /* The list */
+  table.list { width: 100%; border-collapse: collapse; }
+  table.list th { text-align: left; font-size: 0.875rem; color: var(--muted); font-weight: 500; padding: 4px 16px; white-space: nowrap; }
+  table.list td { padding: var(--cell-y) 16px; border-top: 1px solid var(--line); }
+  table.list td.small { white-space: nowrap; }   /* dates stay on one line; the card scrolls sideways on a phone */
+  tr.app-row:hover td { background: var(--hover); }
+  tr.app-row:active td { background: var(--fog); }   /* rows live inside a card, so they signal press with tone, not scale */
+  table.list th a.sort { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; min-height: var(--tap); }
+  table.list th a.sort:hover { color: var(--ink); }
+  table.list th[aria-sort="ascending"] a.sort, table.list th[aria-sort="descending"] a.sort { color: var(--ink); }
+  .sort-ind { width: 16px; height: 16px; background: currentColor; opacity: 0; flex: none; }
+  th[aria-sort="ascending"] .sort-ind { opacity: 1; -webkit-mask: var(--ico-arrow-up) center / contain no-repeat; mask: var(--ico-arrow-up) center / contain no-repeat; }
+  th[aria-sort="descending"] .sort-ind { opacity: 1; -webkit-mask: var(--ico-arrow-down) center / contain no-repeat; mask: var(--ico-arrow-down) center / contain no-repeat; }
+  table.list th:first-child, table.list td:first-child { padding-left: var(--pad); }
+  table.list th:last-child, table.list td:last-child { padding-right: var(--pad); }
+  table.list tr.panel-row > td { padding: 0; }   /* the open row's panel supplies its own padding */
+  .role-sub { display: none; font-size: 0.875rem; color: var(--muted); }
+  /* On a phone the list keeps Company, Stage and Last activity; the role moves under the company name. */
+  /* On a phone each application becomes a small stacked block, so nothing has to scroll sideways:
+       name and role on the left, stage on the right, last activity on its own line below.
+     The column headers become a row of sort buttons. The table roles in the markup keep it a table
+     for screen readers, because display: block would otherwise strip them. */
+  @media (max-width: 720px) {
+    .role-sub { display: block; margin: -2px 0 0 28px; }
+    .list-card table.list, .list-card table.list tbody, .list-card table.list thead { display: block; }
+    .list-card table.list thead tr { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; }
+    .list-card table.list th, .list-card table.list th:first-child, .list-card table.list th:last-child { display: block; padding: 0; }
+    .list-card table.list th a.sort { padding: 0 16px; border-radius: var(--r-pill); background: var(--fog); min-height: var(--tap); font-weight: 500; }
+    /* The column the list is sorted by is the filled one. */
+    .list-card table.list th[aria-sort="ascending"] a.sort, .list-card table.list th[aria-sort="descending"] a.sort { background: var(--accent); color: var(--accent-ink); }
+    .list-card table.list tr.app-row { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    .list-card table.list tr.app-row > td, .list-card table.list tr.app-row > td:first-child, .list-card table.list tr.app-row > td:last-child { display: block; padding: 0; border: 0; background: none; }
+    .list-card tr.app-row:hover { background: var(--hover); }
+    .list-card tr.app-row.is-open { background: var(--linen); }
+    .list-card td[data-col="company"] { grid-column: 1; }
+    .list-card td[data-col="stage"] { grid-column: 2; grid-row: 1; justify-self: end; }
+    .list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 1 / -1; padding-left: 28px; margin-top: 2px; }
+    .list-card table.list tr.panel-row { display: block; }
+    .list-card table.list tr.panel-row[hidden] { display: none; }
+    .list-card table.list tr.panel-row > td { display: block; }
+    /* Role, Applied and Emails make way for the stacked layout (the role shows under the company name). */
+    .list-card table.list th[data-col="role"], .list-card table.list tr.app-row > td[data-col="role"],
+    .list-card table.list th[data-col="applied"], .list-card table.list tr.app-row > td[data-col="applied"],
+    .list-card table.list th[data-col="emails"], .list-card table.list tr.app-row > td[data-col="emails"] { display: none; }
+  }
+
+  /* Expandable application rows */
+  a.expander { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; min-height: var(--tap); padding-right: 6px; }
+  a.expander strong { font: 500 1rem/1.4 var(--font-ui); letter-spacing: 0.02px; }
+  .chev { width: 16px; height: 16px; flex: none; background: currentColor; color: var(--muted);
+          -webkit-mask: var(--ico-chevron-right) center / contain no-repeat; mask: var(--ico-chevron-right) center / contain no-repeat; }
+  a.expander[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  a.open-link { color: var(--muted); margin-left: 4px; padding: 12px 8px; display: inline-block; font-size: 0.875rem; }
+  tr.app-row { cursor: pointer; }
+  tr.app-row.is-open td { background: var(--linen); }
+  tr.panel-row > td { padding: 0; border-top: 0; background: var(--linen); }
+  .panel-inner { padding: 8px var(--pad) var(--pad); cursor: auto; }
+  .card:not(.list-card) .panel-inner { padding: 0; }   /* on the detail page the card already pads it */
+  /* The list scrolls sideways on a phone. Keep an open row's panel as wide as the visible card and pinned
+     to its left edge, so its forms and history never run off-screen. */
+  .list-card { container-type: inline-size; }
+  @supports (width: 1cqw) { .list-card .panel-inner { position: sticky; left: 0; width: 100cqw; } }
+  .panel-forms { display: grid; grid-template-columns: minmax(0, 560px); gap: 32px; align-items: start; }
+  .panel-h { font: 500 1rem/1.375 var(--font-ui); margin: 12px 0 8px; }
+  .panel-status { min-height: 1.2em; outline: none; }
+  ol.hist { list-style: none; margin: 0; padding: 0; }
+  ol.hist li { padding: 12px 0; border-top: 1px solid var(--line); }
+  .hist-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .hist-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1 1 240px; }
+  .hist-date { margin-left: auto; }
+  .hist-body { margin: 6px 0 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 0.9375rem; }
+  .tag { font-size: 0.75rem; font-weight: 500; padding: 2px 10px; border-radius: var(--r-pill); background: var(--fog); color: var(--muted); }
+  .tag-step, .tag-note { color: var(--ink); }
+  details.company > summary { flex-wrap: wrap; gap: 6px 12px; }
+  details.company > summary .company-name { font: 500 1.25rem/1.4 var(--font-ui); letter-spacing: -0.2px; }
+  details.company > summary .company-role { font-size: 0.9375rem; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  details.company[open] > summary { margin-bottom: 6px; }
+  details.company[open] > summary .chev { transform: rotate(90deg); }
+  .person { padding: 14px 0; border-top: 1px solid var(--line); }
+  ul.people > li:first-child .person { border-top: 0; padding-top: 4px; }
+  .person-head { display: flex; gap: 6px 10px; align-items: baseline; flex-wrap: wrap; }
+  .person-name { font: 500 1rem/1.375 var(--font-ui); margin: 0; }
+  .person-title { margin: 2px 0 6px; }
+  .person-meta { margin: 0; color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+  ul.thread { list-style: none; padding: 0; margin: 6px 0 0; }
+  ul.thread li { display: flex; flex-wrap: wrap; gap: 2px 12px; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  ul.thread li:first-child { border-top: 0; }
+  ul.people { list-style: none; padding: 0; margin: 0 0 6px; }
+  .mail-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; margin-top: 14px; }
+  /* Disclosures. `more` tucks a secondary form or list under a quiet line with the Lucide chevron; `action` is the same idea as a pill
+     control that sits in an action row (Reply, Edit, the emails list) and opens full width beneath it. The browser's triangle never shows. */
+  details.more { margin-top: 2px; }
+  details.more > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: var(--tap); color: var(--muted); font-weight: 500; }
+  details.more > summary::-webkit-details-marker, details.action > summary::-webkit-details-marker { display: none; }
+  details.more > summary::before { content: ""; width: 16px; height: 16px; flex: none; background: currentColor;
+    -webkit-mask: var(--ico-chevron-right) center / contain no-repeat; mask: var(--ico-chevron-right) center / contain no-repeat; }
+  details.more[open] > summary { color: var(--ink); }
+  details.more[open] > summary::before { transform: rotate(90deg); }
+  details.action { flex: 0 0 auto; }
+  details.action[open] { flex: 1 1 100%; }
+  details.action > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 24px; border-radius: var(--r-pill);
+                             background: var(--surface); box-shadow: var(--raise-btn); color: var(--ink); font-weight: 500; letter-spacing: 0.02px; }
+  details.action > summary:hover { background: var(--surface-hover); }
+  details.action > summary:active { transform: scale(0.97); }
+  details.action.primary > summary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
+                                     box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
+  details.action.primary > summary:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent), var(--bg) 14%), color-mix(in srgb, var(--accent-end), var(--bg) 14%)); }
+  details.action[open] > summary { background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.07)); color: var(--ink); box-shadow: none; }
+  details.action > :not(summary) { margin-top: 12px; }
+  .reply-form { margin-top: 12px; max-width: 68ch; }
+  .reply-form textarea { width: 100%; box-sizing: border-box; }
+  article.sent { background: var(--linen-panel, var(--fog)); }
+  .tag.latest { background: var(--accent); color: var(--accent-ink); }
+  a.btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
+                  box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
+  button.hist-del { min-height: 34px; padding: 0 14px; font-size: 0.875rem; }
+  details.mail > summary { list-style: none; cursor: pointer; min-height: 34px; }
+  details.mail > summary::-webkit-details-marker { display: none; }
+  details.mail[open] > summary .chev { transform: rotate(90deg); }
+  details.mail > summary strong { font-weight: 700; }
+  .mail-body { margin: 8px 0 6px 24px; padding: 2px 0 2px 20px; border-left: 1px solid var(--line); }
+  .mail-body .mail-meta { margin-bottom: 12px; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    button, a, .tab, input, select, textarea { transition: background-color .16s ease-out, border-color .16s ease-out, color .16s ease-out; }
+    button, a.btn, details.action > summary { transition: transform .12s ease-out, background-color .16s ease-out, color .16s ease-out; }
+    .chev, details.more > summary::before { transition: transform .16s ease-out; }
+  }

@@ -1,146 +1,163 @@
 ---
 name: Job Tracker
-description: A calm editorial ledger for a personal job search; graphite ink on linen, serif headlines, pill controls, hairlines, no shadows.
+description: A calm, Wealthsimple-styled ledger for a personal job search; black and white on light grey, raised pill controls, 20px cards, one sans typeface.
 colors:
-  linen-ground: "#faf8f5"
-  paper-surface: "#fdfdfc"
-  linen-panel: "#f6f4ef"
-  fog: "#f1f0f0"
-  graphite-ink: "#32302f"
-  pebble-muted: "#686664"
-  stone-hairline: "#e4e2e1"
-  field-line: "#8c8986"
-  accent-graphite: "#32302f"
+  background: "#f2f2f2"
+  surface: "#fafafa"
+  surface-hover: "#ffffff"
+  surface-secondary: "#ebebeb"
+  inactive-bg: "rgba(0,0,0,0.05)"
+  hover-bg: "rgba(0,0,0,0.04)"
+  text-primary: "#000000"
+  text-secondary: "rgba(0,0,0,0.55)"
+  outline: "rgba(0,0,0,0.08)"
+  field-line: "#8c8c8c"
+  accent-graphite: "#000000"
   accent-bronze: "#5c4b24"
   accent-forest: "#2f5d46"
   accent-clay: "#8f4a32"
-  accent-ink: "#fdfdfc"
-  stage-applied: "#5b5855"
-  stage-heard-back: "#3f5671"
-  stage-assessment: "#78560c"
+  accent-ink: "#ffffff"
+  stage-applied: "#5e5e5e"
+  stage-heard-back: "#305faa"
+  stage-assessment: "#7e6812"
   stage-interview: "#69477a"
-  stage-offer: "#2b6747"
-  stage-rejected: "#9a4232"
-  dark-ground: "#12110e"
-  dark-surface: "#1b1915"
-  dark-panel: "#16140f"
-  dark-fog: "#26231d"
-  dark-ink: "#efece5"
-  dark-muted: "#a8a397"
-  dark-hairline: "#35322b"
-  dark-field-line: "#8a8578"
-  dark-accent-graphite: "#ece9e2"
+  stage-offer: "#357941"
+  stage-rejected: "#c02416"
+  dark-background: "#000000"
+  dark-surface: "#171717"
+  dark-surface-hover: "#1f1f1f"
+  dark-surface-secondary: "#0f0f0f"
+  dark-inactive-bg: "rgba(255,255,255,0.07)"
+  dark-text-primary: "#ffffff"
+  dark-text-secondary: "rgba(255,255,255,0.5)"
+  dark-outline: "rgba(255,255,255,0.12)"
+  dark-field-line: "#8a8a8a"
+  dark-accent-graphite: "#ffffff"
   dark-accent-bronze: "#d9c28a"
   dark-accent-forest: "#8cc7a6"
   dark-accent-clay: "#e0a184"
-  dark-accent-ink: "#14130f"
-  viz-ord-1: "#b9ae96"
-  viz-ord-2: "#8f8266"
-  viz-ord-3: "#66593f"
-  viz-ord-4: "#3a3525"
-  viz-good: "#3b7f59"
-  viz-crit: "#b0493a"
-  viz-neutral: "#8c8883"
+  dark-accent-ink: "#000000"
+  data-viz-01: "#5b88d9"
+  data-viz-02: "#b27ee4"
+  data-viz-03: "#e47eca"
+  data-viz-04: "#eece2d"
+  data-viz-good: "#409652"
+  data-viz-crit: "#e22b18"
+  data-viz-neutral: "#8c8c8c"
 typography:
   display:
-    fontFamily: "Source Serif 4, Iowan Old Style, Georgia, serif"
-    fontSize: "clamp(2rem, 4vw, 2.75rem)"
-    fontWeight: 500
-    lineHeight: 1.12
-    letterSpacing: "-0.015em"
-  headline:
-    fontFamily: "Source Serif 4, Iowan Old Style, Georgia, serif"
-    fontSize: "1.625rem"
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
+    fontSize: "clamp(2rem, 4vw, 2.5rem)"
     fontWeight: 500
     lineHeight: 1.2
-    letterSpacing: "-0.01em"
-  title:
-    fontFamily: "Source Serif 4, Iowan Old Style, Georgia, serif"
-    fontSize: "1.1875rem"
-    fontWeight: 500
+    letterSpacing: "-0.8px"
+  brand:
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
+    fontSize: "1.5625rem"
+    fontWeight: 700
     lineHeight: 1.2
-    letterSpacing: "-0.005em"
+    letterSpacing: "-0.25px"
+  section:
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "-0.2px"
+  row:
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 500
+    lineHeight: 1.4
   lede:
-    fontFamily: "Source Serif 4, Iowan Old Style, Georgia, serif"
-    fontSize: "clamp(1.25rem, 2.2vw, 1.5rem)"
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
+    fontSize: "clamp(1.25rem, 2.2vw, 1.5625rem)"
     fontWeight: 400
-    lineHeight: 1.45
-    letterSpacing: "-0.005em"
+    lineHeight: 1.4
+    letterSpacing: "-0.25px"
   body:
-    fontFamily: "Figtree, system-ui, Segoe UI, sans-serif"
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.4
+    letterSpacing: "0.02px"
   small:
-    fontFamily: "Figtree, system-ui, Segoe UI, sans-serif"
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.4
   label:
-    fontFamily: "Figtree, system-ui, Segoe UI, sans-serif"
+    fontFamily: "Wealthsimple Sans Display, Figtree, -apple-system, SF Pro Display, system-ui, sans-serif"
     fontSize: "0.75rem"
-    fontWeight: 600
-    letterSpacing: "0.01em"
+    fontWeight: 500
+    letterSpacing: "0.18px"
 rounded:
   pill: "999px"
-  card: "24px"
+  card: "20px"
   sm: "12px"
+  segment: "8px"
   sharp: "3px"
 spacing:
-  pad: "28px"
-  pad-compact: "16px"
+  gutter: "16px"
+  pad: "16px"
+  pad-compact: "12px"
   cell-y: "16px"
   cell-y-compact: "8px"
   gap: "24px"
   gap-compact: "12px"
+  section: "32px"
+  section-web: "64px"
   tap: "44px"
   tap-compact: "36px"
 components:
   button-primary:
-    backgroundColor: "{colors.accent-graphite}"
+    backgroundColor: "linear-gradient(180deg, {colors.accent-graphite}, 16% toward white)"
     textColor: "{colors.accent-ink}"
     rounded: "{rounded.pill}"
     padding: "0 24px"
     height: "44px"
   button-secondary:
-    backgroundColor: "transparent"
-    textColor: "{colors.graphite-ink}"
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
     rounded: "{rounded.pill}"
     padding: "0 24px"
     height: "44px"
   button-secondary-hover:
-    backgroundColor: "{colors.fog}"
+    backgroundColor: "{colors.surface-hover}"
+  button-tertiary:
+    backgroundColor: "linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.07))"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.pill}"
   badge:
-    backgroundColor: "{colors.fog}"
+    backgroundColor: "{colors.inactive-bg}"
     textColor: "{colors.stage-applied}"
     rounded: "{rounded.pill}"
     padding: "3px 12px"
     typography: "{typography.label}"
   tab:
-    backgroundColor: "{colors.paper-surface}"
-    textColor: "{colors.graphite-ink}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
+    backgroundColor: "transparent"
+    textColor: "{colors.text-secondary}"
+    rounded: "{rounded.segment}"
+    padding: "0 16px"
     height: "44px"
   tab-current:
-    backgroundColor: "{colors.accent-graphite}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.inactive-bg}"
+    textColor: "{colors.text-primary}"
   input:
-    backgroundColor: "{colors.paper-surface}"
-    textColor: "{colors.graphite-ink}"
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
     rounded: "{rounded.pill}"
     padding: "0 20px"
     height: "44px"
   card:
-    backgroundColor: "{colors.paper-surface}"
+    backgroundColor: "{colors.surface}"
     rounded: "{rounded.card}"
-    padding: "28px"
+    padding: "16px"
   notice:
-    backgroundColor: "{colors.paper-surface}"
+    backgroundColor: "{colors.surface}"
     rounded: "{rounded.sm}"
     padding: "14px 20px"
   panel:
-    backgroundColor: "{colors.linen-panel}"
+    backgroundColor: "{colors.surface-secondary}"
 ---
 
 # Design System: Job Tracker
@@ -149,153 +166,157 @@ components:
 
 **Creative North Star: "The Quiet Ledger"**
 
-A warm, near-monochrome editorial look pinned by the user as "Wealthsimple's aesthetic", read from unofficial third-party references. The app speaks in serif headlines and sentences instead of dashboard widgets: graphite ink on linen, paper-white cards divided by hairlines, pill-shaped controls, and nothing that shouts. Wealthsimple's name, logo and proprietary typefaces are not used; Source Serif 4 stands in for the display serif and Figtree for the UI sans.
+Job Tracker follows the Wealthsimple prototype styling reference (the `use-ws-styling` primer in the `product-design` plugin). It is a hand-distilled approximation, not the real design system, which this local app cannot load. The app speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairline separators inside cards, and nothing that shouts. It is still a calm place for an anxious moment, and it avoids the dashboard-widget look of metric-card grids.
 
-Depth comes from tone and hairline only. Color is rationed: the only chromatic notes are the six stage-badge text colors, the Sankey outcome colors, and one user-selectable accent (graphite by default) that fills primary buttons and the current tab. The signature move is the serif voice: page headlines, company names in the list, and the Flow page's sentence summary standing in for a stat-card row.
+Depth comes from raised surfaces. A card, a secondary button and a popup each carry a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass: a gradient fill with an inner top highlight, an inner bottom shadow and a drop shadow. Color is rationed: the six stage-badge text colors, the Sankey data-viz colors, and one user-selectable accent (black by default) that fills primary buttons and the active mobile sort chip.
 
 The user owns the finish. Theme (system/light/dark), accent (graphite, bronze, forest, clay), density (comfortable/compact) and corners (round/sharp) are settings, written onto `<html>` as `data-theme`, `data-density`, `data-corners`, `data-accent` and the `--accent-l` / `--accent-d` variables. Every new surface must survive all combinations.
 
 **Key Characteristics:**
-- Linen ground, paper surfaces, graphite ink; dark theme is bronze-black, never blue-grey.
-- Source Serif 4 for voice, Figtree for work.
-- Pills for every control; 24px hairline cards.
-- No shadows, no gradients, no side-stripes, no glyph icons.
+- Light grey ground (#f2f2f2), near-white raised surfaces, true black text; dark theme is pure black with #171717 surfaces.
+- One sans typeface for everything. Weights 400, 500 and 700 only.
+- Pills for every control; 20px raised cards with 16px padding.
+- 16px page gutter at every width; 32px between sections on a phone and 64px on the web.
+- Lucide icons only, 24px or 16px, drawn as CSS masks so they take the text color.
+- Sentence case, never uppercase; no underlined links; no tabular numbers.
 - WCAG AA in both themes; controls are 44px tall by default (36px in compact density on a mouse, 44px again on touch screens).
 
 ## Colors
 
-Warm graphite and linen with earthy, muted status tones. Values below are the light theme with the dark counterpart in the frontmatter (`dark-*`).
+Values below are the light theme with the dark counterpart in the frontmatter (`dark-*`). Token names in the CSS: `--bg`, `--surface`, `--surface-hover`, `--linen` (secondary surface), `--fog` (inactive-bg), `--hover`, `--ink`, `--muted`, `--line` (outline), `--field-line`.
 
 ### Primary
-- **Graphite Accent** (#32302f light, #ece9e2 dark): the default accent. Fills primary buttons, the current filter tab and the active mobile sort chip. Text on it is `accent-ink` (#fdfdfc light, #14130f dark).
-- **Bronze** (#5c4b24 / #d9c28a), **Forest** (#2f5d46 / #8cc7a6), **Clay** (#8f4a32 / #e0a184): alternative accents the user may pick in Settings. They replace only `--accent`; ink, hairlines and badges stay neutral.
+- **Graphite Accent** (#000000 light, #ffffff dark): the default accent. Fills primary buttons, the count badge in the nav and the active mobile sort chip. Text on it is `accent-ink` (#ffffff light, #000000 dark).
+- **Bronze** (#5c4b24 / #d9c28a), **Forest** (#2f5d46 / #8cc7a6), **Clay** (#8f4a32 / #e0a184): alternative accents the user may pick in Settings. They replace only `--accent`; text, outlines and badges stay neutral.
 
 ### Neutral
-- **Linen Ground** (#faf8f5 / #12110e): page background.
-- **Paper Surface** (#fdfdfc / #1b1915): cards, inputs, tabs, notices.
-- **Linen Panel** (#f6f4ef / #16140f): hovered and open table rows and their expansion panel.
-- **Fog** (#f1f0f0 / #26231d): badges, chips, current-nav pill, hover fill, mobile sort chips.
-- **Graphite Ink** (#32302f / #efece5): text, secondary-button outline, focus ring.
-- **Pebble Muted** (#686664 / #a8a397): secondary text, help text, placeholders, chevrons.
-- **Stone Hairline** (#e4e2e1 / #35322b): decorative dividers and card borders only.
-- **Field Line** (#8c8986 / #8a8578): borders of controls and notices; held to 3:1 against the surface, which Stone Hairline is not.
+- **Background** (#f2f2f2 / #000000): page background.
+- **Surface** (#fafafa / #171717): cards, inputs, popups, secondary buttons. Hover is #ffffff / #1f1f1f.
+- **Surface secondary** (#ebebeb / #0f0f0f): open table rows and their expansion panel.
+- **Inactive bg** (rgba(0,0,0,.05) / rgba(255,255,255,.07)): badges, chips, the current tab, hover-pressed rows. The reference says 3%; it is held slightly higher so badges and the current tab stay visible on #f2f2f2.
+- **Hover bg** (rgba(0,0,0,.04) / rgba(255,255,255,.04)): row, tab and menu-item hover.
+- **Text primary** (#000000 / #ffffff). **Text secondary** (55% black / 50% white): help text, placeholders, chevrons.
+- **Outline** (8% black / 12% white): decorative dividers only.
+- **Field line** (#8c8c8c / #8a8a8a): borders of inputs and notices; held to 3:1 against the surface, which Outline is not.
 
 ### Stage badge text colors
-Tonal text on Fog; the word carries the meaning, color supports it. Light / dark: Applied #5b5855 / #b4afa4; Heard back #3f5671 / #9db4d6; Assessment #78560c / #d9b45a; Interview #69477a / #cba9d6; Offer #2b6747 / #8fcfa8; Rejected #9a4232 / #e69a8a. Rejected doubles as the danger and error color.
+Tonal text on Inactive bg; the word carries the meaning, color supports it. Light / dark: Applied #5e5e5e / #b4b4b4; Heard back #305faa / #bacdf4; Assessment #7e6812 / #f5dd56; Interview #69477a / #cba9d6; Offer #357941 / #6dc382; Rejected #c02416 / #f27868. Heard back, Assessment, Offer and Rejected are the reference's `fg-*-strong` tokens; Applied and Interview have no equivalent there. Rejected doubles as the danger and error color.
 
 ### Flow chart (scoped to the Flow page's chart root)
-- Stage ordinal ramp, sand to bronze: #b9ae96, #8f8266, #66593f, #3a3525 (light); reversed in lightness for dark: #7d7155, #9a8c6a, #b9a97f, #dccb9c.
-- Outcomes: Offer green #3b7f59 / #5fb583, Rejected brick #b0493a / #e0705e, no-outcome-yet grey #8c8883 / #8a867c. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted).
+- Stages use the data-viz palette in numeric order: #5b88d9 (blue), #b27ee4 (purple), #e47eca (pink), #eece2d (yellow). The same in light and dark.
+- Outcomes: Offer green #409652 / #4db565, Rejected red #e22b18 / #ed4f3c, no-outcome-yet grey #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
 
 ### Named Rules
-**The One Voice Rule.** Chroma is reserved for status and the single chosen accent. A surface with a new color needs a new status to justify it.
-**The Hairline Contrast Rule.** Decorative dividers use Stone Hairline; anything a user must see to operate (inputs, notices, swatch rings) uses Field Line.
+**The One Voice Rule.** Chroma is reserved for status, the data-viz palette and the single chosen accent. A surface with a new color needs a new status to justify it.
+**The Outline Contrast Rule.** Decorative dividers use Outline; anything a user must see to operate (inputs, notices, swatch rings) uses Field line.
 
 ## Typography
 
-**Display Font:** Source Serif 4 (Iowan Old Style, Georgia, serif), self-hosted variable woff2
-**Body Font:** Figtree (system-ui, Segoe UI, sans-serif), self-hosted variable woff2
-**Mono:** system monospace, only for code and addresses in setup instructions
-
-**Character:** A literary serif at medium weight over a friendly geometric sans. Serif carries meaning (where you are, who you applied to); sans carries operation. Both are served from `/static/fonts` so the app works offline (licenses in LICENSES.md).
+**Font:** `"Wealthsimple Sans Display", Figtree, -apple-system, "SF Pro Display", system-ui, sans-serif`. Wealthsimple Sans Display is proprietary and is not shipped; it is named first so a device that has it installed uses it. Figtree (self-hosted variable woff2, SIL OFL, in `/static/fonts`) is the stand-in everywhere else, so the app works offline.
+**Mono:** system monospace, only for code and addresses in setup instructions.
 
 ### Hierarchy
-- **Display** (500, clamp(2rem, 4vw, 2.75rem), 1.12, -0.015em): the page headline, one per page.
-- **Headline** (500, 1.625rem, 1.2): wordmark in the header and section headings; settings section headings run 1.5rem.
-- **Title** (500, 1.1875rem, 1.2): company names in list rows. Panel sub-headings are 1.125rem/1.3.
-- **Lede** (400, clamp(1.25rem, 2.2vw, 1.5rem), 1.45, max 46ch): the Flow page sentence summary.
-- **Body** (400, 1rem, 1.55; 0.9375rem in compact density): Figtree for everything else. Buttons are 500.
+- **Display** (500, clamp(2rem, 4vw, 2.5rem), 1.2, -0.8px): the page headline, one per page.
+- **Brand** (700, 1.5625rem, 1.2): the wordmark in the header.
+- **Section** (500, 1.25rem, 1.4): section headings. Panel sub-headings are 1rem/500.
+- **Row** (500, 1rem, 1.4): company names in list rows, people names.
+- **Lede** (400, clamp(1.25rem, 2.2vw, 1.5625rem), 1.4, max 46ch): the Flow page sentence summary.
+- **Body** (400, 1rem, 1.4, 0.02px; 0.9375rem in compact density). Buttons are 500. Email text is 0.9375rem/1.7 for reading.
 - **Small** (400, 0.875rem): dates, role sub-line, help text, table headers (500, muted).
-- **Label** (600, 0.75rem, 0.01em): badges and tags. Never uppercase.
+- **Label** (500, 0.75rem, 0.18px): badges and tags.
 
 ### Named Rules
 **The Rem Rule.** All sizes are rem so browser text-size settings are honoured; the one exception is the 16px floor on phone inputs to stop iOS focus zoom.
-**The Serif Is Voice Rule.** Serif is for headlines, names and the Flow sentence. Controls, table data and labels stay in Figtree.
+**The Sentence Case Rule.** No `text-transform: uppercase`, no small caps, no all-caps strings. Acronyms such as RRSP or ETF are the only exception.
+**The Plain Figures Rule.** No `font-variant-numeric: tabular-nums`, anywhere. Links are never underlined; interactivity shows through color and tone.
 
 ## Layout
 
-Single column, max-width 1120px, centered, padding 40px 24px 96px. Header is a flex row (serif wordmark left, nav right: Jobs, Applications, People, Flow, Needs review, then a Settings gear icon). At 520px and below the gear moves into the title row and the words wrap below. Card padding `--pad` 28px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px.
+Single column, max-width 1120px, centered, padding 40px 16px 96px. The 16px gutter is the same on every screen size; breathing room comes from section spacing and card padding, not a wider margin. Header is a flex row (wordmark left, nav right: Jobs, Applications, People, Flow, Needs review, then a Settings gear icon). At 520px and below the gear moves into the title row and the words wrap below. Card padding `--pad` 16px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px, and `--section` between cards 32px (64px from 721px up).
 
-Compact density tightens these to 16px / 8px / 12px, drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density; otherwise it is 44px comfortable by token default (the brief's 40px fine-pointer figure is not in the CSS; see report). At 720px and below each table row becomes a stacked block: company and role on the left, stage badge on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied and Emails columns hide there. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
+Compact density tightens these to 12px / 8px / 12px (section 24px, 40px on the web), drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density. At 720px and below each table row becomes a stacked block: company and role on the left, stage badge on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied and Emails columns hide there. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
 
 ## Elevation & Depth
 
-Flat. There are no drop shadows and no gradients anywhere; surfaces separate by tone (Linen, Paper, Fog) and 1px hairlines. The only box-shadow declarations in the build are inset focus and selection rings and a 1px outline ring around accent swatches in Settings, none of which lift anything. The tooltip layer (`--z-tip: 20`) and skip link (`--z-skip: 100`) are the only z-index layers.
+Raised surfaces, defined by strokes plus one soft shadow. `--raise` is `inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08)`; the secondary button uses a 0.10 shadow. The outer stroke is a non-inset spread so it never shrinks the corner radius. In dark theme the strokes become white at 5% and 8% over a 0.5 black shadow. Primary buttons add an inner top highlight and inner bottom shadow over the gradient. Popups (dropdown list, search suggestions, chart tooltip) use the same raised surface. Layers: tooltip `--z-tip: 20`, popup `--z-pop: 30`, skip link `--z-skip: 100`.
 
 ### Named Rules
-**The Flat-Always Rule.** Hover is a tone change (Fog or Linen fill, or a border darkening to ink), never a lift.
+**The Press Rule.** Standalone controls (buttons, action pills) scale to 0.97 on press. Anything inside a container (table rows, tabs, segmented options, menu items) signals press with a background tone change, never a scale.
+**The Honest Hover Rule.** Hover and pointer cursors belong only to things that do something. Static cards stay at rest.
 
 ## Shapes
 
-Round and soft by default: pills (999px) for buttons, tabs, inputs, badges, chips, nav links and sort chips; 24px for cards; 12px for notices and textareas. Borders are 1px hairlines. The "sharp" corners setting collapses all three radii to 3px, so every component must take its radius from the tokens, never a literal. The disclosure and list chevron is a drawn 8px rotated border corner, not a glyph. Notices carry a drawn SVG mask icon (info circle, or warning triangle for errors) tinted with currentColor.
+Round and soft by default: pills (999px) for buttons, inputs, badges, chips and nav links; 20px for cards; 12px for notices and textareas; 8px for the Minimal segmented indicator (the filter tabs). The "sharp" corners setting collapses all four radii to 3px, so every component must take its radius from the tokens, never a literal. Icons are Lucide, drawn as CSS masks in `currentColor` at 16px with stroke 3 (rendering 2px): the list and disclosure chevron, the sort arrows, the dropdown chevron and check, and the notice info and alert icons. The Settings gear is an inline Lucide `settings` at 24px, stroke 2. Never hand-draw an icon path. A semi-opaque color is never applied to a multi-path icon; mask icons are a single flat fill, so they may use text-secondary.
 
 ## Components
 
 ### Buttons
-- **Shape:** pill (999px), min-height `--tap`, padding 0 24px, Figtree 500 1rem, 0.015em tracking.
-- **Primary:** accent fill, accent-ink text. Hover mixes the accent 14% toward the ground.
-- **Secondary (default):** transparent with a 1px ink outline; hover fills Fog. Danger variant uses Rejected text with a 55% mix outline.
-- **States:** active nudges 1px down; disabled 50% opacity; busy shows progress cursor. Focus is a 2px ink outline at 3px offset, on every interactive element.
+- **Shape:** pill, min-height `--tap`, padding 0 24px, 500 1rem, `border: none` (the user-agent border is always reset).
+- **Primary:** gradient from the accent to 16% toward white (12% toward black in dark), inner highlight, inner shadow and a drop shadow, accent-ink text. Hover mixes both gradient stops 14% toward the ground.
+- **Secondary (default):** surface fill with the raised strokes and shadow; hover is Surface hover. Danger variant uses Rejected text.
+- **Tertiary:** 4% to 7% black gradient, no shadow. Used for "Delete" on history entries and for an open action disclosure.
+- **States:** active scales to 0.97; disabled 50% opacity; busy shows progress cursor. Focus is a 2px ink outline at 3px offset, on every interactive element.
 
 ### Badges and chips
-Tonal pill on Fog, 0.75rem/600, 3px 12px, text in the stage color. Chips are Fog pills at 0.875rem; tags are smaller Fog pills in muted (step and note tags in ink).
+Tonal pill on Inactive bg, 0.75rem/500, 3px 12px, text in the stage color. Chips are the same fill at 0.875rem; tags are smaller pills in text-secondary (step and note tags in text primary).
 
 ### Filter tabs
-Pill row with a count: Paper fill, Field-hairline border, 44px, counts in tabular muted figures. Current tab fills with the accent and its count inherits at 80% opacity. Hover darkens the border to ink.
+The Minimal segmented control: no track, text-secondary at 400 weight, 8px-radius options at 44px with the count inline. The current tab gets the Inactive-bg indicator and text primary at 500, so it is distinguished by weight and fill, not color alone. Hover is the Hover bg; press is a slightly stronger tone, never a scale.
 
 ### Inputs
-Pill, 1px Field Line border, Paper fill, padding 0 20px; border shifts to ink on focus plus the outline. Textareas use the 12px radius. Labels are 0.875rem/500 muted with a 4px inset. Checkboxes and radios take ink as accent-color.
+Pill, 1px Field line border, Surface fill, padding 0 20px; border shifts to ink on focus plus the outline. Textareas use the 12px radius. Labels are 0.875rem/500 text-secondary with a 4px inset. Checkboxes and radios take ink as accent-color. Dropdowns use the customizable-select popup (raised surface, pill options, Lucide check) where the browser supports it.
 
 ### Cards
-Paper fill, 1px Stone Hairline border, 24px radius, 28px padding, no shadow. The list card holds the table with hairline row dividers; open or hovered rows tint Linen Panel.
+The Primary card: Surface fill, raised strokes and shadow, no border, 20px radius, 16px padding. The list card holds the table with hairline row dividers; open rows tint Surface secondary and hovered rows use Hover bg. Don't nest a raised card in a raised card; group inside a card with dividers or a hairline box.
 
 ### Stacked phone row
 Described in Layout: a two-column grid per application with the Stage badge top-right and last activity beneath.
 
 ### Notices
-Paper fill, 1px Field Line border, 12px radius, 20px drawn icon. Error variant recolors border and icon to Rejected. Never a colored side-stripe.
+Surface fill, 1px Field line border, 12px radius, 16px Lucide info icon (alert icon in the Rejected color for errors). Never a colored side-stripe.
 
 ### Expandable list panel
-Clicking a company name (serif title with a drawn chevron) opens an in-place Linen panel under the row with a two-column form grid and a hairline-divided history list. Chevron rotates from -45deg to 45deg over 0.16s; disclosures (`details`) reuse the same chevron.
+Clicking a company name (a 500 row label with a Lucide chevron) opens an in-place Surface-secondary panel under the row with a two-column form grid and a hairline-divided history list. The chevron rotates from 0 to 90 degrees over 0.16s; disclosures (`details`) reuse the same chevron.
 
 ### Settings controls
-Segmented radios and accent swatches (18px round dots with a 1px ring) for theme, accent, density and corners; Settings is where the user-facing customization lives.
+The Default segmented control (theme, density, corners): a pill track styled as a Primary card, with a grey pill indicator inset 4px inside it, selected option at 500 weight in text primary, the others in text-secondary. Accent swatches are raised pills with an 18px dot and a 2px ink ring when selected. The Settings section links are Minimal segmented options. The reference calls for the indicator to animate between options; this app switches instantly because it has no script on that form.
 
 ### Jobs tab
-Pill tabs (Matches, Notifications, Your profile, Sources) sit above a second row of view pills (New, Saved, Applied, Dismissed, All) with counts. Matches are hairline-divided rows inside one card: serif title, a small tonal score pill, a muted "company · place · source" line, the match reasons in body ink, then pill actions. "I applied" is the one solid action; Dismiss is the quiet danger outline. The nav's Jobs link carries a count badge of new matches. Resume upload, profile lists, and sources reuse the Settings card and form styles. On phones the actions wrap under the reasons.
+Filter tabs (Matches, Notifications, Your profile, Sources) sit above a second row of view tabs (New, Saved, Applied, Dismissed, All) with counts. Matches are hairline-divided rows inside one card: a 500 title, a small tonal score pill, a muted "company · place · source" line, the match reasons in body ink, then pill actions. "I applied" is the one primary action; Dismiss is the quiet danger. The nav's Jobs link carries a count badge of new matches. On phones the actions wrap under the reasons.
 
 ### Disclosures
-One system, defined once in the shared stylesheet. A **section disclosure** (`summary.disclosure`: Add an application, Table view) has the drawn chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line with the same chevron. An **action disclosure** (`details.action`) is a secondary pill that sits in an action row (Edit, the emails list) and opens full width beneath it; `.primary` fills it with the accent (Reply). The browser's triangle never shows.
+One system, defined once in the shared stylesheet. A **section disclosure** (`summary.disclosure`: Add an application, Table view) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line with the same chevron. An **action disclosure** (`details.action`) is a secondary pill that sits in an action row (Edit, the emails list) and opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient (Reply).
 
 ### Email text
-Emails are read, not dumped. The subject is a serif heading, the sender a bold name with a muted address, and the date and account sit on their own line, in the viewer's time zone with how long ago. The body is Figtree at 0.9375rem/1.7, max 68ch, with repaired paragraphs and lists. Reply chains and footers fold under "Earlier in this thread" and "Footer and links". Links show their domain and are never clickable. A sent reply is a Linen Panel card labeled "Reply sent". The newest email carries a "Latest" pill (the accent fill).
+Emails are read, not dumped. The subject is a 500 heading, the sender a bold name with a muted address, and the date and account sit on their own line, in the viewer's time zone with how long ago. The body is 0.9375rem/1.7, max 68ch, with repaired paragraphs and lists. Reply chains and footers fold under "Earlier in this thread" and "Footer and links". Links show their domain and are never clickable. A sent reply is a Surface-secondary card labeled "Reply sent". The newest email carries a "Latest" pill (the accent fill).
 
 ### People
-Each company on the People tab is a dropdown (`details.company`): a card whose summary row is the drawn chevron, the company in serif, its role, and a people count. It opens by itself when there is only one or after a search, and Expand all / Collapse all sit above. One shared person component on the People tab and inside each application: bold name, a Fog tag for the kind (Recruiter, Hiring side, People Ops), the title as plain text, then a muted address and last contact. One action row holds Email (primary), Reply here, the emails list and Edit. People are grouped under their application and hairline-divided, never boxed.
+Each company on the People tab is a dropdown (`details.company`): a card whose summary row is the chevron, the company name, its role, and a people count. It opens by itself when there is only one or after a search, and Expand all / Collapse all sit above. One shared person component on the People tab and inside each application: bold name, a tag for the kind (Recruiter, Hiring side, People Ops), the title as plain text, then a muted address and last contact. One action row holds Email (primary), Reply here, the emails list and Edit. People are grouped under their application and hairline-divided, never boxed.
 
 ### Status and progress
-Account status is a large emoji with the provider's name (the user asked for it; it is the one place emoji appear). A running sync is an unboxed block with a 10px pill progress bar in the accent on Fog, an indeterminate slide when the total is unknown, and a sentence for the time left.
+Account status is a large emoji with the provider's name (the user asked for it; it is the one place emoji appear, and the reference's "never an emoji" applies to row leading visuals). A running sync is an unboxed block with a 10px pill progress bar in the accent on Inactive bg, an indeterminate slide when the total is unknown, and a sentence for the time left.
 
 ### Motion
-Only background, border and color transitions at 0.16s ease-out plus the chevron rotation, all gated behind `prefers-reduced-motion: no-preference`.
+Background, border and color transitions at 0.16s ease-out, the 0.12s press scale, and the chevron rotation, all gated behind `prefers-reduced-motion: no-preference`.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** take color from the tokens so light, dark and all four accents work without per-theme overrides.
-- **Do** use `var(--r-pill)`, `var(--r-lg)` and `var(--r)` for radii so the sharp setting applies.
+- **Do** use `var(--r-pill)`, `var(--r-lg)`, `var(--r)` and `var(--r-seg)` for radii so the sharp setting applies.
 - **Do** size controls with `var(--tap)` and sizes in rem.
-- **Do** keep text at WCAG AA in both themes; use Field Line for operable borders.
-- **Do** separate surfaces with tone and a 1px hairline.
-- **Do** draw icons as CSS or inline SVG strokes using currentColor.
+- **Do** keep text at WCAG AA in both themes; use Field line for operable borders.
+- **Do** raise cards, secondary buttons and popups with `var(--raise)`; reset `border` on every button.
+- **Do** draw icons as Lucide masks or inline Lucide SVG, 24px or 16px, with `currentColor`.
 - **Do** wrap motion in `prefers-reduced-motion: no-preference`.
-- **Do** let the serif carry the page voice; prefer a sentence over a stat card.
+- **Do** prefer a sentence over a stat card.
 
 ### Don't:
-- **Don't** add shadows or gradients.
 - **Don't** use colored side-stripes on cards, rows or notices.
-- **Don't** use emoji or unicode glyphs as icons.
+- **Don't** hand-author icon paths, or use emoji or unicode glyphs as icons.
+- **Don't** uppercase text, underline links, or use tabular numbers.
+- **Don't** use a weight outside 400, 500 and 700.
 - **Don't** introduce a new accent color outside the four choices, or color a badge beyond the six stage tones.
-- **Don't** use serif for buttons, table data or labels, or uppercase labels.
-- **Don't** hard-code px radii, `#000`/`#fff`, or hairline-colored borders on inputs.
-- **Don't** use Wealthsimple's name, logo or proprietary typefaces.
+- **Don't** scale list rows, tabs or other items that share edges with siblings on press.
+- **Don't** hard-code px radii, `#000`/`#fff` in component rules, or hairline-colored borders on inputs.
+- **Don't** use Wealthsimple's name, logo, wordmark or font files in the shipped app.

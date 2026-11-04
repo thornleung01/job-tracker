@@ -2,17 +2,16 @@
 {% block title %}Settings · Job Tracker{% endblock %}
 {% block content %}
 <style>
-  .seg { display: inline-flex; border: 1px solid var(--field-line); border-radius: var(--r-pill); overflow: hidden; }
-  .seg label { padding: 8px 22px; min-height: var(--tap); font-weight: 500; display: flex; align-items: center; cursor: pointer; border-left: 1px solid var(--field-line); background: var(--surface); }
-  .seg label:first-child { border-left: 0; }
+  .seg { display: inline-flex; padding: 4px; gap: 2px; background: var(--surface); box-shadow: var(--raise); border-radius: var(--r-pill); }
+  .seg label { padding: 0 20px; min-height: calc(var(--tap) - 8px); font-weight: 400; color: var(--muted); display: flex; align-items: center; cursor: pointer; border-radius: var(--r-pill); }
+  .seg label:hover { color: var(--ink); background: var(--hover); }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
-  .seg label:has(input:checked) { background: var(--accent); color: var(--accent-ink); }
-  /* Double ring so focus stays visible on the filled (selected) option too. */
-  .seg label:has(input:focus-visible) { box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 4px var(--ink); }
+  .seg label:has(input:checked) { background: var(--fog); color: var(--ink); font-weight: 500; }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
   .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
-  .swatches label { display: flex; align-items: center; gap: 10px; padding: 8px 20px 8px 14px; min-height: var(--tap); border: 1px solid var(--field-line);
-                    border-radius: var(--r-pill); cursor: pointer; background: var(--surface); font-weight: 500; }
-  .swatches label:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .swatches label { display: flex; align-items: center; gap: 10px; padding: 8px 20px 8px 14px; min-height: var(--tap); border: none;
+                    border-radius: var(--r-pill); cursor: pointer; background: var(--surface); box-shadow: var(--raise-btn); font-weight: 500; }
+  .swatches label:has(input:checked) { box-shadow: var(--raise-btn), inset 0 0 0 2px var(--ink); }
   .swatches label:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
   .swatches input { position: absolute; opacity: 0; pointer-events: none; }
   .swatches i { width: 18px; height: 18px; border-radius: 50%; display: block; background: var(--l); box-shadow: 0 0 0 1px var(--field-line); }
@@ -22,19 +21,20 @@
   .checks { display: flex; gap: 4px 24px; flex-wrap: wrap; }
   .checks label { display: flex; align-items: center; gap: 8px; min-height: var(--tap); }
   .checks input { width: 18px; height: 18px; }
-  h2.sec { font-size: 1.5rem; line-height: 1.2; margin: 0 0 6px; }
+  h2.sec { font-size: 1.25rem; line-height: 1.4; margin: 0 0 6px; }
   .status-ok { color: var(--offer); } .status-bad { color: var(--rejected); }
   nav.sub { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 var(--gap); }
-  nav.sub a { color: var(--muted); text-decoration: none; padding: 0 18px; min-height: var(--tap); display: inline-flex; align-items: center;
-              border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface); font-weight: 500; }
-  nav.sub a:hover { color: var(--ink); border-color: var(--ink); }
+  nav.sub a { color: var(--muted); text-decoration: none; padding: 0 16px; min-height: var(--tap); display: inline-flex; align-items: center;
+              border-radius: var(--r-seg); font-weight: 400; }
+  nav.sub a:hover { color: var(--ink); background: var(--hover); }
+  nav.sub a[aria-current] { color: var(--ink); background: var(--fog); font-weight: 500; }
   .prof { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
   .prof:first-of-type { border-top: 0; }
-  .prof .name { font-weight: 600; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+  .prof .name { font-weight: 700; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
   .prof form { margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .prof input[type="text"] { width: 12rem; max-width: 100%; }
   .provider { border-top: 1px solid var(--line); padding-top: 18px; min-width: 0; }
-  .provider h3 { font: 500 1.375rem/1.2 var(--font-display); margin: 0 0 6px; }
+  .provider h3 { font: 500 1.25rem/1.4 var(--font-ui); margin: 0 0 6px; }
   .providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 0 var(--gap); margin: 18px 0 20px; }
   ol.steps { margin: 6px 0 14px; padding-left: 1.3em; font-size: 0.9rem; } ol.steps li { margin-bottom: 4px; }
   .status { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
@@ -42,7 +42,7 @@
   .status h3 { margin: 0; }
   .status .addr { overflow-wrap: anywhere; }
   .progress-card { padding: 4px 0 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
-  .progress-card .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 600; margin-bottom: 10px; }
+  .progress-card .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 700; margin-bottom: 10px; }
   .bar { height: 10px; border-radius: var(--r-pill); background: var(--fog); overflow: hidden; position: relative; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .5s ease-out; }
   .bar.indet > i { position: absolute; width: 35%; animation: slide 1.4s ease-in-out infinite; }

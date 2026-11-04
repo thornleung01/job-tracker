@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Job Tracker privacy</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.75rem; line-height: 1.2; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; }
+  li { margin: 0.35rem 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Job Tracker privacy</h1>
+<p>Job Tracker helps you follow your job applications by reading the job-related emails in your own mailbox. It runs entirely in your browser. There is no Job Tracker server.</p>
+
+<h2>What it reads</h2>
+<ul>
+  <li>Gmail: read-only access (the <code>gmail.readonly</code> permission). The app cannot send, delete or change mail.</li>
+  <li>Outlook: read-only access (the <code>Mail.Read</code> permission). The app cannot send, delete or change mail.</li>
+  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is signed in and keeps each person's data apart.</li>
+</ul>
+<p>Mailbox access is a separate step after sign-in. You choose whether to connect Gmail, Outlook, both or neither.</p>
+
+<h2>What it stores</h2>
+<ul>
+  <li>Your applications and the details the app picks out of job-related emails, such as company, role, status, sender, subject, date and a short excerpt. This is saved in your browser's IndexedDB on this device, in a database that belongs to your account.</li>
+  <li>Your appearance settings, saved in the same place.</li>
+  <li>The name of the provider you last signed in with (Google or Microsoft), so the sign-in screen can remind you. It is not a secret.</li>
+</ul>
+<p>Access tokens are kept in memory only. They are never written to local storage, cookies or the address bar, and they are gone when you sign out or close the tab.</p>
+
+<h2>What leaves your device</h2>
+<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to sign you in and to fetch your mail, and the emails are read and sorted on your device. No analytics, advertising or tracking is used, and your data is not shared, sold or used to train any model.</p>
+<p>Use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+<h2>Deleting your data and removing access</h2>
+<ul>
+  <li>In the app, sign out to clear tokens from memory and revoke the Google access token.</li>
+  <li>To delete the saved data, use the delete all my data action in the app, or clear this site's data in your browser settings.</li>
+  <li>To remove Job Tracker's access to Google, open <a href="https://myaccount.google.com/permissions">your Google account permissions</a> and remove Job Tracker.</li>
+  <li>To remove its access to Microsoft, open <a href="https://account.live.com/consent/Manage">your personal Microsoft account permissions</a>, or <a href="https://myapps.microsoft.com">My Apps</a> for a work or school account, and remove Job Tracker.</li>
+</ul>
+
+<h2>Questions</h2>
+<p>Job Tracker is open source. Questions or concerns can be raised in the <a href="https://github.com/thornleung01/job-tracker/issues">project issues</a>.</p>
+</main>
+</body>
+</html>

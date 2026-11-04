@@ -1,0 +1,46 @@
+import "fake-indexeddb/auto";
+import type { Message } from "../../src/types";
+import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
+import { upsertAccount } from "../../src/db/repo";
+
+let counter = 0;
+const opened: JobTrackerDB[] = [];
+
+/** A fresh, empty database with a unique name. */
+export function freshDb(prefix = "test"): JobTrackerDB {
+  const db = openDatabase(`${prefix}-${Date.now()}-${counter++}`);
+  opened.push(db);
+  return db;
+}
+
+export async function closeAll(): Promise<void> {
+  while (opened.length) {
+    const db = opened.pop()!;
+    db.close();
+  }
+}
+
+export async function dbWithAccount(): Promise<{ db: JobTrackerDB; acct: number }> {
+  const db = freshDb();
+  return { db, acct: await upsertAccount(db, "gmail", "me@gmail.com") };
+}
+
+/** Like mk() in tests/test_pipeline.py: October 2026 at 09:00 UTC on `day`. */
+export function mk(id: string, subject: string, body = "", sender = "Acme Careers <no-reply@greenhouse.io>", thread?: string, day = 1): Message {
+  const [name, , rest] = [sender.split("<")[0], "<", sender.split("<")[1]];
+  return {
+    id, threadId: thread ?? id, senderName: name.trim(), senderEmail: (rest ?? "").replace(/>+$/, "").trim(), subject,
+    receivedAt: new Date(Date.UTC(2026, 9, day, 9, 0)).toISOString(), body, webLink: null,
+  };
+}
+
+/** Like mail() in the Python tests: noon on `day`, sender may be a bare address. */
+export function mail(subject: string, body: string, sender: string, id = "m1", day = 1, thread?: string): Message {
+  const hasName = sender.includes("<");
+  const name = hasName ? sender.split("<")[0].trim() : "";
+  const address = hasName ? sender.split("<")[1].replace(/>+$/, "") : sender;
+  return {
+    id, threadId: thread ?? id, senderName: name, senderEmail: address, subject,
+    receivedAt: new Date(Date.UTC(2026, 9, day, 12, 0)).toISOString(), body, webLink: null,
+  };
+}

@@ -1,0 +1,9 @@
+/* Application detail. Cards, notices, mail text and the person component come from the shared stylesheet. */
+.detail-title { margin: 0; }
+.detail-facts { margin-top: 12px; }
+.detail-edit { margin-top: 10px; }
+.detail-edit form { margin-top: 8px; }
+.detail-controls { margin-top: 14px; }
+.detail-controls form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 0; }
+.timeline-note { font-family: var(--font-ui); font-weight: 400; }
+.detail-missing { margin-top: 12px; }

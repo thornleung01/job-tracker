@@ -5,17 +5,17 @@
   .job-list { list-style: none; margin: 0; padding: 0; }
   .job { display: grid; grid-template-columns: 1fr auto; gap: 8px 24px; padding: 20px var(--pad); border-top: 1px solid var(--line); }
   .job:first-child { border-top: 0; }
-  .job-title { font: 500 1.25rem/1.25 var(--font-display); letter-spacing: -0.005em; margin: 0; }
-  .job-title a { text-decoration: none; } .job-title a:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+  .job-title { font: 500 1rem/1.375 var(--font-ui); margin: 0; }
+  .job-title a { text-decoration: none; }
   .job-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .job-meta { color: var(--muted); font-size: 0.9375rem; margin-top: 2px; }
   .job-why { margin-top: 8px; font-size: 0.9375rem; }
   .job-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
   .job-actions button, .job-actions a.btn { min-height: 38px; padding: 0 16px; font-size: 0.9375rem; }
-  .score { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  .score { min-width: 44px; text-align: center; }
   @media (max-width: 720px) { .job { grid-template-columns: 1fr; } .job-actions { justify-content: flex-start; } }
   .empty { padding: 32px var(--pad); color: var(--muted); max-width: 62ch; }
-  .empty strong { color: var(--ink); font-weight: 600; }
+  .empty strong { color: var(--ink); font-weight: 700; }
   .stack > * + * { margin-top: 28px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px; } @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
   .checks label { display: flex; align-items: center; gap: 10px; min-height: var(--tap); }
@@ -23,7 +23,7 @@
   ol.steps { padding-left: 20px; margin: 8px 0 0; } ol.steps li { margin: 6px 0; }
   .src { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--line); }
   .src:first-of-type { border-top: 0; }
-  h2.sec { font-size: 1.5rem; line-height: 1.2; margin: 0 0 6px; }
+  h2.sec { font-size: 1.25rem; line-height: 1.4; margin: 0 0 6px; }
   .notif { padding: 16px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .notif:first-of-type { border-top: 0; }
   .notif.unread strong { font-weight: 700; }
