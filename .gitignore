@@ -14,3 +14,8 @@ client_secret*.json
 .env
 *.token
 .DS_Store
+
+# Hosted edition
+web/node_modules/
+web/dist/
+web/.env*

@@ -1,0 +1,15 @@
+/* Small helpers shared by the page components. Everything else comes from the shared stylesheet (styles/base.css). */
+.f-grow { flex: 1 1 200px; }
+.f-grow > input, .f-grow > select, .f-fill { width: 100%; }
+.row-end { align-items: flex-end; }
+.stack-top { margin-top: 12px; }
+.stack-top-sm { margin-top: 8px; }
+.help.flush { margin-top: 4px; }
+.btn-small { min-height: 34px; padding: 0 14px; font-size: 0.875rem; }
+.flush-p { margin: 0; }
+details.action > .flush-p { margin-top: 4px; }
+.step-note { min-height: 64px; }
+.panel-h-history { margin-top: 16px; }
+.panel-danger { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.note-tight { margin: 4px 0 0; }
+.step-field select { width: 100%; }

@@ -1,0 +1,9 @@
+/* Signed-out screen. Reuses the base.css tokens and classes. */
+.signin main { max-width: 440px; margin: 0 auto; }
+.signin .brand { flex: none; margin-bottom: var(--section); }
+.signin-card { display: flex; flex-direction: column; gap: var(--gap); }
+.signin-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.signin-actions button { min-width: 240px; }
+.google-button { min-height: 44px; }
+.signin-privacy { margin: 0; }
+.signin-privacy a { font-weight: 500; color: var(--ink); }

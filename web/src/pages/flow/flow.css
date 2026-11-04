@@ -1,0 +1,46 @@
+/* Text, surface and hairlines come from the app tokens. Only the chart colors live here:
+   the Wealthsimple data-viz palette in numeric order for the four stages (blue, purple, pink, yellow),
+   data-viz green for an offer, the negative graphic red for a rejection, and a quiet grey for "no outcome yet". */
+.viz-root {
+  --viz-surface: var(--surface); --ink2: var(--muted); --hair: var(--line);
+  --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+  --good: #409652; --crit: #e22b18; --neutral: #8c8c8c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+    --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+  --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
+}
+.viz-root .scroll { overflow-x: auto; }
+.viz-root svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.viz-root .link { fill: none; stroke-opacity: .38; pointer-events: none; transition: stroke-opacity .12s; }
+.viz-root .hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: default; }
+.viz-root svg.dim .link { stroke-opacity: .1; }
+.viz-root svg.dim .link.hl { stroke-opacity: .72; }
+.viz-root .node { cursor: default; }
+.viz-root .node:focus-visible, .viz-root .hit:focus-visible { outline: none; }
+.viz-root .hit:focus-visible { stroke: var(--ink); stroke-opacity: .22; }
+.viz-root .node:focus-visible rect { stroke: var(--ink); stroke-width: 2px; }
+.viz-root .lbl { fill: var(--ink); font-size: 14px; font-weight: 500; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
+.viz-root .sub { fill: var(--ink2); font-size: 13px; font-weight: 400; }
+.viz-root .tip { position: absolute; z-index: var(--z-tip); pointer-events: none; background: var(--viz-surface); color: var(--ink);
+                 border: none; box-shadow: var(--raise); border-radius: var(--r); padding: 10px 14px; font-size: 0.875rem; line-height: 1.45;
+                 max-width: 280px; }
+.viz-root .tip[hidden] { display: none; }
+.viz-root .ico { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.viz-root .tip b { font-weight: 700; } .viz-root .tip .t2 { color: var(--ink2); }
+.viz-root table { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.viz-root .mobile-only { display: none; margin: 0 0 8px; }
+@media (max-width: 720px) { .viz-root .mobile-only { display: block; } }
+.viz-root th { text-align: left; color: var(--ink2); font-weight: 500; }
+.viz-root th, .viz-root td { padding: 5px 8px; border-top: 1px solid var(--hair); }
+.viz-root td.num, .viz-root th.num { text-align: right; }
+.viz-root .lede { font: 400 clamp(1.25rem, 2.2vw, 1.5625rem)/1.4 var(--font-ui); letter-spacing: -0.25px; margin: 0 0 20px; max-width: 46ch; text-wrap: pretty; }
+.viz-root .lede strong { font-weight: 700; }
+.viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+@media (prefers-reduced-motion: reduce) { .viz-root .link { transition: none; } }

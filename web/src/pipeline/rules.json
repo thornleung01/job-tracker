@@ -1,0 +1,141 @@
+{
+  "ats_domains": [
+    "greenhouse.io",
+    "greenhouse-mail.io",
+    "lever.co",
+    "myworkday.com",
+    "workday.com",
+    "ashbyhq.com",
+    "icims.com",
+    "smartrecruiters.com",
+    "taleo.net",
+    "jobvite.com",
+    "bamboohr.com",
+    "workable.com",
+    "breezy.hr",
+    "recruitee.com",
+    "successfactors.com",
+    "successfactors.eu",
+    "teamtailor.com",
+    "applytojob.com",
+    "hirevue.com",
+    "pinpointhq.com",
+    "rippling.com"
+  ],
+  "exclude_sender": [
+    "@(?:[\\w-]+\\.)*(?:medium\\.com|substack\\.com|glassdoor\\.com|levels\\.fyi|stratascratch\\.com|quora\\.com)$",
+    "job-?alerts?",
+    "newsletter",
+    "digest",
+    "recommendations?@",
+    "marketing"
+  ],
+  "exclude_subject": [
+    "(?:daily|weekly|monthly) (?:digest|roundup|update)",
+    "product update",
+    "job alerts?",
+    "jobs? (?:you may|for you|recommended|picked)",
+    "new jobs?\\b",
+    "recommended jobs",
+    "jobs? similar to",
+    "people (?:are )?viewing",
+    "you appeared in",
+    "weekly (?:digest|roundup)",
+    "newsletter",
+    "hiring now"
+  ],
+  "bulk_markers": "utm_(?:source|medium|campaign)=|\\bunsubscribe\\b|view (?:this email )?(?:online|in (?:your )?browser)|having trouble viewing|manage (?:your )?(?:email )?(?:preferences|subscription)|you(?:'re| are) receiving this (?:email|message)",
+  "job_context": "applic|candidacy|\\b(?:position|role|opening|vacancy)\\b|recruit|hiring|talent acquisition|human resources|interview|\\bextend(?:ing)? (?:you )?(?:an? )?offer\\b|\\bunable to extend\\b",
+  "reply_context": "your application|your candidacy|applying (?:for|to|at)\\b|applied (?:for|to|at) [^.]{0,60}\\b(?:position|role|job|opening)|recruiter|hiring (?:team|manager)|talent acquisition|interview",
+  "negated_offer_sentences": [
+    "\\b(?:not|never|unable to|cannot|can'?t|won'?t|unfortunately,?)\\s+(?:(?:be|been|able|to|going|currently|yet|in|a|position|now|at|this|time|we|are|will|is|you|further)\\s+){0,6}(?:extend|offer)(?:ing)?\\b"
+  ],
+  "conditional_sentences": [
+    "\\bif (?:you(?:'re| are)?|your \\w+(?: \\w+)?) (?:are |is |were )?(?:selected|shortlisted|chosen|successful|a (?:good |strong )?(?:match|fit)|suitable)",
+    "\\bif (?:selected|shortlisted|chosen)\\b",
+    "\\b(?:can'?t|cannot|unable to|won'?t be able to|not able to) (?:reply|respond|contact|get back)",
+    "\\bwill (?:only )?(?:contact|reach out|be in touch)[^.]*\\bif\\b",
+    "\\bonly (?:those|candidates|applicants)[^.]*(?:selected|shortlisted|contacted)",
+    "\\bshould (?:your|we)[^.]*(?:interview|selected|shortlisted)"
+  ],
+  "events": {
+    "offer": {
+      "strong": [
+        "pleased to offer you",
+        "(?:delighted|excited|happy|thrilled) to (?:extend|offer)",
+        "extend (?:you )?(?:an? )?(?:formal |verbal )?offer",
+        "offer of employment",
+        "employment offer",
+        "offer letter",
+        "employment agreement",
+        "accepting your offer",
+        "formal offer",
+        "job offer",
+        "we would like to offer you",
+        "your offer\\b"
+      ]
+    },
+    "rejected": {
+      "strong": [
+        "regret to (?:inform|tell|let)",
+        "(?:won'?t|not|unable to|cannot|can't) (?:be )?(?:moving|proceeding|going|move|proceed) forward",
+        "decided to (?:move|go|proceed|pursue|continue)(?: forward)? with (?:other|another|different)",
+        "(?:selected|chosen|pursue|moving forward with|proceed with) (?:other|another) (?:candidates?|applicants?)",
+        "other candidates (?:whose|who|that)",
+        "more closely (?:match|align|fit)",
+        "not (?:been )?selected",
+        "position (?:has been|was) filled",
+        "no longer (?:being )?considered|no longer under consideration",
+        "unable to (?:offer|extend|move|proceed|advance)",
+        "(?:not|cannot|can'?t|won'?t) (?:be )?(?:able to |in a position to )?(?:extend|offer)(?:ing)?\\b",
+        "we(?:'ve| have) decided not to",
+        "declin(?:e|ing) your application",
+        "not a (?:good )?(?:match|fit) (?:for|at this)"
+      ],
+      "weak": [
+        "unfortunately[^.]{0,200}(?:your (?:application|candidacy)|the (?:position|role))",
+        "(?:your (?:application|candidacy)|the (?:position|role))[^.]{0,200}unfortunately"
+      ]
+    },
+    "interview": {
+      "strong": [
+        "schedule (?:a|an|your|the) (?:\\w+ ){0,2}(?:interview|call|chat|meeting|conversation)",
+        "invite you to (?:an? )?(?:\\w+ ){0,2}(?:interview|call|chat|conversation|speak)",
+        "interview (?:invitation|invite|scheduled|confirmation|availability)",
+        "(?:like|love|want) to (?:interview|speak with|chat with|talk with|invite you)",
+        "phone screen",
+        "(?:video|virtual|on-?site|technical|panel|final|zoom|phone|recruiter screen|home task|hiring manager|case) interview",
+        "interview prep",
+        "invited you to attend:?[^\\n]{0,80}interview",
+        "(?:move|moving) you forward",
+        "next stage of (?:the|our) (?:interview )?process",
+        "next round",
+        "select a (?:time|slot)",
+        "calendly\\.com",
+        "your availability",
+        "speak with (?:you|our)"
+      ]
+    },
+    "assessment": {
+      "strong": [
+        "online assessment",
+        "coding (?:challenge|assessment|test|exercise)",
+        "take-?home",
+        "(?:hackerrank|codility|codesignal|testgorilla|pymetrics|criteria corp)",
+        "(?:complete|take|start) (?:the|this|an?|your) (?:\\w+ ){0,2}(?:assessment|test|challenge)",
+        "skills? (?:test|assessment)",
+        "case study"
+      ]
+    },
+    "applied": {
+      "strong": [
+        "thank(?:s| you) for (?:applying|your application|your interest)",
+        "we(?:'ve| have)? (?:received|got) your application",
+        "application (?:received|submitted|confirmation|complete)",
+        "your application (?:to|for|was sent|has been (?:received|submitted)|was received)",
+        "successfully (?:submitted|applied)",
+        "application was sent to"
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+/* Applications list. The table, tabs, panels and notices come from the shared stylesheet. */
+.filters { align-items: flex-end; }
+.filters .f-search { flex: 1 1 220px; }
+.card.list-card { padding: 0; overflow-x: auto; }
+.list-empty { padding: 24px 16px; }
+.clear-filters { padding: 10px 4px; }
+.add-note { margin-top: 10px; }
+#add-application form { margin-top: 12px; }
