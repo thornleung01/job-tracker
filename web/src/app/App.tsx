@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { dbNameFor, type AuthUser } from "../auth/user";
+import { isLocalMode } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
 import { SignIn } from "../pages/signin/SignIn";
 import { AppearanceSync, applyDefaultAppearance } from "./appearance";
 import { defaultAuth, type ShellAuth } from "./authApi";
+import { LocalBanner } from "./LocalBanner";
+import { dbNameForUser, isLocalUser, LOCAL_USER, type PageUser } from "./localUser";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { focusHeading } from "./focus";
 import { matchRoute, navigate, type RouteMatch } from "./router";
@@ -16,6 +18,11 @@ export interface AppProps {
   auth?: ShellAuth;
   loaders?: PageLoaders;
   openDb?: (name: string) => JobTrackerDB;
+  /**
+   * Run without sign-in against the one local database. Left out, it is the build's own answer (isLocalMode: true
+   * only when the build has no client IDs). Only tests pass it; nothing reads it from the URL or storage.
+   */
+  local?: boolean;
 }
 
 function Loading() {
@@ -26,9 +33,9 @@ function Loading() {
   );
 }
 
-/** One database per signed-in user, opened once and closed when the user changes or signs out. */
-export function useUserDb(user: AuthUser, openDb: (name: string) => JobTrackerDB): JobTrackerDB | null {
-  const name = dbNameFor(user);
+/** One database per signed-in user (or the one local database), opened once and closed when the user changes or signs out. */
+export function useUserDb(user: PageUser, openDb: (name: string) => JobTrackerDB): JobTrackerDB | null {
+  const name = dbNameForUser(user);
   const [open, setOpen] = useState<{ name: string; db: JobTrackerDB } | null>(null);
   useEffect(() => {
     const db = openDb(name);
@@ -43,7 +50,7 @@ export function useUserDb(user: AuthUser, openDb: (name: string) => JobTrackerDB
   return open?.name === name ? open.db : null;
 }
 
-function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrackerDB; user: AuthUser; loaders: PageLoaders }) {
+function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrackerDB; user: PageUser; loaders: PageLoaders }) {
   const [attempt, setAttempt] = useState(0);
   const state = usePage(match.page, loaders, attempt);
   if (state.status === "loading") return <Loading />;
@@ -68,7 +75,7 @@ function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrac
   return <Page db={db} user={user} params={match.params} query={match.query} navigate={navigate} />;
 }
 
-function SignedIn({ user, loaders, openDb }: { user: AuthUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB }) {
+function SignedIn({ user, loaders, openDb }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB }) {
   const db = useUserDb(user, openDb);
   const hash = useHash();
   const match = useMemo(() => matchRoute(hash), [hash]);
@@ -102,6 +109,7 @@ function SignedIn({ user, loaders, openDb }: { user: AuthUser; loaders: PageLoad
       <SkipLink target={mainRef} />
       <div className="wrap">
         <Header db={db} page={match.page} />
+        {isLocalUser(user) && <LocalBanner db={db} />}
         <main id="main" ref={mainRef} tabIndex={-1}>
           <ErrorBoundary
             resetKey={match.path}
@@ -127,7 +135,32 @@ function SignedIn({ user, loaders, openDb }: { user: AuthUser; loaders: PageLoad
   );
 }
 
-export function App({ auth = defaultAuth, loaders = defaultLoaders, openDb = openDatabase }: AppProps) {
+function SignedInBoundary({ user, loaders, openDb, onSignOut }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB; onSignOut?: () => void }) {
+  return (
+    <ErrorBoundary
+      fallback={() => (
+        <div className="wrap">
+          <div className="notice err" role="alert">
+            {onSignOut ? "Something went wrong. Reload the page, or sign out and back in." : "Something went wrong. Reload the page."}
+          </div>
+          <div className="row">
+            <button onClick={() => window.location.reload()}>Reload</button>
+            {onSignOut && <button onClick={onSignOut}>Sign out</button>}
+          </div>
+        </div>
+      )}
+    >
+      <SignedIn key={dbNameForUser(user)} user={user} loaders={loaders} openDb={openDb} />
+    </ErrorBoundary>
+  );
+}
+
+/** No sign-in: no auth call of any kind is made on this path. */
+function LocalApp({ loaders, openDb }: { loaders: PageLoaders; openDb: (name: string) => JobTrackerDB }) {
+  return <SignedInBoundary user={LOCAL_USER} loaders={loaders} openDb={openDb} />;
+}
+
+function AuthedApp({ auth, loaders, openDb }: { auth: ShellAuth; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB }) {
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const signedIn = session.status === "signed-in" && session.user !== null;
 
@@ -136,23 +169,11 @@ export function App({ auth = defaultAuth, loaders = defaultLoaders, openDb = ope
   }, [signedIn]);
 
   if (signedIn) {
-    return (
-      <ErrorBoundary
-        fallback={() => (
-          <div className="wrap">
-            <div className="notice err" role="alert">
-              Something went wrong. Reload the page, or sign out and back in.
-            </div>
-            <div className="row">
-              <button onClick={() => window.location.reload()}>Reload</button>
-              <button onClick={() => void auth.signOut()}>Sign out</button>
-            </div>
-          </div>
-        )}
-      >
-        <SignedIn key={dbNameFor(session.user!)} user={session.user!} loaders={loaders} openDb={openDb} />
-      </ErrorBoundary>
-    );
+    return <SignedInBoundary user={session.user!} loaders={loaders} openDb={openDb} onSignOut={() => void auth.signOut()} />;
   }
   return <SignIn auth={auth} session={session} />;
+}
+
+export function App({ auth = defaultAuth, loaders = defaultLoaders, openDb = openDatabase, local }: AppProps) {
+  return (local ?? isLocalMode()) ? <LocalApp loaders={loaders} openDb={openDb} /> : <AuthedApp auth={auth} loaders={loaders} openDb={openDb} />;
 }

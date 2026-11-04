@@ -5,8 +5,10 @@ import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { Combobox } from "../../components/Combobox";
 import { Notice } from "../../components/Notice";
 import { StageCell } from "../../components/StageBadge";
+import { SyncBanner } from "../../components/SyncBanner";
 import { LastActivity } from "../../components/TimeText";
 import { useAction } from "../../components/useAction";
+import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { localToday } from "../../db/time";
@@ -53,7 +55,8 @@ function readState(query: URLSearchParams): ListState {
   };
 }
 
-export default function ApplicationsPage({ db, query, navigate }: PageProps) {
+export default function ApplicationsPage({ db, user, query, navigate }: PageProps) {
+  const local = isLocalUser(user);
   const state = readState(query);
   const { stage, q, account, open } = state;
   const sort = (state.sort || "lastActivity") as SortColumn;
@@ -84,21 +87,33 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
   const setOpen = (ids: number[]) => navigate(listUrl({ stage, q, account, ...sorting, open: ids }), { replace: true });
   const toggle = (id: number) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
 
-  // Add an application manually
+  // Add an application by hand: one button opens the form under the filter card
   const add = useAction();
   const [addOpen, setAddOpen] = useState(false);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [addStage, setAddStage] = useState<Stage>("Applied");
   const [appliedOn, setAppliedOn] = useState(localToday());
-  const addBox = useRef<HTMLDetailsElement>(null);
+  const addBox = useRef<HTMLElement>(null);
+  const addTrigger = useRef<HTMLButtonElement>(null);
   const companyInput = useRef<HTMLInputElement>(null);
   const [focusAdd, setFocusAdd] = useState(0);
+  // The form opens in place under the filter card, and its first field takes focus.
   useEffect(() => {
     if (!focusAdd) return;
-    addBox.current?.scrollIntoView?.({ block: "center" });
+    addBox.current?.scrollIntoView?.({ block: "nearest" });
     companyInput.current?.focus();
   }, [focusAdd]);
+  const openAdd = () => {
+    add.clear();
+    setAddOpen(true);
+    setFocusAdd((n) => n + 1);
+  };
+  const closeAdd = () => {
+    add.clear();
+    setAddOpen(false);
+    addTrigger.current?.focus();
+  };
   const submitAdd = (e: FormEvent) => {
     e.preventDefault();
     void add.run("add", async () => {
@@ -109,7 +124,17 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
       setAddStage("Applied");
       setAppliedOn(localToday());
       return `Added ${added}. It is kept as yours, so a sync never changes it.`;
+    }).then((ok) => {
+      if (!ok) return;
+      setAddOpen(false);
+      addTrigger.current?.focus();
     });
+  };
+  const onAddKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Escape" && !e.defaultPrevented) {
+      e.preventDefault();
+      closeAdd();
+    }
   };
 
   if (!data) return <h1 className="page">Applications</h1>;
@@ -143,7 +168,6 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
                onClick={(e) => { e.preventDefault(); toggle(r.id); }} onKeyDown={(e) => onExpanderKey(e, r.id)}>
               <span className="chev" aria-hidden="true"></span><strong>{r.company}</strong>
             </a>
-            <a className="open-link small" href={`#/app/${r.id}`} aria-label={`Open the full page for ${r.company}`}>Open page</a>
             <span className="role-sub">{r.role}</span>
           </td>
         );
@@ -159,6 +183,7 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
   return (
     <>
       <h1 className="page">Applications</h1>
+      <SyncBanner db={db} user={user} />
       <nav className="tabs" aria-label="Filter by stage">
         <a href={"#" + listUrl({})} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
         {STAGES.map((s) => (
@@ -192,10 +217,47 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
               </select>
             </div>
           ) : null}
-          <button type="submit" className="primary">Apply filters</button>
-          <button type="button" onClick={() => { setAddOpen(true); setFocusAdd((n) => n + 1); }}>+ Add application</button>
+          {/* One primary per surface: the open add form owns it, so Apply filters steps down while the form is showing. */}
+          <button type="submit" className={addOpen ? undefined : "primary"}>Apply filters</button>
+          <button type="button" ref={addTrigger} aria-expanded={addOpen} aria-controls="add-application" onClick={openAdd}>Add application</button>
         </form>
       </div>
+
+      {addOpen ? (
+        <section className="card" id="add-application" ref={addBox} aria-labelledby="add-application-title" onKeyDown={onAddKey}>
+          <h2 className="section" id="add-application-title">Add application</h2>
+          <p className="help add-note">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
+          {add.error ? <Notice tone="err">{add.error}</Notice> : null}
+          <form onSubmit={submitAdd}>
+            {/* Reserved: a "Paste a job link" field goes here, above Company. */}
+            <div className="add-link-slot" id="add-link-slot"></div>
+            <div className="row row-end">
+              <div className="fgroup f-grow">
+                <label htmlFor="add-company">Company</label>
+                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name" value={company} onChange={(e) => setCompany(e.target.value)} />
+              </div>
+              <div className="fgroup f-grow">
+                <label htmlFor="add-role">Role (optional)</label>
+                <input id="add-role" name="role" value={role} onChange={(e) => setRole(e.target.value)} />
+              </div>
+              <div className="fgroup">
+                <label htmlFor="add-stage">Stage</label>
+                <select id="add-stage" name="stage" value={addStage} onChange={(e) => setAddStage(e.target.value as Stage)}>
+                  {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="fgroup">
+                <label htmlFor="add-date">Date applied</label>
+                <input id="add-date" name="applied_on" type="date" value={appliedOn} max={localToday()} onChange={(e) => setAppliedOn(e.target.value)} />
+              </div>
+            </div>
+            <div className="row add-actions">
+              <button type="submit" className="primary" {...add.button("add")}>Save application</button>
+              <button type="button" onClick={closeAdd}>Cancel</button>
+            </div>
+          </form>
+        </section>
+      ) : add.status ? <Notice>{add.status}</Notice> : null}
 
       <div className="result-line" role="status">
         <span className="small muted">Showing {rows.length}{filtered ? ` of ${total}` : ""} application{rows.length !== 1 ? "s" : ""}</span>
@@ -205,7 +267,7 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
         {filtered ? <a className="small clear-filters" href={"#" + listUrl({})}>Clear filters</a> : null}
       </div>
 
-      {!accounts.length ? <Notice>No mail account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
+      {!accounts.length && !local ? <Notice>No mail account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
       {review ? (
         <Notice>
           <a href="#/review">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} a look</a>. The tracker wasn't sure which application {review !== 1 ? "they belong" : "it belongs"} to.
@@ -233,7 +295,7 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
                   </tr>
                   <tr className="panel-row" role="row" id={`panel-${r.id}`} hidden={!isOpen}>
                     <td role="cell" colSpan={columns.length}>
-                      {isOpen ? <div className="panel"><ApplicationPanel db={db} appId={r.id} includeEmails navigate={navigate} /></div> : null}
+                      {isOpen ? <div className="panel"><ApplicationPanel db={db} appId={r.id} company={r.company} includeEmails navigate={navigate} /></div> : null}
                     </td>
                   </tr>
                 </Fragment>
@@ -242,41 +304,13 @@ export default function ApplicationsPage({ db, query, navigate }: PageProps) {
             {!rows.length ? (
               <tr role="row">
                 <td role="cell" colSpan={columns.length} className="muted list-empty">
-                  {filtered ? "No applications match these filters." : <>No applications yet. <a href="#/settings">Sync your mail in Settings</a>, or add one with "Add an application manually" below.</>}
+                  {filtered ? "No applications match these filters." : (local ? <>No applications yet. Choose "Add application" to add one, or load the demo data from the banner above.</> : <>No applications yet. <a href="#/settings">Sync your mail in Settings</a>, or choose "Add application" to add one.</>)}
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
-
-      <details className="card" id="add-application" ref={addBox} open={addOpen} onToggle={(e) => setAddOpen(e.currentTarget.open)}>
-        <summary className="disclosure"><span className="chev" aria-hidden="true"></span>Add an application manually</summary>
-        <p className="help add-note">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
-        {add.error ? <Notice tone="err">{add.error}</Notice> : null}
-        {add.status ? <Notice>{add.status}</Notice> : null}
-        <form className="row row-end" onSubmit={submitAdd}>
-          <div className="fgroup f-grow">
-            <label htmlFor="add-company">Company</label>
-            <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name" value={company} onChange={(e) => setCompany(e.target.value)} />
-          </div>
-          <div className="fgroup f-grow">
-            <label htmlFor="add-role">Role (optional)</label>
-            <input id="add-role" name="role" value={role} onChange={(e) => setRole(e.target.value)} />
-          </div>
-          <div className="fgroup">
-            <label htmlFor="add-stage">Stage</label>
-            <select id="add-stage" name="stage" value={addStage} onChange={(e) => setAddStage(e.target.value as Stage)}>
-              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="fgroup">
-            <label htmlFor="add-date">Date applied</label>
-            <input id="add-date" name="applied_on" type="date" value={appliedOn} max={localToday()} onChange={(e) => setAppliedOn(e.target.value)} />
-          </div>
-          <button type="submit" className="primary" {...add.button("add")}>Add application</button>
-        </form>
-      </details>
     </>
   );
 }

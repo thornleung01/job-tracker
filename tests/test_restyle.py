@@ -274,8 +274,11 @@ def test_flow_labels_are_larger_and_stages_use_the_data_viz_palette(env):
     _, client = env
     html = client.get("/flow").text
     assert ".viz-root .lbl { fill: var(--ink); font-size: 14px" in html and ".viz-root .sub { fill: var(--ink2); font-size: 13px" in html
-    # Stages take data-viz 01 to 04 in order, the same in light, system-dark and forced-dark.
-    assert html.count("--ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;") == 3
+    # Stages draw from the one stage map in base.html (data-viz 01 to 04 in order, then green and red), not a second palette.
+    assert "--ord-" not in html and "--good" not in html and "--crit" not in html
+    for stage, var in (("Applied", "applied"), ("Heard back", "heard-back"), ("Assessment", "assessment"),
+                       ("Interview", "interview"), ("Offer", "offer"), ("Rejected", "rejected")):
+        assert f"'{stage}': 'var(--stage-{var})'" in html
     assert "#7d7155" not in html and "Source Serif" not in html
     assert "tabular-nums" not in html and "M20 6 9 17l-5-5" in html          # Lucide check on the Offer node
 
@@ -286,3 +289,57 @@ def test_headlines_and_company_names_are_sans(env):
     assert "h1.page { font: 500 clamp(2rem, 4vw, 2.5rem)/1.2 var(--font-ui)" in html
     assert "a.expander strong { font: 500 1rem/1.4 var(--font-ui)" in html
     assert "--font-display" not in html and "serif" not in html.replace("sans-serif", "")
+
+
+# --- the one stage colour map -------------------------------------------------------------------------------------------
+
+_STAGES = ["applied", "heard-back", "assessment", "interview", "offer", "rejected"]
+
+
+def _luminance(hex_):
+    r, g, b = [int(hex_[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _ratio(a, b):
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _stage_maps(html):
+    """The stage variables in the light block, the system-dark block and the forced-dark block of base.html."""
+    light = html[html.index(":root {"):html.index("@media (min-width: 721px)")]
+    media = html[html.index("@media (prefers-color-scheme: dark)"):html.index(':root[data-theme="dark"] {')]
+    forced = html[html.index(':root[data-theme="dark"] {'):html.index(':root[data-density="compact"]')]
+    return [dict(re.findall(r"--(stage-[\w-]+):\s*(#[0-9a-f]{6})", block)) for block in (light, media, forced)]
+
+
+def test_stage_map_is_defined_once_per_theme_and_meets_contrast(env):
+    _, client = env
+    light, media, forced = _stage_maps(client.get("/").text)
+    names = {f"stage-{s}" for s in _STAGES} | {f"stage-{s}-text" for s in _STAGES}
+    assert set(light) == set(media) == set(forced) == names and media == forced
+    assert [light[f"stage-{s}"] for s in _STAGES[:4]] == ["#5b88d9", "#b27ee4", "#e47eca", "#eece2d"]
+    for s in _STAGES:
+        for ground in ("#fafafa", "#ffffff", "#ebebeb", "#e0e0e0"):
+            assert _ratio(light[f"stage-{s}-text"], ground) >= 4.5, (s, ground)
+        for ground in ("#171717", "#1f1f1f", "#0f0f0f", "#2f2f2f"):
+            assert _ratio(forced[f"stage-{s}-text"], ground) >= 4.5, (s, ground)
+
+
+def test_stage_map_matches_the_hosted_edition(env):
+    _, client = env
+    css = open("web/src/styles/base.css").read()
+    assert _stage_maps(client.get("/").text) == _stage_maps(css)
+
+
+def test_stage_badge_is_a_weighty_word_with_a_dot_not_a_grey_pill(env):
+    _, client = env
+    html = client.get("/").text
+    assert "padding: 0; background: none; font-size: 0.875rem" in html
+    assert "background: var(--st);" in html
+    for s in _STAGES:
+        assert f"--st: var(--stage-{s}); --st-text: var(--stage-{s}-text);" in html
+    # the jobs score keeps its small tonal pill
+    assert ".badge.score { display: inline-block; padding: 3px 12px; background: var(--fog); font-size: 0.75rem" in html

@@ -6,9 +6,14 @@
 <meta name="color-scheme" content="light dark">
 <!-- GitHub Pages cannot set response headers, so the policy is a meta tag. Owned by the auth work: keep connect-src minimal. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https://gmail.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com https://accounts.google.com https://oauth2.googleapis.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data:; font-src 'self'; frame-src https://accounts.google.com https://login.microsoftonline.com; base-uri 'self'; form-action 'self'">
+<meta name="description" content="Follow your job applications from the emails in your own mailbox. Your data stays in your browser.">
+<meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="%BASE_URL%favicon.svg" type="image/svg+xml">
 <title>Job Tracker</title>
 </head>
 <body>
+<noscript><p style="max-width:720px;margin:0 auto;padding:40px 16px;font:400 1rem/1.4 system-ui,-apple-system,sans-serif">Job Tracker needs JavaScript to run. Nothing is sent from your browser to a Job Tracker server.</p></noscript>
 <div id="root"></div>
 <script type="module" src="/src/main.tsx"></script>
 </body>

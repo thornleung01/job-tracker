@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { EmailText } from "../../components/EmailText";
 import { MailActions } from "../../components/MailActions";
 import { MailMeta } from "../../components/MailMeta";
+import { MoreMenu } from "../../components/detail/MoreMenu";
 import { Notice } from "../../components/Notice";
 import { PersonCard } from "../../components/PersonCard";
 import { StageBadge } from "../../components/StageBadge";
@@ -37,6 +38,10 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const [role, setRole] = useState("");
   const [stage, setStageChoice] = useState<Stage>("Applied");
   const [mergeInto, setMergeInto] = useState(0);
+  // The one inline step open under the action row: choosing a merge target, or asking which Delete.
+  const [step, setStep] = useState<"merge" | "delete" | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  const stepBox = useRef<HTMLDivElement>(null);
   // Fill the forms when the application first arrives, and again when it changes under them (a merge, a rename elsewhere).
   const seen = app ? `${app.id}|${app.company}|${app.role}|${app.stage}` : "";
   useEffect(() => {
@@ -50,6 +55,11 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   useEffect(() => {
     setMergeInto((cur) => (data?.others.some((o) => o.id === cur) ? cur : firstOther));
   }, [data?.others, firstOther]);
+
+  // An inline step takes focus when it opens.
+  useEffect(() => {
+    if (step) stepBox.current?.querySelector<HTMLElement>("select, button")?.focus();
+  }, [step]);
 
   // Arriving from a person's email list: bring that email into view.
   const wanted = query.get("email");
@@ -79,21 +89,33 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
       return "Saved.";
     });
   };
-  const changeStage = (e: FormEvent) => {
-    e.preventDefault();
+  // The stage select applies as soon as it changes, and puts the old stage back if that fails.
+  const changeStage = (next: Stage) => {
+    setStageChoice(next);
     void act.run("stage", async () => {
-      await setStage(db, id, stage);
-      return `Stage set to ${stage}. Syncs won't change it.`;
+      await setStage(db, id, next);
+      return `Stage set to ${next}. Syncs won't change it.`;
+    }).then((done) => {
+      if (!done) setStageChoice(app.stage);
     });
   };
   const unlock = () => act.run("unlock", async () => {
     await unlockStage(db, id);
     return "Unlocked. Mail can move the stage again.";
   });
+  const closeStep = () => {
+    setStep(null);
+    controls.current?.querySelector<HTMLElement>("[aria-haspopup='menu']")?.focus();
+  };
+  const onStepKey = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    closeStep();
+  };
   const merge = (e: FormEvent) => {
     e.preventDefault();
     const target = data.others.find((o) => o.id === mergeInto);
-    if (!target || !window.confirm(`Merge ${app.company} into ${target.company} (${target.role})? Its emails, notes and steps move across and this application is removed.`)) return;
+    if (!target) return;
     void act.run("merge", async () => {
       await mergeApplications(db, id, mergeInto);
       navigate(`/app/${mergeInto}`);
@@ -108,10 +130,6 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
     });
   };
   const remove = (emails: "clear" | "review") => {
-    const sure = emails === "clear"
-      ? "Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched."
-      : "Delete this application and send its emails to Needs review so you can place them yourself?";
-    if (!window.confirm(sure)) return;
     void act.run(`delete-${emails}`, async () => {
       await deleteApplication(db, id, emails);
       navigate("/");
@@ -143,29 +161,46 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
             <button type="submit" {...act.button("edit")}>Save</button>
           </form>
         </details>
-        <div className="row detail-controls">
-          <form onSubmit={changeStage}>
-            <select name="stage" aria-label="Set stage" value={stage} onChange={(e) => setStageChoice(e.target.value as Stage)}>
-              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <button type="submit" {...act.button("stage")}>Set stage</button>
-          </form>
+        <div className="row detail-controls" ref={controls}>
+          <select name="stage" aria-label="Set stage" value={stage} disabled={act.busy !== null} onChange={(e) => changeStage(e.target.value as Stage)}>
+            {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
           {app.locked ? <button type="button" onClick={unlock} {...act.button("unlock")}>Unlock</button> : null}
-          {data.others.length ? (
-            <form onSubmit={merge}>
-              <select name="into" aria-label="Merge into" value={mergeInto} onChange={(e) => setMergeInto(Number(e.target.value))}>
-                {data.others.map((o) => <option key={o.id} value={o.id}>{o.company} {"·"} {o.role}</option>)}
-              </select>
-              <button type="submit" {...act.button("merge")}>Merge into{"…"}</button>
-            </form>
-          ) : null}
-          <button type="button" className="danger" title="Removes it and learns to ignore mail like the emails that made it" onClick={notApplication} {...act.button("not")}>Not an application</button>
-          <button type="button" className="danger" onClick={() => remove("clear")} {...act.button("delete-clear")}>Delete</button>
-          <button type="button" className="danger" title="Use this when the emails belong to a different application" onClick={() => remove("review")} {...act.button("delete-review")}>Delete, keep emails for review</button>
+          <MoreMenu
+            disabled={act.busy !== null}
+            items={[
+              ...(data.others.length ? [{ key: "merge", label: "Merge into\u2026", onSelect: () => setStep("merge") }] : []),
+              { key: "not", label: "Not an application", onSelect: notApplication },
+              { key: "delete", label: "Delete", onSelect: () => setStep("delete") },
+            ]}
+          />
         </div>
+        {step === "merge" && data.others.length ? (
+          <div className="detail-step" ref={stepBox} onKeyDown={onStepKey}>
+            <form className="row" onSubmit={merge}>
+              <select name="into" aria-label="Merge into" value={mergeInto} onChange={(e) => setMergeInto(Number(e.target.value))}>
+                {data.others.map((o) => <option key={o.id} value={o.id}>{o.company} {"\u00b7"} {o.role}</option>)}
+              </select>
+              <button type="submit" className="danger" {...act.button("merge")}>Merge</button>
+              <button type="button" onClick={closeStep}>Cancel</button>
+            </form>
+            <p className="help">Its emails, notes and steps move across, and this application is removed.</p>
+          </div>
+        ) : null}
+        {step === "delete" ? (
+          <div className="detail-step" role="group" aria-labelledby="h-delete" ref={stepBox} onKeyDown={onStepKey}>
+            <p id="h-delete" className="detail-step-q">Delete this application?</p>
+            <p className="help">Its notes and steps are removed. Your mailbox is not touched.</p>
+            <div className="row">
+              <button type="button" className="danger" onClick={() => remove("clear")} {...act.button("delete-clear")}>Delete the application and its emails</button>
+              <button type="button" className="danger" onClick={() => remove("review")} {...act.button("delete-review")}>Delete the application, keep emails for review</button>
+              <button type="button" onClick={closeStep}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <section className="card" aria-labelledby="h-people">
+      <section className="detail-section" aria-labelledby="h-people">
         <h2 id="h-people" className="section">People</h2>
         {data.people.length ? (
           <>
@@ -179,26 +214,30 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
         )}
       </section>
 
-      <section className="card" aria-labelledby="h-notes">
+      <section className="detail-section" aria-labelledby="h-notes">
         <h2 id="h-notes" className="section">Notes and steps</h2>
         <ApplicationPanel db={db} appId={id} includeEmails={false} navigate={navigate} limit={1000} />
       </section>
 
-      <h2 className="section spaced">Email timeline <span className="small muted timeline-note">newest first</span></h2>
-      {data.emails.map((e) => (
-        <article className="card" id={`email-${e.id}`} key={e.id}>
-          <header className="mail-head">
-            <h3 className="mail-subject">{e.subject || "(no subject)"}</h3>
-            <MailMeta sender={e.sender} titles={data.titles}>
-              {e.id === latestEmailId ? <><span className="tag latest">Latest</span> </> : null}
-              <TimeText iso={e.receivedAt} relative /> {"·"} {e.provider.charAt(0).toUpperCase() + e.provider.slice(1)} {e.address}
-            </MailMeta>
-            {e.event ? <p className="mail-guess">Read as <b>{eventLabel(e.event)}</b>{e.confidence ? ` (${e.confidence} confidence)` : ""}</p> : null}
-          </header>
-          <EmailText body={e.body} />
-          <MailActions open={mailboxLink(e.provider, e.address, e.threadId, e.webLink)} reply={replyLink(e.provider, e.address, e.sender ?? "", e.subject, e.webLink)} />
-        </article>
-      ))}
+      <h2 className="section spaced detail-timeline-h">Email timeline <span className="small muted timeline-note">newest first</span></h2>
+      <ul className="timeline">
+        {data.emails.map((e) => (
+          <li key={e.id}>
+            <article className="card" id={`email-${e.id}`}>
+              <header className="mail-head">
+                <h3 className="mail-subject">{e.subject || "(no subject)"}</h3>
+                <MailMeta sender={e.sender} titles={data.titles}>
+                  {e.id === latestEmailId ? <><span className="tag latest">Latest</span> </> : null}
+                  <TimeText iso={e.receivedAt} relative /> {"·"} {e.provider.charAt(0).toUpperCase() + e.provider.slice(1)} {e.address}
+                </MailMeta>
+                {e.event ? <p className="mail-guess">Read as <b>{eventLabel(e.event)}</b>{e.confidence ? ` (${e.confidence} confidence)` : ""}</p> : null}
+              </header>
+              <EmailText body={e.body} />
+              <MailActions open={mailboxLink(e.provider, e.address, e.threadId, e.webLink)} reply={replyLink(e.provider, e.address, e.sender ?? "", e.subject, e.webLink)} />
+            </article>
+          </li>
+        ))}
+      </ul>
       {!data.emails.length ? <p className="muted">No emails linked{app.manual ? " (added manually)" : ""}.</p> : null}
     </>
   );

@@ -1,11 +1,12 @@
-import type { AuthUser } from "../auth/user";
+import type { PageUser } from "./localUser";
 import type { JobTrackerDB } from "../db/schema";
 
 /** What every page component receives. Pages never touch auth or providers directly. */
 export interface PageProps {
-  /** The signed-in user's own database (opened with dbNameFor(user)). */
+  /** The signed-in user's own database (opened with dbNameFor(user)), or the one local database in a local build. */
   db: JobTrackerDB;
-  user: AuthUser;
+  /** The signed-in person, or the local stand-in (check with isLocalUser) in a build with no client IDs. */
+  user: PageUser;
   /** Route params, e.g. { id: "12" } for #/app/12. */
   params: Record<string, string>;
   /** Query string of the hash route, e.g. #/?stage=Applied&q=acme. */

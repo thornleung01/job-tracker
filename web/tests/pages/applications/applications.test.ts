@@ -172,6 +172,7 @@ describe("filters", () => {
     const db = freshDb();
     await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db);
+    await click(button(container, "Add application"));
     for (const [id, label] of [["f-q", "Search"], ["f-stage", "Stage"], ["add-company", "Company"], ["add-role", "Role (optional)"], ["add-stage", "Stage"], ["add-date", "Date applied"]]) {
       expect(text($(container, `label[for=${id}]`))).toBe(label);
       expect($(container, `#${id}`)).not.toBeNull();
@@ -296,7 +297,12 @@ describe("expandable rows", () => {
     expect($$(panel, "ol.hist > li")).toHaveLength(3);
     expect($$(panel, "details.mail")).toHaveLength(3);
     expect($$(panel, "details.mail .tag.latest")).toHaveLength(1);
-    expect($(m.container, `a.open-link`)?.getAttribute("href")).toMatch(/^#\/app\/\d+$/);
+    const full = $(panel, "a.open-full")!;
+    expect(text(full)).toBe("Open full page");
+    expect(full.getAttribute("href")).toBe(`#/app/${zeta}`);
+    expect(full.getAttribute("aria-label")).toBe("Open full page for Zeta");
+    const icon = $(full, "svg")!;
+    expect([icon.getAttribute("width"), icon.getAttribute("stroke-width"), icon.getAttribute("aria-hidden")]).toEqual(["16", "3", "true"]);
 
     await click(expander());
     expect(m.visited.at(-1)).toBe("/");
@@ -311,16 +317,18 @@ describe("expandable rows", () => {
     expect($(container, `a.expander[data-id="${zeta}"]`)?.getAttribute("href")).toBe(`#/?sort=company&dir=asc&open=${mid}%2C${zeta}`);
   });
 
-  it("toggles when you click empty space in the row but not a link inside it", async () => {
+  it("keeps one target per collapsed row and puts the full page inside the panel", async () => {
     const db = freshDb();
     const { zeta } = await seedThree(db);
     const m = await mountPage(ApplicationsPage, db);
+    expect($(m.container, "a.open-link")).toBeNull();
+    expect(text(m.container)).not.toContain("Open page");
+    expect($$(m.container, "tr.app-row a[href^='#/app/']")).toHaveLength(0);
+    expect($(m.container, "a.open-full")).toBeNull();
     const row = $$(m.container, "tr.app-row").find((r) => text(r).includes("Zeta"))!;
     await click($(row, "td[data-col=role]"));
     expect(m.visited.at(-1)).toBe(`/?open=${zeta}`);
-    const before = m.visited.length;
-    await click($(row, "a.open-link"));
-    expect(m.visited.length).toBe(before);
+    expect($$(m.container, "a.open-full")).toHaveLength(1);
   });
 
   it("opens with the Space key like a button", async () => {
@@ -475,35 +483,66 @@ describe("emails in the panel", () => {
 });
 
 describe("adding an application by hand", () => {
-  it("opens from the button, adds it as yours, and says so", async () => {
+  it("has one way in: a secondary button in the filter card, and no form until it is pressed", async () => {
     const db = freshDb();
     await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db);
-    const box = $(container, "details#add-application") as HTMLDetailsElement;
-    expect(box.open).toBe(false);
-    await click(button(container, "+ Add application"));
-    expect(box.open).toBe(true);
+    expect($$(container, "button").filter((b) => /add application/i.test(text(b)))).toHaveLength(1);
+    expect(text(container)).not.toContain("Add an application manually");
+    expect($(container, "details#add-application")).toBeNull();
+    expect($(container, "#add-application")).toBeNull();
+    const entry = button(container, "Add application")!;
+    expect(entry.classList.contains("primary")).toBe(false);
+    expect(entry.closest(".filters")).not.toBeNull();
+    expect(button(container, "Apply filters")?.classList.contains("primary")).toBe(true);
+    expect(entry.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens in place between the filter card and the list, focuses Company and leaves room for a link field above it", async () => {
+    const db = freshDb();
+    await seedThree(db);
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click(button(container, "Add application"));
+    const form = $(container, "#add-application")!;
+    expect(button(container, "Add application")?.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement?.id).toBe("add-company");
+    const order = [...container.querySelectorAll(".filters, #add-application, table.list")];
+    expect(order.map((n) => n.id || n.className.split(" ")[0] || n.tagName)).toEqual(["row", "add-application", "list"]);
+    expect(form.previousElementSibling?.contains($(container, ".filters"))).toBe(true);
+    const slot = $(form, "#add-link-slot")!;
+    expect(slot.compareDocumentPosition($(form, "#add-company")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("adds it as yours, says so, closes the form and hands focus back to the button", async () => {
+    const db = freshDb();
+    await seedThree(db);
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click(button(container, "Add application"));
     await type($(container, "#add-company"), "  Newco ");
     await type($(container, "#add-role"), "Designer");
     await type($(container, "#add-stage"), "Heard back");
-    await click(button(container, "Add application"));
+    await click(button(container, "Save application"));
     await waitFor(() => companies(container).includes("Newco"));
-    expect(text($(box, ".notice"))).toBe("Added Newco. It is kept as yours, so a sync never changes it.");
+    await waitFor(() => !$(container, "#add-application"));
+    expect(text($(container, ".notice"))).toBe("Added Newco. It is kept as yours, so a sync never changes it.");
+    expect(document.activeElement).toBe(button(container, "Add application"));
     const row = $$(container, "tr.app-row").find((r) => text(r).includes("Newco"))!;
     expect(text(row)).toContain("Designer");
     expect(text(row)).toContain("Heard back");
     expect(text(row)).toContain("set by you");
-    expect(($(container, "#add-company") as HTMLInputElement).value).toBe("");
     expect($(container, "#count-Heard-back, #count-Heard\\ back")).not.toBeNull();
     const added = (await db.applications.toArray()).find((a) => a.company === "Newco")!;
     expect([added.manual, added.locked, added.stage]).toEqual([true, true, "Heard back"]);
+    // Opening again starts clean and drops the old message.
+    await click(button(container, "Add application"));
+    expect(($(container, "#add-company") as HTMLInputElement).value).toBe("");
+    expect($(container, ".notice")).toBeNull();
   });
 
-  it("shows a validation problem in an alert and keeps the form", async () => {
+  it("shows a validation problem in an alert and keeps the form open with what you typed", async () => {
     const db = freshDb();
     const { container } = await mountPage(ApplicationsPage, db);
-    await click(button(container, "+ Add application"));
+    await click(button(container, "Add application"));
     await type($(container, "#add-company"), "Acme");
     await type($(container, "#add-date"), "2999-01-01");
     await submitForm($(container, "#add-application form"));
@@ -512,6 +551,29 @@ describe("adding an application by hand", () => {
     expect(text(alert)).toBe("That date is in the future");
     expect(($(container, "#add-company") as HTMLInputElement).value).toBe("Acme");
     expect(await db.applications.count()).toBe(0);
+  });
+
+  it("closes on Cancel and on Escape without adding anything", async () => {
+    const db = freshDb();
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click(button(container, "Add application"));
+    await type($(container, "#add-company"), "Acme");
+    await click(button(container, "Cancel"));
+    expect($(container, "#add-application")).toBeNull();
+    expect(document.activeElement).toBe(button(container, "Add application"));
+    await click(button(container, "Add application"));
+    expect(document.activeElement?.id).toBe("add-company");
+    await key($(container, "#add-company"), "Escape");
+    expect($(container, "#add-application")).toBeNull();
+    expect(await db.applications.count()).toBe(0);
+  });
+
+  it("points the empty state at the button by its name", async () => {
+    const db = freshDb();
+    const { container } = await mountPage(ApplicationsPage, db);
+    const empty = text($(container, "td.list-empty"));
+    expect(empty).toContain('"Add application"');
+    expect(empty).not.toContain("manually");
   });
 });
 

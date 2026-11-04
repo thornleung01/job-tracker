@@ -99,7 +99,8 @@ describe("flow page: sentence", () => {
     expect(css).not.toMatch(/tabular-nums|uppercase|text-decoration:\s*underline/);
     expect(css).toContain(".viz-root .lbl { fill: var(--ink); font-size: 14px");
     expect(css).toContain(".viz-root .sub { fill: var(--ink2); font-size: 13px");
-    expect(css.match(/--ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;/g)).toHaveLength(3);
+    // the stage colours are the shared map, not defined again here
+    expect(css).not.toMatch(/--ord-\d|--good|--crit|--stage-[\w-]+:/);
     expect(css).toContain(':root[data-theme="dark"] .viz-root');
   });
 });

@@ -113,17 +113,19 @@ describe("layoutSankey", () => {
     expect(next.segments).toHaveLength(1);
   });
 
-  it("colors stages data-viz 1 to 4, offer green, rejected red, no outcome grey", () => {
+  it("colors every stage from the one stage map, no outcome grey", () => {
     const l = layoutSankey(BIG);
     const color = (id: string) => l.nodes.find((n) => n.id === id)!.color;
-    expect([color("Applied"), color("Heard back"), color("Assessment"), color("Interview")]).toEqual(["var(--ord-1)", "var(--ord-2)", "var(--ord-3)", "var(--ord-4)"]);
-    expect(color("Offer")).toBe("var(--good)");
-    expect(color("Rejected")).toBe("var(--crit)");
+    expect([color("Applied"), color("Heard back"), color("Assessment"), color("Interview")]).toEqual([
+      "var(--stage-applied)", "var(--stage-heard-back)", "var(--stage-assessment)", "var(--stage-interview)",
+    ]);
+    expect(color("Offer")).toBe("var(--stage-offer)");
+    expect(color("Rejected")).toBe("var(--stage-rejected)");
     expect(color("Still open")).toBe("var(--neutral)");
     expect(color("No response yet")).toBe("var(--neutral)");
-    expect(COLORS["Offer"]).toBe("var(--good)");
+    expect(COLORS["Offer"]).toBe("var(--stage-offer)");
     // a band takes the color of where it ends
-    expect(l.links.find((k) => k.target === "Rejected")!.color).toBe("var(--crit)");
+    expect(l.links.find((k) => k.target === "Rejected")!.color).toBe("var(--stage-rejected)");
   });
 
   it("puts the check on Offer and the x on Rejected, and labels each side of the chart", () => {

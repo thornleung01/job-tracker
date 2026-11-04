@@ -4,44 +4,88 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Job Tracker privacy</title>
+<meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>Privacy - Job Tracker</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; }
-  h1 { font-size: 1.75rem; line-height: 1.2; }
-  h2 { font-size: 1.15rem; margin-top: 2rem; }
-  li { margin: 0.35rem 0; }
+  /* Tokens copied from web/src/styles/base.css so this page matches the app. Self-contained: no requests, no scripts. */
+  :root {
+    color-scheme: light;
+    --bg: #f2f2f2; --surface: #fafafa; --fog: rgba(0,0,0,.05); --hover: rgba(0,0,0,.04);
+    --ink: #000000; --muted: rgba(0,0,0,.55); --line: rgba(0,0,0,.08); --field-line: #8c8c8c;
+    --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
+    --font-ui: "Wealthsimple Sans Display", Figtree, -apple-system, "SF Pro Display", system-ui, sans-serif;
+    --r-pill: 999px; --r-lg: 20px; --r-sm: 3px; --tap: 44px;
+    --ico-chevron-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 18-6-6 6-6'/%3E%3C/svg%3E");
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #000000; --surface: #171717; --fog: rgba(255,255,255,.07); --hover: rgba(255,255,255,.04);
+      --ink: #ffffff; --muted: rgba(255,255,255,.5); --line: rgba(255,255,255,.12); --field-line: #8a8a8a;
+      --raise: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1rem/1.4 var(--font-ui); letter-spacing: 0.02px; -webkit-font-smoothing: antialiased; }
+  ::selection { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 96px; }
+  a { color: inherit; text-decoration: none; font-weight: 500; }
+  a:hover { background: var(--hover); border-radius: var(--r-sm); }
+  a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: var(--r-sm); }
+  a.back { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); margin-bottom: 8px; padding-right: 12px; color: var(--muted); font-weight: 400; border-radius: var(--r-pill); }
+  a.back:hover { color: var(--ink); }
+  a.back::before { content: ""; flex: none; width: 16px; height: 16px; background: currentColor; -webkit-mask: var(--ico-chevron-left) center / contain no-repeat; mask: var(--ico-chevron-left) center / contain no-repeat; }
+  .card { background: var(--surface); box-shadow: var(--raise); border-radius: var(--r-lg); padding: 24px 16px; }
+  @media (min-width: 721px) { .card { padding: 32px; } }
+  h1 { font: 500 clamp(2rem, 4vw, 2.5rem)/1.2 var(--font-ui); letter-spacing: -0.8px; margin: 0 0 24px; text-wrap: balance; }
+  h2 { font: 500 1.25rem/1.4 var(--font-ui); letter-spacing: -0.2px; margin: 32px 0 12px; }
+  p, ul { margin: 0 0 16px; line-height: 1.5; }
+  ul { padding-left: 20px; }
+  li { margin: 8px 0; padding-left: 4px; }
+  li::marker { color: var(--muted); }
+  p:last-child, ul:last-child { margin-bottom: 0; }
+  code { font: 400 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--fog); padding: 2px 6px; border-radius: var(--r-sm); overflow-wrap: anywhere; }
+  .card, li, p { overflow-wrap: break-word; }
 </style>
 </head>
 <body>
-<main>
-<h1>Job Tracker privacy</h1>
+<div class="wrap">
+<a class="back" href="./">Back to Job Tracker</a>
+<main class="card">
+<h1>Privacy</h1>
 <p>Job Tracker helps you follow your job applications by reading the job-related emails in your own mailbox. It runs entirely in your browser. There is no Job Tracker server.</p>
 
 <h2>What it reads</h2>
 <ul>
   <li>Gmail: read-only access (the <code>gmail.readonly</code> permission). The app cannot send, delete or change mail.</li>
   <li>Outlook: read-only access (the <code>Mail.Read</code> permission). The app cannot send, delete or change mail.</li>
-  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is signed in and keeps each person's data apart.</li>
+  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is signed in and keeps each person's data apart. The name and address are shown on screen while you are signed in. The account ID is part of the name of your database in this browser.</li>
 </ul>
 <p>Mailbox access is a separate step after sign-in. You choose whether to connect Gmail, Outlook, both or neither.</p>
 
 <h2>What it stores</h2>
 <ul>
-  <li>Your applications and the details the app picks out of job-related emails, such as company, role, status, sender, subject, date and a short excerpt. This is saved in your browser's IndexedDB on this device, in a database that belongs to your account.</li>
-  <li>Your appearance settings, saved in the same place.</li>
-  <li>The name of the provider you last signed in with (Google or Microsoft), so the sign-in screen can remind you. It is not a secret.</li>
+  <li>Your applications, and the details the app picks out of job-related emails: company, role, stage, sender, subject, date, a link back to the message, and the start of the message text (up to 4,096 characters). This is saved in your browser's IndexedDB on this device, in a database that belongs to your account.</li>
+  <li>For email that is not job-related, only its message ID and date, so it is not read again. Its sender, subject and text are not kept. If a rule you taught the app hides a message, that message is kept for about 30 days so you can bring it back.</li>
+  <li>What you add yourself: notes and steps on an application, contact edits, corrections you give about what is or is not a job email, and the sender and domain rules the app learns from them.</li>
+  <li>The address of each mailbox you connect, when it last synced, and your settings: appearance, table columns, and how far back to read. All of it is saved in the same database.</li>
+  <li>The name of the provider you last signed in with (Google or Microsoft), kept in local storage so the sign-in screen can remind you. It is not a secret.</li>
 </ul>
-<p>Access tokens are kept in memory only. They are never written to local storage, cookies or the address bar, and they are gone when you sign out or close the tab.</p>
+<p>Access tokens are kept in memory only. The app never writes them to local storage, cookies or the address bar, and they are gone when you sign out or close the tab.</p>
+<p>If this copy of Job Tracker was built without Google or Microsoft sign-in set up, it opens without signing in and cannot connect a mailbox. It keeps a local copy of your data in this browser only.</p>
 
 <h2>What leaves your device</h2>
-<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to sign you in and to fetch your mail, and the emails are read and sorted on your device. No analytics, advertising or tracking is used, and your data is not shared, sold or used to train any model.</p>
+<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to sign you in and to fetch your mail, and the emails are read and sorted on your device. Google and Microsoft may set their own cookies on their own pages when you sign in. No analytics, advertising or tracking is used, and your data is not shared, sold or used to train any model.</p>
+<p>Export in Settings saves your data to a file on your device. The app does not send it anywhere.</p>
 <p>Use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
 <h2>Deleting your data and removing access</h2>
 <ul>
-  <li>In the app, sign out to clear tokens from memory and revoke the Google access token.</li>
-  <li>To delete the saved data, use the delete all my data action in the app, or clear this site's data in your browser settings.</li>
+  <li>To delete your data, open Settings, go to Your data and choose Delete all my data. This empties your database in this browser. You can also clear this site's data in your browser settings, which removes everything, including the last-provider hint.</li>
+  <li>Sign out clears tokens from memory. If you connected Gmail, it also revokes that Google access token. A Microsoft token is dropped from memory, but the permission stays until you remove it.</li>
   <li>To remove Job Tracker's access to Google, open <a href="https://myaccount.google.com/permissions">your Google account permissions</a> and remove Job Tracker.</li>
   <li>To remove its access to Microsoft, open <a href="https://account.live.com/consent/Manage">your personal Microsoft account permissions</a>, or <a href="https://myapps.microsoft.com">My Apps</a> for a work or school account, and remove Job Tracker.</li>
 </ul>
@@ -49,5 +93,6 @@
 <h2>Questions</h2>
 <p>Job Tracker is open source. Questions or concerns can be raised in the <a href="https://github.com/thornleung01/job-tracker/issues">project issues</a>.</p>
 </main>
+</div>
 </body>
 </html>

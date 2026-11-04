@@ -6,6 +6,9 @@ import { userFromClaims, type AuthUser } from "./user";
 
 export const GIS_SRC = "https://accounts.google.com/gsi/client";
 
+/** What to tell the person when Google's sign-in window did not open or the silent token request failed. */
+export const POPUP_HINT = "Your browser may have blocked the Google sign-in window. Allow pop-ups for this site and try again.";
+
 interface GisCredentialResponse {
   credential?: string;
 }
@@ -203,7 +206,8 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
           ...(loginHint ? { login_hint: loginHint } : {}),
           callback: done((r: GisTokenResponse) => {
             if (r.error || !r.access_token) {
-              reject(new NotConnected(`Gmail access needs your permission${r.error ? ` (${r.error})` : ""}`));
+              // access_denied is the person saying no; anything else is the silent request failing or the window being blocked.
+              reject(new NotConnected(r.error === "access_denied" ? "Gmail access needs your permission (access_denied)" : POPUP_HINT));
             } else if (r.scope && !r.scope.split(" ").includes(deps.mailScope)) {
               reject(new NotConnected("Gmail access was not granted"));
             } else {
@@ -212,7 +216,7 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
             }
           }),
           error_callback: done((e: { type?: string }) => {
-            reject(new NotConnected(e.type === "popup_failed_to_open" ? "Allow pop-ups for this site and connect Gmail again" : "Gmail connection was not completed"));
+            reject(new NotConnected(e.type === "popup_failed_to_open" ? POPUP_HINT : "Gmail connection was not completed"));
           }),
         });
         client.requestAccessToken({ prompt: "" });

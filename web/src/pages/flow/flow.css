@@ -1,21 +1,14 @@
-/* Text, surface and hairlines come from the app tokens. Only the chart colors live here:
-   the Wealthsimple data-viz palette in numeric order for the four stages (blue, purple, pink, yellow),
-   data-viz green for an offer, the negative graphic red for a rejection, and a quiet grey for "no outcome yet". */
+/* Text, surface and hairlines come from the app tokens, and the stage colours come from the one stage map in the shared stylesheet
+   (--stage-applied ... --stage-rejected, the Wealthsimple data-viz hues), so a stage is the same colour here as on the list.
+   Only the quiet grey for "no outcome yet" lives here. */
 .viz-root {
   --viz-surface: var(--surface); --ink2: var(--muted); --hair: var(--line);
-  --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
-  --good: #409652; --crit: #e22b18; --neutral: #8c8c8c;
+  --neutral: #8c8c8c;
 }
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .viz-root {
-    --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
-    --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
-  }
+  :root:where(:not([data-theme="light"])) .viz-root { --neutral: #8a8a8a; }
 }
-:root[data-theme="dark"] .viz-root {
-  --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
-  --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
-}
+:root[data-theme="dark"] .viz-root { --neutral: #8a8a8a; }
 .viz-root .scroll { overflow-x: auto; }
 .viz-root svg { display: block; min-width: 760px; width: 100%; height: auto; }
 .viz-root .link { fill: none; stroke-opacity: .38; pointer-events: none; transition: stroke-opacity .12s; }

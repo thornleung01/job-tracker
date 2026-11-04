@@ -32,3 +32,13 @@ export function loadConfig(env: Env = import.meta.env as Env, origin: string = w
 }
 
 export const config: AppConfig = loadConfig();
+
+/**
+ * True when this build has no OAuth client IDs at all. The app then opens without sign-in against one local
+ * database (LOCAL_DB_NAME) in this browser, with no mailbox connection. Builds with IDs always require sign-in.
+ */
+export function isLocalMode(c: AppConfig = config): boolean {
+  return c.googleClientId === "" && c.msClientId === "";
+}
+
+export const LOCAL_DB_NAME = "jobtracker:local";

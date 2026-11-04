@@ -1,0 +1,13 @@
+/* The More menu: an icon button and a small popup on the raised surface the selects use. Items are pills; pressing one
+   changes its tone, it never scales. */
+.more-menu { position: relative; display: inline-block; }
+.more-menu .more-trigger { display: inline-flex; align-items: center; justify-content: center; width: var(--tap); padding: 0; }
+.more-menu .more-popup { position: absolute; z-index: var(--z-pop); top: 100%; right: 0; margin-top: 8px; padding: 8px; min-width: 220px;
+                         max-width: calc(100vw - 32px); background: var(--surface); color: var(--ink); box-shadow: var(--raise); border-radius: var(--r);
+                         display: flex; flex-direction: column; gap: 2px; }
+.more-menu .more-popup button[role="menuitem"] { display: flex; align-items: center; width: 100%; min-height: var(--tap); padding: 6px 16px; text-align: left;
+                                                 background: transparent; box-shadow: none; border-radius: var(--r-pill); font-weight: 400; white-space: nowrap; }
+.more-menu .more-popup button[role="menuitem"]:hover:not(:disabled),
+.more-menu .more-popup button[role="menuitem"]:focus-visible { background: var(--hover); }
+.more-menu .more-popup button[role="menuitem"]:active:not(:disabled) { background: var(--fog); transform: none; }
+.more-menu .more-popup button[role="menuitem"]:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
