@@ -5,4 +5,5 @@
 .list-empty { padding: 24px 16px; }
 .clear-filters { padding: 10px 4px; }
 .add-note { margin-top: 10px; }
-#add-application form { margin-top: 12px; }
+.add-link-slot:empty { display: none; }
+.add-actions { margin-top: 16px; }

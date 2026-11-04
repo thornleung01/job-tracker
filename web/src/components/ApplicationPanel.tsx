@@ -13,10 +13,13 @@ import { TimeText } from "./TimeText";
 import { setFlash } from "./flash";
 import { useAction } from "./useAction";
 import "./components.css";
+import "./applicationpanel.css";
 
 interface PanelProps {
   db: JobTrackerDB;
   appId: number;
+  /** the company name, used to name the "Open full page" link for screen readers */
+  company?: string;
   /** the list panel also shows the emails in the history and the Delete controls; the detail page lists emails itself */
   includeEmails: boolean;
   navigate(to: string, opts?: { replace?: boolean }): void;
@@ -27,7 +30,7 @@ interface PanelProps {
 }
 
 /** Notes, steps and history for one application. Used under each list row and on the detail page. */
-export function ApplicationPanel({ db, appId, includeEmails, navigate, limit = 20, onRemoved }: PanelProps) {
+export function ApplicationPanel({ db, appId, company, includeEmails, navigate, limit = 20, onRemoved }: PanelProps) {
   const data = useQuery(async () => ({
     ...(await history(db, appId, limit, includeEmails)),
     titles: includeEmails ? await contactTitles(db, appId) : {},
@@ -136,7 +139,13 @@ export function ApplicationPanel({ db, appId, includeEmails, navigate, limit = 2
       ) : null}
 
       {includeEmails ? (
-        <div className="panel-danger">
+        <div className="panel-actions">
+          <a className="btn small open-full" href={`#/app/${appId}`} aria-label={company ? `Open full page for ${company}` : undefined}>
+            Open full page
+            <svg className="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+              <path d="M7 7h10v10" /><path d="M7 17 17 7" />
+            </svg>
+          </a>
           <button type="button" className="danger small" onClick={remove} {...act.button("delete")}>Delete</button>
           <button type="button" className="danger small" title="Removes it and learns to ignore mail like the emails that made it"
                   onClick={notApplication} {...act.button("not")}>Not an application</button>

@@ -1,9 +1,24 @@
-/* Application detail. Cards, notices, mail text and the person component come from the shared stylesheet. */
+/* Application detail. One card holds the header and its actions; People and Notes and steps are plain sections on the page
+   background; each email stays a card, but the emails sit close together as a list. */
 .detail-title { margin: 0; }
 .detail-facts { margin-top: 12px; }
 .detail-edit { margin-top: 10px; }
 .detail-edit form { margin-top: 8px; }
 .detail-controls { margin-top: 14px; }
-.detail-controls form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 0; }
-.timeline-note { font-family: var(--font-ui); font-weight: 400; }
+.detail-controls .more-menu { margin-left: auto; }
+.detail-step { margin-top: 14px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.detail-step form { margin: 0; }
+.detail-step-q { margin: 0 0 4px; font-weight: 500; }
+.detail-step .help { margin-bottom: 12px; }
 .detail-missing { margin-top: 12px; }
+
+/* Plain sections: a hairline above, the section gap below, no card. */
+.detail-section { border-top: 1px solid var(--line); padding-top: var(--gap); margin-bottom: var(--section); }
+.detail-section .panel-inner { padding: 0; }
+.detail-section ul.people { margin-bottom: 0; }
+.detail-section > :last-child { margin-bottom: 0; }
+
+h2.section.spaced.detail-timeline-h { margin-top: 0; padding-top: var(--gap); border-top: 1px solid var(--line); }
+.timeline-note { font-family: var(--font-ui); font-weight: 400; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pad); }
+.timeline > li > .card { margin-bottom: 0; }

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { ACCENT_COLORS } from "../../app/accents";
+import { isLocalUser } from "../../app/localUser";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
 import { deactivateAccount } from "../../db/repo";
+import { hasData, loadDemoData } from "../../demo/loadDemo";
 import { clearAll, exportAllAsJson, ImportError } from "../../portability";
 import { createProvider, getAddress } from "../../providers";
 import { accountSummaries } from "../../sync/queries";
@@ -50,6 +52,18 @@ interface Progress {
   note: string;
 }
 
+/** What Settings sees of auth in a local build: nothing. Never reaches the real auth module. */
+const NO_AUTH: SettingsDeps["auth"] = {
+  getSession: (() => {
+    const session: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null };
+    return () => session;
+  })(),
+  subscribe: () => () => undefined,
+  signOut: async () => undefined,
+  connectMail: async () => { throw new Error("Mail sync is not set up on this site."); },
+  tokenSource: async () => { throw new Error("Mail sync is not set up on this site."); },
+};
+
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -91,7 +105,9 @@ function Confirm({ children, confirm, onConfirm, onCancel, busy }: {
 
 export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Partial<SettingsDeps> }) {
   const deps: SettingsDeps = { ...defaultDeps, ...given };
-  const { auth } = deps;
+  // A local build (no sign-in) has no mailbox connection, so it never touches the auth module.
+  const account = isLocalUser(user) ? null : user;
+  const auth = account ? deps.auth : NO_AUTH;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const settings = useQuery(() => loadSettings(db), [db]);
   const accounts = useQuery(() => accountSummaries(db), [db]);
@@ -106,6 +122,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   const abort = useRef<AbortController | null>(null);
   const [pendingImport, setPendingImport] = useState<{ name: string; parsed: ParsedImport } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDemo, setConfirmDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -133,10 +150,11 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
 
   // -- accounts ----
   async function connect(provider: ProviderName) {
+    if (!account) return;
     setConnecting(provider);
     setNotice(null);
     try {
-      const { address } = await connectMailbox(db, user, provider, {
+      const { address } = await connectMailbox(db, account, provider, {
         connectMail: auth.connectMail, tokenSource: auth.tokenSource, createProvider: deps.createProvider, getAddress: deps.getAddress,
       });
       say("ok", `Connected ${PROVIDER_LABEL[provider]} ${address}.`);
@@ -154,6 +172,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
 
   // -- sync ----
   async function syncNow() {
+    if (!account) return;
     const controller = new AbortController();
     abort.current = controller;
     setNotice(null);
@@ -162,7 +181,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
     try {
       const report = await runSync(
         db,
-        { tokenSource: auth.tokenSource, createProvider: deps.createProvider, isConnected: (a) => isConnected(user, a, auth.getSession().mail) },
+        { tokenSource: auth.tokenSource, createProvider: deps.createProvider, isConnected: (a) => isConnected(account, a, auth.getSession().mail) },
         {
           days: scan,
           signal: controller.signal,
@@ -229,6 +248,24 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
     }
   }
 
+  async function startDemo() {
+    setNotice(null);
+    if (await hasData(db)) setConfirmDemo(true);
+    else await confirmDemoLoad();
+  }
+
+  async function confirmDemoLoad() {
+    setBusy(true);
+    try {
+      say("ok", describeImport(await loadDemoData(db)));
+    } catch (e) {
+      say("err", `Demo data could not be loaded. ${errorText(e)}`);
+    } finally {
+      setConfirmDemo(false);
+      setBusy(false);
+    }
+  }
+
   async function deleteEverything() {
     setBusy(true);
     try {
@@ -254,7 +291,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       <h1 className="page">Settings</h1>
       <nav className="sub" aria-label="Sections">
         <a href="#/settings" onClick={jump("accounts")}>Email accounts</a>
-        <a href="#/settings" onClick={jump("sync")}>Sync</a>
+        {account && <a href="#/settings" onClick={jump("sync")}>Sync</a>}
         <a href="#/settings" onClick={jump("appearance")}>Appearance</a>
         <a href="#/settings" onClick={jump("data")}>Your data</a>
       </nav>
@@ -266,96 +303,105 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       )}
       <p className="sr" role="status" key={saved.n}>{saved.text}</p>
 
-      <section className="card" id="accounts" aria-labelledby="h-accounts">
-        <h2 className="sec" id="h-accounts">Email accounts</h2>
-        {accounts && accounts.length > 0 ? (
-          <div className="account-list">
-            {accounts.map((x) => {
-              const label = accountLabel(x);
-              const ready = x.active && isConnected(user, x, session.mail);
-              return (
-                <div className="prof" key={x.id}>
-                  <div className="name">
-                    {label}
-                    <div className="small account-status">
-                      {!x.active ? <span className="muted">Disconnected</span>
-                        : x.lastError ? <span className="status-bad">{x.lastError}</span>
-                        : x.lastSync ? <span className="status-ok">Synced {when(x.lastSync)}</span>
-                        : <span className="muted">Not synced yet</span>}
-                      <span className="muted"> · {x.emailCount} email{x.emailCount === 1 ? "" : "s"}</span>
+      {account ? (
+        <>
+        <section className="card" id="accounts" aria-labelledby="h-accounts">
+          <h2 className="sec" id="h-accounts">Email accounts</h2>
+          {accounts && accounts.length > 0 ? (
+            <div className="account-list">
+              {accounts.map((x) => {
+                const label = accountLabel(x);
+                const ready = x.active && isConnected(account, x, session.mail);
+                return (
+                  <div className="prof" key={x.id}>
+                    <div className="name">
+                      {label}
+                      <div className="small account-status">
+                        {!x.active ? <span className="muted">Disconnected</span>
+                          : x.lastError ? <span className="status-bad">{x.lastError}</span>
+                          : x.lastSync ? <span className="status-ok">Synced {when(x.lastSync)}</span>
+                          : <span className="muted">Not synced yet</span>}
+                        <span className="muted"> · {x.emailCount} email{x.emailCount === 1 ? "" : "s"}</span>
+                      </div>
+                      {x.active && (
+                        <div className="small muted">{ready ? "Connected in this tab" : "Not connected in this tab. Connect again to sync."}</div>
+                      )}
                     </div>
-                    {x.active && (
-                      <div className="small muted">{ready ? "Connected in this tab" : "Not connected in this tab. Connect again to sync."}</div>
+                    {!x.active ? (
+                      <button disabled={connecting !== null} onClick={() => void connect(x.provider)}>Reconnect</button>
+                    ) : (
+                      <>
+                        {!ready && <button className="primary" disabled={connecting !== null} onClick={() => void connect(x.provider)}>Connect again</button>}
+                        <button onClick={() => void disconnect(x.id, label)}>Disconnect</button>
+                      </>
                     )}
                   </div>
-                  {!x.active ? (
-                    <button disabled={connecting !== null} onClick={() => void connect(x.provider)}>Reconnect</button>
-                  ) : (
-                    <>
-                      {!ready && <button className="primary" disabled={connecting !== null} onClick={() => void connect(x.provider)}>Connect again</button>}
-                      <button onClick={() => void disconnect(x.id, label)}>Disconnect</button>
-                    </>
-                  )}
+                );
+              })}
+            </div>
+          ) : (
+            <p className="muted">{accounts ? "No accounts yet. Connect Gmail or Outlook below." : ""}</p>
+          )}
+          <div className="providers">
+            {(["gmail", "outlook"] as const).map((p) => {
+              const here = session.mail[p] ? connectedAddress(account, p) : null;
+              return (
+                <div className="provider" key={p}>
+                  <h3>{PROVIDER_LABEL[p]}</h3>
+                  <div className="small muted addr">{here ? `Connected as ${here}` : "Not connected in this tab"}</div>
+                  <button className={here ? undefined : "primary"} aria-busy={connecting === p} disabled={connecting !== null} onClick={() => void connect(p)}>
+                    Connect {PROVIDER_LABEL[p]}
+                  </button>
                 </div>
               );
             })}
           </div>
-        ) : (
-          <p className="muted">{accounts ? "No accounts yet. Connect Gmail or Outlook below." : ""}</p>
-        )}
-        <div className="providers">
-          {(["gmail", "outlook"] as const).map((p) => {
-            const here = session.mail[p] ? connectedAddress(user, p) : null;
-            return (
-              <div className="provider" key={p}>
-                <h3>{PROVIDER_LABEL[p]}</h3>
-                <div className="small muted addr">{here ? `Connected as ${here}` : "Not connected in this tab"}</div>
-                <button className={here ? undefined : "primary"} aria-busy={connecting === p} disabled={connecting !== null} onClick={() => void connect(p)}>
-                  Connect {PROVIDER_LABEL[p]}
-                </button>
+        </section>
+
+        <section className="card" id="sync" aria-labelledby="h-sync">
+          <h2 className="sec" id="h-sync">Sync</h2>
+          {progress ? (
+            <div className="progress-card">
+              <div className="top">
+                <span role="status">{progress.label}</span>
+                <span aria-hidden="true">{progress.percent !== null ? `${progress.percent}%` : ""}</span>
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <div className={`bar${progress.percent === null ? " indet" : ""}`} role="progressbar" aria-label="Sync progress" aria-valuemin={0} aria-valuemax={100}
+                aria-valuenow={progress.percent ?? undefined}>
+                <i style={progress.percent !== null ? { width: `${progress.percent}%` } : undefined} />
+              </div>
+              {progress.note && <div className="small" style={{ marginTop: 4 }}>{progress.note}</div>}
+              <div className="row" style={{ marginTop: 12 }}>
+                <button className="quiet" onClick={() => abort.current?.abort()}>Stop</button>
+              </div>
+            </div>
+          ) : active.length > 0 ? (
+            <div className="row field-block">
+              <label className="sr" htmlFor="scan">What to scan</label>
+              <select id="scan" value={scan} onChange={(e) => setScan(Number(e.target.value))}>
+                {SCAN_CHOICES.map((c) => <option key={c.days} value={c.days}>{c.label}</option>)}
+              </select>
+              <button className="primary" onClick={() => void syncNow()}>Sync now</button>
+            </div>
+          ) : (
+            <p className="muted field-block">Connect an email account above to sync.</p>
+          )}
 
-      <section className="card" id="sync" aria-labelledby="h-sync">
-        <h2 className="sec" id="h-sync">Sync</h2>
-        {progress ? (
-          <div className="progress-card">
-            <div className="top">
-              <span role="status">{progress.label}</span>
-              <span aria-hidden="true">{progress.percent !== null ? `${progress.percent}%` : ""}</span>
-            </div>
-            <div className={`bar${progress.percent === null ? " indet" : ""}`} role="progressbar" aria-label="Sync progress" aria-valuemin={0} aria-valuemax={100}
-              aria-valuenow={progress.percent ?? undefined}>
-              <i style={progress.percent !== null ? { width: `${progress.percent}%` } : undefined} />
-            </div>
-            {progress.note && <div className="small" style={{ marginTop: 4 }}>{progress.note}</div>}
-            <div className="row" style={{ marginTop: 12 }}>
-              <button className="quiet" onClick={() => abort.current?.abort()}>Stop</button>
-            </div>
-          </div>
-        ) : active.length > 0 ? (
-          <div className="row field-block">
-            <label className="sr" htmlFor="scan">What to scan</label>
-            <select id="scan" value={scan} onChange={(e) => setScan(Number(e.target.value))}>
-              {SCAN_CHOICES.map((c) => <option key={c.days} value={c.days}>{c.label}</option>)}
+          <div className="field-block">
+            <label className="field" htmlFor="lookback">Look back on first sync</label>
+            <select id="lookback" value={settings?.sync.lookbackDays ?? 30} disabled={!settings}
+              onChange={(e) => void saveSettings(db, "sync", { lookbackDays: Number(e.target.value) }).then(() => setSaved("Sync settings saved"))}>
+              {LOOKBACKS.map((d) => <option key={d} value={d}>{d} days</option>)}
             </select>
-            <button className="primary" onClick={() => void syncNow()}>Sync now</button>
           </div>
-        ) : (
-          <p className="muted field-block">Connect an email account above to sync.</p>
-        )}
-
-        <div className="field-block">
-          <label className="field" htmlFor="lookback">Look back on first sync</label>
-          <select id="lookback" value={settings?.sync.lookbackDays ?? 30} disabled={!settings}
-            onChange={(e) => void saveSettings(db, "sync", { lookbackDays: Number(e.target.value) }).then(() => setSaved("Sync settings saved"))}>
-            {LOOKBACKS.map((d) => <option key={d} value={d}>{d} days</option>)}
-          </select>
-        </div>
-      </section>
+        </section>
+        </>
+      ) : (
+        <section className="card" id="accounts" aria-labelledby="h-accounts">
+          <h2 className="sec" id="h-accounts">Email accounts</h2>
+          <p className="muted">Mail sync isn't set up on this site.</p>
+        </section>
+      )}
 
       <section className="card" id="appearance" aria-labelledby="h-appearance">
         <h2 className="sec" id="h-appearance">Appearance</h2>
@@ -412,12 +458,18 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
             Import
             <input ref={fileInput} type="file" accept=".json,application/json" className="sr" onChange={(e) => void chooseFile(e.target.files?.[0])} />
           </label>
+          {isLocalUser(user) && <button disabled={busy} onClick={() => void startDemo()}>Load demo data</button>}
           {!confirmDelete && <button className="danger" onClick={() => setConfirmDelete(true)}>Delete all my data</button>}
         </div>
         {pendingImport && (
           <Confirm confirm="Replace my data" busy={busy} onConfirm={() => void confirmImport()} onCancel={() => setPendingImport(null)}>
             Replace everything in this browser with {pendingImport.name}
             {pendingImport.parsed.kind === "python" ? " (from the local edition)" : ""}? This can't be undone.
+          </Confirm>
+        )}
+        {confirmDemo && (
+          <Confirm confirm="Replace my data" busy={busy} onConfirm={() => void confirmDemoLoad()} onCancel={() => setConfirmDemo(false)}>
+            Replace everything in this browser with the demo data? This can't be undone.
           </Confirm>
         )}
         {confirmDelete && (
@@ -427,13 +479,15 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         )}
       </section>
 
-      <section className="card" id="account" aria-labelledby="h-account">
-        <h2 className="sec" id="h-account">Account</h2>
-        <p className="help">
-          Signed in as {user.name ?? user.email ?? "you"}{user.name && user.email ? ` (${user.email})` : ""} with {user.provider === "google" ? "Google" : "Microsoft"}.
-        </p>
-        <button onClick={() => void auth.signOut()}>Sign out</button>
-      </section>
+      {account && (
+        <section className="card" id="account" aria-labelledby="h-account">
+          <h2 className="sec" id="h-account">Account</h2>
+          <p className="help">
+            Signed in as {account.name ?? account.email ?? "you"}{account.name && account.email ? ` (${account.email})` : ""} with {account.provider === "google" ? "Google" : "Microsoft"}.
+          </p>
+          <button onClick={() => void auth.signOut()}>Sign out</button>
+        </section>
+      )}
     </>
   );
 }

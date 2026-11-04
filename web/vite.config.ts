@@ -8,6 +8,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
-    testTimeout: 20000,
+    // Generous on purpose: the GitHub runner has 2 shared cores. A passing test never waits for these limits.
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    teardownTimeout: 30000,
   },
 });

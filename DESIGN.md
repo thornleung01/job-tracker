@@ -17,17 +17,31 @@ colors:
   accent-forest: "#2f5d46"
   accent-clay: "#8f4a32"
   accent-ink: "#ffffff"
-  stage-applied: "#5e5e5e"
-  stage-heard-back: "#305faa"
-  stage-assessment: "#7e6812"
-  stage-interview: "#69477a"
-  stage-offer: "#357941"
-  stage-rejected: "#c02416"
+  stage-applied: "#5b88d9"
+  stage-applied-text: "#2b5fbb"
+  stage-heard-back: "#b27ee4"
+  stage-heard-back-text: "#8634d4"
+  stage-assessment: "#e47eca"
+  stage-assessment-text: "#ae248b"
+  stage-interview: "#eece2d"
+  stage-interview-text: "#736109"
+  stage-offer: "#409652"
+  stage-offer-text: "#2f6e3c"
+  stage-rejected: "#e22b18"
+  stage-rejected-text: "#be2414"
   dark-background: "#000000"
   dark-surface: "#171717"
   dark-surface-hover: "#1f1f1f"
   dark-surface-secondary: "#0f0f0f"
   dark-inactive-bg: "rgba(255,255,255,0.07)"
+  dark-stage-offer: "#4db565"
+  dark-stage-rejected: "#ed4f3c"
+  dark-stage-applied-text: "#7198de"
+  dark-stage-heard-back-text: "#b482e5"
+  dark-stage-assessment-text: "#e47eca"
+  dark-stage-interview-text: "#eece2d"
+  dark-stage-offer-text: "#4db565"
+  dark-stage-rejected-text: "#f07161"
   dark-text-primary: "#ffffff"
   dark-text-secondary: "rgba(255,255,255,0.5)"
   dark-outline: "rgba(255,255,255,0.12)"
@@ -129,10 +143,16 @@ components:
     rounded: "{rounded.pill}"
   badge:
     backgroundColor: "{colors.inactive-bg}"
-    textColor: "{colors.stage-applied}"
+    textColor: "{colors.text-primary}"
     rounded: "{rounded.pill}"
     padding: "3px 12px"
     typography: "{typography.label}"
+  stage-badge:
+    backgroundColor: "transparent"
+    textColor: "{colors.stage-interview-text}"
+    rounded: "{rounded.pill}"
+    padding: "0"
+    typography: "{typography.small}"
   tab:
     backgroundColor: "transparent"
     textColor: "{colors.text-secondary}"
@@ -168,7 +188,7 @@ components:
 
 Job Tracker follows the Wealthsimple prototype styling reference (the `use-ws-styling` primer in the `product-design` plugin). It is a hand-distilled approximation, not the real design system, which this local app cannot load. The app speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairline separators inside cards, and nothing that shouts. It is still a calm place for an anxious moment, and it avoids the dashboard-widget look of metric-card grids.
 
-Depth comes from raised surfaces. A card, a secondary button and a popup each carry a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass: a gradient fill with an inner top highlight, an inner bottom shadow and a drop shadow. Color is rationed: the six stage-badge text colors, the Sankey data-viz colors, and one user-selectable accent (black by default) that fills primary buttons and the active mobile sort chip.
+Depth comes from raised surfaces. A card, a secondary button and a popup each carry a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass: a gradient fill with an inner top highlight, an inner bottom shadow and a drop shadow. Color is rationed: the one stage colour map (six stage dots and words, also the Flow chart), and one user-selectable accent (black by default) that fills primary buttons and the active mobile sort chip.
 
 The user owns the finish. Theme (system/light/dark), accent (graphite, bronze, forest, clay), density (comfortable/compact) and corners (round/sharp) are settings, written onto `<html>` as `data-theme`, `data-density`, `data-corners`, `data-accent` and the `--accent-l` / `--accent-d` variables. Every new surface must survive all combinations.
 
@@ -199,12 +219,22 @@ Values below are the light theme with the dark counterpart in the frontmatter (`
 - **Outline** (8% black / 12% white): decorative dividers only.
 - **Field line** (#8c8c8c / #8a8a8a): borders of inputs and notices; held to 3:1 against the surface, which Outline is not.
 
-### Stage badge text colors
-Tonal text on Inactive bg; the word carries the meaning, color supports it. Light / dark: Applied #5e5e5e / #b4b4b4; Heard back #305faa / #bacdf4; Assessment #7e6812 / #f5dd56; Interview #69477a / #cba9d6; Offer #357941 / #6dc382; Rejected #c02416 / #f27868. Heard back, Assessment, Offer and Rejected are the reference's `fg-*-strong` tokens; Applied and Interview have no equivalent there. Rejected doubles as the danger and error color.
+### Stage colours (one map, used by the list, the detail page and Flow)
+Each of the six stages has a graphic colour and a text colour, both defined once in the shared stylesheet as `--stage-applied`, `--stage-heard-back`, `--stage-assessment`, `--stage-interview`, `--stage-offer`, `--stage-rejected` and the same names with `-text`. The graphic colour fills the dot beside the stage word, the Flow nodes and the Flow links. The text colour is the same hue pulled darker (light theme) or lighter (dark theme) until it holds 4.5:1 on the page surface and on the tinted rows behind it (open row, hover, badge tint). Short aliases `--applied`, `--heard`, `--assess`, `--interview`, `--offer`, `--rejected` point at the text colours for other text uses (danger buttons, error notices, sync status). Rejected doubles as the danger and error color.
+
+| Stage | Graphic light / dark | Text light / dark |
+| --- | --- | --- |
+| Applied | #5b88d9 / #5b88d9 | #2b5fbb / #7198de |
+| Heard back | #b27ee4 / #b27ee4 | #8634d4 / #b482e5 |
+| Assessment | #e47eca / #e47eca | #ae248b / #e47eca |
+| Interview | #eece2d / #eece2d | #736109 / #eece2d |
+| Offer | #409652 / #4db565 | #2f6e3c / #4db565 |
+| Rejected | #e22b18 / #ed4f3c | #be2414 / #f07161 |
+
+The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, pink, yellow) plus data-viz green and the negative red. In the light theme purple, pink and yellow sit under 3:1 on the page surface (2.9, 2.5 and 1.5), so the dot carries a hairline in the text colour, and the stage word beside it is always present: colour is never the only signal.
 
 ### Flow chart (scoped to the Flow page's chart root)
-- Stages use the data-viz palette in numeric order: #5b88d9 (blue), #b27ee4 (purple), #e47eca (pink), #eece2d (yellow). The same in light and dark.
-- Outcomes: Offer green #409652 / #4db565, Rejected red #e22b18 / #ed4f3c, no-outcome-yet grey #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
+- Stages, Offer and Rejected take their fills from the stage map above, so a stage is the same colour on the list and in the chart. Only the no-outcome-yet grey is the chart's own: #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
 
 ### Named Rules
 **The One Voice Rule.** Chroma is reserved for status, the data-viz palette and the single chosen accent. A surface with a new color needs a new status to justify it.
@@ -223,7 +253,7 @@ Tonal text on Inactive bg; the word carries the meaning, color supports it. Ligh
 - **Lede** (400, clamp(1.25rem, 2.2vw, 1.5625rem), 1.4, max 46ch): the Flow page sentence summary.
 - **Body** (400, 1rem, 1.4, 0.02px; 0.9375rem in compact density). Buttons are 500. Email text is 0.9375rem/1.7 for reading.
 - **Small** (400, 0.875rem): dates, role sub-line, help text, table headers (500, muted).
-- **Label** (500, 0.75rem, 0.18px): badges and tags.
+- **Label** (500, 0.75rem, 0.18px): tags and the jobs score pill. The stage badge is the exception: 0.875rem/500, because the stage is what each row is for.
 
 ### Named Rules
 **The Rem Rule.** All sizes are rem so browser text-size settings are honoured; the one exception is the 16px floor on phone inputs to stop iOS focus zoom.
@@ -234,7 +264,7 @@ Tonal text on Inactive bg; the word carries the meaning, color supports it. Ligh
 
 Single column, max-width 1120px, centered, padding 40px 16px 96px. The 16px gutter is the same on every screen size; breathing room comes from section spacing and card padding, not a wider margin. Header is a flex row (wordmark left, nav right: Jobs, Applications, People, Flow, Needs review, then a Settings gear icon). At 520px and below the gear moves into the title row and the words wrap below. Card padding `--pad` 16px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px, and `--section` between cards 32px (64px from 721px up).
 
-Compact density tightens these to 12px / 8px / 12px (section 24px, 40px on the web), drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density. At 720px and below each table row becomes a stacked block: company and role on the left, stage badge on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied and Emails columns hide there. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
+Compact density tightens these to 12px / 8px / 12px (section 24px, 40px on the web), drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density. At 720px and below each table row becomes a stacked block: company and role on the left, stage (word and dot) on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied and Emails columns hide there. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
 
 ## Elevation & Depth
 
@@ -258,7 +288,7 @@ Round and soft by default: pills (999px) for buttons, inputs, badges, chips and 
 - **States:** active scales to 0.97; disabled 50% opacity; busy shows progress cursor. Focus is a 2px ink outline at 3px offset, on every interactive element.
 
 ### Badges and chips
-Tonal pill on Inactive bg, 0.75rem/500, 3px 12px, text in the stage color. Chips are the same fill at 0.875rem; tags are smaller pills in text-secondary (step and note tags in text primary).
+**Stage badge:** no pill. The stage word at 0.875rem/500 in its stage text colour, led by a 10px dot in its graphic colour (8px gap), drawn in CSS so the markup stays `badge Interview`. The word is always present, so colour is never the only signal. It stays compact enough for the phone row's top-right cell. **Plain badge** ("Open now") and the jobs score pill: tonal pill on Inactive bg, 0.75rem/500, 3px 12px; the score takes the Offer, Heard back or Applied text colour. Chips are the same fill at 0.875rem; tags are smaller pills in text-secondary (step and note tags in text primary).
 
 ### Filter tabs
 The Minimal segmented control: no track, text-secondary at 400 weight, 8px-radius options at 44px with the count inline. The current tab gets the Inactive-bg indicator and text primary at 500, so it is distinguished by weight and fill, not color alone. Hover is the Hover bg; press is a slightly stronger tone, never a scale.
@@ -270,7 +300,7 @@ Pill, 1px Field line border, Surface fill, padding 0 20px; border shifts to ink 
 The Primary card: Surface fill, raised strokes and shadow, no border, 20px radius, 16px padding. The list card holds the table with hairline row dividers; open rows tint Surface secondary and hovered rows use Hover bg. Don't nest a raised card in a raised card; group inside a card with dividers or a hairline box.
 
 ### Stacked phone row
-Described in Layout: a two-column grid per application with the Stage badge top-right and last activity beneath.
+Described in Layout: a two-column grid per application with the stage (dot and word) top-right and last activity beneath.
 
 ### Notices
 Surface fill, 1px Field line border, 12px radius, 16px Lucide info icon (alert icon in the Rejected color for errors). Never a colored side-stripe.
@@ -284,8 +314,15 @@ The Default segmented control (theme, density, corners): a pill track styled as 
 ### Jobs tab
 Filter tabs (Matches, Notifications, Your profile, Sources) sit above a second row of view tabs (New, Saved, Applied, Dismissed, All) with counts. Matches are hairline-divided rows inside one card: a 500 title, a small tonal score pill, a muted "company · place · source" line, the match reasons in body ink, then pill actions. "I applied" is the one primary action; Dismiss is the quiet danger. The nav's Jobs link carries a count badge of new matches. On phones the actions wrap under the reasons.
 
+### Hosted-edition patterns
+- **One way to add.** A single secondary "Add application" button opens the form in place, between the filter card and the list. While it is open the form's Save is the one primary and Apply filters steps down.
+- **One target per row.** A list row expands from its name or anywhere on the row; "Open full page" lives inside the expanded panel, never beside every name.
+- **Demo banner.** A quiet one-line status row ("Demo mode: not signed in, data stays in this browser.") with text actions. It never carries a primary button, and "Load demo data" shows only while the database is empty.
+- **Detail actions.** One stage select that applies on change, plus a "More" menu (merge, not an application, delete). Merge and delete confirm in place, not in a browser dialog.
+- **Lists are lists.** People is one hairline-divided list on the page background, not a card per company. Cards are for grouping a form or a self-contained object such as an email.
+
 ### Disclosures
-One system, defined once in the shared stylesheet. A **section disclosure** (`summary.disclosure`: Add an application, Table view) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line with the same chevron. An **action disclosure** (`details.action`) is a secondary pill that sits in an action row (Edit, the emails list) and opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient (Reply).
+One system, defined once in the shared stylesheet. A **section disclosure** (`summary.disclosure`: Table view; the local edition's Add an application) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line with the same chevron. An **action disclosure** (`details.action`) is a secondary pill that sits in an action row (Edit, the emails list) and opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient (Reply).
 
 ### Email text
 Emails are read, not dumped. The subject is a 500 heading, the sender a bold name with a muted address, and the date and account sit on their own line, in the viewer's time zone with how long ago. The body is 0.9375rem/1.7, max 68ch, with repaired paragraphs and lists. Reply chains and footers fold under "Earlier in this thread" and "Footer and links". Links show their domain and are never clickable. A sent reply is a Surface-secondary card labeled "Reply sent". The newest email carries a "Latest" pill (the accent fill).
@@ -316,7 +353,7 @@ Background, border and color transitions at 0.16s ease-out, the 0.12s press scal
 - **Don't** hand-author icon paths, or use emoji or unicode glyphs as icons.
 - **Don't** uppercase text, underline links, or use tabular numbers.
 - **Don't** use a weight outside 400, 500 and 700.
-- **Don't** introduce a new accent color outside the four choices, or color a badge beyond the six stage tones.
+- **Don't** introduce a new accent color outside the four choices, or color a stage beyond its entry in the one stage map.
 - **Don't** scale list rows, tabs or other items that share edges with siblings on press.
 - **Don't** hard-code px radii, `#000`/`#fff` in component rules, or hairline-colored borders on inputs.
 - **Don't** use Wealthsimple's name, logo, wordmark or font files in the shipped app.

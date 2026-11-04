@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { $, $$, addApp, addMail, button, cleanup, click, daysAgo, freshDb, mountPage, submitForm, text, type, waitFor } from "../applications/harness";
+import { $, $$, addApp, addMail, button, cleanup, click, daysAgo, freshDb, key, mountPage, submitForm, text, type, waitFor } from "../applications/harness";
 import DetailPage from "../../../src/pages/detail";
 import { peekFlash, clearFlash } from "../../../src/components/flash";
 import { upsertAccount } from "../../../src/db/repo";
@@ -17,6 +17,9 @@ async function setup() {
   const other = await addApp(db, "Beta", { role: "Engineer", stage: "Applied" });
   return { db, account, acme, other };
 }
+const menu = (c: ParentNode) => $(c, "button[aria-label='More actions']")!;
+const openMenu = async (c: ParentNode) => click(menu(c));
+const item = (c: ParentNode, label: string) => $$(c, "[role=menuitem]").find((b) => text(b) === label) ?? null;
 const open = (db: ReturnType<typeof freshDb>, id: number, query = "") => mountPage(DetailPage, db, `/app/${id}${query}`, { id: String(id) });
 
 describe("the application page", () => {
@@ -32,6 +35,9 @@ describe("the application page", () => {
     expect(text($(container, ".detail-facts"))).toMatch(/Applied \d{4}-\d{2}-\d{2} · last activity \d{4}-\d{2}-\d{2}$/);
     expect(text($(container, "#h-notes"))).toBe("Notes and steps");
     expect(text($(container, "h2.section.spaced"))).toContain("Email timeline newest first");
+    expect($$(container, ".card:not(article)")).toHaveLength(1);   // one card for the header and its actions; People and Notes are plain sections
+    expect($(container, "section.detail-section[aria-labelledby=h-people] h2.section")).not.toBeNull();
+    expect($(container, "section.detail-section[aria-labelledby=h-notes] h2.section")).not.toBeNull();
   });
 
   it("says when there is no such application", async () => {
@@ -69,8 +75,8 @@ describe("stage and lock", () => {
     const { db, acme } = await setup();
     const { container } = await open(db, acme);
     expect(button(container, "Unlock")).toBeNull();
+    expect(button(container, "Set stage")).toBeNull();
     await type($(container, "select[aria-label='Set stage']"), "Interview");
-    await click(button(container, "Set stage"));
     await waitFor(() => text($(container, ".card .badge")) === "Interview");
     expect((await db.applications.get(acme))!.locked).toBe(true);
     expect(text($(container, ".detail-facts"))).toContain("Stage set by you. Syncs won't change it.");
@@ -96,32 +102,98 @@ describe("stage and lock", () => {
   });
 });
 
+describe("the action row", () => {
+  it("holds one stage select and one More button, with no per-select buttons", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    const row = $(container, ".detail-controls")!;
+    expect($$(row, "select, button").map((el) => el.getAttribute("aria-label") ?? text(el))).toEqual(["Set stage", "More actions"]);
+    const more = menu(container);
+    expect(more.getAttribute("aria-haspopup")).toBe("menu");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect($(container, "[role=menu]")).toBeNull();
+    for (const label of ["Delete", "Not an application", "Merge into…", "Delete, keep emails for review"]) expect(button(container, label)).toBeNull();
+  });
+
+  it("keeps Unlock beside the select while the stage is locked", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Locked", { locked: true });
+    const { container } = await open(db, id);
+    expect($$($(container, ".detail-controls")!, "select, button").map((el) => el.getAttribute("aria-label") ?? text(el))).toEqual(["Set stage", "Unlock", "More actions"]);
+  });
+
+  it("lists merge, not an application and delete as menu items", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    await openMenu(container);
+    expect(menu(container).getAttribute("aria-expanded")).toBe("true");
+    expect($$(container, "[role=menu] [role=menuitem]").map(text)).toEqual(["Merge into…", "Not an application", "Delete"]);
+    expect($$(container, "[role=menuitem]").every((b) => b.tagName === "BUTTON")).toBe(true);
+    expect($$(container, "[role=menuitem].danger")).toHaveLength(0);
+  });
+
+  it("leaves merge out of the menu when it is the only application", async () => {
+    const db = freshDb();
+    const only = await addApp(db, "Solo");
+    const { container } = await open(db, only);
+    await openMenu(container);
+    expect($$(container, "[role=menuitem]").map(text)).toEqual(["Not an application", "Delete"]);
+  });
+});
+
 describe("merge and delete", () => {
-  it("merges into another application and goes to it", async () => {
+  it("merges into another application from an inline step and goes to it", async () => {
     const { db, account, acme, other } = await setup();
     await addMail(db, account, acme, { subject: "Moves across" });
     const m = await open(db, acme);
+    expect($(m.container, "select[aria-label='Merge into']")).toBeNull();   // not on the page until asked for
+    await openMenu(m.container);
+    await click(item(m.container, "Merge into…"));
+    expect($(m.container, "[role=menu]")).toBeNull();
     const select = $(m.container, "select[aria-label='Merge into']") as HTMLSelectElement;
     expect($$(select, "option").map(text)).toEqual(["Beta · Engineer"]);
-    await click(button(m.container, "Merge into…"));
-    expect(window.confirm).toHaveBeenCalled();
+    expect(document.activeElement).toBe(select);
+    expect(button(m.container, "Cancel")).not.toBeNull();
+    expect(text($(m.container, ".detail-step .help")!)).toContain("move across");
+    await click(button(m.container, "Merge"));
+    expect(window.confirm).not.toHaveBeenCalled();   // the inline step is the confirmation
     expect(m.visited.at(-1)).toBe(`/app/${other}`);
     expect(await db.applications.get(acme)).toBeUndefined();
     expect((await db.emails.toArray())[0].applicationId).toBe(other);
   });
 
-  it("offers no merge when it is the only application", async () => {
-    const db = freshDb();
-    const only = await addApp(db, "Solo");
-    const { container } = await open(db, only);
-    expect($(container, "select[aria-label='Merge into']")).toBeNull();
+  it("cancels the merge step without merging, and returns focus to More", async () => {
+    const { db, acme } = await setup();
+    const m = await open(db, acme);
+    await openMenu(m.container);
+    await click(item(m.container, "Merge into…"));
+    await click(button(m.container, "Cancel"));
+    expect($(m.container, "select[aria-label='Merge into']")).toBeNull();
+    expect(document.activeElement).toBe(menu(m.container));
+    expect(m.visited).toEqual([]);
+    expect(await db.applications.get(acme)).toBeDefined();
+  });
+
+  it("asks which delete, in the page rather than a browser dialog", async () => {
+    const { db, acme } = await setup();
+    const m = await open(db, acme);
+    await openMenu(m.container);
+    await click(item(m.container, "Delete"));
+    const step = $(m.container, ".detail-step")!;
+    expect($$(step, "button").map(text)).toEqual(["Delete the application and its emails", "Delete the application, keep emails for review", "Cancel"]);
+    expect($$(step, "button.danger")).toHaveLength(2);
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(await db.applications.get(acme)).toBeDefined();
   });
 
   it("deletes with its emails and returns to the list", async () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
-    await click(button(m.container, "Delete"));
+    await openMenu(m.container);
+    await click(item(m.container, "Delete"));
+    await click(button(m.container, "Delete the application and its emails"));
+    expect(window.confirm).not.toHaveBeenCalled();
     expect(m.visited.at(-1)).toBe("/");
     expect(await db.applications.get(acme)).toBeUndefined();
     const [kept] = await db.emails.toArray();   // the row stays so a sync does not read it again, but its content is erased
@@ -132,29 +204,61 @@ describe("merge and delete", () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
-    await click(button(m.container, "Delete, keep emails for review"));
+    await openMenu(m.container);
+    await click(item(m.container, "Delete"));
+    await click(button(m.container, "Delete the application, keep emails for review"));
     expect(m.visited.at(-1)).toBe("/");
     const [mail] = await db.emails.toArray();
     expect([mail.applicationId, mail.needsReview, mail.hold]).toEqual([null, true, true]);
   });
 
-  it("does nothing when you decline", async () => {
+  it("does nothing when you cancel the delete step, and Escape closes it", async () => {
     const { db, acme } = await setup();
-    window.confirm = vi.fn(() => false);
     const m = await open(db, acme);
-    await click(button(m.container, "Delete"));
+    await openMenu(m.container);
+    await click(item(m.container, "Delete"));
+    await click(button(m.container, "Cancel"));
+    expect($(m.container, ".detail-step")).toBeNull();
     expect(m.visited).toEqual([]);
     expect(await db.applications.get(acme)).toBeDefined();
+    await openMenu(m.container);
+    await click(item(m.container, "Delete"));
+    await key($(m.container, ".detail-step")!.querySelector("button"), "Escape");
+    expect($(m.container, ".detail-step")).toBeNull();
+    expect(document.activeElement).toBe(menu(m.container));
   });
 
   it("removes it as not an application and carries the message to Needs review", async () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
-    await click(button(m.container, "Not an application"));
+    await openMenu(m.container);
+    await click(item(m.container, "Not an application"));
+    expect(window.confirm).toHaveBeenCalled();
     expect(m.visited.at(-1)).toBe("/review");
     expect(peekFlash()).toContain("Removed Acme.");
     expect(await db.applications.get(acme)).toBeUndefined();
+  });
+
+  it("keeps the application when the not-an-application confirm is declined", async () => {
+    const { db, acme } = await setup();
+    window.confirm = vi.fn(() => false);
+    const m = await open(db, acme);
+    await openMenu(m.container);
+    await click(item(m.container, "Not an application"));
+    expect(m.visited).toEqual([]);
+    expect(await db.applications.get(acme)).toBeDefined();
+  });
+});
+
+describe("the page layout", () => {
+  it("sets the emails in a tight list of cards", async () => {
+    const { db, account, acme } = await setup();
+    await addMail(db, account, acme, { subject: "One", when: daysAgo(2) });
+    await addMail(db, account, acme, { subject: "Two", when: daysAgo(1) });
+    const { container } = await open(db, acme);
+    const list = $(container, "ul.timeline")!;
+    expect($$(list, ":scope > li > article.card")).toHaveLength(2);
   });
 });
 

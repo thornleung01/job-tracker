@@ -13,14 +13,14 @@ export const MIN_LINK_PX = 1.5;
 /** The invisible hover and focus target around a link is at least this wide. */
 export const MIN_HIT_PX = 14;
 
-/** Stages use data-viz 01-04 in order, Offer is green, Rejected red, and "no outcome yet" grey. Defined in flow.css. */
+/** The one stage colour map (--stage-* in the shared stylesheet, the same colours as the list badges); "no outcome yet" is the chart's own grey, defined in flow.css. */
 export const COLORS: Readonly<Record<string, string>> = {
-  Applied: "var(--ord-1)",
-  "Heard back": "var(--ord-2)",
-  Assessment: "var(--ord-3)",
-  Interview: "var(--ord-4)",
-  Offer: "var(--good)",
-  Rejected: "var(--crit)",
+  Applied: "var(--stage-applied)",
+  "Heard back": "var(--stage-heard-back)",
+  Assessment: "var(--stage-assessment)",
+  Interview: "var(--stage-interview)",
+  Offer: "var(--stage-offer)",
+  Rejected: "var(--stage-rejected)",
   "No response yet": "var(--neutral)",
   "Still open": "var(--neutral)",
 };

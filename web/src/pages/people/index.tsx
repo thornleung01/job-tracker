@@ -51,7 +51,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
   return (
     <>
       <h1 className="page">People</h1>
-      <p className="muted">Who you are talking to on each application, and what they do there, worked out from that application's emails: signatures, and names in interview invites. A title belongs to the application it was found in. Fix any that is wrong.</p>
+      <p className="muted">Who you are talking to on each application, worked out from its emails.</p>
       {notice ? <Notice>{notice}</Notice> : null}
 
       <form className="row people-search" onSubmit={search}>
@@ -74,20 +74,20 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
         </div>
       ) : null}
 
-      <div ref={list}>
+      <div ref={list} className="company-list">
         {/* Every company is a dropdown. It opens by itself when there is only one, or when you searched and so want to see what matched. */}
         {groups.map((g) => (
-          <details key={g.id} className="card company" id={`g-${g.id}`} open={Boolean(q) || groups.length === 1}>
+          <details key={g.id} className="company" id={`g-${g.id}`} open={Boolean(q) || groups.length === 1}>
             <summary className="disclosure">
               <span className="chev" aria-hidden="true"></span>
               <span className="company-name">{g.company}</span>
               {g.role && g.role !== UNKNOWN_ROLE ? <span className="muted company-role">{g.role}</span> : null}
-              <span className="tag">{g.people.length} {g.people.length === 1 ? "person" : "people"}</span>
+              <span className="muted company-count">{g.people.length} {g.people.length === 1 ? "person" : "people"}</span>
             </summary>
             <ul className="people">
               {g.people.map((c) => <li key={c.key}><PersonCard db={db} contact={c} onNotice={setNotice} /></li>)}
             </ul>
-            <p className="small muted company-open"><a href={`#/app/${g.id}`}>Open this application</a></p>
+            <p className="small company-open"><a href={`#/app/${g.id}`}>Open this application</a></p>
           </details>
         ))}
       </div>

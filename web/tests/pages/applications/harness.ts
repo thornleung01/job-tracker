@@ -8,6 +8,7 @@ import { createApplication, upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { iso } from "../../../src/db/time";
 import { openDatabase } from "../../../src/db/schema";
+import { quiesce, sleep, WAIT_TIMEOUT_MS } from "../../support/helpers";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -69,19 +70,26 @@ export async function mountPage(Page: ComponentType<PageProps>, db: JobTrackerDB
   return { container, visited, location: () => current };
 }
 
-/** Lets liveQuery and pending promises finish. */
+/** Lets liveQuery and pending promises finish. Returns as fast as `ms` on an idle machine, and waits for the page to stop changing on a busy one. */
 export async function settle(ms = 40): Promise<void> {
   await act(async () => {
-    await new Promise((r) => setTimeout(r, ms));
+    await quiesce(ms);
   });
 }
 
-export async function waitFor(check: () => boolean, what = "the page to change"): Promise<void> {
-  for (let i = 0; i < 240; i++) {
-    if (check()) return;
-    await settle(25);
+/** Polls until `check` holds, up to a time limit (not a count of polls, so a slow machine gets the same wall-clock allowance). Then settles, so the next assertion sees the finished page. */
+export async function waitFor(check: () => boolean, what = "the page to change", timeout = WAIT_TIMEOUT_MS): Promise<void> {
+  const end = Date.now() + timeout;
+  for (;;) {
+    if (check()) {
+      await settle(0);
+      return;
+    }
+    if (Date.now() > end) throw new Error(`Timed out waiting for ${what}`);
+    await act(async () => {
+      await sleep(15);
+    });
   }
-  throw new Error(`Timed out waiting for ${what}`);
 }
 
 export async function click(el: Element | null): Promise<void> {

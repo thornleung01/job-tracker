@@ -116,27 +116,50 @@
           "#faece5"
         ]
       },
-      "stage-rejected": {
+      "stage-applied": {
         "role": "status",
-        "displayName": "Negative (Rejected, danger)",
-        "canonical": "#c02416",
-        "darkValue": "#f27868",
-        "tonalRamp": [
-          "#3a1a13",
-          "#7a1a10",
-          "#c02416",
-          "#e22b18",
-          "#ed4f3c",
-          "#f27868",
-          "#f7b0a6",
-          "#fbe1dd"
-        ]
+        "displayName": "Stage Applied",
+        "canonical": "#5b88d9",
+        "darkValue": "#5b88d9",
+        "textValue": "#2b5fbb",
+        "textDarkValue": "#7198de",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow."
+      },
+      "stage-heard-back": {
+        "role": "status",
+        "displayName": "Stage Heard back",
+        "canonical": "#b27ee4",
+        "darkValue": "#b27ee4",
+        "textValue": "#8634d4",
+        "textDarkValue": "#b482e5",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow."
+      },
+      "stage-assessment": {
+        "role": "status",
+        "displayName": "Stage Assessment",
+        "canonical": "#e47eca",
+        "darkValue": "#e47eca",
+        "textValue": "#ae248b",
+        "textDarkValue": "#e47eca",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow."
+      },
+      "stage-interview": {
+        "role": "status",
+        "displayName": "Stage Interview",
+        "canonical": "#eece2d",
+        "darkValue": "#eece2d",
+        "textValue": "#736109",
+        "textDarkValue": "#eece2d",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow."
       },
       "stage-offer": {
         "role": "status",
         "displayName": "Positive (Offer)",
-        "canonical": "#357941",
-        "darkValue": "#6dc382",
+        "canonical": "#409652",
+        "darkValue": "#4db565",
+        "textValue": "#2f6e3c",
+        "textDarkValue": "#4db565",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow.",
         "tonalRamp": [
           "#10281b",
           "#245a30",
@@ -146,6 +169,25 @@
           "#6dc382",
           "#a9dcb6",
           "#ddeedd"
+        ]
+      },
+      "stage-rejected": {
+        "role": "status",
+        "displayName": "Negative (Rejected, danger)",
+        "canonical": "#e22b18",
+        "darkValue": "#ed4f3c",
+        "textValue": "#be2414",
+        "textDarkValue": "#f07161",
+        "purpose": "Graphic colour (the dot beside the stage word, Flow nodes and links) is canonical/darkValue; textValue/textDarkValue is the same hue held to 4.5:1 for any text. Used by the list, the detail page and Flow.",
+        "tonalRamp": [
+          "#3a1a13",
+          "#7a1a10",
+          "#c02416",
+          "#e22b18",
+          "#ed4f3c",
+          "#f27868",
+          "#f7b0a6",
+          "#fbe1dd"
         ]
       }
     },
@@ -180,7 +222,7 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Badges and tags; never uppercase."
+        "purpose": "Tags and the jobs score pill; never uppercase. The stage badge is 0.875rem/500."
       }
     },
     "shadows": [
@@ -257,26 +299,34 @@
       "list columns (Company and Stage fixed)"
     ],
     "flowChart": {
-      "ordinalLight": [
-        "#5b88d9",
-        "#b27ee4",
-        "#e47eca",
-        "#eece2d"
-      ],
-      "ordinalDark": [
-        "#5b88d9",
-        "#b27ee4",
-        "#e47eca",
-        "#eece2d"
-      ],
-      "good": [
-        "#409652",
-        "#4db565"
-      ],
-      "crit": [
-        "#e22b18",
-        "#ed4f3c"
-      ],
+      "note": "Flow draws from the one stage colour map (--stage-* in the shared stylesheet); only the no-outcome grey is chart-specific.",
+      "stages": {
+        "Applied": [
+          "#5b88d9",
+          "#5b88d9"
+        ],
+        "Heard back": [
+          "#b27ee4",
+          "#b27ee4"
+        ],
+        "Assessment": [
+          "#e47eca",
+          "#e47eca"
+        ],
+        "Interview": [
+          "#eece2d",
+          "#eece2d"
+        ],
+        "Offer": [
+          "#409652",
+          "#4db565"
+        ],
+        "Rejected": [
+          "#e22b18",
+          "#ed4f3c"
+        ]
+      },
+      "stagesNote": "[light, dark] graphic colours",
       "neutral": [
         "#8c8c8c",
         "#8a8a8a"
@@ -304,9 +354,9 @@
       "name": "Stage Badge",
       "kind": "chip",
       "refersTo": "badge",
-      "description": "Quiet tonal pill; the word carries the meaning.",
+      "description": "A 14px/500 word in the stage's text colour with a 10px dot in its graphic colour; no grey pill. The word carries the meaning, colour only supports it.",
       "html": "<span class=\"ds-badge\">Interview</span>",
-      "css": ".ds-badge { display: inline-block; font: 500 .75rem 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: .18px; padding: 3px 12px; border-radius: 999px; background: rgba(0,0,0,.05); color: #69477a; white-space: nowrap; }"
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 8px; font: 500 .875rem 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: .02px; color: #736109; white-space: nowrap; } .ds-badge::before { content: ''; width: 10px; height: 10px; flex: none; border-radius: 999px; background: #eece2d; box-shadow: inset 0 0 0 1px rgba(115,97,9,.4); }"
     },
     {
       "name": "Filter Tab",

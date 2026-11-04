@@ -70,23 +70,41 @@ describe("signed out", () => {
 
   it("shows the session error as an error notice", async () => {
     const { auth } = fakeAuth({ error: "Sign-in was cancelled" });
-    await render(h(App, { auth, loaders: loaders(), openDb: openTestDb }));
+    await render(h(App, { local: false, auth, loaders: loaders(), openDb: openTestDb }));
     const err = q(".notice.err")!;
     expect(err.textContent).toBe("Sign-in was cancelled");
     expect(err.getAttribute("role")).toBe("alert");
   });
 
-  it("names the env vars that are missing from this build", async () => {
+  it("says what the app is and keeps env var names out of the screen", async () => {
     const { auth } = fakeAuth();
-    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
-    const text = q(".notice")!.textContent!;
-    expect(text).toContain("VITE_GOOGLE_CLIENT_ID");
-    expect(text).toContain("VITE_MS_CLIENT_ID");
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(q("p.lede")!.textContent).toBe("Follow your job applications from the emails in your own mailbox. Your data stays in this browser.");
+    expect(document.body.textContent).not.toMatch(/VITE_/);
+    expect(q(".notice")).toBeNull();
+  });
+
+  it("shows only the providers this build has, and plain copy when there are none", async () => {
+    const { auth } = fakeAuth();
+    const none = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
+    expect(q(".notice", none.container)!.textContent).toBe("Sign-in isn't available on this site yet.");
     expect(auth.renderGoogleButton).not.toHaveBeenCalled();
-    expect((byText("Sign in with Microsoft") as HTMLButtonElement).disabled).toBe(true);
-    const only = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: false } }));
-    expect(q(".notice", only.container)!.textContent).toContain("VITE_MS_CLIENT_ID");
-    expect(q(".notice", only.container)!.textContent).not.toContain("VITE_GOOGLE_CLIENT_ID");
+    expect(none.container.querySelectorAll("button")).toHaveLength(0);
+    expect(none.container.textContent).not.toMatch(/VITE_/);
+    none.unmount();
+
+    const google = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: false } }));
+    await settle();
+    expect(q(".fake-google", google.container)).not.toBeNull();
+    expect(byText("Sign in with Microsoft", "button", google.container)).toBeNull();
+    expect(q(".notice", google.container)).toBeNull();
+    expect(google.container.textContent).toContain("Microsoft sign-in isn't available on this site yet.");
+    google.unmount();
+
+    const microsoft = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: true } }));
+    expect(byText("Sign in with Microsoft", "button", microsoft.container)).not.toBeNull();
+    expect(q(".fake-google", microsoft.container)).toBeNull();
+    expect(byText("Sign in with Google", "button", microsoft.container)).toBeNull();
   });
 
   it("disables the buttons while signing in", async () => {
@@ -104,7 +122,7 @@ describe("signed out", () => {
       dbs.push(d);
       return d;
     };
-    await render(h(App, { auth, loaders: loaders(), openDb }));
+    await render(h(App, { local: false, auth, loaders: loaders(), openDb }));
     expect(q("h1")!.textContent).toBe("Sign in");
     await set({ status: "signed-in", user: ada });
     await waitFor(() => q("header.top"));
@@ -128,7 +146,7 @@ describe("signed in shell", () => {
       dbs.push(d);
       return d;
     };
-    const view = await render(h(App, { auth, loaders: loaders(extra), openDb }));
+    const view = await render(h(App, { local: false, auth, loaders: loaders(extra), openDb }));
     await waitFor(() => q("header.top"));
     return { auth, set, dbs, view, db: () => dbs[dbs.length - 1] };
   }
@@ -210,7 +228,7 @@ describe("signed in shell", () => {
     const { auth } = fakeAuth({ status: "signed-in", user: ada });
     const l = loaders();
     delete l.people;
-    await render(h(App, { auth, loaders: l, openDb: openTestDb }));
+    await render(h(App, { local: false, auth, loaders: l, openDb: openTestDb }));
     await waitFor(() => q("header.top"));
     await go("#/people");
     const note = await waitFor(() => q(".notice"));
@@ -295,7 +313,7 @@ describe("appearance", () => {
     const { auth, set } = fakeAuth({ status: "signed-in", user: ada });
     let db!: JobTrackerDB;
     const openDb = (n: string) => (db = openTestDb(n));
-    await render(h(App, { auth, loaders: loaders(), openDb }));
+    await render(h(App, { local: false, auth, loaders: loaders(), openDb }));
     await waitFor(() => q("header.top"));
     const root = document.documentElement;
     await waitFor(() => root.getAttribute("data-density") === "comfortable");
@@ -329,7 +347,7 @@ describe("mount", () => {
     document.body.appendChild(el);
     let root: ReturnType<typeof mount> = null;
     await act(async () => {
-      root = mount(el, { auth, loaders: loaders(), openDb: openTestDb }, false);
+      root = mount(el, { local: false, auth, loaders: loaders(), openDb: openTestDb }, false);
     });
     expect(el.querySelector("h1")!.textContent).toBe("Sign in");
     act(() => root!.unmount());

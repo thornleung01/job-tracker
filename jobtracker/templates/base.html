@@ -22,7 +22,15 @@
     --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
     --raise-btn: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10);
     --btn-hi: rgba(255,255,255,.12); --btn-lo: rgba(0,0,0,.5); --btn-drop: rgba(0,0,0,.35);
-    --applied: #5e5e5e; --heard: #305faa; --assess: #7e6812; --interview: #69477a; --offer: #357941; --rejected: #c02416;
+    /* One stage colour map, used by the list badges, the detail page and Flow. -stage-X is the graphic (dots, Flow nodes and links, 3:1 or better on the page except the pale light-theme hues, which sit beside the stage word); -stage-X-text is the same hue held to 4.5:1 for any text. */
+    --stage-applied: #5b88d9;     --stage-applied-text: #2b5fbb;
+    --stage-heard-back: #b27ee4;  --stage-heard-back-text: #8634d4;
+    --stage-assessment: #e47eca;  --stage-assessment-text: #ae248b;
+    --stage-interview: #eece2d;   --stage-interview-text: #736109;
+    --stage-offer: #409652;       --stage-offer-text: #2f6e3c;
+    --stage-rejected: #e22b18;    --stage-rejected-text: #be2414;
+    --applied: var(--stage-applied-text); --heard: var(--stage-heard-back-text); --assess: var(--stage-assessment-text);
+    --interview: var(--stage-interview-text); --offer: var(--stage-offer-text); --rejected: var(--stage-rejected-text);   /* short names for text uses outside the badges */
     --font-ui: "Wealthsimple Sans Display", "Figtree", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
     --r-pill: 999px; --r-lg: 20px; --r: 12px; --r-seg: 8px;
     --pad: 16px; --cell-y: 16px; --gap: 24px; --section: 32px;
@@ -48,7 +56,12 @@
       --raise: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.5);
       --raise-btn: var(--raise);
       --btn-hi: rgba(255,255,255,.55); --btn-lo: rgba(0,0,0,.2); --btn-drop: rgba(0,0,0,.5);
-      --applied: #b4b4b4; --heard: #bacdf4; --assess: #f5dd56; --interview: #cba9d6; --offer: #6dc382; --rejected: #f27868;
+      --stage-applied: #5b88d9;     --stage-applied-text: #7198de;
+      --stage-heard-back: #b27ee4;  --stage-heard-back-text: #b482e5;
+      --stage-assessment: #e47eca;  --stage-assessment-text: #e47eca;
+      --stage-interview: #eece2d;   --stage-interview-text: #eece2d;
+      --stage-offer: #4db565;       --stage-offer-text: #4db565;
+      --stage-rejected: #ed4f3c;    --stage-rejected-text: #f07161;
     }
   }
   :root[data-theme="dark"] {
@@ -60,7 +73,12 @@
     --raise: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.5);
     --raise-btn: var(--raise);
     --btn-hi: rgba(255,255,255,.55); --btn-lo: rgba(0,0,0,.2); --btn-drop: rgba(0,0,0,.5);
-    --applied: #b4b4b4; --heard: #bacdf4; --assess: #f5dd56; --interview: #cba9d6; --offer: #6dc382; --rejected: #f27868;
+    --stage-applied: #5b88d9;     --stage-applied-text: #7198de;
+    --stage-heard-back: #b27ee4;  --stage-heard-back-text: #b482e5;
+    --stage-assessment: #e47eca;  --stage-assessment-text: #e47eca;
+    --stage-interview: #eece2d;   --stage-interview-text: #eece2d;
+    --stage-offer: #4db565;       --stage-offer-text: #4db565;
+    --stage-rejected: #ed4f3c;    --stage-rejected-text: #f07161;
   }
   :root[data-density="compact"] { --pad: 12px; --cell-y: 8px; --gap: 12px; --section: 24px; --tap: 36px; }
   @media (min-width: 721px) { :root[data-density="compact"] { --section: 40px; } }
@@ -107,11 +125,25 @@
   summary.disclosure::-webkit-details-marker { display: none; }
   details[open] > summary.disclosure .chev { transform: rotate(90deg); }
 
-  /* Stage badges: quiet tonal pills; the word carries the meaning, color only supports it. */
+  /* Stage badges. A plain badge is a quiet tonal pill ("Open now", the jobs score). A stage badge is the point of the list row, so it is a
+     14px/500 word in the stage's text colour with a dot in its graphic colour; the word carries the meaning, colour only supports it.
+     One map, defined in :root: --stage-X (dots, Flow) and --stage-X-text (words). */
   .badge { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 3px 12px; border-radius: var(--r-pill);
            background: var(--fog); white-space: nowrap; letter-spacing: 0.18px; }
-  .Applied { color: var(--applied); } .Heard-back { color: var(--heard); } .Assessment { color: var(--assess); }
-  .Interview { color: var(--interview); } .Offer { color: var(--offer); } .Rejected { color: var(--rejected); }
+  .Applied { --st: var(--stage-applied); --st-text: var(--stage-applied-text); }
+  .Heard-back { --st: var(--stage-heard-back); --st-text: var(--stage-heard-back-text); }
+  .Assessment { --st: var(--stage-assessment); --st-text: var(--stage-assessment-text); }
+  .Interview { --st: var(--stage-interview); --st-text: var(--stage-interview-text); }
+  .Offer { --st: var(--stage-offer); --st-text: var(--stage-offer-text); }
+  .Rejected { --st: var(--stage-rejected); --st-text: var(--stage-rejected-text); }
+  .Applied, .Heard-back, .Assessment, .Interview, .Offer, .Rejected { color: var(--st-text); }
+  .badge:is(.Applied, .Heard-back, .Assessment, .Interview, .Offer, .Rejected) {
+    display: inline-flex; align-items: center; gap: 8px; padding: 0; background: none; font-size: 0.875rem; letter-spacing: 0.02px; }
+  .badge:is(.Applied, .Heard-back, .Assessment, .Interview, .Offer, .Rejected)::before {
+    content: ""; width: 10px; height: 10px; flex: none; border-radius: var(--r-pill); background: var(--st);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-text) 40%, transparent); }   /* a hairline in the text colour keeps the pale hues visible on a light ground */
+  .badge.score { display: inline-block; padding: 3px 12px; background: var(--fog); font-size: 0.75rem; letter-spacing: 0.18px; }
+  .badge.score::before { content: none; }
 
   /* Buttons are pills. Secondary (the default) is raised like a Primary card, Primary is a dark glass gradient, quiet ones are tertiary.
      Always reset the user-agent border; the strokes come from the shadows. */

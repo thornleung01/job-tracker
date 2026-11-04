@@ -28,7 +28,7 @@ describe("the People page", () => {
     expect(names(container)).toEqual(["Deel", "DoorDash"]);
     expect(text($(container, ".result-line"))).toBe("3 people across 2 applications");
     const deel = $$(container, "details.company")[0];
-    expect($$(deel, ".tag").map(text)).toContain("2 people");
+    expect(text($(deel, "summary .company-count"))).toBe("2 people");
     expect(text($(deel, ".company-role"))).toBe("Manager");
     expect($$(container, "details.company")[1].querySelector(".company-role")).toBeNull();   // "Unknown role" is not shown
     expect($$(deel, "ul.people > li")).toHaveLength(2);
