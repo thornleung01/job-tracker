@@ -1,135 +1,420 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02T00:00:00Z",
+  "generatedAt": "2026-11-03T00:00:00Z",
   "title": "Design System: Job Tracker",
   "extensions": {
     "colorMeta": {
-      "linen-ground": { "role": "neutral", "displayName": "Linen Ground", "canonical": "#faf8f5", "tonalRamp": ["#32302f", "#686664", "#8c8986", "#e4e2e1", "#f1f0f0", "#f6f4ef", "#faf8f5", "#fdfdfc"] },
-      "graphite-ink": { "role": "neutral", "displayName": "Graphite Ink", "canonical": "#32302f", "tonalRamp": ["#12110e", "#32302f", "#4a4745", "#686664", "#8c8986", "#b5b2b0", "#e4e2e1", "#f1f0f0"] },
-      "accent-graphite": { "role": "primary", "displayName": "Graphite Accent (default)", "canonical": "#32302f", "darkValue": "#ece9e2", "tonalRamp": ["#12110e", "#32302f", "#4a4745", "#686664", "#8c8986", "#b5b2b0", "#e4e2e1", "#ece9e2"] },
-      "accent-bronze": { "role": "primary-option", "displayName": "Bronze", "canonical": "#5c4b24", "darkValue": "#d9c28a", "tonalRamp": ["#2a2310", "#5c4b24", "#7a653a", "#988355", "#b59f70", "#d9c28a", "#e8dbb4", "#f4ecd6"] },
-      "accent-forest": { "role": "primary-option", "displayName": "Forest", "canonical": "#2f5d46", "darkValue": "#8cc7a6", "tonalRamp": ["#14281e", "#2f5d46", "#4a7a62", "#6a977f", "#8cc7a6", "#aedcc1", "#cfeadb", "#e8f4ee"] },
-      "accent-clay": { "role": "primary-option", "displayName": "Clay", "canonical": "#8f4a32", "darkValue": "#e0a184", "tonalRamp": ["#3a1d12", "#8f4a32", "#a8644c", "#c28368", "#e0a184", "#ebbca5", "#f3d6c8", "#faece5"] },
-      "stage-rejected": { "role": "status", "displayName": "Brick (Rejected, danger)", "canonical": "#9a4232", "darkValue": "#e69a8a", "tonalRamp": ["#3a1a13", "#7a3427", "#9a4232", "#b5604f", "#cf8070", "#e69a8a", "#f1bfb4", "#f8e1db"] },
-      "stage-offer": { "role": "status", "displayName": "Moss (Offer)", "canonical": "#2b6747", "darkValue": "#8fcfa8", "tonalRamp": ["#10281b", "#1f4c34", "#2b6747", "#4a8563", "#6aa382", "#8fcfa8", "#bfe3cf", "#e3f3ea"] }
+      "background": {
+        "role": "neutral",
+        "displayName": "Background",
+        "canonical": "#f2f2f2",
+        "darkValue": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#333333",
+          "#666666",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#ebebeb",
+          "#fafafa"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface (raised)",
+        "canonical": "#fafafa",
+        "darkValue": "#171717",
+        "tonalRamp": [
+          "#000000",
+          "#333333",
+          "#666666",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#ebebeb",
+          "#fafafa"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Text primary",
+        "canonical": "#000000",
+        "darkValue": "#ffffff",
+        "tonalRamp": [
+          "#000000",
+          "#333333",
+          "#666666",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#ebebeb",
+          "#fafafa"
+        ]
+      },
+      "accent-graphite": {
+        "role": "primary",
+        "displayName": "Graphite Accent (default)",
+        "canonical": "#000000",
+        "darkValue": "#ffffff",
+        "tonalRamp": [
+          "#000000",
+          "#333333",
+          "#666666",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#ebebeb",
+          "#fafafa"
+        ]
+      },
+      "accent-bronze": {
+        "role": "primary-option",
+        "displayName": "Bronze",
+        "canonical": "#5c4b24",
+        "darkValue": "#d9c28a",
+        "tonalRamp": [
+          "#2a2310",
+          "#5c4b24",
+          "#7a653a",
+          "#988355",
+          "#b59f70",
+          "#d9c28a",
+          "#e8dbb4",
+          "#f4ecd6"
+        ]
+      },
+      "accent-forest": {
+        "role": "primary-option",
+        "displayName": "Forest",
+        "canonical": "#2f5d46",
+        "darkValue": "#8cc7a6",
+        "tonalRamp": [
+          "#14281e",
+          "#2f5d46",
+          "#4a7a62",
+          "#6a977f",
+          "#8cc7a6",
+          "#aedcc1",
+          "#cfeadb",
+          "#e8f4ee"
+        ]
+      },
+      "accent-clay": {
+        "role": "primary-option",
+        "displayName": "Clay",
+        "canonical": "#8f4a32",
+        "darkValue": "#e0a184",
+        "tonalRamp": [
+          "#3a1d12",
+          "#8f4a32",
+          "#a8644c",
+          "#c28368",
+          "#e0a184",
+          "#ebbca5",
+          "#f3d6c8",
+          "#faece5"
+        ]
+      },
+      "stage-rejected": {
+        "role": "status",
+        "displayName": "Negative (Rejected, danger)",
+        "canonical": "#c02416",
+        "darkValue": "#f27868",
+        "tonalRamp": [
+          "#3a1a13",
+          "#7a1a10",
+          "#c02416",
+          "#e22b18",
+          "#ed4f3c",
+          "#f27868",
+          "#f7b0a6",
+          "#fbe1dd"
+        ]
+      },
+      "stage-offer": {
+        "role": "status",
+        "displayName": "Positive (Offer)",
+        "canonical": "#357941",
+        "darkValue": "#6dc382",
+        "tonalRamp": [
+          "#10281b",
+          "#245a30",
+          "#357941",
+          "#409652",
+          "#4db565",
+          "#6dc382",
+          "#a9dcb6",
+          "#ddeedd"
+        ]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Page headline", "purpose": "One serif headline per page." },
-      "headline": { "displayName": "Section / wordmark", "purpose": "Wordmark and section headings." },
-      "title": { "displayName": "Company name", "purpose": "Serif company names in list rows." },
-      "lede": { "displayName": "Flow sentence", "purpose": "Sentence summary on the Flow page in place of stat cards." },
-      "body": { "displayName": "Body", "purpose": "All UI text in Figtree." },
-      "small": { "displayName": "Small", "purpose": "Dates, help text, table headers." },
-      "label": { "displayName": "Label", "purpose": "Badges and tags; never uppercase." }
+      "display": {
+        "displayName": "Page headline",
+        "purpose": "One headline per page."
+      },
+      "brand": {
+        "displayName": "Wordmark",
+        "purpose": "The Job Tracker name in the header."
+      },
+      "section": {
+        "displayName": "Section heading",
+        "purpose": "Section headings (text-medium-medium)."
+      },
+      "row": {
+        "displayName": "Row label",
+        "purpose": "Company and people names in rows."
+      },
+      "lede": {
+        "displayName": "Flow sentence",
+        "purpose": "Sentence summary on the Flow page in place of stat cards."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All UI text."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Dates, help text, table headers."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Badges and tags; never uppercase."
+      }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "raise",
+        "value": "inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08)",
+        "purpose": "Primary card, popups, segmented track. Secondary buttons use a 0.10 drop shadow."
+      },
+      {
+        "name": "button-primary",
+        "value": "inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.35)",
+        "purpose": "Primary pill: top highlight, bottom inner shadow, drop shadow over a gradient fill."
+      }
+    ],
     "motion": [
-      { "name": "ease-state", "value": "0.16s ease-out", "purpose": "Background, border and color transitions; chevron rotation. Only under prefers-reduced-motion: no-preference." },
-      { "name": "press", "value": "translateY(1px)", "purpose": "Button :active nudge." }
+      {
+        "name": "ease-state",
+        "value": "0.16s ease-out",
+        "purpose": "Background, border and color transitions; chevron rotation. Only under prefers-reduced-motion: no-preference."
+      },
+      {
+        "name": "press",
+        "value": "scale(0.97) over 0.12s ease-out",
+        "purpose": "Standalone buttons and action pills on :active. Rows and tabs change tone instead."
+      }
     ],
     "breakpoints": [
-      { "name": "phone-nav", "value": "520px" },
-      { "name": "stacked", "value": "720px" },
-      { "name": "max-width", "value": "1120px" }
+      {
+        "name": "phone-nav",
+        "value": "520px"
+      },
+      {
+        "name": "stacked",
+        "value": "720px"
+      },
+      {
+        "name": "max-width",
+        "value": "1120px"
+      }
     ],
     "density": {
-      "comfortable": { "pad": "28px", "cell-y": "16px", "gap": "24px", "tap": "44px", "bodySize": "1rem" },
-      "compact": { "pad": "16px", "cell-y": "8px", "gap": "12px", "tap": "36px", "bodySize": "0.9375rem" },
+      "comfortable": {
+        "pad": "16px",
+        "cell-y": "16px",
+        "gap": "24px",
+        "section": "32px (64px from 721px)",
+        "tap": "44px",
+        "bodySize": "1rem"
+      },
+      "compact": {
+        "pad": "12px",
+        "cell-y": "8px",
+        "gap": "12px",
+        "section": "24px (40px from 721px)",
+        "tap": "36px",
+        "bodySize": "0.9375rem"
+      },
       "coarsePointer": "tap is 44px in every density"
     },
-    "corners": { "round": { "pill": "999px", "card": "24px", "sm": "12px" }, "sharp": "3px for all three" },
-    "customization": ["theme: system | light | dark", "accent: graphite | bronze | forest | clay", "density: comfortable | compact", "corners: round | sharp", "list columns (Company and Stage fixed)"],
+    "corners": {
+      "round": {
+        "pill": "999px",
+        "card": "20px",
+        "sm": "12px",
+        "segment": "8px"
+      },
+      "sharp": "3px for all four"
+    },
+    "customization": [
+      "theme: system | light | dark",
+      "accent: graphite | bronze | forest | clay",
+      "density: comfortable | compact",
+      "corners: round | sharp",
+      "list columns (Company and Stage fixed)"
+    ],
     "flowChart": {
-      "ordinalLight": ["#b9ae96", "#8f8266", "#66593f", "#3a3525"],
-      "ordinalDark": ["#7d7155", "#9a8c6a", "#b9a97f", "#dccb9c"],
-      "good": ["#3b7f59", "#5fb583"], "crit": ["#b0493a", "#e0705e"], "neutral": ["#8c8883", "#8a867c"]
+      "ordinalLight": [
+        "#5b88d9",
+        "#b27ee4",
+        "#e47eca",
+        "#eece2d"
+      ],
+      "ordinalDark": [
+        "#5b88d9",
+        "#b27ee4",
+        "#e47eca",
+        "#eece2d"
+      ],
+      "good": [
+        "#409652",
+        "#4db565"
+      ],
+      "crit": [
+        "#e22b18",
+        "#ed4f3c"
+      ],
+      "neutral": [
+        "#8c8c8c",
+        "#8a8a8a"
+      ]
     }
   },
   "components": [
     {
-      "name": "Primary Button", "kind": "button", "refersTo": "button-primary",
-      "description": "Accent-filled pill for the one main action per form.",
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Dark glass pill for the one main action per form.",
       "html": "<button class=\"ds-btn-primary\">Apply filters</button>",
-      "css": ".ds-btn-primary { font: 500 1rem/1 Figtree, system-ui, sans-serif; letter-spacing: .015em; background: var(--accent, #32302f); color: var(--accent-ink, #fdfdfc); border: 1px solid var(--accent, #32302f); border-radius: 999px; padding: 0 24px; min-height: 44px; cursor: pointer; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--accent, #32302f), var(--bg, #faf8f5) 14%); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ink, #32302f); outline-offset: 3px; } .ds-btn-primary:active { transform: translateY(1px); }"
+      "css": ".ds-btn-primary { font: 500 1rem/1 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: .02px; background: linear-gradient(180deg, #000, #2a2a2a); color: #fff; border: none; border-radius: 999px; padding: 0 24px; min-height: 44px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.35); } .ds-btn-primary:active { transform: scale(0.97); transition: transform 120ms ease-out; } .ds-btn-primary:focus-visible { outline: 2px solid #000; outline-offset: 3px; }"
     },
     {
-      "name": "Secondary Button", "kind": "button", "refersTo": "button-secondary",
-      "description": "Outlined graphite pill for secondary actions.",
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Raised surface pill for secondary actions.",
       "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
-      "css": ".ds-btn-secondary { font: 500 1rem/1 Figtree, system-ui, sans-serif; letter-spacing: .015em; background: transparent; color: var(--ink, #32302f); border: 1px solid var(--ink, #32302f); border-radius: 999px; padding: 0 24px; min-height: 44px; cursor: pointer; } .ds-btn-secondary:hover { background: var(--fog, #f1f0f0); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ink, #32302f); outline-offset: 3px; }"
+      "css": ".ds-btn-secondary { font: 500 1rem/1 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: .02px; background: #fafafa; color: #000; border: none; border-radius: 999px; padding: 0 24px; min-height: 44px; cursor: pointer; box-shadow: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10); } .ds-btn-secondary:hover { background: #fff; } .ds-btn-secondary:active { transform: scale(0.97); transition: transform 120ms ease-out; } .ds-btn-secondary:focus-visible { outline: 2px solid #000; outline-offset: 3px; }"
     },
     {
-      "name": "Stage Badge", "kind": "chip", "refersTo": "badge",
-      "description": "Quiet tonal pill on Fog; the word carries the meaning.",
+      "name": "Stage Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Quiet tonal pill; the word carries the meaning.",
       "html": "<span class=\"ds-badge\">Interview</span>",
-      "css": ".ds-badge { display: inline-block; font: 600 .75rem Figtree, system-ui, sans-serif; letter-spacing: .01em; padding: 3px 12px; border-radius: 999px; background: var(--fog, #f1f0f0); color: var(--interview, #69477a); white-space: nowrap; }"
+      "css": ".ds-badge { display: inline-block; font: 500 .75rem 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: .18px; padding: 3px 12px; border-radius: 999px; background: rgba(0,0,0,.05); color: #69477a; white-space: nowrap; }"
     },
     {
-      "name": "Filter Tab", "kind": "nav", "refersTo": "tab",
-      "description": "Stage filter pill with a count; current tab fills with the accent.",
+      "name": "Filter Tab",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Minimal segmented option with a count; the current one gets a grey rounded-rectangle indicator.",
       "html": "<a class=\"ds-tab\" href=\"#\">Applied <span class=\"ds-n\">12</span></a><a class=\"ds-tab ds-current\" href=\"#\">All <span class=\"ds-n\">34</span></a>",
-      "css": ".ds-tab { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 20px; border-radius: 999px; text-decoration: none; border: 1px solid var(--line, #e4e2e1); background: var(--surface, #fdfdfc); color: var(--ink, #32302f); font: 500 1rem Figtree, system-ui, sans-serif; margin-right: 8px; } .ds-tab:hover { border-color: var(--ink, #32302f); } .ds-n { font-variant-numeric: tabular-nums; color: var(--muted, #686664); } .ds-current { background: var(--accent, #32302f); border-color: var(--accent, #32302f); color: var(--accent-ink, #fdfdfc); } .ds-current .ds-n { color: inherit; opacity: .8; } .ds-tab:focus-visible { outline: 2px solid var(--ink, #32302f); outline-offset: 3px; }"
+      "css": ".ds-tab { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 8px; text-decoration: none; background: transparent; color: rgba(0,0,0,.55); font: 400 1rem 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; } .ds-tab:hover { background: rgba(0,0,0,.04); color: #000; } .ds-current { background: rgba(0,0,0,.05); color: #000; font-weight: 500; } .ds-tab:focus-visible { outline: 2px solid #000; outline-offset: 3px; }"
     },
     {
-      "name": "Pill Input", "kind": "input", "refersTo": "input",
+      "name": "Pill Input",
+      "kind": "input",
+      "refersTo": "input",
       "description": "Pill field with a 3:1 control border.",
       "html": "<input class=\"ds-input\" placeholder=\"Search company\">",
-      "css": ".ds-input { font: inherit; min-height: 44px; padding: 0 20px; border: 1px solid var(--field-line, #8c8986); border-radius: 999px; background: var(--surface, #fdfdfc); color: var(--ink, #32302f); } .ds-input::placeholder { color: var(--muted, #686664); } .ds-input:focus { border-color: var(--ink, #32302f); } .ds-input:focus-visible { outline: 2px solid var(--ink, #32302f); outline-offset: 3px; }"
+      "css": ".ds-input { font: inherit; min-height: 44px; padding: 0 20px; border: 1px solid #8c8c8c; border-radius: 999px; background: #fafafa; color: #000; } .ds-input::placeholder { color: rgba(0,0,0,.55); } .ds-input:focus { border-color: #000; } .ds-input:focus-visible { outline: 2px solid #000; outline-offset: 3px; }"
     },
     {
-      "name": "Hairline Card", "kind": "card", "refersTo": "card",
-      "description": "Paper card, 1px hairline, 24px radius, no shadow.",
-      "html": "<div class=\"ds-card\"><h2 class=\"ds-h\">Section</h2><p>Body text on paper.</p></div>",
-      "css": ".ds-card { background: var(--surface, #fdfdfc); border: 1px solid var(--line, #e4e2e1); border-radius: 24px; padding: 28px; color: var(--ink, #32302f); font: 1rem/1.55 Figtree, system-ui, sans-serif; } .ds-h { font: 500 1.625rem/1.2 'Source Serif 4', Georgia, serif; letter-spacing: -.01em; margin: 0 0 16px; }"
+      "name": "Primary Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Raised surface, 20px radius, 16px padding; strokes and shadow instead of a border.",
+      "html": "<div class=\"ds-card\"><h2 class=\"ds-h\">Section</h2><p>Body text on a card.</p></div>",
+      "css": ".ds-card { background: #fafafa; box-shadow: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08); border-radius: 20px; padding: 16px; color: #000; font: 400 1rem/1.4 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; } .ds-h { font: 500 1.25rem/1.4 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; letter-spacing: -.2px; margin: 0 0 16px; }"
     },
     {
-      "name": "Notice", "kind": "custom", "refersTo": "notice",
-      "description": "Full hairline box with a drawn info icon; never a side-stripe.",
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Full outline box with a Lucide info icon; never a side-stripe.",
       "html": "<div class=\"ds-notice\"><span class=\"ds-ico\"></span><span>Synced 3 new emails.</span></div>",
-      "css": ".ds-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 20px; background: var(--surface, #fdfdfc); border: 1px solid var(--field-line, #8c8986); border-radius: 12px; color: var(--ink, #32302f); } .ds-ico { flex: none; width: 20px; height: 20px; margin-top: 2px; background: currentColor; -webkit-mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 9v5M10 6.2v.1'/%3E%3C/svg%3E\") center / contain no-repeat; mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 9v5M10 6.2v.1'/%3E%3C/svg%3E\") center / contain no-repeat; }"
+      "css": ".ds-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 20px; background: #fafafa; border: 1px solid #8c8c8c; border-radius: 12px; color: #000; } .ds-ico { flex: none; width: 16px; height: 16px; margin-top: 3px; background: currentColor; -webkit-mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E\") center / contain no-repeat; mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E\") center / contain no-repeat; }"
     },
     {
-      "name": "Expandable Company Row", "kind": "custom", "refersTo": "card",
-      "description": "Serif company name with a drawn chevron; opens an in-place Linen panel.",
+      "name": "Expandable Company Row",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Company name with a Lucide chevron; opens an in-place secondary-surface panel.",
       "html": "<a class=\"ds-exp\" href=\"#\"><span class=\"ds-chev\"></span><strong>Acme Corp</strong></a>",
-      "css": ".ds-exp { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; text-decoration: none; color: var(--ink, #32302f); } .ds-exp strong { font: 500 1.1875rem/1.2 'Source Serif 4', Georgia, serif; letter-spacing: -.005em; } .ds-exp:hover strong { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; } .ds-chev { width: 8px; height: 8px; border-right: 1.5px solid var(--muted, #686664); border-bottom: 1.5px solid var(--muted, #686664); transform: rotate(-45deg); } .ds-exp:focus-visible { outline: 2px solid var(--ink, #32302f); outline-offset: 3px; }"
+      "css": ".ds-exp { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; text-decoration: none; color: #000; } .ds-exp strong { font: 500 1rem/1.4 'Wealthsimple Sans Display', Figtree, -apple-system, 'SF Pro Display', system-ui, sans-serif; } .ds-chev { width: 16px; height: 16px; background: rgba(0,0,0,.55); -webkit-mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E\") center / contain no-repeat; mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E\") center / contain no-repeat; } .ds-exp:focus-visible { outline: 2px solid #000; outline-offset: 3px; }"
     }
   ],
   "narrative": {
     "northStar": "The Quiet Ledger",
-    "overview": "A warm, near-monochrome editorial look pinned by the user as \"Wealthsimple's aesthetic\", read from unofficial third-party references. The app speaks in serif headlines and sentences instead of dashboard widgets: graphite ink on linen, paper-white cards divided by hairlines, pill-shaped controls, and nothing that shouts. Source Serif 4 and Figtree stand in for proprietary typefaces; no Wealthsimple name or logo is used.\n\nDepth comes from tone and hairline only. Color is rationed to six stage-badge tones, the Sankey outcome colors, and one user-selectable accent (graphite default). The user owns the finish via theme, accent, density and corners settings.",
+    "overview": "Job Tracker follows the Wealthsimple prototype styling reference (a hand-distilled approximation, not the real design system). It speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairlines inside cards, and nothing that shouts.\n\nDepth comes from raised surfaces: a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass. Color is rationed to six stage-badge tones, the Sankey data-viz colors, and one user-selectable accent (black by default). The user owns the finish via theme, accent, density and corners settings.",
     "keyCharacteristics": [
-      "Linen ground, paper surfaces, graphite ink; dark theme is bronze-black, never blue-grey.",
-      "Source Serif 4 for voice, Figtree for work.",
-      "Pills for every control; 24px hairline cards.",
-      "No shadows, no gradients, no side-stripes, no glyph icons.",
+      "Light grey ground, near-white raised surfaces, true black text; dark theme is pure black with #171717 surfaces.",
+      "One sans typeface (Wealthsimple Sans Display when installed, Figtree otherwise); weights 400, 500, 700.",
+      "Pills for every control; 20px raised cards with 16px padding; 16px page gutter.",
+      "Lucide icons only, 24px or 16px; sentence case; no underlined links; no tabular numbers.",
       "WCAG AA in both themes; 44px touch targets on touch."
     ],
     "rules": [
-      { "name": "The One Voice Rule", "body": "Chroma is reserved for status and the single chosen accent. A surface with a new color needs a new status to justify it.", "section": "colors" },
-      { "name": "The Hairline Contrast Rule", "body": "Decorative dividers use Stone Hairline; anything a user must see to operate (inputs, notices, swatch rings) uses Field Line.", "section": "colors" },
-      { "name": "The Rem Rule", "body": "All sizes are rem so browser text-size settings are honoured; the one exception is the 16px floor on phone inputs.", "section": "typography" },
-      { "name": "The Serif Is Voice Rule", "body": "Serif is for headlines, names and the Flow sentence. Controls, table data and labels stay in Figtree.", "section": "typography" },
-      { "name": "The Flat-Always Rule", "body": "Hover is a tone change (Fog or Linen fill, or a border darkening to ink), never a lift.", "section": "elevation" }
+      {
+        "name": "The One Voice Rule",
+        "body": "Chroma is reserved for status, the data-viz palette and the single chosen accent. A surface with a new color needs a new status to justify it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Outline Contrast Rule",
+        "body": "Decorative dividers use Outline; anything a user must see to operate (inputs, notices, swatch rings) uses Field line.",
+        "section": "colors"
+      },
+      {
+        "name": "The Rem Rule",
+        "body": "All sizes are rem so browser text-size settings are honoured; the one exception is the 16px floor on phone inputs.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "No uppercase, no small caps. Acronyms such as RRSP or ETF are the only exception.",
+        "section": "typography"
+      },
+      {
+        "name": "The Plain Figures Rule",
+        "body": "No tabular numbers anywhere, and links are never underlined.",
+        "section": "typography"
+      },
+      {
+        "name": "The Press Rule",
+        "body": "Standalone controls scale to 0.97 on press; anything inside a container changes tone instead.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Honest Hover Rule",
+        "body": "Hover and pointer cursors belong only to things that do something.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do take color from the tokens so light, dark and all four accents work without per-theme overrides.",
-      "Do use var(--r-pill), var(--r-lg) and var(--r) for radii so the sharp setting applies.",
+      "Do use var(--r-pill), var(--r-lg), var(--r) and var(--r-seg) for radii so the sharp setting applies.",
       "Do size controls with var(--tap) and sizes in rem.",
-      "Do keep text at WCAG AA in both themes; use Field Line for operable borders.",
-      "Do separate surfaces with tone and a 1px hairline.",
-      "Do draw icons as CSS or inline SVG strokes using currentColor.",
+      "Do keep text at WCAG AA in both themes; use Field line for operable borders.",
+      "Do raise cards, secondary buttons and popups with var(--raise); reset border on every button.",
+      "Do draw icons as Lucide masks or inline Lucide SVG at 24px or 16px with currentColor.",
       "Do wrap motion in prefers-reduced-motion: no-preference.",
-      "Do let the serif carry the page voice; prefer a sentence over a stat card."
+      "Do prefer a sentence over a stat card."
     ],
     "donts": [
-      "Don't add shadows or gradients.",
       "Don't use colored side-stripes on cards, rows or notices.",
-      "Don't use emoji or unicode glyphs as icons.",
+      "Don't hand-author icon paths, or use emoji or unicode glyphs as icons.",
+      "Don't uppercase text, underline links, or use tabular numbers.",
+      "Don't use a weight outside 400, 500 and 700.",
       "Don't introduce a new accent color outside the four choices, or color a badge beyond the six stage tones.",
-      "Don't use serif for buttons, table data or labels, or uppercase labels.",
-      "Don't hard-code px radii, #000/#fff, or hairline-colored borders on inputs.",
-      "Don't use Wealthsimple's name, logo or proprietary typefaces."
+      "Don't scale list rows, tabs or other items that share edges with siblings on press.",
+      "Don't hard-code px radii, #000/#fff in component rules, or hairline-colored borders on inputs.",
+      "Don't use Wealthsimple's name, logo, wordmark or font files in the shipped app."
     ]
   }
 }

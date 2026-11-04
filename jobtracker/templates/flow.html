@@ -3,22 +3,22 @@
 {% block content %}
 <style>
   /* Text, surface and hairlines come from the app tokens. Only the chart colors live here:
-     a warm sand-to-bronze ordinal ramp for the stages (validated for contrast in both themes),
-     muted green and brick for the two outcomes, and a quiet grey for "no outcome yet". */
+     the Wealthsimple data-viz palette in numeric order for the four stages (blue, purple, pink, yellow),
+     data-viz green for an offer, the negative graphic red for a rejection, and a quiet grey for "no outcome yet". */
   .viz-root {
     --viz-surface: var(--surface); --ink2: var(--muted); --hair: var(--line);
-    --ord-1: #b9ae96; --ord-2: #8f8266; --ord-3: #66593f; --ord-4: #3a3525;
-    --good: #3b7f59; --crit: #b0493a; --neutral: #8c8883;
+    --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+    --good: #409652; --crit: #e22b18; --neutral: #8c8c8c;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz-root {
-      --ord-1: #7d7155; --ord-2: #9a8c6a; --ord-3: #b9a97f; --ord-4: #dccb9c;
-      --good: #5fb583; --crit: #e0705e; --neutral: #8a867c;
+      --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+      --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
     }
   }
   :root[data-theme="dark"] .viz-root {
-    --ord-1: #7d7155; --ord-2: #9a8c6a; --ord-3: #b9a97f; --ord-4: #dccb9c;
-    --good: #5fb583; --crit: #e0705e; --neutral: #8a867c;
+    --ord-1: #5b88d9; --ord-2: #b27ee4; --ord-3: #e47eca; --ord-4: #eece2d;
+    --good: #4db565; --crit: #ed4f3c; --neutral: #8a8a8a;
   }
   .viz-root .scroll { overflow-x: auto; }
   .viz-root svg { display: block; min-width: 760px; width: 100%; height: auto; }
@@ -30,21 +30,21 @@
   .viz-root .node:focus-visible, .viz-root .hit:focus-visible { outline: none; }
   .viz-root .hit:focus-visible { stroke: var(--ink); stroke-opacity: .22; }
   .viz-root .node:focus-visible rect { stroke: var(--ink); stroke-width: 2px; }
-  .viz-root .lbl { fill: var(--ink); font-size: 14px; font-weight: 600; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz-root .lbl { fill: var(--ink); font-size: 14px; font-weight: 500; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
   .viz-root .sub { fill: var(--ink2); font-size: 13px; font-weight: 400; }
   .viz-root .tip { position: absolute; z-index: var(--z-tip); pointer-events: none; background: var(--viz-surface); color: var(--ink);
-                   border: 1px solid var(--field-line); border-radius: var(--r); padding: 10px 14px; font-size: 0.875rem; line-height: 1.45;
+                   border: none; box-shadow: var(--raise); border-radius: var(--r); padding: 10px 14px; font-size: 0.875rem; line-height: 1.45;
                    max-width: 280px; }
-  .viz-root .ico { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .viz-root .tip b { font-weight: 600; } .viz-root .tip .t2 { color: var(--ink2); }
+  .viz-root .ico { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .viz-root .tip b { font-weight: 700; } .viz-root .tip .t2 { color: var(--ink2); }
   .viz-root table { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
   .viz-root .mobile-only { display: none; margin: 0 0 8px; }
   @media (max-width: 720px) { .viz-root .mobile-only { display: block; } }
-  .viz-root th { text-align: left; color: var(--ink2); font-weight: 600; }
+  .viz-root th { text-align: left; color: var(--ink2); font-weight: 500; }
   .viz-root th, .viz-root td { padding: 5px 8px; border-top: 1px solid var(--hair); }
-  .viz-root td.num, .viz-root th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .viz-root .lede { font: 400 clamp(1.25rem, 2.2vw, 1.5rem)/1.45 var(--font-display); letter-spacing: -0.005em; margin: 0 0 20px; max-width: 46ch; text-wrap: pretty; }
-  .viz-root .lede strong { font-weight: 600; }
+  .viz-root td.num, .viz-root th.num { text-align: right; }
+  .viz-root .lede { font: 400 clamp(1.25rem, 2.2vw, 1.5625rem)/1.4 var(--font-ui); letter-spacing: -0.25px; margin: 0 0 20px; max-width: 46ch; text-wrap: pretty; }
+  .viz-root .lede strong { font-weight: 700; }
   .viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 </style>
 
@@ -220,11 +220,11 @@
     else if (n.col === COLS - 1) { x = n.x + nodeW + 10; y = n.y + n.h / 2 - 2; anchor = 'start'; }
     else { x = n.x + nodeW / 2; y = n.y - 20; anchor = 'middle'; }
     if (n.id === 'Offer' || n.id === 'Rejected') {
-      const d = n.id === 'Offer'
-        ? `M${x},${y - 4.5} l3.6,3.6 l6.4,-7.8`                              // check
-        : `M${x + 0.5},${y - 9.5} l8.6,8.6 M${x + 9.1},${y - 9.5} l-8.6,8.6`;  // cross
-      el('path', { d, class: 'ico', 'aria-hidden': 'true' }, gText);
-      x += 18;
+      // Lucide check / x on its 24px grid, scaled to 16px; stroke 3 renders as 2px.
+      const paths = n.id === 'Offer' ? ['M20 6 9 17l-5-5'] : ['M18 6 6 18', 'm6 6 12 12'];
+      const icon = el('g', { transform: `translate(${x},${y - 12.5}) scale(${16 / 24})`, 'aria-hidden': 'true' }, gText);
+      paths.forEach(d => el('path', { d, class: 'ico' }, icon));
+      x += 22;
     }
     const t1 = el('text', { x, y, 'text-anchor': anchor, class: 'lbl' }, gText); t1.textContent = display(n.id);
     const t2 = el('text', { x, y: y + 15, 'text-anchor': anchor, class: 'lbl sub' }, gText); t2.textContent = `${n.value} · ${n.pct}%`;
@@ -260,7 +260,7 @@
   async function renderPng() {
     const cs = getComputedStyle(viz), v = n => cs.getPropertyValue(n).trim();
     const ink = v('--ink'), muted = v('--ink2'), surface = v('--viz-surface');
-    await Promise.all([document.fonts.load('400 30px "Source Serif 4"'), document.fonts.load('600 30px "Source Serif 4"'), document.fonts.load('400 15px Figtree')]);
+    await Promise.all([document.fonts.load('400 30px Figtree'), document.fonts.load('700 30px Figtree'), document.fonts.load('400 15px Figtree')]);
 
     // The chart: a standalone copy of the SVG with colors resolved and the font embedded.
     const clone = svg.cloneNode(true);
@@ -272,10 +272,10 @@
     const font = await fontAsDataUrl('/static/fonts/Figtree-latin-wght.woff2');
     const style = `<style>@font-face{font-family:"Figtree";src:url(${font}) format("woff2");font-weight:300 900}
       text{font-family:"Figtree",sans-serif}
-      .lbl{fill:${ink};font-size:14px;font-weight:600;paint-order:stroke;stroke:${surface};stroke-width:4px;stroke-linejoin:round}
+      .lbl{fill:${ink};font-size:14px;font-weight:500;paint-order:stroke;stroke:${surface};stroke-width:4px;stroke-linejoin:round}
       .sub{fill:${muted};font-size:13px;font-weight:400}
       .link{fill:none;stroke-opacity:.38}
-      .ico{fill:none;stroke:${ink};stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}</style>`;
+      .ico{fill:none;stroke:${ink};stroke-width:3;stroke-linecap:round;stroke-linejoin:round}</style>`;
     let markup = new XMLSerializer().serializeToString(clone).replace(/var\((--[\w-]+)\)/g, (_, name) => v(name));
     markup = markup.replace(/(<svg[^>]*>)/, `$1${style}`);
     const img = new Image();
@@ -285,10 +285,10 @@
     // The sentence, wrapped, with the numbers in the heavier weight.
     const W = 1200, PAD = 56, SIZE = 30, LH = 44, SCALE = 2, FOOT = 40;
     const probe = document.createElement('canvas').getContext('2d');
-    const face = w => `${w} ${SIZE}px "Source Serif 4", Georgia, serif`;
+    const face = w => `${w} ${SIZE}px Figtree, system-ui, sans-serif`;
     const runs = [];
     viz.querySelector('.lede').childNodes.forEach(n => (n.textContent || '').split(/(\s+)/).filter(Boolean)
-      .forEach(t => runs.push({ t, w: n.nodeType === 1 ? 600 : 400 })));
+      .forEach(t => runs.push({ t, w: n.nodeType === 1 ? 700 : 400 })));
     const lines = [[]]; let x = 0;
     for (const r of runs) {
       probe.font = face(r.w);

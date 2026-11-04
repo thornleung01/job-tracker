@@ -7,34 +7,39 @@
 web
 
 ## Users
-One person running a job search, on their own Windows PC. They open the app daily or weekly to see where each application stands (applied, heard back, assessment, interview, offer, rejected), log notes and steps, and read the Flow chart. They also show it to other people (screenshots, demos), so it has to hold up as a presentation piece as well as a daily tool.
+One person running a job search, on their own Windows PC, plus a few invited people using the hosted edition in their own browser. They open the app daily or weekly to see where each application stands (applied, heard back, assessment, interview, offer, rejected), log notes and steps, and read the Flow chart. They also show it to other people (screenshots, demos), so it has to hold up as a presentation piece as well as a daily tool.
 
 ## Product Purpose
 A local, private job-application tracker. It reads Gmail and Outlook (read-only by default; sending a reply is an opt-in permission per account, used only when the user writes and sends one), recognises application emails with editable rules (no AI), and turns them into a list of applications with a stage, a history, and a Sankey flow of where applications went. Success is that the user never has to search an inbox to know the status of an application.
 
 ## Positioning
-Everything comes from the user's own email and stays on their machine: no account, no cloud, no AI reading the mail. Each application's history is the real emails behind it, and every email can be opened.
+Everything comes from the user's own email and stays on their own device (their PC, or their browser's storage in the hosted edition): no account with us, no cloud copy, no AI reading the mail. Signing in with Google or Microsoft only identifies the user and grants read access to their own mailbox. Each application's history is the real emails behind it, and every email can be opened.
 
 ## Operating Context
-FastAPI + SQLite + server-rendered Jinja templates, no JavaScript framework, bound to 127.0.0.1. Used on desktop mostly, sometimes on a phone-width window. Works offline (no CDNs), so any typeface must be served from the project.
+Two editions share one visual system (see DESIGN.md).
+- **Local edition** (`jobtracker/`): FastAPI + SQLite + server-rendered Jinja templates, no JavaScript framework, bound to 127.0.0.1. Reads mail with desktop-app OAuth clients; tokens are encrypted on the PC. Syncs from the CLI or a scheduled task.
+- **Hosted edition** (`web/`, in progress): a static TypeScript app served from GitHub Pages at https://thornleung01.github.io/job-tracker/. There is no server. Sign-in is Google or Microsoft OAuth in the browser (Microsoft: authorization code + PKCE; Google: Identity Services token client), mail is read directly from Gmail and Microsoft Graph, and all data stays in IndexedDB on the user's device, namespaced per signed-in user. Access tokens live in memory only, so the user signs in and connects mail again after a reload. Sync happens while the app is open; there is no background sync. Access is limited to people on the Google Cloud consent screen's test-user list (an in-app allowlist would be cosmetic, since nobody can see anyone else's data).
+
+Used on desktop mostly, sometimes on a phone-width window. The local edition works offline (no CDNs), so any typeface must be served from the project; the hosted edition bundles its assets the same way.
 
 ## Capabilities and Constraints
 - Pages: Applications (sortable, filterable list; rows expand in place to log notes and dated steps and to read emails), Flow (Sankey chart with a table equivalent), Needs review (emails the rules were unsure about), Application detail, Settings (accounts and sync, appearance; deliberately kept simple, with no email-filter rules).
 - Appearance settings are user-facing and must keep working: theme (system/light/dark), accent color, density (comfortable/compact), corners (soft/sharp), list columns, default Flow period.
-- Behavior, copy facts, URLs, form names, and data are not changing. This is a visual restyle.
+- Local edition: behavior, copy facts, URLs, form names, and data are not changing; the Wealthsimple restyle is visual only.
+- Hosted edition v1 covers Applications, Flow, People, Needs review and Settings. Replying from the app, the Jobs tab (resume parsing, Adzuna, Windows pop-ups), multiple profiles and scheduled background sync are not in it.
 - No em-dashes in UI copy.
 
 ## Brand Commitments
-- Visual direction is pinned by the user: **Wealthsimple's aesthetic** (warm, near-monochrome, editorial; display serif over a clean sans; graphite ink on paper/linen; pill buttons; hairline borders; no shadows or gradients).
-- The app keeps its own name, "Job Tracker". It does not use Wealthsimple's name, logo, wordmark, or proprietary typefaces; look-alike free typefaces are used instead.
+- Visual direction is pinned by the user: **Wealthsimple's styling**, taken from the `use-ws-styling` prototype primer (light grey ground, raised near-white cards at 20px, pill buttons with glass gradients on Primary, Lucide icons, one sans typeface, sentence case, no uppercase, no underlined links, no tabular numbers).
+- The app keeps its own name, "Job Tracker". It does not use Wealthsimple's name, logo or wordmark. Wealthsimple Sans Display is proprietary and is not shipped: the stylesheet names it first so a device that has it uses it, and the self-hosted Figtree covers every other device.
 
 ## Evidence on Hand
-Reference reading of Wealthsimple's visual system came from third-party style references (graphite #32302f, paper #fcfcfc, linen #faf8f5, stone #e4e2e1, pebble #686664, charcoal #09090a, bronze #3a3525; Tiempos display serif over The Future sans; pill buttons; no shadows). These are unofficial and were not checked against Wealthsimple's own brand files. No imagery assets exist.
+The styling comes from the `use-ws-styling` primer in the `product-design` plugin: a hand-distilled approximation that names tokens and approximate values, not the real design system or a spec. It replaces an earlier warm serif look that was read from unofficial third-party references. Where this app departs from the primer, DESIGN.md says so (for example the slightly stronger inactive background, and the emoji status icons the user asked for). No imagery assets exist.
 
 ## Product Principles
 1. Facts first: a status, a date, and a source email are always one click apart.
 2. Calm over clever: the user checks this while anxious about outcomes; nothing should shout.
-3. Private by construction: local, read-only unless the user turns replying on, no external services.
+3. Private by construction: mail is read only by the user's own device (a local server on their PC, or their browser), read-only unless the user turns replying on, with no server of ours in the path and no external services beyond Google, Microsoft and the sources the user adds.
 4. Everything is reversible and visible: filters show, manual stages say they were set by the user.
 
 ## Accessibility & Inclusion
