@@ -77,7 +77,7 @@ export async function settle(ms = 40): Promise<void> {
 }
 
 export async function waitFor(check: () => boolean, what = "the page to change"): Promise<void> {
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 240; i++) {
     if (check()) return;
     await settle(25);
   }

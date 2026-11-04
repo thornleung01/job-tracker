@@ -57,7 +57,7 @@ describe("the Needs review page", () => {
     await type($(container, "select[aria-label='Existing application']"), String(acme));
     await type($$(container, "select[aria-label=Stage]")[0], "Assessment");
     await click(button(container, "Add to it"));
-    await waitFor(() => !$(container, "article.card"));
+    await waitFor(() => !$(container, "article.card") && text($(container, ".notice")).includes("Added to Acme."));
     expect(text(container)).toContain("Nothing to review.");
     expect(text($(container, ".notice"))).toContain("Added to Acme.");
     const row = (await db.emails.get(mail))!;
@@ -139,7 +139,7 @@ describe("the Needs review page", () => {
     expect(text($(section, ".review-line"))).toContain("Your application to Initech");
     expect(text($(section, ".review-line"))).toContain("hr@initech.com");
     await click(button(section, "This was a real job"));
-    await waitFor(() => !$(container, "#ignored"));
+    await waitFor(() => !$(container, "#ignored") && !!$(container, ".notice"));
     expect(await db.ignoredMail.count()).toBe(0);
     expect($(container, ".notice")).not.toBeNull();
   });

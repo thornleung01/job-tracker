@@ -404,6 +404,7 @@ describe("expandable rows", () => {
     const { mid } = await seedThree(db);
     const m = await mountPage(ApplicationsPage, db, `/?open=${mid}`);
     await click(button($(m.container, `#panel-${mid}`)!, "Not an application"));
+    await waitFor(() => m.visited.at(-1) === "/review");
     expect(m.visited.at(-1)).toBe("/review");
     expect(await db.applications.get(mid)).toBeUndefined();
   });
