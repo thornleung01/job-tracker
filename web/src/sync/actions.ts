@@ -2,7 +2,7 @@
 import { EVENT_FOR_STAGE, isStage, type Stage } from "../db/stages";
 import { applyEvent, clearEmail, createApplication, recordFeedback } from "../db/repo";
 import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
-import { isDayString, iso } from "../db/time";
+import { isDayString, iso, localToday } from "../db/time";
 import { MissingRecordError } from "./activity";
 import { messageFromRow } from "./decide";
 import * as learn from "./learn";
@@ -57,9 +57,10 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   if (day) {
     // the day you applied, so logging something from last week lands in the right place
     if (!isDayString(day)) throw new ActionError("Date must look like 2026-10-31");
+    // Compare calendar days in the viewer's own timezone: today is never "in the future", whatever the hour in UTC.
+    if (day > localToday(now)) throw new ActionError("That date is in the future");
     const noon = new Date(`${day}T12:00:00Z`);
-    if (noon > now) throw new ActionError("That date is in the future");
-    when = iso(noon);
+    when = iso(noon > now ? now : noon);       // today is stamped with the current time, never a time still ahead
   }
   return tx(db, () =>
     createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true }),

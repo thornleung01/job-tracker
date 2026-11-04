@@ -9,6 +9,7 @@ import { processMessage, processMessages } from "../../src/sync/sync";
 import { addNote } from "../../src/sync/activity";
 import { createApplication, upsertAccount } from "../../src/db/repo";
 import { sameRole } from "../../src/sync/match";
+import { localToday } from "../../src/db/time";
 import { classify, extractCompanyRole } from "../../src/pipeline";
 import { closeAll, dbWithAccount, freshDb, mail } from "./helpers";
 
@@ -180,6 +181,18 @@ describe("application actions", () => {
     const row = (await db.applications.get(id))!;
     expect([row.company, row.role, row.stage, row.manual, row.locked]).toEqual(["Acme Corp", "Data Analyst", "Interview", true, true]);
     expect(row.stageAt!.startsWith("2026-10-10") && row.lastActivity!.startsWith("2026-10-10")).toBe(true);
+  });
+
+  it("accepts today's date at any hour, without stamping a time still ahead", async () => {
+    const db = freshDb();
+    for (const hour of [0, 1, 6, 11, 23]) {
+      const now = new Date(2026, 10, 3, hour, 30);            // 3 Nov, local time: the day the form fills in is the same day
+      const id = await addApplication(db, { company: `Co${hour}`, appliedOn: localToday(now) }, now);
+      expect(new Date((await db.applications.get(id))!.stageAt!).getTime()).toBeLessThanOrEqual(now.getTime());
+    }
+    const now = new Date(2026, 10, 3, 9, 0);
+    const tomorrow = new Date(2026, 10, 4, 9, 0);
+    await expect(addApplication(db, { company: "Late", appliedOn: localToday(tomorrow) }, now)).rejects.toThrow(/future/);
   });
 
   it("makes the date optional and refuses bad dates", async () => {
