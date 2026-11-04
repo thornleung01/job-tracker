@@ -6,6 +6,7 @@ import type { Session } from "../../src/auth/session";
 import type { AuthUser } from "../../src/auth/user";
 import type { ShellAuth } from "../../src/app/authApi";
 import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
+import { quiesce, sleep, WAIT_TIMEOUT_MS } from "../support/helpers";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -20,7 +21,7 @@ export async function render(element: ReactElement) {
   const root = createRoot(container);
   await act(async () => {
     root.render(element);
-    await sleep(0);
+    await quiesce(0);
   });
   const handle = {
     container,
@@ -38,33 +39,43 @@ export function cleanupRendered(): void {
   while (mounted.length) mounted.pop()!.unmount();
 }
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export { sleep };
 
+/** Lets pending promises and liveQuery finish. Returns as fast as `ms` on an idle machine, and waits for the page to stop changing on a busy one. */
 export async function settle(ms = 20): Promise<void> {
   await act(async () => {
-    await sleep(ms);
+    await quiesce(ms);
   });
 }
 
-export async function waitFor<T>(fn: () => T, timeout = 3000): Promise<NonNullable<T>> {
+/**
+ * Polls until `fn` returns something truthy (it may be async) and returns it. Fails after `timeout` with the last error.
+ * Once the condition holds it settles briefly, so what the test asserts next has had the same chance to appear.
+ */
+export async function waitFor<T>(fn: () => T | Promise<T>, timeout = WAIT_TIMEOUT_MS): Promise<NonNullable<Awaited<T>>> {
   const end = Date.now() + timeout;
   let last: unknown;
   for (;;) {
     try {
-      const v = fn();
-      if (v) return v as NonNullable<T>;
+      const v = await fn();
+      if (v) {
+        await settle(0);
+        return v as NonNullable<Awaited<T>>;
+      }
     } catch (e) {
       last = e;
     }
     if (Date.now() > end) throw last ?? new Error("waitFor timed out");
-    await settle(10);
+    await act(async () => {
+      await sleep(10);
+    });
   }
 }
 
 export async function click(el: Element): Promise<void> {
   await act(async () => {
     (el as HTMLElement).click();
-    await sleep(25);
+    await quiesce(25);
   });
 }
 
@@ -82,6 +93,7 @@ export function fakeAuth(initial: Partial<Session> = {}) {
     act(async () => {
       session = { ...session, ...patch };
       [...listeners].forEach((l) => l());
+      // Plain sleep, not quiesce: this runs inside a click's act, and must end before that one does.
       await sleep(0);
     });
   const auth = {
