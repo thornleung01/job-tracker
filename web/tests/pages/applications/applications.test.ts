@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 
 const companies = (c: HTMLElement) => $$(c, "a.expander strong").map(text);
-const sortStates = (c: HTMLElement) => $$(c, "th[role=columnheader]").map((th) => th.getAttribute("aria-sort"));
+const sortStates = (c: HTMLElement) => $$(c, "th[role=columnheader]:not([data-col=select])").map((th) => th.getAttribute("aria-sort"));
 
 describe("the list", () => {
   it("shows the newest activity first, with table roles kept and one column sorted", async () => {
@@ -77,8 +77,8 @@ describe("the list", () => {
     await seedThree(db);
     await saveSettings(db, "appearance", { columns: ["company", "stage", "emails"] });
     const { container } = await mountPage(ApplicationsPage, db);
-    expect($$(container, "th").map((th) => th.getAttribute("data-col"))).toEqual(["company", "stage", "emails"]);
-    expect($$(container, "tr.app-row")[0].querySelectorAll("td")).toHaveLength(3);
+    expect($$(container, "th:not([data-col=select])").map((th) => th.getAttribute("data-col"))).toEqual(["company", "stage", "emails"]);
+    expect($$(container, "tr.app-row")[0].querySelectorAll("td:not([data-col=select])")).toHaveLength(3);
   });
 
   it("says how long ago, with the exact date on hover", async () => {

@@ -1,5 +1,6 @@
 // What you can do to applications and to Needs review, from the routes in jobtracker/web.py. Each action is one transaction.
 import { ActionError } from "../db/errors";
+import { cleanOfferDeadline, cleanOfferSalary } from "../db/offer";
 import { cleanPostingUrl } from "../db/postingUrl";
 import { EVENT_FOR_STAGE, isStage, type Stage } from "../db/stages";
 import { applyEvent, clearEmail, createApplication, recordFeedback } from "../db/repo";
@@ -117,6 +118,14 @@ export async function setInterviewRounds(db: JobTrackerDB, appId: number, rounds
   await db.applications.update(appId, { interviewRounds: rounds ?? undefined });
 }
 
+/** Saves what the offer pays and the day to decide by. Either can be empty, and both empty clears the offer details. A past deadline is allowed. */
+export async function setOfferDetails(db: JobTrackerDB, appId: number, details: { salary: string; deadline: string }): Promise<void> {
+  const salary = cleanOfferSalary(details.salary);
+  const deadline = cleanOfferDeadline(details.deadline);
+  if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
+  await db.applications.update(appId, { offerSalary: salary || undefined, offerDeadline: deadline || undefined });
+}
+
 export async function unlockStage(db: JobTrackerDB, appId: number): Promise<void> {
   await db.applications.update(appId, { locked: false });
 }
@@ -152,6 +161,8 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
   // keep the target's posting link, otherwise take the source's
   if (!dst.postingUrl && src.postingUrl) fields.postingUrl = src.postingUrl;
   if (dst.interviewRounds === undefined && src.interviewRounds !== undefined) fields.interviewRounds = src.interviewRounds;
+  if (!dst.offerSalary && src.offerSalary) fields.offerSalary = src.offerSalary;
+  if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
   await tx(db, async () => {
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });

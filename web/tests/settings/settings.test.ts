@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsView, type SettingsDeps } from "../../src/pages/settings/SettingsPage";
 import { forgetConnections } from "../../src/pages/settings/actions";
+import { downloadCsv as realDownloadCsv, exportApplicationsCsv } from "../../src/pages/settings/exportCsv";
 import { listAccounts, upsertAccount } from "../../src/db/repo";
 import { exportAllAsJson } from "../../src/portability";
 import { loadSettings, saveSettings } from "../../src/sync/settings";
@@ -25,6 +26,7 @@ interface Setup {
   deps: SettingsDeps;
   fake: ReturnType<typeof fakeAuth>;
   download: ReturnType<typeof vi.fn>;
+  downloadCsv: ReturnType<typeof vi.fn>;
   createProvider: ReturnType<typeof vi.fn>;
 }
 
@@ -34,6 +36,7 @@ async function setup(opts: { maker?: ProviderMaker; db?: JobTrackerDB } = {}): P
   const db = opts.db ?? freshDb();
   const fake = fakeAuth({ status: "signed-in", user: ada });
   const download = vi.fn();
+  const downloadCsv = vi.fn();
   const createProvider = vi.fn((name: ProviderName) =>
     (opts.maker ?? ((n) => ({ name: n, address: "me@gmail.com", async *fetch() {} })))(name),
   );
@@ -50,10 +53,11 @@ async function setup(opts: { maker?: ProviderMaker; db?: JobTrackerDB } = {}): P
     createProvider: createProvider as unknown as SettingsDeps["createProvider"],
     getAddress: vi.fn(async (p: ProviderName) => (p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
     download,
+    downloadCsv,
   };
   await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
   await waitFor(() => q("#appearance input[type=radio]"));
-  return { db, deps, fake, download, createProvider };
+  return { db, deps, fake, download, downloadCsv, createProvider };
 }
 
 const noticeText = () => q(".notice")?.textContent ?? "";
@@ -84,8 +88,8 @@ describe("page structure", () => {
     expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "Save jobs from any site", "Your data", "Account"]);
     for (const b of Array.from(document.querySelectorAll("button, label.btn"))) {
       const t = b.textContent!.trim();
-      // sentence case: only names (Gmail, Outlook) are capitalised after the first word
-      if (t) expect(t.replace(/Gmail|Outlook/g, "x")).not.toMatch(/ [A-Z]/);
+      // sentence case: only names (Gmail, Outlook) and the CSV acronym are capitalised after the first word
+      if (t) expect(t.replace(/Gmail|Outlook|CSV/g, "x")).not.toMatch(/ [A-Z]/);
     }
     expect(document.body.textContent).not.toMatch(/[–—]/);
     expect(byText("Log out")).not.toBeNull();
@@ -369,6 +373,63 @@ describe("your data", () => {
     expect(parsed).toMatchObject({ format: "jobtracker-export", source: "web" });
     expect(parsed.data.applications).toHaveLength(2);
     expect(noticeText()).toBe("Your data was exported.");
+  });
+
+  it("exports the applications as a CSV file next to Export data", async () => {
+    const { db, downloadCsv } = await setup();
+    await withApplications(db, 2);
+    await click(byText("Export CSV")!);
+    await waitFor(() => downloadCsv.mock.calls.length === 1);
+    const [filename, text] = downloadCsv.mock.calls[0];
+    expect(filename).toMatch(/^job-tracker-applications-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(text.charCodeAt(0)).toBe(0xfeff);
+    expect(text.split("\r\n")).toHaveLength(4);       // header, two applications, and the closing line end
+    expect(text).toContain("Acme 0,Engineer,Applied");
+    expect(byText("Export CSV")!.previousElementSibling).toBe(byText("Export data"));
+    expect(noticeText()).toBe("Your applications were exported.");
+  });
+
+  it("says so, and downloads nothing, when the applications can't be listed", async () => {
+    const { db, downloadCsv } = await setup();
+    await withApplications(db, 2);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(db.emails, "toArray").mockRejectedValueOnce(new Error("disk is full"));
+    try {
+      await click(byText("Export CSV")!);
+      await waitFor(() => noticeText() !== "");
+      expect(noticeText()).toBe("Couldn't export your applications. Try again.");
+      expect(downloadCsv).not.toHaveBeenCalled();
+      expect(q(".notice")!.className).toContain("err");
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("saves the CSV as a text/csv;charset=utf-8 file", async () => {
+    const db = freshDb();
+    await withApplications(db, 1);
+    const csv = await exportApplicationsCsv(db);
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:csv");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });     // jsdom has neither
+    // The download revokes its link a second later. Fake timers catch that call and drop it, so it can't fire after the stubs go.
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      realDownloadCsv("job-tracker-applications-2026-11-05.csv", csv);
+    } finally {
+      vi.useRealTimers();
+      delete (URL as { createObjectURL?: unknown }).createObjectURL;
+      delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
+    }
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(blob.type).toBe("text/csv;charset=utf-8");
+    const read = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(read).toBe(csv.slice(1));       // reading as text drops the byte order mark
+    expect(blob.size).toBe(new TextEncoder().encode(csv).length);
   });
 
   it("imports the app's own export after a confirmation", async () => {

@@ -23,10 +23,10 @@ Two editions share one visual system (see DESIGN.md).
 Used on desktop mostly, sometimes on a phone-width window. The local edition works offline (no CDNs), so any typeface must be served from the project; the hosted edition bundles its assets the same way.
 
 ## Capabilities and Constraints
-- Pages: Applications (sortable, filterable list; rows expand in place to log notes and dated steps and to read emails), Flow (Sankey chart with a table equivalent), Needs review (emails the rules were unsure about), Application detail, Settings (accounts and sync, appearance; deliberately kept simple, with no email-filter rules).
+- Pages: Applications (sortable, filterable list; rows expand in place to log notes and dated steps and to read emails; a "Coming up" list of interviews in the next week, a follow-up nudge for applications gone quiet for 7 days, an optional Rounds column, and selecting several rows to set a stage or delete), Flow (Sankey chart with a table equivalent), Needs review (emails the rules were unsure about), Application detail (with offer salary and decision deadline at the Offer stage), Settings (accounts and sync, appearance, and your data: export JSON or CSV, import; deliberately kept simple, with no email-filter rules).
 - Appearance settings are user-facing and must keep working: theme (system/light/dark), accent color, density (comfortable/compact), corners (soft/sharp), list columns, default Flow period.
 - Local edition: behavior, copy facts, URLs, form names, and data are not changing; the Wealthsimple restyle is visual only.
-- Hosted edition v1 covers Applications, Flow, People, Needs review and Settings. Replying from the app, the Jobs tab (resume parsing, Adzuna, Windows pop-ups), multiple profiles and scheduled background sync are not in it.
+- Hosted edition v1 covers Applications, Flow, People, Needs review and Settings. Replying from the app, the Jobs tab (resume parsing, Adzuna, Windows pop-ups), multiple profiles and scheduled background sync are not in it. Coming up, follow-up nudges, offer details, selecting several rows, the duplicate warning, the Rounds column and CSV export are hosted-edition only. The local edition is unchanged.
 - No em-dashes in UI copy.
 
 ## Brand Commitments

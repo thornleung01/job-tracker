@@ -58,16 +58,17 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 
 /**
  * A calendar day from an ISO date or time (its first ten characters), written for people: "October 21, 2026" when there is
- * room ("long"), "Oct 21" when it is tight ("short", with the year added when it is not this year). "Unknown" when missing.
+ * room ("long"), "Oct 21" when it is tight ("short", with the year added when it is not this year), and "Oct 21" always, never
+ * with a year, when the reader knows the year already ("plain"). "Unknown" when missing.
  */
-export function dayText(value: string | null | undefined, style: "long" | "short" = "long", now: Date = new Date()): string {
+export function dayText(value: string | null | undefined, style: "long" | "short" | "plain" = "long", now: Date = new Date()): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
   if (!m) return "Unknown";
   const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const name = MONTHS[month - 1];
   if (!name || day < 1 || day > 31) return "Unknown";
   if (style === "long") return `${name} ${day}, ${year}`;
-  return `${name.slice(0, 3)} ${day}${year === now.getFullYear() ? "" : `, ${year}`}`;
+  return `${name.slice(0, 3)} ${day}${style === "plain" || year === now.getFullYear() ? "" : `, ${year}`}`;
 }
 
 /** The list's last-activity cell: the days, with the exact date in the title. */

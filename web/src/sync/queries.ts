@@ -1,17 +1,21 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
 import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
-import { daysSince } from "../db/time";
+import { daysSince, localToday } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
+import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
+import { groupBy } from "./groupBy";
+import { roundsLookup } from "./roundsLookup";
+import { nextInterviewDay } from "./upcoming";
 
-export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails";
-export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails"];
+export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds";
+export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails", "rounds"];
 export const DEFAULT_DIR: Readonly<Record<SortColumn, "asc" | "desc">> = {
-  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc",
+  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc", rounds: "desc",
 };
 
 export interface ListQuery {
@@ -21,6 +25,8 @@ export interface ListQuery {
   account?: number;
   sort?: string;
   dir?: string;
+  /** keep only applications that need a follow-up */
+  followUp?: boolean;
   now?: Date;
 }
 
@@ -28,7 +34,20 @@ export interface ApplicationListRow extends ApplicationRow {
   nEmails: number;
   /** whole days since the last activity, or null when unknown */
   idleDays: number | null;
+  /** still Applied or Heard back, and quiet for a week or more */
+  followUp: boolean;
+  /** the next day an interview email says a meeting is on (YYYY-MM-DD, today or later), or null */
+  nextInterview: string | null;
+  /** interview rounds (yours, or worked out from the emails and steps); null when there is nothing to count */
+  rounds: number | null;
 }
+
+/** An interview email that belongs to an application. */
+type InterviewMail = EmailRow & { applicationId: number };
+const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
+
+/** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "rounds">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
@@ -50,13 +69,24 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     counts.set(e.applicationId, (counts.get(e.applicationId) ?? 0) + 1);
     if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
   }
+  const interviews = groupBy(emails.filter(isInterviewMail), (e) => e.applicationId);
   const needle = (query.q ?? "").trim().toLowerCase();
-  let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => ({
-    ...a, nEmails: counts.get(a.id) ?? 0, idleDays: daysSince(a.lastActivity, now),
-  }));
-  if ((STAGES as readonly string[]).includes(query.stage ?? "")) rows = rows.filter((a) => a.stage === query.stage);
-  if (needle) rows = rows.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
-  if (query.account) rows = rows.filter((a) => inAccount.has(a.id));
+  let early: EarlyRow[] = (await db.applications.toArray()).map((a) => {
+    const idleDays = daysSince(a.lastActivity, now);
+    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
+  });
+  if ((STAGES as readonly string[]).includes(query.stage ?? "")) early = early.filter((a) => a.stage === query.stage);
+  if (needle) early = early.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
+  if (query.account) early = early.filter((a) => inAccount.has(a.id));
+  if (query.followUp) early = early.filter((a) => a.followUp);
+
+  const today = localToday(now);
+  const roundsOf = await roundsLookup(db, interviews);
+  const rows: ApplicationListRow[] = early.map((a) => {
+    // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
+    const remindsOfInterviews = a.stage !== "Rejected" && a.stage !== "Offer";
+    return { ...a, nextInterview: remindsOfInterviews ? nextInterviewDay(interviews.get(a.id) ?? [], today) : null, rounds: roundsOf(a) };
+  });
 
   const by: Record<SortColumn, Cmp> = {
     company: (a, b) => sign * text(a.company, b.company),
@@ -66,6 +96,8 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     applied: (a, b) => (a.appliedAt === null || b.appliedAt === null ? (a.appliedAt === null ? 1 : 0) - (b.appliedAt === null ? 1 : 0) : sign * nullable(a.appliedAt, b.appliedAt)),
     lastActivity: (a, b) => sign * nullable(a.lastActivity, b.lastActivity),
     emails: (a, b) => sign * (a.nEmails - b.nEmails),
+    // no count always goes last, whichever way you sort
+    rounds: (a, b) => (a.rounds === null || b.rounds === null ? (a.rounds === null ? 1 : 0) - (b.rounds === null ? 1 : 0) : sign * (a.rounds - b.rounds)),
   };
   return rows.sort((a, b) => by[sort](a, b) || a.id - b.id);
 }
