@@ -1,29 +1,21 @@
-import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
-import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { BulkBar } from "../../components/bulk/BulkBar";
-import { RowSelect, SelectAll } from "../../components/bulk/SelectBoxes";
+import { SelectAll } from "../../components/bulk/SelectBoxes";
 import { useSelection } from "../../components/bulk/useSelection";
 import { Combobox } from "../../components/Combobox";
-import { FollowUpTag } from "../../components/followup/FollowUpTag";
-import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
 import { DuplicateNotice } from "../../components/duplicates/DuplicateNotice";
 import { useDuplicates } from "../../components/duplicates/useDuplicates";
+import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
 import { JobLinkField } from "../../components/joblink/JobLinkField";
 import type { JobLinkDeps } from "../../components/joblink/deps";
+import { realJobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
 import { Notice } from "../../components/Notice";
-import { QuickDate } from "../../components/quickedit/QuickDate";
-import { QuickRole } from "../../components/quickedit/QuickRole";
-import { QuickStage } from "../../components/quickedit/QuickStage";
-import { OfferDeadline } from "../../components/offer/OfferDeadline";
 import { SyncBanner } from "../../components/SyncBanner";
 import { ComingUp } from "../../components/upcoming/ComingUp";
-import { InterviewLine } from "../../components/upcoming/InterviewLine";
-import { LastActivity } from "../../components/TimeText";
 import { useAction } from "../../components/useAction";
-import { realJobLinkDeps } from "../../components/joblink/deps";
 import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
 import { STAGES, isStage, type Stage } from "../../db/stages";
@@ -31,6 +23,7 @@ import { localToday } from "../../db/time";
 import { addApplication as realAddApplication } from "../../sync/actions";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
+import { AppRow } from "./AppRow";
 import "./applications.css";
 
 interface ListState {
@@ -97,15 +90,15 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   }, [db, stage, q, account, followUp, sort, dir]);
 
   // The ticked rows live here, not in the address, and are dropped when the filters change.
-  const selection = useSelection(data?.rows.map((r) => r.id), `${stage}|${q}|${account}`);
+  const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp]));
 
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
   const [draftQ, setDraftQ] = useState(q);
   const [draftStage, setDraftStage] = useState<string>(stage);
   const [draftAccount, setDraftAccount] = useState(account);
+  const [draftFollowUp, setDraftFollowUp] = useState(followUp);
   useEffect(() => setDraftQ(q), [q]);
   useEffect(() => setDraftStage(stage), [stage]);
-  const [draftFollowUp, setDraftFollowUp] = useState(followUp);
   useEffect(() => setDraftAccount(account), [account]);
   useEffect(() => setDraftFollowUp(followUp), [followUp]);
 
@@ -116,6 +109,10 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   };
   const setOpen = (ids: number[]) => navigate(listUrl({ stage, q, account, followUp, ...sorting, open: ids }), { replace: true });
   const toggle = (id: number) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
+  // Rows are memoised, so the callback they get must keep its identity: it reads the latest `toggle` through a ref.
+  const toggleRef = useRef(toggle);
+  toggleRef.current = toggle;
+  const onToggleOpen = useCallback((id: number) => toggleRef.current(id), []);
 
   // Add an application by hand: one button opens the form under the filter card
   const add = useAction();
@@ -199,52 +196,18 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   if (!data) return <h1 className="page">Applications</h1>;
   const { rows, counts, accounts, review, columns, suggestions: suggest } = data;
   const total = STAGES.reduce((n, s) => n + counts[s], 0);
+  const today = localToday();
   const filtered = Boolean(stage || q.trim() || account || followUp);
   const thisAccount = accounts.find((a) => a.id === account);
 
   const sortHref = (c: ColumnId) =>
     "#" + listUrl({ stage, q, account, followUp, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
 
-  const onRowClick = (e: MouseEvent<HTMLTableRowElement>, id: number) => {
-    // Clicking empty space in a row opens it too.
-    if ((e.target as Element).closest("a, button, input, select, textarea, label, form")) return;
-    toggle(id);
-  };
-  const onExpanderKey = (e: KeyboardEvent<HTMLAnchorElement>, id: number) => {
-    if (e.key === " ") {
-      e.preventDefault(); // role=button also answers to Space
-      toggle(id);
-    }
-  };
-
-  const cell = (c: ColumnId, r: (typeof rows)[number], isOpen: boolean) => {
-    switch (c) {
-      case "company":
-        return (
-          <td role="cell" data-col="company" key={c}>
-            <a className="expander" href={"#" + listUrl({ stage, q, account, followUp, ...sorting, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
-               role="button" data-id={r.id} aria-expanded={isOpen} aria-controls={`panel-${r.id}`}
-               onClick={(e) => { e.preventDefault(); toggle(r.id); }} onKeyDown={(e) => onExpanderKey(e, r.id)}>
-              <span className="chev" aria-hidden="true"></span><strong>{r.company}</strong>
-            </a>
-            <span className="role-sub">{r.role}</span>
-          </td>
-        );
-      case "role": return <td role="cell" data-col="role" key={c}><QuickRole db={db} appId={r.id} company={r.company} role={r.role} /></td>;
-      case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><QuickStage db={db} appId={r.id} company={r.company} stage={r.stage} stageAt={r.stageAt} locked={r.locked} /><InterviewLine day={r.nextInterview} today={localToday()} /><OfferDeadline stage={r.stage} deadline={r.offerDeadline} /></td>;
-      case "applied": return <td role="cell" data-col="applied" key={c} className="small muted"><QuickDate db={db} appId={r.id} company={r.company} appliedAt={r.appliedAt} /></td>;
-      case "lastActivity":
-        return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} />{r.followUp ? <> <FollowUpTag /></> : null}</td>;
-      case "emails": return <td role="cell" data-col="emails" key={c} className="small muted">{r.nEmails}</td>;
-      case "rounds": return <td role="cell" data-col="rounds" key={c} className="small muted">{r.rounds ?? ""}</td>;
-    }
-  };
-
   return (
     <>
       <h1 className="page">Applications</h1>
       <SyncBanner db={db} user={user} />
-      {filtered ? null : <ComingUp rows={rows} today={localToday()} />}
+      {filtered ? null : <ComingUp rows={rows} today={today} />}
       <nav className="tabs" aria-label="Filter by stage">
         <a href={"#" + listUrl({})} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
         {STAGES.map((s) => (
@@ -369,17 +332,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             {rows.map((r) => {
               const isOpen = open.includes(r.id);
               return (
-                <Fragment key={r.id}>
-                  <tr className={`app-row${isOpen ? " is-open" : ""}${selection.has(r.id) ? " is-selected" : ""}`} role="row" onClick={(e) => onRowClick(e, r.id)}>
-                    <td role="cell" data-col="select"><RowSelect selection={selection} id={r.id} company={r.company} /></td>
-                    {columns.map((c) => cell(c, r, isOpen))}
-                  </tr>
-                  <tr className="panel-row" role="row" id={`panel-${r.id}`} hidden={!isOpen}>
-                    <td role="cell" colSpan={columns.length + 1}>
-                      {isOpen ? <div className="panel"><ApplicationPanel db={db} appId={r.id} company={r.company} includeEmails navigate={navigate} /></div> : null}
-                    </td>
-                  </tr>
-                </Fragment>
+                <AppRow key={r.id} db={db} navigate={navigate} r={r} columns={columns} isOpen={isOpen} selected={selection.has(r.id)} today={today}
+                        href={"#" + listUrl({ stage, q, account, followUp, ...sorting, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
+                        onToggleOpen={onToggleOpen} onToggleSelect={selection.toggle} />
               );
             })}
             {!rows.length ? (

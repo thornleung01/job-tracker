@@ -321,6 +321,9 @@
   .list-card { container-type: inline-size; }
   @supports (width: 1cqw) { .list-card .panel-inner { position: sticky; left: 0; width: 100cqw; } }
   .panel-forms { display: grid; grid-template-columns: minmax(0, 560px); gap: 32px; align-items: start; }
+  /* One rhythm down the form: 12px between a field and the next label, and the same before the button. */
+  .panel-forms textarea { display: block; width: 100%; }
+  .panel-forms form > button { margin-top: 12px; }
   .panel-history { min-width: 0; }
   .panel-history .panel-h-history { margin-top: 16px; }
   /* Wide enough: the form on the left, its history beside it, so the row has no empty right half. */
@@ -335,6 +338,10 @@
   .hist-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .hist-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1 1 240px; }
   .hist-date { margin-left: auto; }
+  /* Every dated row ends at the same edge: the Delete button has a fixed width, and an email row (which has no Delete) leaves that room empty. */
+  ol.hist { --hist-del-w: 72px; }
+  button.hist-del { min-width: var(--hist-del-w); text-align: center; }
+  ol.hist details.mail > summary .hist-date { margin-right: calc(var(--hist-del-w) + 10px); }
   .hist-body { margin: 6px 0 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 0.9375rem; }
   .tag { font-size: 0.75rem; font-weight: 500; padding: 2px 10px; border-radius: var(--r-pill); background: var(--fog); color: var(--muted); }
   .tag-step, .tag-note { color: var(--ink); }

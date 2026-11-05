@@ -30,6 +30,15 @@ describe("rounds on the list rows", () => {
     expect(rows.map((r) => [r.company, r.rounds])).toEqual([["Alpha", 2], ["Bravo", 5], ["Charlie", null]]);
   });
 
+  it("counts rounds and the interview day for the rows that survive a filter, same as unfiltered", async () => {
+    const { db } = await seed();
+    const all = await listApplications(db, { sort: "company", dir: "asc" });
+    const interviews = await listApplications(db, { stage: "Interview", sort: "company", dir: "asc" });
+    expect(interviews.map((r) => [r.company, r.rounds])).toEqual([["Alpha", 2], ["Bravo", 5]]);
+    expect(interviews).toEqual(all.filter((r) => r.stage === "Interview"));
+    expect(interviews[0].nextInterview).not.toBeNull();
+  });
+
   it("counts logged interview steps too", async () => {
     const { db, charlie } = await seed();
     await db.activity.add({ applicationId: charlie, kind: "step", label: "Phone screen", body: "", occurredAt: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" });
@@ -80,6 +89,28 @@ describe("the Rounds column on the page", () => {
     expect(text($(container, "th[data-col=rounds]"))).toBe("Rounds");
     expect($$(container, "td[data-col=rounds]").map((td) => td.textContent)).toEqual(["2", "5", ""]);
     expect($(container, "th[data-col=rounds] a.sort")?.getAttribute("href")).toBe("#/?sort=rounds&dir=desc");
+  });
+
+  it("shows 0 for a count you set to 0, sorts as numbers, and breaks ties by id with the empty ones last", async () => {
+    const db = freshDb();
+    await addApp(db, "Empty1");
+    const ten = await addApp(db, "Ten");
+    const zero = await addApp(db, "Zero");
+    const twoB = await addApp(db, "TwoB");
+    const twoA = await addApp(db, "TwoA");
+    await addApp(db, "Empty2");
+    for (const [id, n] of [[ten, 10], [zero, 0], [twoB, 2], [twoA, 2]] as const) await setInterviewRounds(db, id, n);
+    await saveSettings(db, "appearance", { columns: ["rounds"] });
+    const shown = (container: HTMLElement) => $$(container, "tr.app-row").map((r) => [text($(r, "td[data-col=company] strong")), $(r, "td[data-col=rounds]")?.textContent]);
+
+    const asc = await mountPage(ApplicationsPage, db, "/?sort=rounds&dir=asc");
+    await waitFor(() => $(asc.container, "td[data-col=rounds]") !== null);
+    // 10 comes after 2 (a text sort would put it first); TwoB was saved before TwoA, so it goes first
+    expect(shown(asc.container)).toEqual([["Zero", "0"], ["TwoB", "2"], ["TwoA", "2"], ["Ten", "10"], ["Empty1", ""], ["Empty2", ""]]);
+
+    const desc = await mountPage(ApplicationsPage, db, "/?sort=rounds&dir=desc");
+    await waitFor(() => $(desc.container, "td[data-col=rounds]") !== null);
+    expect(shown(desc.container)).toEqual([["Ten", "10"], ["TwoB", "2"], ["TwoA", "2"], ["Zero", "0"], ["Empty1", ""], ["Empty2", ""]]);
   });
 
   it("sorts by rounds from the address", async () => {

@@ -1,11 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { $, $$, addApp, cleanup, click, freshDb, mountPage, text, waitFor } from "./harness";
+import { $, $$, addApp, cleanup, click, freshDb, mountPage, row, text, waitFor } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 
 afterEach(cleanup);
 
-const row = (container: HTMLElement, company: string) =>
-  [...container.querySelectorAll("tr.app-row")].find((r) => text(r).includes(company)) as HTMLElement;
 const names = (container: HTMLElement) => $$(container, "tr.app-row [data-col=company] strong").map((e) => text(e));
 
 async function seed() {

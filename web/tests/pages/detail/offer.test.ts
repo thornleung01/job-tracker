@@ -80,6 +80,68 @@ describe("the offer section on the application page", () => {
   });
 });
 
+describe("the offer form as you use it", () => {
+  const salaryBox = (c: HTMLElement) => $(c, ".offer input[name=salary]") as HTMLInputElement;
+  const deadlineBox = (c: HTMLElement) => $(c, ".offer input[name=deadline]") as HTMLInputElement;
+
+  it("moves focus to the salary field after Clear, since the Clear button goes", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { stage: "Offer" });
+    await setOfferDetails(db, id, { salary: "$90k", deadline: "2026-10-15" });
+    const { container } = await open(db, id);
+    await waitFor(() => button($(container, ".offer")!, "Clear") !== null);
+    const clear = button($(container, ".offer")!, "Clear")!;
+    (clear as HTMLElement).focus();
+    await click(clear);
+    await waitFor(() => button($(container, ".offer")!, "Clear") === null);
+    expect(document.activeElement).toBe(salaryBox(container));
+    expect(salaryBox(container).value).toBe("");
+    expect(deadlineBox(container).value).toBe("");
+  });
+
+  it("keeps what you typed when a save is refused", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { stage: "Offer" });
+    const { container } = await open(db, id);
+    await waitFor(() => $(container, ".offer") !== null);
+    await type(salaryBox(container), "x".repeat(61));
+    await type(deadlineBox(container), "2026-10-15");
+    await submitForm($(container, ".offer-form"));
+    await waitFor(() => $(container, ".offer-error") !== null);
+    expect(salaryBox(container).value).toBe("x".repeat(61));
+    expect(deadlineBox(container).value).toBe("2026-10-15");
+    expect(await db.applications.get(id)).not.toHaveProperty("offerDeadline");
+  });
+
+  it("treats a salary of only spaces as empty, and clears when the deadline is empty too", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { stage: "Offer" });
+    await setOfferDetails(db, id, { salary: "$90k", deadline: "" });
+    const { container } = await open(db, id);
+    await waitFor(() => salaryBox(container)?.value === "$90k");
+    await type(salaryBox(container), "   ");
+    await submitForm($(container, ".offer-form"));
+    await waitFor(() => text($(container, ".offer-status")) === "Offer details saved.");
+    const app = await db.applications.get(id);
+    expect("offerSalary" in app!).toBe(false);
+    await waitFor(() => salaryBox(container).value === "" && button($(container, ".offer")!, "Clear") === null);
+  });
+
+  it("shows new values when the application changes under the form", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { stage: "Offer" });
+    await setOfferDetails(db, id, { salary: "$90k", deadline: "2026-10-15" });
+    const { container } = await open(db, id);
+    await waitFor(() => salaryBox(container)?.value === "$90k");
+    await type(salaryBox(container), "typing, not saved");
+    await setOfferDetails(db, id, { salary: "$95k + equity", deadline: "2026-11-01" });
+    await waitFor(() => salaryBox(container).value === "$95k + equity");
+    expect(deadlineBox(container).value).toBe("2026-11-01");
+    await setOfferDetails(db, id, { salary: "", deadline: "" });
+    await waitFor(() => salaryBox(container).value === "" && deadlineBox(container).value === "");
+  });
+});
+
 describe("the decision line in the list", () => {
   it("shows under the stage only at Offer with a deadline", async () => {
     const db = freshDb();

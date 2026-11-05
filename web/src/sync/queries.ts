@@ -8,7 +8,8 @@ import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
-import { listRounds } from "./listRounds";
+import { groupBy } from "./groupBy";
+import { roundsLookup } from "./roundsLookup";
 import { nextInterviewDay } from "./upcoming";
 
 export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds";
@@ -41,6 +42,13 @@ export interface ApplicationListRow extends ApplicationRow {
   rounds: number | null;
 }
 
+/** An interview email that belongs to an application. */
+type InterviewMail = EmailRow & { applicationId: number };
+const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
+
+/** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "rounds">;
+
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
 const text = (a: string, b: string) => (a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0);
@@ -56,28 +64,29 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   const emails = await db.emails.toArray();
   const counts = new Map<number, number>();
   const inAccount = new Set<number>();
-  const interviews = new Map<number, EmailRow[]>();
   for (const e of emails) {
     if (e.applicationId == null) continue;
-    if (e.event === "interview") interviews.set(e.applicationId, [...(interviews.get(e.applicationId) ?? []), e]);
     counts.set(e.applicationId, (counts.get(e.applicationId) ?? 0) + 1);
     if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
   }
+  const interviews = groupBy(emails.filter(isInterviewMail), (e) => e.applicationId);
   const needle = (query.q ?? "").trim().toLowerCase();
-  const rounds = await listRounds(db, emails);
-  let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => {
+  let early: EarlyRow[] = (await db.applications.toArray()).map((a) => {
     const idleDays = daysSince(a.lastActivity, now);
-    return {
-      ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays),
-      // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
-      nextInterview: a.stage === "Rejected" || a.stage === "Offer" ? null : nextInterviewDay(interviews.get(a.id) ?? [], localToday(now)),
-      rounds: rounds(a),
-    };
+    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
   });
-  if ((STAGES as readonly string[]).includes(query.stage ?? "")) rows = rows.filter((a) => a.stage === query.stage);
-  if (needle) rows = rows.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
-  if (query.account) rows = rows.filter((a) => inAccount.has(a.id));
-  if (query.followUp) rows = rows.filter((a) => a.followUp);
+  if ((STAGES as readonly string[]).includes(query.stage ?? "")) early = early.filter((a) => a.stage === query.stage);
+  if (needle) early = early.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
+  if (query.account) early = early.filter((a) => inAccount.has(a.id));
+  if (query.followUp) early = early.filter((a) => a.followUp);
+
+  const today = localToday(now);
+  const roundsOf = await roundsLookup(db, interviews);
+  const rows: ApplicationListRow[] = early.map((a) => {
+    // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
+    const remindsOfInterviews = a.stage !== "Rejected" && a.stage !== "Offer";
+    return { ...a, nextInterview: remindsOfInterviews ? nextInterviewDay(interviews.get(a.id) ?? [], today) : null, rounds: roundsOf(a) };
+  });
 
   const by: Record<SortColumn, Cmp> = {
     company: (a, b) => sign * text(a.company, b.company),

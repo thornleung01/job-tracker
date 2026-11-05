@@ -1,6 +1,8 @@
 // How many interview rounds an application has had. It is an estimate from the emails the app already classified,
 // firmed up by the steps you log, and always replaceable by a number you type.
 import type { ActivityRow, EmailRow } from "../db/schema";
+import { DAY_MS } from "../db/time";
+import { groupBy } from "./groupBy";
 
 /** Steps that are an interview round when you log them. A recruiter call, take-home or reference check is not. */
 export const ROUND_STEPS: readonly string[] = ["Interview", "Phone screen", "Technical interview", "Final round"];
@@ -23,9 +25,12 @@ const ISO_DAY = /\b(20\d\d)-(\d{2})-(\d{2})\b/g;
 /** "Oct", "october" or "Sept" as 1 to 12; 0 for anything else. */
 const monthNumber = (name: string): number => MONTHS[name.toLowerCase()] ?? MONTHS[name.toLowerCase().slice(0, 3)] ?? 0;
 
-const DAY_MS = 86_400_000;
 const HORIZON_DAYS = 120;
 const SCAN = 1500;
+
+/** At most SCAN characters of a subject or body, so one huge email can't slow the scan. */
+const head = (value: string | null): string => (value ?? "").slice(0, SCAN);
+const scanText = (subject: string | null, body: string | null): string => `${head(subject)}\n${head(body)}`;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
@@ -41,7 +46,7 @@ const valid = (y: number, m: number, d: number) => {
 export function interviewDay(subject: string | null, body: string | null, receivedAt: string): string | null {
   const received = new Date(receivedAt);
   if (Number.isNaN(received.getTime())) return null;
-  const text = `${subject ?? ""}\n${(body ?? "").slice(0, SCAN)}`;
+  const text = scanText(subject, body);
   const earliest = received.getTime() - DAY_MS;
   const latest = received.getTime() + HORIZON_DAYS * DAY_MS;
   const found: { pos: number; day: string }[] = [];
@@ -69,7 +74,7 @@ const CANCELLED = /\b(?:cancel(?:l?ed|lation)|no longer (?:going ahead|needed|re
 
 /** The highest "second round", "round 3" or "4th interview" an email names, or 0. */
 export function namedRound(subject: string | null, body: string | null): number {
-  const text = `${subject ?? ""}\n${(body ?? "").slice(0, SCAN)}`;
+  const text = scanText(subject, body);
   let best = 0;
   for (const x of text.matchAll(ORDINAL_ROUND)) {
     const w = x[1].toLowerCase();
@@ -79,7 +84,7 @@ export function namedRound(subject: string | null, body: string | null): number 
   return Math.min(best, MAX_ROUNDS);
 }
 
-export type MailForRounds =Pick<EmailRow, "id" | "threadId" | "receivedAt" | "subject" | "body" | "event">;
+export type MailForRounds = Pick<EmailRow, "id" | "threadId" | "receivedAt" | "subject" | "body" | "event">;
 
 export interface Meeting {
   /** the email thread, or the lone email's own key */
@@ -96,16 +101,11 @@ export interface Meeting {
  * thread is left out.
  */
 export function interviewMeetings(emails: readonly MailForRounds[]): Meeting[] {
-  const threads = new Map<string, MailForRounds[]>();
-  for (const e of emails) {
-    if (e.event !== "interview") continue;
-    const key = e.threadId ?? `msg:${e.id}`;
-    threads.set(key, [...(threads.get(key) ?? []), e]);
-  }
+  const threads = groupBy(emails.filter((e) => e.event === "interview"), (e) => e.threadId ?? `msg:${e.id}`);
   const meetings: Meeting[] = [];
   for (const [thread, mails] of threads) {
     const newestFirst = [...mails].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : b.id - a.id));
-    if (CANCELLED.test(newestFirst[0].subject ?? "")) continue;       // a cancelled meeting adds nothing, not even a named round
+    if (CANCELLED.test(head(newestFirst[0].subject))) continue;       // a cancelled meeting adds nothing, not even a named round
     let day: string | null = null;
     for (const m of newestFirst) {
       day = interviewDay(m.subject, m.body, m.receivedAt);

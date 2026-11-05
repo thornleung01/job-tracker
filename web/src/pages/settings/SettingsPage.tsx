@@ -22,7 +22,8 @@ import {
   PROVIDER_LABEL, accountLabel, connectMailbox, connectedAddress, describeImport, describeSync, downloadText, exportFilename,
   isConnected, parseImportText, readFileText, runImport, runSync, type MailDeps, type ParsedImport,
 } from "./actions";
-import { csvFilename, downloadCsv, exportApplicationsCsv } from "./exportCsv";
+import { csvFilename } from "../../portability/csv";
+import { downloadCsv, exportApplicationsCsv } from "./exportCsv";
 
 export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddress"> {
   auth: {
@@ -34,7 +35,7 @@ export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddr
   };
   download(filename: string, text: string): void;
   /** saves the applications spreadsheet; its own function because it is a different file type */
-  downloadCsv?(filename: string, text: string): void;
+  downloadCsv(filename: string, text: string): void;
 }
 
 export const defaultDeps: SettingsDeps = {
@@ -227,7 +228,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
 
   async function exportCsv() {
     try {
-      (deps.downloadCsv ?? downloadCsv)(csvFilename(), await exportApplicationsCsv(db));
+      deps.downloadCsv(csvFilename(), await exportApplicationsCsv(db));
       say("ok", "Your applications were exported.");
     } catch (e) {
       console.error(e);

@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsView, type SettingsDeps } from "../../src/pages/settings/SettingsPage";
 import { forgetConnections } from "../../src/pages/settings/actions";
+import { downloadCsv as realDownloadCsv, exportApplicationsCsv } from "../../src/pages/settings/exportCsv";
 import { listAccounts, upsertAccount } from "../../src/db/repo";
 import { exportAllAsJson } from "../../src/portability";
 import { loadSettings, saveSettings } from "../../src/sync/settings";
@@ -385,6 +386,50 @@ describe("your data", () => {
     expect(text.split("\r\n")).toHaveLength(4);       // header, two applications, and the closing line end
     expect(text).toContain("Acme 0,Engineer,Applied");
     expect(byText("Export CSV")!.previousElementSibling).toBe(byText("Export data"));
+    expect(noticeText()).toBe("Your applications were exported.");
+  });
+
+  it("says so, and downloads nothing, when the applications can't be listed", async () => {
+    const { db, downloadCsv } = await setup();
+    await withApplications(db, 2);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(db.emails, "toArray").mockRejectedValueOnce(new Error("disk is full"));
+    try {
+      await click(byText("Export CSV")!);
+      await waitFor(() => noticeText() !== "");
+      expect(noticeText()).toBe("Couldn't export your applications. Try again.");
+      expect(downloadCsv).not.toHaveBeenCalled();
+      expect(q(".notice")!.className).toContain("err");
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("saves the CSV as a text/csv;charset=utf-8 file", async () => {
+    const db = freshDb();
+    await withApplications(db, 1);
+    const csv = await exportApplicationsCsv(db);
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:csv");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });     // jsdom has neither
+    // The download revokes its link a second later. Fake timers catch that call and drop it, so it can't fire after the stubs go.
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      realDownloadCsv("job-tracker-applications-2026-11-05.csv", csv);
+    } finally {
+      vi.useRealTimers();
+      delete (URL as { createObjectURL?: unknown }).createObjectURL;
+      delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
+    }
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(blob.type).toBe("text/csv;charset=utf-8");
+    const read = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(read).toBe(csv.slice(1));       // reading as text drops the byte order mark
+    expect(blob.size).toBe(new TextEncoder().encode(csv).length);
   });
 
   it("imports the app's own export after a confirmation", async () => {

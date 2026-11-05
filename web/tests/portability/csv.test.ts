@@ -13,6 +13,23 @@ const row = (over: Partial<CsvRow> = {}): CsvRow => ({
   nEmails: 3, rounds: null, ...over,
 });
 const lines = (csv: string) => csv.replace(/^﻿/, "").split("\r\n");
+/** One CSV line as its fields: commas inside quotes stay in the field, and "" is a quote. */
+function fieldsOf(line: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quoted) {
+      if (c !== '"') current += c;
+      else if (line[i + 1] === '"') { current += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { out.push(current); current = ""; }
+    else current += c;
+  }
+  return [...out, current];
+}
 
 describe("csvField", () => {
   it("leaves plain text alone and writes empty for nothing", () => {
@@ -29,9 +46,22 @@ describe("csvField", () => {
     expect(csvField("a\rb")).toBe('"a\rb"');
   });
 
-  it.each(["=SUM(A1:A9)", "+1+1", "-2+3", "@cmd", "\tcmd", "\rcmd"])("defuses a formula that starts %j", (value) => {
-    const out = csvField(value);
-    expect(out.replace(/^"/, "").startsWith("'")).toBe(true);
+  it.each([
+    ["=SUM(A1:A9)", "'=SUM(A1:A9)"],
+    ["+1+1", "'+1+1"],
+    ["-2+3", "'-2+3"],
+    ["@cmd", "'@cmd"],
+    ["\tcmd", "'\tcmd"],
+    ["\rcmd", `"'\rcmd"`],               // a CR also forces quoting
+    ["\n=1+1", `"'\n=1+1"`],             // a line break, then a formula
+    ["\u00a0=1+1", "'\u00a0=1+1"],       // a no-break space counts as padding too
+    ["\u00a0\u00a0@SUM(A1)", "'\u00a0\u00a0@SUM(A1)"],
+  ])("defuses a formula that starts %j", (value, expected) => {
+    expect(csvField(value)).toBe(expected);
+  });
+
+  it("only quotes, and does not add an apostrophe to, text that starts with a line break and no formula", () => {
+    expect(csvField("\ncmd")).toBe('"\ncmd"');
   });
 
   it("quotes after the apostrophe goes on, so a formula with a comma stays one safe field", () => {
@@ -77,8 +107,7 @@ describe("applicationsToCsv", () => {
     const [, data] = lines(csv);
     expect(data.startsWith(`'=cmd|' /C calc'!A0,'+1,Applied,`)).toBe(true);
     expect(data).toContain(",'@evil,'-5,");
-    // no field of the row starts with a formula character
-    expect(data.split(",").some((f) => /^[=+\-@]/.test(f))).toBe(false);
+    expect(fieldsOf(data)).toEqual(["'=cmd|' /C calc'!A0", "'+1", "Applied", "2026-10-01", "2026-10-05", "3", "", "'@evil", "'-5", ""]);
   });
 
   it("is only the header for an empty database", async () => {
@@ -91,7 +120,7 @@ describe("exportApplicationsCsv", () => {
   it("counts rounds the way the list does and carries the offer details", async () => {
     const db = freshDb();
     const account = await upsertAccount(db, "gmail", "me@gmail.com");
-    const plain = await addApp(db, "Plain", { stage: "Applied" });
+    await addApp(db, "Plain", { stage: "Applied" });
     const counted = await addApp(db, "Counted", { stage: "Offer", last: 1 });
     await addMail(db, account, counted, { event: "interview", threadId: "t1", subject: "Interview with Counted" });
     const yours = await addApp(db, "Yours", { stage: "Interview", last: 2 });
@@ -103,7 +132,6 @@ describe("exportApplicationsCsv", () => {
     expect(by("Counted").slice(6)).toEqual(["1", "", "$100k", "2026-12-01"]);
     expect(by("Yours")[6]).toBe("4");
     expect(by("Plain")[6]).toBe("");
-    expect(plain).toBeGreaterThan(0);
   });
 });
 
@@ -115,7 +143,7 @@ describe("csvFilename", () => {
 
 describe("formula injection with leading spaces", () => {
   it("defuses a field that starts with spaces before the formula character", () => {
-    expect(csvField("  =HYPERLINK(\"x\")")).toContain("'  =HYPERLINK");
+    expect(csvField("  =HYPERLINK(\"x\")")).toBe(`"'  =HYPERLINK(""x"")"`);
     expect(csvField(" @SUM(A1)")).toBe("' @SUM(A1)");
     expect(csvField("Acme")).toBe("Acme");
   });

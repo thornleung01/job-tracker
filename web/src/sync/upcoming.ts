@@ -1,13 +1,13 @@
 // Upcoming interviews: the next day an application's interview emails say a meeting is on, and how to show it.
+import { dayText } from "../components/TimeText";
+import { DAY_MS } from "../db/time";
 import { interviewMeetings, type MailForRounds } from "./rounds";
 
-const DAY_MS = 86_400_000;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 /** How far ahead the "Coming up" strip looks, and how many rows it shows. */
-export const COMING_UP_DAYS = 7;
-export const COMING_UP_MAX = 5;
+const COMING_UP_DAYS = 7;
+const COMING_UP_MAX = 5;
 
 const parts = (day: string): [number, number, number] => {
   const [y, m, d] = day.split("-").map(Number);
@@ -36,14 +36,24 @@ export function daysBetween(from: string, to: string): number {
 /** "Thu, Oct 15" for a YYYY-MM-DD. */
 export function shortDay(day: string): string {
   const [y, m, d] = parts(day);
-  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${MONTHS[m - 1]} ${d}`;
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${dayText(day, "plain")}`;
+}
+
+/** How soon a day is: today, tomorrow or later, with the words to show for it ("Today", "Tomorrow", "Thu, Oct 15"). */
+export interface DayWhen {
+  when: "today" | "tomorrow" | "later";
+  text: string;
+}
+
+export function dayWhen(day: string, today: string): DayWhen {
+  const away = daysBetween(today, day);
+  if (away === 0) return { when: "today", text: "Today" };
+  if (away === 1) return { when: "tomorrow", text: "Tomorrow" };
+  return { when: "later", text: shortDay(day) };
 }
 
 /** "Today", "Tomorrow", or "Thu, Oct 15". */
-export function dayLabel(day: string, today: string): string {
-  const away = daysBetween(today, day);
-  return away === 0 ? "Today" : away === 1 ? "Tomorrow" : shortDay(day);
-}
+export const dayLabel = (day: string, today: string): string => dayWhen(day, today).text;
 
 export interface UpcomingRow {
   id: number;
@@ -52,10 +62,14 @@ export interface UpcomingRow {
   nextInterview: string | null;
 }
 
-/** The interviews in the next week, soonest first (then by company), at most five. */
+/** The interviews in the next week, soonest first (then by company, then id), at most five. */
 export function comingUp<T extends UpcomingRow>(rows: readonly T[], today: string): T[] {
-  return rows
-    .filter((r) => r.nextInterview !== null && daysBetween(today, r.nextInterview) >= 0 && daysBetween(today, r.nextInterview) <= COMING_UP_DAYS)
-    .sort((a, b) => (a.nextInterview! < b.nextInterview! ? -1 : a.nextInterview! > b.nextInterview! ? 1 : a.company.localeCompare(b.company) || a.id - b.id))
-    .slice(0, COMING_UP_MAX);
+  const soon: { row: T; away: number }[] = [];
+  for (const row of rows) {
+    if (row.nextInterview === null) continue;
+    const away = daysBetween(today, row.nextInterview);
+    if (away >= 0 && away <= COMING_UP_DAYS) soon.push({ row, away });
+  }
+  soon.sort((a, b) => a.away - b.away || a.row.company.localeCompare(b.row.company) || a.row.id - b.row.id);
+  return soon.slice(0, COMING_UP_MAX).map((s) => s.row);
 }

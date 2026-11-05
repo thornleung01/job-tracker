@@ -118,3 +118,20 @@ describe("deriveRounds", () => {
     expect(deriveRounds([], [])).toBeNull();
   });
 });
+
+describe("long subjects", () => {
+  const long = "x".repeat(1600);
+
+  it("only reads the first 1500 characters of a subject, like the body", () => {
+    expect(interviewDay(`${long} Oct 15`, "", "2026-10-12T14:00:00Z")).toBeNull();
+    expect(interviewDay(`Oct 15 ${long}`, "", "2026-10-12T14:00:00Z")).toBe("2026-10-15");
+    expect(namedRound(`${long} second round`, "")).toBe(0);
+    expect(namedRound(`second round ${long}`, "")).toBe(2);
+  });
+
+  it("does not see a cancellation past the first 1500 characters of the newest subject", () => {
+    const emails = [mail({ thread: "t", at: "2026-10-10T14:00:00Z", subject: `${long} cancelled`, body: "Oct 15" })];
+    expect(roundsFromEmails(emails)).toBe(1);
+    expect(roundsFromEmails([mail({ thread: "u", at: "2026-10-10T14:00:00Z", subject: "Interview cancelled", body: "Oct 15" })])).toBe(0);
+  });
+});

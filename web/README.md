@@ -59,10 +59,20 @@ In Add application, paste a job link and the form fills in what it can.
 
 The link is stored on the application and shown as "Open posting". The local Python edition does the same from its server, with extra checks so it can't be pointed at internal addresses.
 
-## Quick edits and interview rounds
+## Quick edits, interview rounds and offers
 
 - **Quick edits:** on the Applications list, choose a role or an applied date to change it in place. Enter or leaving the field saves, and Escape puts the old value back. The stage is a dropdown. Changing it locks the stage, like setting it on the detail page, and shows Undo for a few seconds.
 - **Interview rounds:** the application page counts rounds from your emails (one round per interview day, following reschedules and dropping cancelled ones, raised by named rounds such as "second round") and from the interview steps you log. It is an estimate until you type a number, and "Use estimate" takes you back. The number you type is saved in exports and kept when you merge applications.
+- **Coming up:** interviews in the next 7 days show in a short list above the applications (up to five, soonest first), and "Interview Thu, Oct 15" shows under the stage of each application that has one. It comes from your interview emails, follows reschedules, drops cancelled ones, and skips Rejected and Offer. The list hides while any filter is on.
+- **Follow-ups:** an Applied or Heard back application with no activity for 7 days gets a "Follow up?" tag. Tick "Needs follow-up" in the filters and choose Apply filters to see only those.
+- **Rounds column:** in Settings, Appearance, choose Rounds as a table column (off by default). It sorts, stays blank where nothing is counted, and is hidden at phone widths like Role, Applied and Emails.
+- **Offer details:** the application page has a Salary (up to 60 characters of free text) and a Decision deadline at the Offer stage. The list shows "Decision by Oct 15" under an Offer. Both are saved in exports and kept when you merge applications.
+- **Several at once:** tick rows, or the box in the header for every row shown, to set a stage on all of them (which locks it, like the stage dropdown) or delete them and their emails. Your mailbox isn't touched. Changing a filter clears the ticks. Up to 500 at a time.
+- **Duplicate warning:** the Add application form says "You already have ..." with a link when the posting link, or the company and role, match an existing application. It never blocks Save.
+
+## Export a spreadsheet
+
+Settings, Your data, Export CSV saves every application as `job-tracker-applications-YYYY-MM-DD.csv` for Excel, Numbers or Google Sheets, whatever filters the list has on. Columns: Company, Role, Stage, Applied, Last activity, Emails, Interview rounds, Posting link, Offer salary, Offer deadline. It has no email text and can't be imported back. Use Export data for a full copy.
 
 ## What is not in this edition
 

@@ -1,6 +1,6 @@
 // Times are ISO-8601 UTC strings without milliseconds, like jobtracker/db.py's iso(), so string comparison orders them.
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
 export function iso(when: Date | string | number): string {
   const d = when instanceof Date ? when : new Date(when);

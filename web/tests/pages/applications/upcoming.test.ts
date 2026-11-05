@@ -1,12 +1,20 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { $, $$, addApp, addMail, cleanup, freshDb, mountPage, text } from "./harness";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { $, $$, addApp, addMail, cleanup, daysAgo, freshDb, mountPage, row, text } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { localToday } from "../../../src/db/time";
 import { shortDay } from "../../../src/sync/upcoming";
 
-afterEach(cleanup);
+// Freeze only the clock's date (the harness times itself with performance.now), so "today" can't change under a test at midnight.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-05T12:00:00"));
+});
+afterEach(async () => {
+  await cleanup();
+  vi.useRealTimers();
+});
 
 /** The viewer's calendar day `n` days from now, as YYYY-MM-DD. */
 const inDays = (n: number): string => {
@@ -15,15 +23,20 @@ const inDays = (n: number): string => {
   return localToday(d);
 };
 
-const row = (container: HTMLElement, company: string) =>
-  [...container.querySelectorAll("tr.app-row")].find((r) => text(r).includes(company)) as HTMLElement;
 const strip = (container: HTMLElement) => $(container, "section.coming-up");
 const stripRows = (container: HTMLElement) => $$(container, "section.coming-up a").map((a) => text(a));
 
-/** An application with one interview email that names `day`. */
-async function interview(db: JobTrackerDB, account: number, company: string, day: string | null, o: { role?: string; thread?: string; subject?: string } = {}): Promise<number> {
-  const id = await addApp(db, company, { role: o.role ?? "Analyst", stage: "Interview" });
-  await addMail(db, account, id, { event: "interview", subject: o.subject ?? "Interview invitation", body: day ? `We will meet on ${day} at 10:00.` : "Let's find a time.", threadId: o.thread ?? `thread-${company}` });
+const names = (container: HTMLElement) => $$(container, "section.coming-up .coming-up-company").map((e) => text(e));
+
+type Stage = NonNullable<Parameters<typeof addApp>[2]>["stage"];
+
+/**
+ * An application with one interview email that names `day`. `when` is when the email arrived: a day that has passed only
+ * gets as far as the "day is before today" check if the email is old enough for that day to be inside its own window.
+ */
+async function interview(db: JobTrackerDB, account: number, company: string, day: string | null, o: { role?: string; thread?: string; subject?: string; stage?: Stage; last?: number; when?: Date } = {}): Promise<number> {
+  const id = await addApp(db, company, { role: o.role ?? "Analyst", stage: o.stage ?? "Interview", last: o.last });
+  await addMail(db, account, id, { event: "interview", subject: o.subject ?? "Interview invitation", body: day ? `We will meet on ${day} at 10:00.` : "Let's find a time.", threadId: o.thread ?? `thread-${company}`, when: o.when });
   return id;
 }
 
@@ -50,7 +63,7 @@ describe("upcoming interviews in the list", () => {
   it("leaves out a day that has passed and a cancelled interview, and follows a reschedule", async () => {
     const db = freshDb();
     const account = await upsertAccount(db, "gmail", "me@gmail.com");
-    await interview(db, account, "Past", inDays(-3));
+    await interview(db, account, "Past", inDays(-3), { when: daysAgo(10) });
     const cancelled = await interview(db, account, "Cancelled", inDays(2), { thread: "t-c" });
     await addMail(db, account, cancelled, { event: "interview", subject: "Interview cancelled", body: "Sorry, we have to cancel.", threadId: "t-c", when: new Date(Date.now() + 1000) });
     const moved = await interview(db, account, "Moved", inDays(2), { thread: "t-m" });
@@ -99,31 +112,68 @@ describe("the Coming up strip", () => {
     expect(region.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("shows at most five", async () => {
+  it("shows the five soonest when there are more, the earlier-named company first on a shared day", async () => {
     const db = freshDb();
     const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    // Co0 and Co4 are tomorrow, Co1 and Co5 in two days, Co2 and Co6 in three, Co3 in four.
     for (let i = 0; i < 7; i++) await interview(db, account, `Co${i}`, inDays(i % 4 + 1));
     const { container } = await mountPage(ApplicationsPage, db);
     expect(stripRows(container)).toHaveLength(5);
+    expect(names(container)).toEqual(["Co0", "Co4", "Co1", "Co5", "Co2"]);
+  });
+
+  it("sorts by day, then company, then id", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    await interview(db, account, "Zebra", inDays(2), { role: "Analyst" });
+    await interview(db, account, "Acme", inDays(2), { role: "Zed" });
+    await interview(db, account, "Acme", inDays(2), { role: "Abe" });
+    await interview(db, account, "Yak", inDays(1));
+    const { container } = await mountPage(ApplicationsPage, db);
+    // Both Acme rows share a day and a company, so the one saved first goes first, not the one whose role sorts first.
+    expect(stripRows(container).map((r) => r.replace(/ (Tomorrow|\w{3}, \w{3} \d+)$/, ""))).toEqual(["Yak Analyst", "Acme Zed", "Acme Abe", "Zebra Analyst"]);
+  });
+
+  it("keeps its own order whatever the list is sorted by", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    await interview(db, account, "Acme", inDays(4));
+    await interview(db, account, "Beta", inDays(1));
+    await interview(db, account, "Gamma", inDays(2));
+    const { container } = await mountPage(ApplicationsPage, db, "/?sort=company&dir=desc");
+    expect($$(container, "tr.app-row [data-col=company] strong").map((e) => text(e))).toEqual(["Gamma", "Beta", "Acme"]);
+    expect(names(container)).toEqual(["Beta", "Gamma", "Acme"]);
+  });
+
+  it("shows a line for Heard back and Assessment applications too", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    await interview(db, account, "Orion", inDays(2), { stage: "Heard back" });
+    await interview(db, account, "Vega", inDays(3), { stage: "Assessment" });
+    const { container } = await mountPage(ApplicationsPage, db);
+    expect(text($(row(container, "Orion"), ".interview-line"))).toBe(`Interview ${shortDay(inDays(2))}`);
+    expect(text($(row(container, "Vega"), ".interview-line"))).toBe(`Interview ${shortDay(inDays(3))}`);
+    expect(names(container)).toEqual(["Orion", "Vega"]);
   });
 
   it("is not there when nothing is within seven days", async () => {
     const db = freshDb();
     const account = await upsertAccount(db, "gmail", "me@gmail.com");
     await interview(db, account, "Far", inDays(10));
-    await interview(db, account, "Past", inDays(-2));
+    await interview(db, account, "Past", inDays(-2), { when: daysAgo(10) });
     await addApp(db, "Plain");
     const { container } = await mountPage(ApplicationsPage, db);
     expect(strip(container)).toBeNull();
     expect(container.textContent).not.toContain("Coming up");
   });
 
-  it("is hidden while a search, stage or account filter is on", async () => {
-    for (const to of ["/", "/?q=acme", "/?stage=Interview", "/?account=1"]) {
+  it("is hidden while a search, stage, account or follow-up filter is on", async () => {
+    for (const to of ["/", "/?q=acme", "/?stage=Applied", "/?account=1", "/?followUp=1"]) {
       const db = freshDb();
       const account = await upsertAccount(db, "gmail", "me@gmail.com");
       expect(account).toBe(1);
-      await interview(db, account, "Acme", inDays(2));
+      // Applied and quiet for a week, so it passes every one of those filters
+      await interview(db, account, "Acme", inDays(2), { stage: "Applied", last: 8 });
       const { container } = await mountPage(ApplicationsPage, db, to);
       expect(row(container, "Acme"), to).toBeTruthy();
       expect(strip(container) === null, to).toBe(to !== "/");

@@ -28,6 +28,14 @@ describe("setOfferDetails", () => {
     expect("offerDeadline" in cleared!).toBe(false);
   });
 
+  it("treats a salary of only spaces as none, so it clears with an empty deadline", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { stage: "Offer" });
+    await setOfferDetails(db, id, { salary: "$1", deadline: "" });
+    await setOfferDetails(db, id, { salary: " \t  ", deadline: "" });
+    expect("offerSalary" in (await db.applications.get(id))!).toBe(false);
+  });
+
   it("allows a deadline in the past", async () => {
     const db = freshDb();
     const id = await addApp(db, "Acme", { stage: "Offer" });

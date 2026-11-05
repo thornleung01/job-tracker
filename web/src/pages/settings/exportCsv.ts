@@ -1,10 +1,8 @@
-// The Export CSV button: the list's rows (with rounds counted the same way) as a spreadsheet file.
+// Builds the CSV text and the download for Settings.
 import type { JobTrackerDB } from "../../db/schema";
-import { applicationsToCsv, csvFilename } from "../../portability/csv";
+import { applicationsToCsv } from "../../portability/csv";
 import { listApplications } from "../../sync/queries";
 import { downloadText } from "./actions";
-
-export { csvFilename };
 
 export async function exportApplicationsCsv(db: JobTrackerDB): Promise<string> {
   return applicationsToCsv(await listApplications(db));

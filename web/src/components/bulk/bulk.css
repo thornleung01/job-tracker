@@ -26,3 +26,8 @@ tr.app-row.is-selected td { background: var(--fog); }
 .bulk-confirm { margin-top: 12px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
 .bulk-confirm-q { margin: 0 0 4px; font-weight: 500; }
 .bulk-confirm .help { margin-bottom: 12px; }
+
+/* The result line after an action, with Undo beside it while there's still time. */
+.bulk-done { display: flex; align-items: flex-start; gap: 8px; }
+.bulk-done .notice { flex: 1; }
+.bulk-undo { min-height: 28px; padding: 0 12px; margin-top: 10px; }

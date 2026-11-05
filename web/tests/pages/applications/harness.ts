@@ -130,6 +130,8 @@ export const $ = (root: ParentNode, selector: string) => root.querySelector(sele
 export const $$ = (root: ParentNode, selector: string) => [...root.querySelectorAll(selector)];
 export const text = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 export const button = (root: ParentNode, label: string) => $$(root, "button").find((b) => text(b) === label) ?? null;
+/** The list row whose text mentions `company`. */
+export const row = (container: HTMLElement, company: string) => $$(container, "tr.app-row").find((r) => text(r).includes(company)) as HTMLElement;
 
 // -- seed data ----------------------------------------------------------------------------------------------------
 
