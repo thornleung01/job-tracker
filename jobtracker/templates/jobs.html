@@ -92,7 +92,7 @@
   {% else %}
     <div class="empty"><strong>Nothing here yet.</strong>
       {% if view == 'new' and floor > 0 %}No new job scores {{ floor }} or more. Try "Any score", or{% else %}Jobs arrive with each sync. You can also{% endif %}
-      press <em>Look for jobs now</em>. Add places to look on the <a href="/jobs?tab=sources">Sources</a> tab.</div>
+      choose <em>Look for jobs now</em>. Add places to look on the <a href="/jobs?tab=sources">Sources</a> tab.</div>
   {% endif %}
   </div>
 
@@ -109,7 +109,7 @@
     {% else %}
       <p class="muted">No notifications yet. They start once a sync finds a job that fits.</p>
     {% endfor %}
-    <p class="small muted" style="margin-top:16px">To check pop-ups work on this PC, run <code>python -m jobtracker notify --test</code>.</p>
+    <p class="small muted" style="margin-top:16px">To check that pop-ups work on this PC, run <code>python -m jobtracker notify --test</code>.</p>
   </div>
 
 {% elif tab == 'profile' %}
@@ -174,12 +174,12 @@
     </ol>
     <p class="small muted" style="margin-top:12px">Found so far:
       LinkedIn {{ alert_counts.get('linkedin', 0) }} · Indeed {{ alert_counts.get('indeed', 0) }}.
-      Alert emails only list a title, company and place, so those jobs are scored on those and marked "partial info".</p>
+      Alert emails only list a title, company, and place. Those jobs are scored on that and marked "partial info".</p>
   </section>
 
   <section class="card" aria-labelledby="h-feeds">
     <h2 class="sec" id="h-feeds">Company career pages</h2>
-    <p class="help">Paste a careers address from Greenhouse, Lever, Ashby or SmartRecruiters (for example <code>boards.greenhouse.io/acme</code>). Their job lists are public and checked about once an hour.</p>
+    <p class="help">Paste a careers address from Greenhouse, Lever, Ashby, or SmartRecruiters (for example <code>boards.greenhouse.io/acme</code>). Their job lists are public and checked about once an hour.</p>
     <form method="post" action="/jobs/sources/feed" class="row" style="align-items:flex-end" data-busy="Checking...">
       <div class="fgroup" style="flex:2 1 280px"><label for="s-url">Careers page address</label><input id="s-url" name="url" placeholder="https://boards.greenhouse.io/acme" required style="width:100%"></div>
       <div class="fgroup" style="flex:1 1 160px"><label for="s-name">Company name (optional)</label><input id="s-name" name="name" style="width:100%"></div>

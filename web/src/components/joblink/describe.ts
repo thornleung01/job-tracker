@@ -48,7 +48,7 @@ export function describeDraft(draft: JobDraft, held: Held): string {
   if (!parts.length) return KEPT_TYPED;
   const guessed = (held.company && draft.guessed.company) || (held.role && draft.guessed.role);
   const origin = draft.source === "paste" ? "the text" : "the link";
-  if (guessed) return withPlace(`Guessed from ${origin}: check the company and role.`, draft);
+  if (guessed) return withPlace(`Guessed from ${origin}. Check the company and role.`, draft);
   const from = draft.source === "api" ? boardName(draft.url) : origin;
   const names = parts.join(", ");
   return withPlace(`Filled in from ${from}: ${names}${names.endsWith(".") ? "" : "."}`, draft);

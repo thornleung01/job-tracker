@@ -60,9 +60,9 @@ describe("syncAccount", () => {
 
   it("records a provider error on the account and rethrows", async () => {
     const { db, acct } = await dbWithAccount();
-    await expect(syncAccount(db, acct, provider([], { failAfter: 0, error: new NotConnected("Sign in again") }), { now })).rejects.toThrow("Sign in again");
+    await expect(syncAccount(db, acct, provider([], { failAfter: 0, error: new NotConnected("Log in again") }), { now })).rejects.toThrow("Log in again");
     const row = (await db.accounts.get(acct))!;
-    expect(row.lastError).toBe("NotConnected: Sign in again");
+    expect(row.lastError).toBe("Log in again");
     expect(row.lastSync).toBeNull();
   });
 
@@ -88,7 +88,7 @@ describe("syncAccount", () => {
     const bad = { ...mk("bad", "Thank you for applying to Initech"), body: null as unknown as string };
     const counts = await syncAccount(db, acct, provider([mk("good", "Thank you for applying to Acme"), bad]), { now });
     expect(counts.error).toBe(1);
-    expect((await db.accounts.get(acct))!.lastError).toBe("Skipped 1 unreadable message");
+    expect((await db.accounts.get(acct))!.lastError).toBe("Skipped 1 unreadable email.");
   });
 
   it("settles review mail that new mail has made clear", async () => {

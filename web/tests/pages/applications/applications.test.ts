@@ -93,9 +93,9 @@ describe("the list", () => {
     expect(labels).toContain("5 days ago");
     expect(labels).toContain("9 days ago");
     const time = $(container, "td[data-col=last_activity] time")!;
-    expect(time.getAttribute("title")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(time.getAttribute("title")).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{4}$/);
     expect(text(time)).not.toMatch(/\d{4}/);
-    expect(text($$(container, "td[data-col=applied]")[1])).toMatch(/^\d{4}-\d{2}-\d{2}$|^unknown$/);
+    expect(text($$(container, "td[data-col=applied]")[1])).toMatch(/^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$|^Unknown$/);
   });
 
   it("shows the stage, and a note when you set it yourself", async () => {
@@ -105,10 +105,11 @@ describe("the list", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     const rows = $$(container, "tr.app-row");
     const mine = rows.find((r) => text(r).includes("Mine"))!;
-    expect($(mine, ".badge")?.className).toBe("badge Interview");
+    expect($(mine, ".badge")?.className).toBe("badge Interview quick-stage");
+    expect(($(mine, "select") as HTMLSelectElement).value).toBe("Interview");
     expect(text(mine)).toContain("set by you");
     const theirs = rows.find((r) => text(r).includes("Theirs"))!;
-    expect($(theirs, ".badge")?.className).toBe("badge Heard-back");
+    expect($(theirs, ".badge")?.className).toBe("badge Heard-back quick-stage");
     expect(text(theirs)).not.toContain("set by you");
   });
 });
@@ -185,7 +186,7 @@ describe("filters", () => {
   it("explains the empty states", async () => {
     const db = freshDb();
     const none = await mountPage(ApplicationsPage, db);
-    expect(text($(none.container, ".notice"))).toBe("No mail account connected yet. Connect one in Settings to start syncing.");
+    expect(text($(none.container, ".notice"))).toBe("No email account connected yet. Connect one in Settings to start syncing.");
     expect($(none.container, ".notice a")?.getAttribute("href")).toBe("#/settings");
     expect(text($(none.container, "td.list-empty"))).toContain("No applications yet.");
     const full = freshDb();
@@ -203,7 +204,7 @@ describe("filters", () => {
     await addMail(db, account, null, { review: true });
     const { container } = await mountPage(ApplicationsPage, db);
     const notice = $(container, ".notice")!;
-    expect(text(notice)).toContain("2 emails need a look.");
+    expect(text(notice)).toContain("2 emails need review.");
     expect($(notice, "a")?.getAttribute("href")).toBe("#/review");
   });
 });
@@ -350,7 +351,7 @@ describe("expandable rows", () => {
     await type($(panel, "select[name=label]"), "Interview");
     await type($(panel, "textarea"), "Zoom with Sam");
     await click(button(panel, "Log step"));
-    await waitFor(() => text($(container, `#stage-${mid}`)) === "Interview");
+    await waitFor(() => ($(container, `#stage-${mid} select`) as HTMLSelectElement).value === "Interview");
     expect(text($(panel, ".panel-status"))).toBe("Step logged. The stage was updated.");
     expect($(panel, ".panel-status")?.getAttribute("role")).toBe("status");
     expect(text($(panel, "ol.hist li .hist-text, ol.hist li strong"))).toBeTruthy();
@@ -384,7 +385,7 @@ describe("expandable rows", () => {
     await type($(panel, "select[name=label]"), "Phone screen");
     await click(button(panel, "Log step"));
     const del = $(panel, "button.hist-del")!;
-    expect(del.getAttribute("aria-label")).toMatch(/^Delete step from \d{4}-\d{2}-\d{2}$/);
+    expect(del.getAttribute("aria-label")).toMatch(/^Delete step from [A-Z][a-z]+ \d{1,2}, \d{4}$/);
     await click(del);
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => !$(panel, "button.hist-del"));
@@ -395,7 +396,7 @@ describe("expandable rows", () => {
     const db = freshDb();
     const { mid } = await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db, `/?open=${mid}`);
-    await click(button($(container, `#panel-${mid}`)!, "Delete"));
+    await click(button($(container, `#panel-${mid}`)!, "Delete application"));
     await waitFor(() => !$(container, `#panel-${mid}`));
     expect(companies(container)).toEqual(["Zeta", "alpha"]);
     expect(await db.emails.where("applicationId").equals(mid).count()).toBe(0);
@@ -406,7 +407,7 @@ describe("expandable rows", () => {
     const { mid } = await seedThree(db);
     window.confirm = vi.fn(() => false);
     const { container } = await mountPage(ApplicationsPage, db, `/?open=${mid}`);
-    await click(button($(container, `#panel-${mid}`)!, "Delete"));
+    await click(button($(container, `#panel-${mid}`)!, "Delete application"));
     expect(companies(container)).toContain("Mid");
   });
 
@@ -527,7 +528,7 @@ describe("adding an application by hand", () => {
     await click(button(container, "Save application"));
     await waitFor(() => companies(container).includes("Newco"));
     await waitFor(() => !$(container, "#add-application"));
-    expect(text($(container, ".notice"))).toBe("Added Newco. It is kept as yours, so a sync never changes it.");
+    expect(text($(container, ".notice"))).toBe("Added Newco. It stays yours, so a sync never changes it.");
     expect(document.activeElement).toBe(button(container, "Add application"));
     const row = $$(container, "tr.app-row").find((r) => text(r).includes("Newco"))!;
     expect(text(row)).toContain("Designer");
@@ -551,7 +552,7 @@ describe("adding an application by hand", () => {
     await submitForm($(container, "#add-application form"));
     const alert = $(container, "#add-application .notice.err")!;
     expect(alert.getAttribute("role")).toBe("alert");
-    expect(text(alert)).toBe("That date is in the future");
+    expect(text(alert)).toBe("The date can't be in the future.");
     expect(($(container, "#add-company") as HTMLInputElement).value).toBe("Acme");
     expect(await db.applications.count()).toBe(0);
   });
@@ -637,7 +638,7 @@ const deferred = <T,>() => {
 };
 
 describe("paste a job link", () => {
-  it("shows the field, its help and a quiet Fill in button, and the form still works with no link", async () => {
+  it("shows the field and a quiet Fill in details button, and the form still works with no link", async () => {
     const db = freshDb();
     const { Page, deps } = withFakes();
     const { container } = await mountPage(Page, db);
@@ -646,8 +647,7 @@ describe("paste a job link", () => {
     expect(text($(slot, "label[for=add-link]"))).toBe("Paste a job link");
     const input = field(container, "add-link");
     expect([input.type, input.getAttribute("inputmode")]).toEqual(["text", "url"]);
-    expect(text(slot)).toContain("We read the link and fill in what we can. You can change anything before saving.");
-    const fill = button(slot, "Fill in")!;
+    const fill = button(slot, "Fill in details")!;
     expect(fill.classList.contains("primary")).toBe(false);
     expect($$(container, "#add-application button.primary")).toHaveLength(1);
     await type($(container, "#add-company"), "Plain Co");
@@ -673,7 +673,7 @@ describe("paste a job link", () => {
     expect(deps.parseJobUrl).toHaveBeenCalledWith("https://jobs.example.com/p/1");
     expect(field(container, "add-role").value).toBe("Software Engineer");
     expect(field(container, "add-url").value).toBe("https://jobs.example.com/p/1");
-    expect(result(container)).toBe("Guessed from the link: check the company and role.");
+    expect(result(container)).toBe("Guessed from the link. Check the company and role.");
   });
 
   it("fills on the Fill in button and on Enter, and Enter does not submit the form", async () => {
@@ -682,7 +682,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://jobs.example.com/p/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(field(container, "add-company").value).toBe("Stripe");
     await type(field(container, "add-company"), "");
     await type(field(container, "add-role"), "");
@@ -699,12 +699,12 @@ describe("paste a job link", () => {
     await openForm(container);
     await type(field(container, "add-company"), "My own company");
     await type(field(container, "add-link"), "https://jobs.example.com/p/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(field(container, "add-company").value).toBe("My own company");
     expect(field(container, "add-role").value).toBe("Software Engineer");
     expect($(container, "#add-company-hint")).toBeNull();
     await type(field(container, "add-role"), "Staff designer");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(field(container, "add-role").value).toBe("Staff designer");
     expect(result(container)).toBe("Kept what you typed. Check the company and role.");
   });
@@ -716,10 +716,10 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://jobs.example.com/p/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     deps.parseJobUrl.mockReturnValueOnce(next);
     await type(field(container, "add-link"), "https://jobs.example.com/p/2");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect([field(container, "add-company").value, field(container, "add-role").value, field(container, "add-url").value]).toEqual(["Notion", "Designer", "https://jobs.example.com/p/2"]);
     expect($(container, "#add-company-hint")).toBeNull();
     expect(result(container)).toBe("Filled in from the link: Notion, Designer.");
@@ -731,7 +731,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://jobs.example.com/p/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     const hint = $(container, "#add-company-hint")!;
     expect(text(hint)).toBe("Guessed from the link");
     expect(field(container, "add-company").getAttribute("aria-describedby")).toBe("add-company-hint");
@@ -749,7 +749,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     const checking = $(container, "#add-link-checking")!;
     expect(checking.getAttribute("role")).toBe("status");
     expect(checking.getAttribute("aria-busy")).toBe("true");
@@ -776,7 +776,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     const signal = deps.enrichJobDraft.mock.calls[0][1]!.signal!;
     expect(signal.aborted).toBe(false);
     await click(button(container, "Cancel"));
@@ -795,12 +795,12 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     const first = deps.enrichJobDraft.mock.calls[0][1]!.signal!;
     await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/12");
     expect(first.aborted).toBe(true);
     expect($(container, "#add-link-checking")!.getAttribute("aria-busy")).toBe("false");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     const second = deps.enrichJobDraft.mock.calls[1][1]!.signal!;
     expect(second.aborted).toBe(false);
     await cleanup();
@@ -814,7 +814,7 @@ describe("paste a job link", () => {
     await openForm(container);
     expect(text($(container, "#add-link-slot"))).not.toContain("bookmarklet");
     await type(field(container, "add-link"), "https://www.linkedin.com/jobs/view/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
     expect(field(container, "add-company").value).toBe("");
     const slot = $(container, "#add-link-slot")!;
@@ -829,10 +829,10 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "not a link");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
     await type(field(container, "add-link"), "");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(result(container)).toBe("Paste a link first.");
   });
 
@@ -856,7 +856,7 @@ describe("paste a job link", () => {
     expect(deps.parsePastedText).toHaveBeenCalledWith("Shopify is hiring a Data Scientist", undefined);
     expect([field(container, "add-company").value, field(container, "add-role").value]).toEqual(["Shopify", "Data Scientist"]);
     expect(text($(container, "#add-company-hint"))).toBe("Guessed from the text");
-    expect(result(container)).toBe("Guessed from the text: check the company and role.");
+    expect(result(container)).toBe("Guessed from the text. Check the company and role.");
     await type(box, "nothing here");
     deps.parsePastedText.mockReturnValueOnce(null);
     await click(button(container, "Read the text"));
@@ -870,7 +870,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://e.example/p");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(field(container, "add-company").value).toBe("<img src=x onerror=alert(1)>");
     expect($(container, "#add-application img, #add-application script, #add-application b")).toBeNull();
     expect(result(container)).toContain("<script>x</script>");
@@ -882,7 +882,7 @@ describe("paste a job link", () => {
     const { container } = await mountPage(Page, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://jobs.example.com/p/1");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     await click(button(container, "Save application"));
     await waitFor(() => !$(container, "#add-application"));
     const saved = (await db.applications.toArray()).find((a) => a.company === "Stripe")!;
@@ -904,7 +904,7 @@ describe("paste a job link", () => {
     await submitForm($(container, "#add-application form"));
     const alert = $(container, "#add-application .notice.err")!;
     expect(alert.getAttribute("role")).toBe("alert");
-    expect(text(alert)).toBe("That link does not look right. Use a web address that starts with https://.");
+    expect(text(alert)).toBe("That link doesn't look right. Use a web address that starts with https://.");
     expect(field(container, "add-company").value).toBe("Acme");
     expect(await db.applications.count()).toBe(0);
   });
@@ -984,7 +984,7 @@ describe("with the real job-link library", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/12345?gh_src=abc");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     await waitFor(() => field(container, "add-company").value !== "");
     await waitFor(() => $(container, "#add-link-checking")?.getAttribute("aria-busy") === "false");
     expect(field(container, "add-company").value.toLowerCase()).toContain("stripe");
@@ -1003,7 +1003,7 @@ describe("with the real job-link library", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     await openForm(container);
     await type(field(container, "add-link"), "https://www.linkedin.com/jobs/view/3912345678/");
-    await click(button(container, "Fill in"));
+    await click(button(container, "Fill in details"));
     expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
     expect(field(container, "add-company").value).toBe("");
   });

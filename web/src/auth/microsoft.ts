@@ -85,7 +85,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
   }));
 
   function toToken(r: MsalResult): MicrosoftAccessToken {
-    if (!r.accessToken) throw new NotConnected("Outlook did not return an access token");
+    if (!r.accessToken) throw new NotConnected("Outlook didn't return an access token. Try again.");
     if (r.account) account = r.account;
     return { token: r.accessToken, expiresAt: r.expiresOn?.getTime() ?? now() + 55 * 60_000 };
   }
@@ -95,7 +95,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
       return toToken(await app.acquireTokenPopup({ scopes: deps.mailScopes, ...(account ? { account } : {}) }));
     } catch (e) {
       if (e instanceof NotConnected) throw e;
-      throw new NotConnected("Outlook connection was not completed. Allow pop-ups and try again.");
+      throw new NotConnected("Outlook connection wasn't completed. Allow pop-ups and try again.");
     }
   }
 
@@ -107,7 +107,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
       try {
         result = await app.loginPopup({ scopes: deps.loginScopes, nonce });
       } catch (e) {
-        throw new Error("Microsoft sign-in was not completed. Allow pop-ups and try again.", { cause: e });
+        throw new Error("Microsoft login wasn't completed. Allow pop-ups and try again.", { cause: e });
       }
       const claims = validateIdToken(result.idToken, {
         issuers: [MICROSOFT_ISSUER],
@@ -130,7 +130,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
           if (!needsInteraction(e)) throw e;
         }
       }
-      if (!interactive) throw new NotConnected("Outlook needs you to connect again");
+      if (!interactive) throw new NotConnected("Outlook needs you to reconnect.");
       return popup(app);
     },
 

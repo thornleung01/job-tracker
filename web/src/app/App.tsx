@@ -57,7 +57,7 @@ function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrac
   if (state.status === "missing") {
     return (
       <div className="notice" role="status">
-        This page is not available in this build.
+        This page isn't available.
       </div>
     );
   }
@@ -65,7 +65,7 @@ function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrac
     return (
       <>
         <div className="notice err" role="alert">
-          This page did not load. Check your connection and try again.
+          This page didn't load. Check your connection and try again.
         </div>
         <button onClick={() => setAttempt((n) => n + 1)}>Try again</button>
       </>
@@ -116,7 +116,7 @@ function SignedIn({ user, loaders, openDb }: { user: PageUser; loaders: PageLoad
             fallback={(_error, retry) => (
               <>
                 <div className="notice err" role="alert">
-                  Something went wrong on this page.
+                  Something went wrong on this page. Try again, or go back to Applications.
                 </div>
                 <div className="row">
                   <button onClick={retry}>Try again</button>
@@ -141,11 +141,11 @@ function SignedInBoundary({ user, loaders, openDb, onSignOut }: { user: PageUser
       fallback={() => (
         <div className="wrap">
           <div className="notice err" role="alert">
-            {onSignOut ? "Something went wrong. Reload the page, or sign out and back in." : "Something went wrong. Reload the page."}
+            {onSignOut ? "Something went wrong. Reload the page, or log out and back in." : "Something went wrong. Reload the page."}
           </div>
           <div className="row">
-            <button onClick={() => window.location.reload()}>Reload</button>
-            {onSignOut && <button onClick={onSignOut}>Sign out</button>}
+            <button onClick={() => window.location.reload()}>Reload page</button>
+            {onSignOut && <button onClick={onSignOut}>Log out</button>}
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@
   {# The detail page shows the link up by the title; in the list this is where it appears. #}
   {% set posting = p.a.url|posting_url %}{% if posting and p.include_emails %}<p class="small" style="margin:0 0 8px"><a href="{{ posting }}" target="_blank" rel="noopener noreferrer">Open posting</a></p>{% endif %}
 
+  <div class="panel-split">
   <div class="panel-forms">
     <form method="post" action="/app/{{ aid }}/step" data-panel-form>
       <h3 class="panel-h">Log a step</h3>
@@ -28,12 +29,12 @@
       </div>
       <label class="field small" for="step-body-{{ aid }}" style="margin-top:8px">Note (optional)</label>
       <textarea id="step-body-{{ aid }}" name="body" rows="2" maxlength="2000" style="min-height:64px">{{ p.form.body or '' }}</textarea>
-      <p class="help" style="margin-top:4px">Choosing a stage (like Interview) also moves the application to it. Other steps only go in the history.</p>
       <button class="primary">Log step</button>
     </form>
   </div>
 
-  <h3 class="panel-h" style="margin-top:16px">History</h3>
+  <div class="panel-history">
+  <h3 class="panel-h panel-h-history">History</h3>
   {% if p.entries %}
   <ol class="hist">
     {% for i in p.entries %}
@@ -89,15 +90,17 @@
   {% else %}
   <p class="muted small">Nothing logged yet. Log a step above, with a note if you like.</p>
   {% endif %}
+  </div>
+  </div>
 
   {% if p.include_emails %}
   <form method="post" action="/app/{{ aid }}/delete" style="margin-top:14px;display:inline-block;margin-right:8px"
-        onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched.')">
-    <input type="hidden" name="emails" value="clear"><button class="danger small">Delete</button>
+        onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox isn\'t touched.')">
+    <input type="hidden" name="emails" value="clear"><button class="danger small">Delete application</button>
   </form>
   <form method="post" action="/app/{{ aid }}/not-application" style="margin-top:14px;display:inline-block"
-        onsubmit="return confirm('Remove this and teach the app it was not a job application? Mail like it will be ignored from now on.')">
-    <button class="danger small" title="Removes it and learns to ignore mail like the emails that made it">Not an application</button>
+        onsubmit="return confirm('Remove this and teach the app it wasn\'t a job application? Emails like it will be ignored from now on.')">
+    <button class="danger small" title="Removes it and learns to ignore emails like the ones that made it.">Not an application</button>
   </form>
   {% endif %}
 

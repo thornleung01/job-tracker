@@ -321,6 +321,13 @@
   .list-card { container-type: inline-size; }
   @supports (width: 1cqw) { .list-card .panel-inner { position: sticky; left: 0; width: 100cqw; } }
   .panel-forms { display: grid; grid-template-columns: minmax(0, 560px); gap: 32px; align-items: start; }
+  .panel-history { min-width: 0; }
+  .panel-history .panel-h-history { margin-top: 16px; }
+  /* Wide enough: the form on the left, its history beside it, so the row has no empty right half. */
+  @media (min-width: 960px) {
+    .panel-split { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 32px 48px; align-items: start; }
+    .panel-split .panel-history .panel-h-history { margin-top: 12px; }
+  }
   .panel-h { font: 500 1rem/1.375 var(--font-ui); margin: 12px 0 8px; }
   .panel-status { min-height: 1.2em; outline: none; }
   ol.hist { list-style: none; margin: 0; padding: 0; }
@@ -425,17 +432,19 @@
     const ago = d => {
       const s = (Date.now() - d) / 1000;
       if (s < 0) return '';
-      if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
-      if (s < 86400) return Math.round(s / 3600) + ' h ago';
+      if (s < 3600) { const m = Math.max(1, Math.round(s / 60)); return m + (m === 1 ? ' minute ago' : ' minutes ago'); }
+      if (s < 86400) { const h = Math.round(s / 3600); return h + (h === 1 ? ' hour ago' : ' hours ago'); }
       const days = Math.floor(s / 86400);
       return days === 1 ? 'yesterday' : days + ' days ago';
     };
+    // Times read "1:00 pm": lowercase, with a space before am or pm.
+    const clock = text => text.replace(/(?<=\d)[\s\u202f\u00a0]*([ap])\.?m\.?(?![a-z])/gi, (_, h) => ' ' + h.toLowerCase() + 'm');
     const localize = root => root.querySelectorAll && root.querySelectorAll('time.local:not([data-done])').forEach(el => {
       const d = new Date(el.getAttribute('datetime'));
       if (isNaN(d)) return;
       const opts = el.dataset.fmt === 'short' ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' };
-      el.textContent = d.toLocaleString([], opts) + (el.hasAttribute('data-rel') && ago(d) ? ' \u00b7 ' + ago(d) : '');
-      el.title = d.toLocaleString([], { dateStyle: 'full', timeStyle: 'long' });
+      el.textContent = clock(d.toLocaleString([], opts)) + (el.hasAttribute('data-rel') && ago(d) ? ' \u00b7 ' + ago(d) : '');
+      el.title = clock(d.toLocaleString([], { dateStyle: 'full', timeStyle: 'long' }));
       el.dataset.done = '1';
     });
     localize(document);
@@ -443,7 +452,7 @@
   })();
   // The profile picker switches as soon as you choose.
   document.addEventListener('change', e => { if (e.target.matches('select[data-autosubmit]')) e.target.form.requestSubmit(); });
-  // Forms with data-busy="Working..." show progress and can't be pressed twice while they run.
+  // Forms with data-busy="Working…" show progress and can't be pressed twice while they run.
   document.addEventListener('submit', e => {
     const form = e.target, msg = form.dataset && form.dataset.busy;
     if (!msg || e.defaultPrevented) return;

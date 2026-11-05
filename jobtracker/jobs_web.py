@@ -159,7 +159,7 @@ def register(app, templates, get_conn, http_get=None, toast=None, who=lambda pid
             return to("sources", error=str(exc))
         pid = request.state.profile
         run_discovery(conn, force=True, get=http_get, toast=toast, owner=pid, who=who(pid))
-        return to("sources", notice=f"Added. That company has {count} open role{'s' if count != 1 else ''} right now; the good matches are in Matches.")
+        return to("sources", notice=f"Added. That company has {count} open role{'s' if count != 1 else ''} right now. The good matches are in Matches.")
 
     @app.post("/jobs/sources/adzuna/remove")
     def remove_adzuna(request: Request, conn=Depends(get_conn)):

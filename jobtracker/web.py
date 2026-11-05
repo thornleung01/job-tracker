@@ -32,7 +32,7 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 TEMPLATE_DIR = str(Path(__file__).with_name("templates"))
 STATIC_DIR = str(Path(__file__).with_name("static"))
 PERIODS = [(0, "All time"), (30, "Last 30 days"), (90, "Last 90 days"), (180, "Last 180 days")]
-SCAN_CHOICES = [(0, "New mail since last sync"), *PERIODS[1:]]
+SCAN_CHOICES = [(0, "New emails since last sync"), *PERIODS[1:]]
 # Columns you can sort the list by. The stage sorts by pipeline order, not alphabetically.
 _STAGE_ORDER = "CASE a.stage " + " ".join(f"WHEN '{s}' THEN {i}" for i, s in enumerate(STAGES)) + " END"
 SORT_SQL = {
@@ -62,7 +62,7 @@ def _eta_text(seconds: float | None) -> str:
     if seconds < 3600:
         return f"About {round(seconds / 60)} minutes left"
     hours, minutes = divmod(round(seconds / 60), 60)
-    return f"About {hours} h {minutes} min left"
+    return f"About {hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''} left"
 
 
 def sync_view(s: dict) -> dict:
@@ -308,7 +308,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
     def learned_notice(rules: list[str], cleared: int, prefix: str = "") -> str:
         if not rules:
             return f"?notice={quote(prefix)}" if prefix else ""
-        text = (prefix + " " if prefix else "") + "Learned: " + "; ".join(rules) + "."
+        text = (prefix + " " if prefix else "") + "Learned: " + ". ".join(rules) + "."
         if cleared:
             text += f" Also cleared {cleared} similar email{'s' if cleared != 1 else ''}."
         return f"?notice={quote(_short(text, 600))}"
@@ -321,7 +321,8 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             raise HTTPException(404)
         company, role = re.sub(r"\s+", " ", company).strip()[:80], re.sub(r"\s+", " ", role).strip()[:100]
         if not company:
-            return back(f"/app/{app_id}?error={quote('The company cannot be empty.')}")
+            error = quote("The company can't be empty.")
+            return back(f"/app/{app_id}?error={error}")
         role = role or UNKNOWN_ROLE
         with conn:
             conn.execute("UPDATE applications SET company = ?, company_key = ?, role = ?, role_key = ?, manual = 1 WHERE id = ?",
@@ -371,7 +372,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         if outcome == "ignored":
             done = "Rule undone, but this email doesn't read like a job email, so it stays ignored."
         elif outcome == "review":
-            done = "Restored. It's in Needs review above; the rule that hid it is gone."
+            done = "Restored. It's in Needs review above. The rule that hid it is gone."
         else:
             done = "Restored and added to your applications. The rule that hid it is gone."
         return back(f"/review?notice={quote(done)}")
@@ -380,7 +381,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
     def undo_rule(rule_id: int, conn=Depends(get_conn)):
         if not learn.undo(conn, rule_id):
             raise HTTPException(404)
-        done = "Rule removed. New mail is judged without it. Mail it already cleared stays cleared."
+        done = "Rule removed. New emails are judged without it. Emails it already cleared stay cleared."
         return back(f"/review?notice={quote(done)}#learned")
 
     CONTACT_KEY = re.compile(r"\d+\|(?:[^@\s|]+@[^@\s|]+|name:[a-z]+)")
@@ -417,7 +418,8 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         if not CONTACT_KEY.fullmatch(key):
             raise HTTPException(400)
         contactsmod.hide(conn, key)
-        return back(f"{contact_return(next_url)}?notice={quote('Removed from this application. It is not a person, or you do not want it here.')}")
+        done = quote("Removed from this application. It isn't a person, or you don't want it here.")
+        return back(f"{contact_return(next_url)}?notice={done}")
 
     @app.get("/review", response_class=HTMLResponse)
     def review(request: Request, conn=Depends(get_conn)):
@@ -474,11 +476,11 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             live = [a for a in conn.execute("SELECT * FROM accounts WHERE provider = ? AND active = 1 ORDER BY id", (name,))]
             broken = [a for a in live if a["last_error"] and not a["last_error"].startswith("Skipped")]
             if broken:
-                providers_view[name] = {"emoji": "⚠️", "title": f"{pretty} needs attention", "detail": broken[0]["last_error"], "state": "warn"}
+                providers_view[name] = {"title": f"{pretty} needs attention", "detail": broken[0]["last_error"], "state": "warn"}
             elif live:
-                providers_view[name] = {"emoji": "✅", "title": f"{pretty} is connected", "detail": ", ".join(a["address"] for a in live), "state": "ok"}
+                providers_view[name] = {"title": f"{pretty} is connected", "detail": ", ".join(a["address"] for a in live), "state": "ok"}
             else:
-                providers_view[name] = {"emoji": "📭", "title": f"{pretty} isn't connected", "detail": "", "state": "none"}
+                providers_view[name] = {"title": f"{pretty} isn't connected", "detail": "", "state": "none"}
         counts = {r["account_id"]: r["n"] for r in conn.execute("SELECT account_id, COUNT(*) n FROM emails GROUP BY account_id")}
         return templates.TemplateResponse(request, "settings.html", {
             "s": s, "waiting": waiting, "sync_progress": sync_progress, "providers_view": providers_view, "pid": pid, "profile_name": profiles.name(pid),
@@ -510,8 +512,8 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         extra = (f" Settled {r['settled']} email{'s' if r['settled'] != 1 else ''} that were waiting for review." if r["settled"] else "") + \
                 (f" Filled in {r['roles']} missing role{'s' if r['roles'] != 1 else ''}." if r["roles"] else "")
         if r["cleared"]:
-            done = (f"Checked {r['checked']} saved job emails against the current rules. {r['cleared']} turned out to be ordinary mail "
-                    f"(newsletters and the like) and {r['removed']} application{'s' if r['removed'] != 1 else ''} made from them "
+            done = (f"Checked {r['checked']} saved job emails against the current rules. {r['cleared']} turned out to be ordinary mail, "
+                    f"such as newsletters, and {r['removed']} application{'s' if r['removed'] != 1 else ''} made from them "
                     f"{'were' if r['removed'] != 1 else 'was'} removed.")
         else:
             done = f"Checked {r['checked']} saved job emails against the current rules. Nothing needed to change."
@@ -548,7 +550,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         ready = clients.gmail_ready() if provider == "gmail" else clients.outlook_client_id() is not None
         if not ready and not get_provider:
             what = "the Google credentials file" if provider == "gmail" else "the Microsoft application ID"
-            return back(f"/settings?error={quote(f'Add {what} first (one time), then connect.')}#accounts")
+            return back(f"/settings?error={quote(f'Add {what} first, then connect.')}#accounts")
         key = (pid, provider)
         with connecting_lock:
             current = connecting.get(key)
@@ -568,10 +570,10 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
                             conn.execute("UPDATE accounts SET can_reply = 1 WHERE provider = ? AND address = ?", (provider, address))
                 finally:
                     conn.close()
-                tail = " Replying is on." if send else " Press Sync now to read its mail."
+                tail = " Replying is on." if send else " Choose Sync now to read its mail."
                 outcome = {"state": "done", "message": f"Connected {provider.capitalize()}: {address}.{tail}"}
             except Exception as exc:  # sign-in can fail in many ways; show it instead of losing it
-                outcome = {"state": "error", "message": _short(f"Could not connect {provider.capitalize()}. {exc}", 300)}
+                outcome = {"state": "error", "message": _short(f"Couldn't connect {provider.capitalize()}. {exc}", 300)}
             with connecting_lock:
                 connecting.setdefault(key, {}).update(outcome)
 
@@ -596,7 +598,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             return start_sign_in(request, acct["provider"], send=True)
         with conn:
             conn.execute("UPDATE accounts SET can_reply = 0 WHERE id = ?", (account_id,))
-        done = (f"Replying is off for {acct['address']}. The app will not send anything. {acct['provider'].capitalize()} still lists the "
+        done = (f"Replying is off for {acct['address']}. The app won't send anything. {acct['provider'].capitalize()} still lists the "
                 f"permission until you disconnect and connect again, or remove it in your account's security settings.")
         return back(f"/settings?notice={quote(done)}#accounts")
 
@@ -621,7 +623,8 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             if hasattr(provider, "disconnect"):
                 provider.disconnect()
         except Exception as exc:
-            return back(f"/settings?error={quote(_short(f'Could not remove the saved sign-in for {address}. {exc}', 300))}#accounts")
+            error = quote(_short(f"Couldn't remove the saved login for {address}. {exc}", 300))
+            return back(f"/settings?error={error}#accounts")
         with conn:
             conn.execute("UPDATE accounts SET active = 0 WHERE id = ?", (account_id,))
         return back(f"/settings?notice={quote('Disconnected ' + acct['address'] + '. Its saved emails and applications are kept.')}#accounts")
@@ -659,7 +662,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
     @app.post("/profiles/{profile_id}/delete")
     def delete_profile(request: Request, profile_id: str, confirm: str = Form("")):
         if confirm != "yes":
-            return back(f"/settings?error={quote('Tick the box to confirm. Deleting a profile removes its emails, applications and sign-ins from this PC.')}#profiles")
+            return back(f"/settings?error={quote('Tick the box to confirm. Deleting a profile removes its emails, applications and logins from this PC.')}#profiles")
         name = profiles.name(profile_id)
         try:
             profiles.delete(profile_id)
@@ -695,7 +698,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
                     lines.append(f"Sync failed for {address} ({outcome.removeprefix('error: ')}).")
                 else:
                     new = sum(v for k, v in outcome.items() if k != "duplicate")
-                    lines.append(f"Checked {new} new message{'s' if new != 1 else ''} for {address}.")
+                    lines.append(f"Checked {new} new email{'s' if new != 1 else ''} for {address}.")
             found = jobs["feeds"] + jobs["adzuna"]
             if found:
                 lines.append(f"Found {found} new job{'s' if found != 1 else ''} to look at.")

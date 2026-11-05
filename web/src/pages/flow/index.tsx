@@ -61,7 +61,7 @@ function Filters({ view, onApply }: { view: View; onApply(account: number, days:
         ))}
       </select>
       <button type="submit" className="primary">
-        Apply
+        Apply filters
       </button>
     </form>
   );
@@ -162,7 +162,7 @@ function Results({ view }: { view: View }) {
     try {
       await work();
     } catch (err) {
-      setStatus((err as Error)?.name === "AbortError" ? "" : "Couldn't make the image here. Try Save as image.");
+      setStatus((err as Error)?.name === "AbortError" ? "" : "Couldn't make the image. Try again.");
     } finally {
       setBusy(null);
     }
@@ -175,7 +175,7 @@ function Results({ view }: { view: View }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      setStatus(`Saved ${imageFileName()}`);
+      setStatus(`Saved ${imageFileName()}.`);
     });
   const copy = () =>
     run("copy", async () => {
@@ -207,13 +207,13 @@ function Results({ view }: { view: View }) {
             Share
           </button>
         ) : null}
-        <span className="small muted">The image shows totals only: no company names or email addresses.</span>
+        <span className="small muted">The image shows totals only. It leaves out company names and email addresses.</span>
       </div>
       <p className="small muted" id="share-status" role="status" style={{ minHeight: "1.5em", margin: "4px 0 12px" }}>
         {status}
       </p>
       <p className="small mobile-only" style={{ color: "var(--ink2)" }}>
-        The chart is wide: swipe sideways to see all of it. The table below has the same numbers.
+        The chart is wide, so swipe sideways to see all of it. The table below has the same numbers.
       </p>
       <div className="scroll">
         <SankeyChart ref={svgRef} layout={layout} hl={hl} {...handlers} />
@@ -285,10 +285,7 @@ export default function FlowPage({ db, query, navigate }: PageProps) {
 
   return (
     <>
-      <h1 className="page">Application flow</h1>
-      <p className="muted" style={{ margin: "0 0 var(--gap)", maxWidth: "60ch" }}>
-        Where your applications went. Each band's width is the number of applications that took that path.
-      </p>
+      <h1 className="page">Flow</h1>
       {view ? (
         <>
           <Filters key={`${view.account}-${view.days}`} view={view} onApply={apply} />
@@ -297,7 +294,7 @@ export default function FlowPage({ db, query, navigate }: PageProps) {
           ) : (
             <div className="card viz-root">
               <p className="muted" style={{ margin: "8px 0" }}>
-                No applications to chart{view.account || view.days ? " for this filter" : ""}. Sync your mail, or add one on the Applications page.
+                No applications to chart{view.account || view.days ? " for this filter" : ""}. Sync your mailbox or add an application on the Applications page.
               </p>
             </div>
           )}

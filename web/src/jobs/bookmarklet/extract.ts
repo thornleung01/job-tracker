@@ -189,7 +189,7 @@ export function launch(ex: (d: Document, h: string) => Extracted, d: Document, w
     const t = w.open(app + q.toString(), "_blank");
     if (t) { try { t.opener = null; } catch (x) { /* cross-origin already */ } }
     // Say so when nothing could be read (the app still opens, with the link) or the pop-up was blocked.
-    const m = t ? (e.c || e.r ? "" : "Couldn't read this page. Add the details by hand.") : "Allow pop-ups to save this job";
+    const m = t ? (e.c || e.r ? "" : "Couldn't read this page. Add the details by hand.") : "Allow pop-ups to save this job.";
     if (!m) return;
     const n = d.createElement("div");
     n.textContent = m;

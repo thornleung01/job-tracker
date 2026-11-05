@@ -21,28 +21,28 @@ export function BookmarkletCard() {
       await navigator.clipboard.writeText(source);
       setStatus("Copied. Paste it as the address of a new bookmark.");
     } catch {
-      setStatus("Could not copy. Drag the link to your bookmarks bar instead.");
+      setStatus("Couldn't copy. Drag the link to your bookmarks bar instead.");
     }
   }
 
   return (
     <section className="card" id="bookmarklet" aria-labelledby="h-bookmarklet">
       <h2 className="sec" id="h-bookmarklet">Save jobs from any site</h2>
-      <p>Add a bookmark to your browser. Click it on any job posting and Job Tracker opens with the details filled in.</p>
+      <p>Add a bookmark to your browser. Choose it on any job posting to open Job Tracker with the details filled in.</p>
       <div className="row field-block">
         <a ref={link} className="btn bookmarklet-link" draggable="true" aria-describedby="bookmarklet-drag" onClick={(e) => e.preventDefault()}>
           Save to Job Tracker
         </a>
         <button type="button" onClick={() => void copy()}>Copy bookmarklet</button>
       </div>
-      <p className="help" id="bookmarklet-drag">Drag this to your bookmarks bar, don't click it.</p>
+      <p className="help" id="bookmarklet-drag">Drag this to your bookmarks bar. Choosing it here does nothing.</p>
       <p className="help" role="status">{status}</p>
       <h3 className="bookmarklet-sub">Or make the bookmark by hand</h3>
       <p className="help">You need this on Safari and on a phone.</p>
       <ol className="bookmarklet-steps">
         <li>Create a new bookmark named Save to Job Tracker.</li>
         <li>Choose Copy bookmarklet, then paste it as the bookmark's address.</li>
-        <li>Open a job posting and tap the bookmark.</li>
+        <li>Open a job posting and choose the bookmark.</li>
       </ol>
       <p className="help">Your browser may ask to allow pop-ups the first time.</p>
     </section>

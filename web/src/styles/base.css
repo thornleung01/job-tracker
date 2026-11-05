@@ -311,6 +311,13 @@
   .list-card { container-type: inline-size; }
   @supports (width: 1cqw) { .list-card .panel-inner { position: sticky; left: 0; width: 100cqw; } }
   .panel-forms { display: grid; grid-template-columns: minmax(0, 560px); gap: 32px; align-items: start; }
+  .panel-history { min-width: 0; }
+  .panel-history .panel-h-history { margin-top: 16px; }
+  /* Wide enough: the form on the left, its history beside it, so the row has no empty right half. */
+  @media (min-width: 960px) {
+    .panel-split { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 32px 48px; align-items: start; }
+    .panel-split .panel-history .panel-h-history { margin-top: 12px; }
+  }
   .panel-h { font: 500 1rem/1.375 var(--font-ui); margin: 12px 0 8px; }
   .panel-status { min-height: 1.2em; outline: none; }
   ol.hist { list-style: none; margin: 0; padding: 0; }

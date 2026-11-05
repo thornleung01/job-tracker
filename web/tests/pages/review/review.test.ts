@@ -36,10 +36,12 @@ describe("the Needs review page", () => {
     expect(text($(card, ".mail-guess"))).toBe("Looks like Interview, high confidence");
     expect(text($(card, ".mail-text"))).toContain("Hi, I would love to talk.");
     expect($$(card, "p.sig").length).toBeGreaterThan(0);
-    const reply = $(card, "a.btn.primary")!;
+    const reply = $(card, "a.btn")!;
+    expect(text(reply)).toBe("Reply in Gmail");
+    expect($(card, "a.btn.primary")).toBeNull();   // the card's one primary action is Create application
     expect([reply.getAttribute("target"), reply.getAttribute("rel")]).toEqual(["_blank", "noopener noreferrer"]);
-    expect(text($(card, "a.btn:not(.primary)"))).toBe("Open in Gmail");
-    expect($$(card, "select[aria-label=Stage]").map((s) => (s as HTMLSelectElement).value)).toEqual(["Interview", "Interview"]);
+    expect(text($$(card, "a.btn")[1])).toBe("Open in Gmail");
+    expect($$(card, "select[aria-label=Stage]").map((s) => (s as HTMLSelectElement).value)).toEqual(["Interview"]);
     expect(($(card, "input[aria-label=Company]") as HTMLInputElement).value).toBeTruthy();
     expect($$(card, "select[aria-label='Existing application'] option").map(text)).toEqual(["Existing application…", "Acme · Analyst"]);
   });
@@ -55,8 +57,8 @@ describe("the Needs review page", () => {
     const { db, acme, mail } = await setup();
     const { container } = await open(db);
     await type($(container, "select[aria-label='Existing application']"), String(acme));
-    await type($$(container, "select[aria-label=Stage]")[0], "Assessment");
-    await click(button(container, "Add to it"));
+    await type($(container, "select[aria-label=Stage]"), "Assessment");
+    await click(button(container, "Add to application"));
     await waitFor(() => !$(container, "article.card") && text($(container, ".notice")).includes("Added to Acme."));
     expect(text(container)).toContain("Nothing to review.");
     expect(text($(container, ".notice"))).toContain("Added to Acme.");
@@ -68,7 +70,7 @@ describe("the Needs review page", () => {
   it("asks you to choose an application first", async () => {
     const { db, mail } = await setup();
     const { container } = await open(db);
-    await click(button(container, "Add to it"));
+    await click(button(container, "Add to application"));
     expect(text($(container, ".notice.err"))).toBe("Choose an application.");
     expect($(container, ".notice.err")?.getAttribute("role")).toBe("alert");
     expect((await db.emails.get(mail))!.needsReview).toBe(true);
@@ -79,7 +81,7 @@ describe("the Needs review page", () => {
     const { container } = await open(db);
     await type($(container, "input[aria-label=Company]"), "Initech");
     await type($(container, "input[aria-label=Role]"), "Data Analyst");
-    await click(button(container, "New application"));
+    await click(button(container, "Create application"));
     await waitFor(() => !$(container, "article.card"));
     expect(text($(container, ".notice"))).toContain("Created Initech.");
     const created = (await db.applications.toArray()).find((a) => a.company === "Initech")!;
@@ -91,7 +93,7 @@ describe("the Needs review page", () => {
     const { db } = await setup();
     const { container } = await open(db);
     await type($(container, "input[aria-label=Company]"), "");
-    await click(button(container, "New application"));
+    await click(button(container, "Create application"));
     expect($(container, "article.card")).not.toBeNull();   // the form's own required check holds it back
     expect((await db.applications.toArray()).map((a) => a.company)).toEqual(["Acme"]);
   });
@@ -122,7 +124,7 @@ describe("the Needs review page", () => {
     expect(text(line)).toContain("coachco.io");
     await click(button(line, "Undo"));
     await waitFor(() => !$(container, "#learned .review-line"));
-    expect(text($(container, ".notice"))).toBe("Rule removed. New mail is judged without it. Mail it already cleared stays cleared.");
+    expect(text($(container, ".notice"))).toBe("Rule removed. New emails are judged without it. Emails it already cleared stay cleared.");
     expect((await db.learnedRules.toArray())[0].active).toBe(false);
   });
 
@@ -135,10 +137,10 @@ describe("the Needs review page", () => {
     });
     const { container } = await open(db);
     const section = $(container, "#ignored")!;
-    expect(text($(section, "h2"))).toBe("Ignored because of what it learned");
+    expect(text($(section, "h2"))).toBe("Ignored because of what the app learned");
     expect(text($(section, ".review-line"))).toContain("Your application to Initech");
     expect(text($(section, ".review-line"))).toContain("hr@initech.com");
-    await click(button(section, "This was a real job"));
+    await click(button(section, "Restore email"));
     await waitFor(() => !$(container, "#ignored") && !!$(container, ".notice"));
     expect(await db.ignoredMail.count()).toBe(0);
     expect($(container, ".notice")).not.toBeNull();

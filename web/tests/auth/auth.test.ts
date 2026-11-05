@@ -83,8 +83,8 @@ describe("session", () => {
 
   it("refuses a provider that has no client id configured", async () => {
     const auth = createAuth({ google: () => fakes().google, microsoft: fakes().microsoft, isConfigured: () => false });
-    await expect(auth.signIn("google")).rejects.toThrow(/not set up/);
-    expect(auth.getSession().error).toMatch(/not set up/);
+    await expect(auth.signIn("google")).rejects.toThrow(/isn't available on this site/);
+    expect(auth.getSession().error).toMatch(/isn't available on this site/);
   });
 
   it("signs in through the rendered Google button", async () => {
@@ -137,7 +137,7 @@ describe("connectMail and tokenSource", () => {
   it("throws NotConnected for a mailbox that was never connected", async () => {
     const { auth } = fakes();
     await auth.signIn("google");
-    await expect(auth.tokenSource("gmail")).rejects.toThrow(/Gmail is not connected/);
+    await expect(auth.tokenSource("gmail")).rejects.toThrow(/Gmail isn't connected/);
   });
 
   it("connects Gmail with a login hint and serves the cached token", async () => {
@@ -188,11 +188,11 @@ describe("connectMail and tokenSource", () => {
     await auth.signIn("google");
     await auth.connectMail("gmail");
     clock.now += 3600_000;
-    google.requestMailToken.mockRejectedValueOnce(new NotConnected("Gmail connection was not completed"));
+    google.requestMailToken.mockRejectedValueOnce(new NotConnected("Gmail connection wasn't completed"));
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
     expect(auth.getSession().mail.gmail).toBe(false);
-    expect(auth.getSession().error).toBe("Gmail connection was not completed");
-    await expect(auth.tokenSource("gmail")).rejects.toThrow(/not connected/);
+    expect(auth.getSession().error).toBe("Gmail connection wasn't completed");
+    await expect(auth.tokenSource("gmail")).rejects.toThrow(/isn't connected/);
   });
 
   it("lets other failures (network) through without disconnecting", async () => {

@@ -77,7 +77,7 @@ function parseJson(input: unknown): unknown {
   try {
     return JSON.parse(input);
   } catch {
-    throw new ImportError(["The file is not valid JSON."]);
+    throw new ImportError(["The file isn't valid JSON. Choose a file exported from Job Tracker."]);
   }
 }
 

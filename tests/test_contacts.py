@@ -386,3 +386,26 @@ def test_the_dropdown_holds_the_people_and_a_link_to_the_application(env):
     nxt = block.find('<details class="card company"', 10)                       # the next company starts where this one ends
     block = block[:nxt] if nxt > 0 else block[:block.index("</main>")]
     assert "Jocelyn Ford" in block and "Samuel Okafor" not in block and f'href="/app/{env.app1}">Open this application</a>' in block
+
+
+def test_the_people_page_title_is_only_text_and_the_fold_script_sits_in_the_page(env):
+    html = env.client.get("/contacts").text
+    title = re.search(r"<title>(.*?)</title>", html, re.S).group(1)
+    assert title == "People · Job Tracker"
+    assert "<script>" not in title
+    assert html.count("data-fold") >= 1 and "details.company" in html[html.index("</title>"):]
+
+
+def test_the_wording_matches_the_hosted_edition(env):
+    env.add("Sam Lee <sam@staffing.com>", "Hello again", env.app1, review=1)
+    env.conn.commit()
+    review = env.client.get("/review").text
+    assert "learns to ignore emails like it." in review and "ignore mail like it" not in review
+    assert ">Add to application<" in review and ">Create application<" in review
+    assert 'name="action" value="assign"' in review and 'name="action" value="new"' in review and 'name="action" value="dismiss"' in review
+    page = env.client.get(f"/app/{env.app1}").text
+    assert "Emails like it will be ignored from now on." in page and "Mail like it" not in page
+    assert ">Delete application</button>" in page and "<button class=\"danger\">Delete</button>" not in page
+    panel = env.client.get(f"/app/{env.app1}/panel").text
+    assert "Emails like it will be ignored from now on." in panel and ">Delete application</button>" in panel
+    assert "Choosing a stage" not in panel and 'optgroup label="Other steps"' in panel          # the select's group labels already say it

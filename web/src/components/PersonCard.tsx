@@ -37,7 +37,7 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
     if (!window.confirm(`Remove ${c.name} from this application?`)) return;
     void act.run("hide", async () => {
       await hide(db, c.key);
-      onNotice?.("Removed from this application. It is not a person, or you do not want it here.");
+      onNotice?.("Removed from this application.");
     });
   };
 
@@ -73,7 +73,7 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
           </details>
         ) : null}
         <details className="action">
-          <summary>Edit</summary>
+          <summary>Edit person</summary>
           <form className="row row-end" onSubmit={save}>
             <div className="fgroup">
               <label htmlFor={`n-${c.key}`}>Name</label>
@@ -81,9 +81,9 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
             </div>
             <div className="fgroup f-grow">
               <label htmlFor={`t-${c.key}`}>Title for this role</label>
-              <input id={`t-${c.key}`} name="title" value={title} maxLength={100} placeholder="e.g. Hiring manager" onChange={(e) => setTitle(e.target.value)} />
+              <input id={`t-${c.key}`} name="title" value={title} maxLength={100} placeholder="For example, hiring manager" onChange={(e) => setTitle(e.target.value)} />
             </div>
-            <button type="submit" {...act.button("save")}>Save</button>
+            <button type="submit" {...act.button("save")}>Save changes</button>
           </form>
           <div className="stack-top-sm">
             <button type="button" className="danger" onClick={remove} {...act.button("hide")}>Not a person</button>

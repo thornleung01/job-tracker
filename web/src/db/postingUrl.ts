@@ -3,7 +3,7 @@
 import { ActionError } from "./errors";
 
 export const POSTING_URL_MAX = 500;
-export const POSTING_URL_MESSAGE = "That link does not look right. Use a web address that starts with https://.";
+export const POSTING_URL_MESSAGE = "That link doesn't look right. Use a web address that starts with https://.";
 
 /** The cleaned address, "" for empty input, or null when the value is not an acceptable link. */
 export function parsePostingUrl(raw: unknown): string | null {

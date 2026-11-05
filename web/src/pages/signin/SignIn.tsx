@@ -23,7 +23,7 @@ function GoogleSignIn({ auth, busy }: { auth: ShellAuth; busy: boolean }) {
     if (!el) return;
     let live = true;
     el.replaceChildren();
-    auth.renderGoogleButton(el, { theme: "outline", size: "large", shape: "pill", text: "signin_with" }).catch(() => {
+    auth.renderGoogleButton(el, { theme: "outline", size: "large", shape: "pill", text: "continue_with" }).catch(() => {
       if (live) setFallback(true);
     });
     return () => {
@@ -37,7 +37,7 @@ function GoogleSignIn({ auth, busy }: { auth: ShellAuth; busy: boolean }) {
       <div ref={holder} className="google-button" hidden={fallback} />
       {fallback && (
         <button disabled={busy} onClick={() => void auth.signIn("google").catch(() => undefined)}>
-          Sign in with Google
+          Log in with Google
         </button>
       )}
     </>
@@ -49,14 +49,14 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
   const none = !configured.google && !configured.microsoft;
 
   useLayoutEffect(() => {
-    document.title = "Sign in · Job Tracker";
+    document.title = "Log in · Job Tracker";
   }, []);
 
   return (
     <div className="wrap signin">
       <main id="main">
         <div className="brand">Job Tracker</div>
-        <h1 className="page">Sign in</h1>
+        <h1 className="page">Log in</h1>
         <p className="lede">Follow your job applications from the emails in your own mailbox. Your data stays in this browser.</p>
         {session.error && (
           <div className="notice err" role="alert">
@@ -65,7 +65,7 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
         )}
         {none && (
           <div className="notice" role="status">
-            Sign-in isn't available on this site yet.
+            Login isn't available on this site yet.
           </div>
         )}
         <div className="card signin-card">
@@ -77,16 +77,16 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
                 disabled={busy}
                 onClick={() => void auth.signIn("microsoft").catch(() => undefined)}
               >
-                Sign in with Microsoft
+                Log in with Microsoft
               </button>
             )}
           </div>
           {!none && (!configured.google || !configured.microsoft) && (
-            <p className="small muted">{configured.google ? "Microsoft" : "Google"} sign-in isn't available on this site yet.</p>
+            <p className="small muted">{configured.google ? "Microsoft" : "Google"} login isn't available on this site yet.</p>
           )}
           {busy && (
             <p className="small muted" role="status">
-              Signing in
+              Logging in
             </p>
           )}
           <p className="small muted signin-privacy">

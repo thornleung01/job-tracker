@@ -100,7 +100,7 @@ export function createGraphProvider(tokenSource: TokenSource, opts: GraphOptions
         }
         url = data["@odata.nextLink"];
         // The bearer token only ever goes to Graph.
-        if (url && !url.startsWith("https://graph.microsoft.com/")) throw new Error("Unexpected next page address from Microsoft Graph.");
+        if (url && !url.startsWith("https://graph.microsoft.com/")) throw new Error("Outlook sent an unexpected response. Try again.");
       }
     },
   };
@@ -113,6 +113,6 @@ export async function getGraphAddress(tokenSource: TokenSource, opts: HttpOption
     await http.get(`${GRAPH}/me?$select=mail,userPrincipalName`, { signal }),
   );
   const address = data.mail || data.userPrincipalName;
-  if (!address) throw new Error("Microsoft signed you in but didn't share this account's email address.");
+  if (!address) throw new Error("Microsoft logged you in but didn't share this account's email address. Try again.");
   return address;
 }

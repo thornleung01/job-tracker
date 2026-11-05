@@ -10,6 +10,7 @@ import { messageFromRow } from "./decide";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { recheck, removeApplicationRow } from "./recheck";
+import { MAX_ROUNDS } from "./rounds";
 import { processMessage } from "./sync";
 import { squeeze } from "./text";
 
@@ -26,7 +27,7 @@ export async function learnedFromFeedback(db: JobTrackerDB): Promise<{ rules: st
 /** The sentence shown after something was learned, or "" when nothing was. */
 export function learnedNotice(rules: string[], cleared: number, prefix = ""): string {
   if (!rules.length) return prefix;
-  let text = (prefix ? prefix + " " : "") + "Learned: " + rules.join("; ") + ".";
+  let text = (prefix ? prefix + " " : "") + "Learned: " + rules.join(". ") + ".";
   if (cleared) text += ` Also cleared ${cleared} similar email${cleared !== 1 ? "s" : ""}.`;
   return short(text, 600);
 }
@@ -49,15 +50,15 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   const company = squeeze(input.company).slice(0, 80);
   const role = squeeze(input.role).slice(0, 100) || p.UNKNOWN_ROLE;
   const stage = input.stage ?? "Applied";
-  if (!company || !isStage(stage)) throw new ActionError("A company is required.");
+  if (!company || !isStage(stage)) throw new ActionError("Enter a company name.");
   const postingUrl = cleanPostingUrl(input.url ?? "");
   let when = iso(now);
   const day = (input.appliedOn ?? "").trim();
   if (day) {
     // the day you applied, so logging something from last week lands in the right place
-    if (!isDayString(day)) throw new ActionError("Date must look like 2026-10-31");
+    if (!isDayString(day)) throw new ActionError("Enter the date as year-month-day, for example 2026-10-21.");
     // Compare calendar days in the viewer's own timezone: today is never "in the future", whatever the hour in UTC.
-    if (day > localToday(now)) throw new ActionError("That date is in the future");
+    if (day > localToday(now)) throw new ActionError("The date can't be in the future.");
     const noon = new Date(`${day}T12:00:00Z`);
     when = iso(noon > now ? now : noon);       // today is stamped with the current time, never a time still ahead
   }
@@ -75,7 +76,7 @@ export async function editApplication(db: JobTrackerDB, appId: number, company: 
   if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
   const cleanCompany = squeeze(company).slice(0, 80);
   const cleanRole = squeeze(role).slice(0, 100) || p.UNKNOWN_ROLE;
-  if (!cleanCompany) throw new ActionError("The company cannot be empty.");
+  if (!cleanCompany) throw new ActionError("Enter a company name.");
   const postingUrl = url === undefined ? undefined : cleanPostingUrl(url);
   await db.applications.update(appId, {
     company: cleanCompany, companyKey: p.companyKey(cleanCompany), role: cleanRole, roleKey: p.roleKey(cleanRole), manual: true,
@@ -88,6 +89,31 @@ export async function setStage(db: JobTrackerDB, appId: number, stage: Stage, no
   if (!isStage(stage)) throw new ActionError("Unknown stage.");
   if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
   await db.applications.update(appId, { stage, stageAt: iso(now), locked: true });
+}
+
+/** Puts a stage back exactly as it was, including whether it was locked: the Undo after a quick stage change. */
+export async function restoreStage(db: JobTrackerDB, appId: number, before: { stage: Stage; stageAt: string | null; locked: boolean }): Promise<void> {
+  if (!isStage(before.stage)) throw new ActionError("Unknown stage.");
+  if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
+  await db.applications.update(appId, { stage: before.stage, stageAt: before.stageAt, locked: before.locked });
+}
+
+/** Changes the day you applied. Today is stamped with the current time and any other day with noon, as when adding by hand. */
+export async function setAppliedOn(db: JobTrackerDB, appId: number, day: string, now: Date = new Date()): Promise<void> {
+  const value = day.trim();
+  if (!isDayString(value)) throw new ActionError("Enter the date as year-month-day, for example 2026-10-21.");
+  if (value > localToday(now)) throw new ActionError("The date can't be in the future.");
+  if (value < "1990-01-01") throw new ActionError("Enter a date from 1990 onward.");
+  if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
+  const noon = new Date(`${value}T12:00:00Z`);
+  await db.applications.update(appId, { appliedAt: iso(noon > now ? now : noon), manual: true });
+}
+
+/** Sets the number of interview rounds by hand. `null` goes back to working it out from the emails and your steps. */
+export async function setInterviewRounds(db: JobTrackerDB, appId: number, rounds: number | null): Promise<void> {
+  if (rounds !== null && (!Number.isInteger(rounds) || rounds < 0 || rounds > MAX_ROUNDS)) throw new ActionError(`Enter a whole number from 0 to ${MAX_ROUNDS}.`);
+  if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
+  await db.applications.update(appId, { interviewRounds: rounds ?? undefined });
 }
 
 export async function unlockStage(db: JobTrackerDB, appId: number): Promise<void> {
@@ -124,6 +150,7 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
   }
   // keep the target's posting link, otherwise take the source's
   if (!dst.postingUrl && src.postingUrl) fields.postingUrl = src.postingUrl;
+  if (dst.interviewRounds === undefined && src.interviewRounds !== undefined) fields.interviewRounds = src.interviewRounds;
   await tx(db, async () => {
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });
@@ -175,7 +202,7 @@ export async function resolveReview(db: JobTrackerDB, emailId: number, decision:
       if (decision.action === "new") {
         const company = squeeze(decision.company);
         const role = squeeze(decision.role) || p.UNKNOWN_ROLE;
-        if (!company) throw new ActionError("Company is required");
+        if (!company) throw new ActionError("Enter a company name.");
         appId = await createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when: email.receivedAt });
       } else {
         appId = decision.appId;
@@ -195,7 +222,7 @@ export async function resolveReview(db: JobTrackerDB, emailId: number, decision:
 export type RestoreOutcome = "ignored" | "review" | "applied-to-application";
 
 /**
- * You are telling it a mail it ignored was a real job email: the rule that hid it is undone, and it is read again.
+ * You are telling it an email it ignored was a real job email: the rule that hid it is undone, and it is read again.
  * Returns what happened and a sentence to show.
  */
 export async function ignoredIsReal(db: JobTrackerDB, ignoredId: number, now: Date = new Date()): Promise<{ outcome: RestoreOutcome; message: string }> {
@@ -215,7 +242,7 @@ export async function ignoredIsReal(db: JobTrackerDB, ignoredId: number, now: Da
   const outcome = await processMessage(db, row.accountId, { ...msg, webLink: row.webLink }, undefined, now);
   const message =
     outcome === "ignored" ? "Rule undone, but this email doesn't read like a job email, so it stays ignored."
-    : outcome === "review" ? "Restored. It's in Needs review above; the rule that hid it is gone."
+    : outcome === "review" ? "Restored. It's in Needs review above, and the rule that hid it is gone."
     : "Restored and added to your applications. The rule that hid it is gone.";
   return { outcome: outcome as RestoreOutcome, message };
 }
@@ -223,5 +250,5 @@ export async function ignoredIsReal(db: JobTrackerDB, ignoredId: number, now: Da
 /** Switches a learned rule off. Throws MissingRecordError when there is no such rule. */
 export async function undoRule(db: JobTrackerDB, ruleId: number): Promise<string> {
   if (!(await learn.undo(db, ruleId))) throw new MissingRecordError(`No rule ${ruleId}`);
-  return "Rule removed. New mail is judged without it. Mail it already cleared stays cleared.";
+  return "Rule removed. New emails are judged without it. Emails it already cleared stay cleared.";
 }

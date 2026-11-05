@@ -42,6 +42,15 @@ def test_settings_page_renders_all_sections(env):
         assert text in html
 
 
+def test_provider_tiles_carry_no_emoji(env):
+    conn, client = env
+    html = client().get("/settings").text
+    tiles = re.findall(r'<div class="status">(.*?)</div></div>', html, re.S)
+    assert len(tiles) == 2 and all("<h3>" in t and 'class="big"' not in t for t in tiles)
+    assert "Gmail isn&#39;t connected" in html and "Outlook isn&#39;t connected" in html
+    assert not re.search("[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE0F]", html)
+
+
 def test_settings_page_has_no_email_filters(env):
     conn, client = env
     c = client()
@@ -110,7 +119,7 @@ def test_connect_failure_is_shown_not_a_500(env):
     assert r.status_code == 303
     c.app.state.connect_thread.join(5)
     page = c.get("/settings").text
-    assert "Could not connect Gmail." in page and "Missing client file" in page
+    assert "Couldn&#39;t connect Gmail." in page and "Missing client file" in page
     assert conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 0
 
 
@@ -124,8 +133,8 @@ def test_sync_now_from_settings(env):
     c.app.state.sync_thread.join(10)
     assert conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 1
     page = c.get("/settings").text
-    assert "Synced" in page and "Checked 1 new message for me@gmail.com." in page
-    assert "Checked 1 new message" not in c.get("/settings").text                    # reported once
+    assert "Synced" in page and "Checked 1 new email for me@gmail.com." in page
+    assert "Checked 1 new email" not in c.get("/settings").text                    # reported once
     assert c.post("/sync", data={"scan": "7"}).status_code == 400
 
 

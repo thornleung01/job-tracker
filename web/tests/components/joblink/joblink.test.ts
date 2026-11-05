@@ -21,8 +21,8 @@ describe("describeDraft", () => {
   });
   it("asks for a check when a field is a guess, and adds the place", () => {
     const d = draft({ company: "Stripe", role: "Engineer", location: "Toronto", guessed: both });
-    expect(describeDraft(d, both)).toBe("Guessed from the link: check the company and role. Location: Toronto.");
-    expect(describeDraft(draft({ ...d, source: "paste" }), both)).toBe("Guessed from the text: check the company and role. Location: Toronto.");
+    expect(describeDraft(d, both)).toBe("Guessed from the link. Check the company and role. Location: Toronto.");
+    expect(describeDraft(draft({ ...d, source: "paste" }), both)).toBe("Guessed from the text. Check the company and role. Location: Toronto.");
   });
   it("reports a reliable read from a link or text", () => {
     expect(describeDraft(draft({ company: "Stripe", role: "Engineer" }), both)).toBe("Filled in from the link: Stripe, Engineer.");
@@ -73,16 +73,15 @@ async function mount(link: JobLinkFill, navigate = vi.fn()) {
 }
 
 describe("JobLinkField", () => {
-  it("has the label, help, a quiet button and two live regions that exist before they have words", async () => {
+  it("has the label, a quiet button and two live regions that exist before they have words", async () => {
     const el = await mount(stub());
     expect(el.querySelector("label[for=add-link]")?.textContent).toBe("Paste a job link");
-    expect(el.textContent).toContain("We read the link and fill in what we can. You can change anything before saving.");
-    expect(el.querySelector("button.quiet")?.textContent).toBe("Fill in");
+    expect(el.querySelector("button.quiet")?.textContent).toBe("Fill in details");
     expect(el.querySelector("button.primary")).toBeNull();
     expect(el.querySelectorAll("[role=status]")).toHaveLength(2);
     const input = el.querySelector("#add-link") as HTMLInputElement;
     expect([input.type, input.getAttribute("inputmode")]).toEqual(["text", "url"]);
-    expect(input.getAttribute("aria-describedby")).toContain("add-link-help");
+    expect(input.getAttribute("aria-describedby")).toContain("add-link-result");
   });
 
   it("turns Enter into Fill in without submitting the form", async () => {
@@ -179,6 +178,6 @@ describe("useJobLink", () => {
     await act(async () => sleep(10));
     expect(link.checking).toBe(false);
     expect(values.company).toBe("Stripe");
-    expect(link.result).toBe("Guessed from the link: check the company and role.");
+    expect(link.result).toBe("Guessed from the link. Check the company and role.");
   });
 });

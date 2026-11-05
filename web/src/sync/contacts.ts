@@ -287,7 +287,7 @@ export function isContactKey(key: string): boolean {
 
 export class ContactKeyError extends Error {
   constructor() {
-    super("That is not a person key.");
+    super("That isn't a person key.");
     this.name = "ContactKeyError";
   }
 }

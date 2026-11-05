@@ -7,4 +7,6 @@
 .add-note { margin-top: 10px; }
 .add-link-slot:empty { display: none; }
 .add-actions { margin-top: 16px; }
+/* Top-aligned, so a hint under one field ("Guessed from the page") never pushes the others out of line. */
+.add-fields { align-items: flex-start; }
 .add-url-row { margin-top: 12px; }

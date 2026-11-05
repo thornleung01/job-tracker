@@ -23,7 +23,7 @@ describe("BookmarkletCard", () => {
     expect(link.getAttribute("href")).toBe(expected());
     expect(link.getAttribute("href")!.startsWith("javascript:")).toBe(true);
     expect(link.getAttribute("draggable")).toBe("true");
-    expect(document.body.textContent).toContain("Drag this to your bookmarks bar, don't click it.");
+    expect(document.body.textContent).toContain("Drag this to your bookmarks bar. Choosing it here does nothing.");
     expect(document.body.textContent).toContain("Your browser may ask to allow pop-ups the first time.");
     expect(document.querySelectorAll("ol li")).toHaveLength(3);
     expect(errors).not.toHaveBeenCalled();
@@ -57,7 +57,7 @@ describe("BookmarkletCard", () => {
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: vi.fn(async () => { throw new Error("denied"); }) } });
     await render(h(BookmarkletCard));
     await click(byText("Copy bookmarklet", "button")!);
-    expect(q("[role=status]")?.textContent).toMatch(/Could not copy/);
+    expect(q("[role=status]")?.textContent).toMatch(/Couldn't copy/);
   });
 
   it("has a real button as the keyboard path", async () => {

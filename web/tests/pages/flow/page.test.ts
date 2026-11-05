@@ -72,7 +72,7 @@ async function seed() {
 describe("flow page: sentence", () => {
   it("says there is nothing to chart with no applications", async () => {
     await render(freshDb());
-    expect(host.textContent).toContain("No applications to chart. Sync your mail, or add one on the Applications page.");
+    expect(host.textContent).toContain("No applications to chart. Sync your mailbox or add an application on the Applications page.");
     expect(q("svg")).toBeNull();
     expect(q(".lede")).toBeNull();
   });
@@ -217,7 +217,7 @@ describe("flow page: filters", () => {
     await act(async () => { set(account, "1"); set(days, "90"); });
     await act(async () => { q<HTMLButtonElement>("form button.primary")!.click(); });
     expect(navigate).toHaveBeenCalledWith("/flow?account=1&days=90");
-    expect(q("form button.primary")!.textContent).toBe("Apply");
+    expect(q("form button.primary")!.textContent).toBe("Apply filters");
   });
 
   it("filters by period from the query", async () => {
@@ -274,7 +274,7 @@ describe("flow page: share", () => {
     expect(q("#share-copy")!.textContent).toBe("Copy image");
     expect(q("#share-native")).toBeNull();
     expect(q("#share-status")!.getAttribute("role")).toBe("status");
-    expect(q(".share")!.textContent).toContain("no company names or email addresses");
+    expect(q(".share")!.textContent).toContain("It leaves out company names and email addresses.");
   });
 
   it("says so, without throwing, where canvas is unavailable", async () => {
@@ -282,7 +282,7 @@ describe("flow page: share", () => {
     await render(await seed());
     await act(async () => { q<HTMLButtonElement>("#share-save")!.click(); });
     await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
-    expect(q("#share-status")!.textContent).toBe("Couldn't make the image here. Try Save as image.");
+    expect(q("#share-status")!.textContent).toBe("Couldn't make the image. Try again.");
     expect(q<HTMLButtonElement>("#share-save")!.disabled).toBe(false);
   });
 });

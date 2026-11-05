@@ -28,7 +28,7 @@ export const PERIODS: readonly { days: number; label: string }[] = [
 ];
 /** What a sync reads: new mail only, or the last 30/90/180 days. */
 export const SCAN_CHOICES: readonly { days: number; label: string }[] = [
-  { days: 0, label: "New mail since last sync" },
+  { days: 0, label: "New emails since last sync" },
   ...PERIODS.slice(1),
 ];
 

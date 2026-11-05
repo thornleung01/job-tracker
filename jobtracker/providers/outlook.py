@@ -45,11 +45,11 @@ class OutlookProvider:
         result = app.acquire_token_interactive(OUTLOOK_SCOPES + ([OUTLOOK_SEND_SCOPE] if send else []), prompt="select_account",
                                                timeout=SIGN_IN_TIMEOUT)
         if "access_token" not in result:
-            raise NotConnected(result.get("error_description", "Outlook sign-in failed."))
+            raise NotConnected(result.get("error_description", "Outlook login failed."))
         claims = result.get("id_token_claims", {})
         self.address = claims.get("preferred_username") or claims.get("email")
         if not self.address:
-            raise NotConnected("Microsoft signed you in but didn't share this account's email address.")
+            raise NotConnected("Microsoft logged you in but didn't share this account's email address.")
         return self.address
 
     def disconnect(self) -> None:
@@ -80,7 +80,7 @@ class OutlookProvider:
         account = next((a for a in app.get_accounts() if a["username"].lower() == (self.address or "").lower()), None)
         result = app.acquire_token_silent(scopes or OUTLOOK_SCOPES, account=account) if account else None
         if not result or "access_token" not in result:
-            raise NotConnected(f"Outlook account {self.address} needs to sign in again. Run: connect outlook")
+            raise NotConnected(f"Outlook account {self.address} needs to log in again. Run: connect outlook")
         return result["access_token"]
 
     def fetch(self, since: datetime, skip: Callable[[str], bool]) -> Iterator[Message]:

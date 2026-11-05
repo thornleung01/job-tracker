@@ -28,7 +28,7 @@ describe("addApplication with a posting link", () => {
   ])("refuses %s and saves nothing", async (url) => {
     const db = freshDb();
     await expect(add(db, "Acme", url)).rejects.toThrow(ActionError);
-    await expect(add(db, "Acme", url)).rejects.toThrow("That link does not look right. Use a web address that starts with https://.");
+    await expect(add(db, "Acme", url)).rejects.toThrow("That link doesn't look right. Use a web address that starts with https://.");
     expect(await db.applications.count()).toBe(0);
   });
 });

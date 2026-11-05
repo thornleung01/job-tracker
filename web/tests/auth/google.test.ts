@@ -163,7 +163,7 @@ describe("google mail token (token client)", () => {
   it("throws NotConnected when the person unticks the Gmail permission", async () => {
     const { s, auth } = setup();
     s.respond = (cfg) => cfg.callback({ access_token: "t", expires_in: 3600, scope: "openid email" });
-    await expect(auth.requestMailToken()).rejects.toThrow(/not granted/);
+    await expect(auth.requestMailToken()).rejects.toThrow(/wasn't granted/);
   });
 
   it("honours an already aborted signal", async () => {
@@ -209,7 +209,7 @@ describe("createGisLoader", () => {
     const load = createGisLoader(document, window);
     const first = load();
     scripts()[0].onerror?.(new Event("error"));
-    await expect(first).rejects.toThrow(/Could not load Google sign-in/);
+    await expect(first).rejects.toThrow(/Couldn't load Google login/);
     const second = load();
     expect(scripts()).toHaveLength(1);
     const { api } = fakeGis();

@@ -1,6 +1,12 @@
 /* Needs review. Cards, mail text, notices and buttons come from the shared stylesheet. */
-.review-form { margin-top: 12px; }
-.review-form + .review-form { margin-top: 8px; }
+.review-title { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.review-title .mail-subject { min-width: 0; overflow-wrap: anywhere; }
+.review-title button { flex: none; }
+.review-decide { display: grid; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.review-stage select { min-width: 180px; }
+.review-form { flex-wrap: nowrap; }
+.review-form > select, .review-form > input { flex: 1 1 0; }
+@media (max-width: 640px) { .review-form { flex-wrap: wrap; } .review-form > * { flex: 1 1 100%; } }
 .review-form input { min-width: 0; }
 .review-line { justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
 .review-line .what { min-width: 0; overflow-wrap: anywhere; }

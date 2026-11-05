@@ -39,7 +39,7 @@ def test_dashboard_lists_applications_and_counts(env):
 def test_empty_state(env):
     _, _, client = env
     html = client.get("/").text
-    assert "No applications yet" in html and "Sync your mail in Settings" in html
+    assert "No applications yet" in html and "Sync your mailbox in Settings" in html
     assert "No applications match these filters" in client.get("/?q=zzz").text
 
 

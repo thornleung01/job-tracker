@@ -264,12 +264,12 @@ def test_a_second_click_while_signing_in_does_not_open_a_second_window(env):
     c.post("/settings/connect/gmail")
     first = c.app.state.connect_thread
     page = c.get("/settings").text
-    assert "A sign-in window opened" in page and "location.reload" in page
+    assert "A login window opened" in page and "location.reload" in page
     c.post("/settings/connect/gmail")
     assert c.app.state.connect_thread is first
     release.set()
     first.join(5)
-    assert "A sign-in window opened" not in c.get("/settings").text
+    assert "A login window opened" not in c.get("/settings").text
 
 
 def test_disconnect_stops_syncing_but_keeps_the_emails_and_reconnect_resumes(env):

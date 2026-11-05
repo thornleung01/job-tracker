@@ -9,7 +9,7 @@ import { EmailText } from "./EmailText";
 import { MailActions } from "./MailActions";
 import { MailMeta } from "./MailMeta";
 import { Notice } from "./Notice";
-import { TimeText } from "./TimeText";
+import { TimeText, dayText } from "./TimeText";
 import { setFlash } from "./flash";
 import { useAction } from "./useAction";
 import "./components.css";
@@ -55,14 +55,14 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
     void act.run(`entry-${item.id}`, async () => ((await deleteEntry(db, appId, item.id)) ? "Entry deleted." : "That entry was already gone."));
   };
   const remove = () => {
-    if (!window.confirm("Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched.")) return;
+    if (!window.confirm("Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox isn't touched.")) return;
     void act.run("delete", async () => {
       await deleteApplication(db, appId, "clear");
       onRemoved?.();
     });
   };
   const notApplication = () => {
-    if (!window.confirm("Remove this and teach the app it was not a job application? Mail like it will be ignored from now on.")) return;
+    if (!window.confirm("Remove this and teach the app it wasn't a job application? Emails like it will be ignored from now on.")) return;
     void act.run("not", async () => {
       const done = await notAnApplication(db, appId);
       setFlash(learnedNotice(done.rules, done.cleared, `Removed ${done.company}.`));
@@ -79,6 +79,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
       <div className="panel-status small muted" role="status" tabIndex={-1}>{act.status ?? ""}</div>
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
 
+      <div className="panel-split">
       <div className="panel-forms">
         <form onSubmit={logStep}>
           <h3 className="panel-h">Log a step</h3>
@@ -101,11 +102,11 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
           </div>
           <label className="field small stack-top-sm" htmlFor={`step-body-${appId}`}>Note (optional)</label>
           <textarea id={`step-body-${appId}`} name="body" rows={2} maxLength={2000} className="step-note" value={body} onChange={(e) => setBody(e.target.value)} />
-          <p className="help flush">Choosing a stage (like Interview) also moves the application to it. Other steps only go in the history.</p>
           <button type="submit" className="primary" {...act.button("step")}>Log step</button>
         </form>
       </div>
 
+      <div className="panel-history">
       <h3 className="panel-h panel-h-history">History</h3>
       {data && !items.length ? <p className="muted small">Nothing logged yet. Log a step above, with a note if you like.</p> : null}
       {items.length ? (
@@ -120,8 +121,8 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
                     <div className="hist-head">
                       <span className={`tag tag-${i.kind}`}>{i.kind === "note" ? "Note" : "Step"}</span>
                       {i.kind === "note" ? <span className="hist-text">{i.body}</span> : <strong>{i.title}</strong>}
-                      <span className="small muted hist-date">{i.when.slice(0, 10)}</span>
-                      <button type="button" className="danger small hist-del" aria-label={`Delete ${i.kind} from ${i.when.slice(0, 10)}`}
+                      <span className="small muted hist-date">{dayText(i.when, "short")}</span>
+                      <button type="button" className="danger small hist-del" aria-label={`Delete ${i.kind} from ${dayText(i.when)}`}
                               onClick={() => removeEntry(i)} {...act.button(`entry-${i.id}`)}>Delete</button>
                     </div>
                     {i.kind === "step" && i.body ? <div className="hist-body">{i.body}</div> : null}
@@ -137,6 +138,8 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
           ) : null}
         </>
       ) : null}
+      </div>
+      </div>
 
       {includeEmails ? (
         <div className="panel-actions">
@@ -146,8 +149,8 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
               <path d="M7 7h10v10" /><path d="M7 17 17 7" />
             </svg>
           </a>
-          <button type="button" className="danger small" onClick={remove} {...act.button("delete")}>Delete</button>
-          <button type="button" className="danger small" title="Removes it and learns to ignore mail like the emails that made it"
+          <button type="button" className="danger small" onClick={remove} {...act.button("delete")}>Delete application</button>
+          <button type="button" className="danger small" title="Removes it and learns to ignore emails like the ones that made it."
                   onClick={notApplication} {...act.button("not")}>Not an application</button>
         </div>
       ) : null}
@@ -162,7 +165,7 @@ function EmailEntry({ item: i, titles, latest }: { item: HistoryItem; titles: Re
         <span className="chev" aria-hidden="true"></span>
         <span className="tag tag-email">Email</span>
         <strong>{i.title}</strong>
-        {i.detail ? <span className="small muted">(detected: {i.detail})</span> : null}
+        {i.detail ? <span className="small muted">(read as {i.detail})</span> : null}
         {latest ? <span className="tag latest">Latest</span> : null}
         <span className="small muted hist-date"><TimeText iso={i.when} format="short" /></span>
       </summary>

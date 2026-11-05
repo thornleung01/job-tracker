@@ -97,7 +97,7 @@ export function createHttp(provider: ProviderName, tokenSource: TokenSource, opt
         const doFetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
         const res = await doFetch(url, { method: "GET", headers: { ...baseHeaders, ...init.headers, Authorization: `Bearer ${token}` }, signal });
         if (res.status === 401) {
-          if (refreshed) throw new NotConnected(`${provider} rejected the sign-in. Connect it again.`);
+          if (refreshed) throw new NotConnected(`${provider === "gmail" ? "Gmail" : "Outlook"} rejected the login. Reconnect it and try again.`);
           refreshed = true;
           continue;
         }

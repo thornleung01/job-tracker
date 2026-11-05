@@ -51,7 +51,6 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
   return (
     <>
       <h1 className="page">People</h1>
-      <p className="muted">Who you are talking to on each application, worked out from its emails.</p>
       {notice ? <Notice>{notice}</Notice> : null}
 
       <form className="row people-search" onSubmit={search}>
@@ -60,7 +59,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
           <input id="c-q" name="q" value={draft} placeholder="Name, title, company or role" autoComplete="off" onChange={(e) => setDraft(e.target.value)} />
         </div>
         <button type="submit" className="primary">Search</button>
-        {q ? <a className="small clear-search" href="#/people">Clear</a> : null}
+        {q ? <a className="small clear-search" href="#/people">Clear search</a> : null}
       </form>
 
       <div className="result-line" role="status">
@@ -92,7 +91,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
         ))}
       </div>
       {!groups.length ? (
-        <p className="muted">{q ? `Nobody matches "${q}".` : "No people yet. They appear once emails from real people, such as a recruiter or an interviewer, belong to an application."}</p>
+        <p className="muted">{q ? `No people match "${q}".` : "No people yet. They appear once emails from real people, such as a recruiter or an interviewer, belong to an application."}</p>
       ) : null}
     </>
   );

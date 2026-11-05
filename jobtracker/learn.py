@@ -77,9 +77,9 @@ def _reason(email: sqlite3.Row) -> str:
 def describe(kind: str, value: str, evidence: int) -> str:
     times = f"{evidence} time{'s' if evidence != 1 else ''}"
     return {
-        "block_sender": f"Ignoring mail from {value} (you flagged it {times})",
-        "block_domain": f"Ignoring all mail from {value} (you flagged {evidence} of its addresses)",
-        "allow_sender": f"Trusting mail from {value} (you confirmed it {times})",
+        "block_sender": f"Ignoring emails from {value} (you flagged it {times})",
+        "block_domain": f"Ignoring all emails from {value} (you flagged {evidence} of its addresses)",
+        "allow_sender": f"Trusting emails from {value} (you confirmed it {times})",
         "distrust_pattern": f"Not trusting one wording on its own: \"{value}\" was wrong {times}, so matches go to Needs review",
     }[kind]
 

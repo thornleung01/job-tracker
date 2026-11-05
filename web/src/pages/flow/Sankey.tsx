@@ -83,7 +83,7 @@ function ChartInner(props: Props, ref: ForwardedRef<SVGSVGElement>) {
       viewBox={`0 0 ${width} ${height}`}
       className={hl && hl.size ? "dim" : undefined}
       role="group"
-      aria-label="Sankey diagram of application stages. A table with the same numbers follows."
+      aria-label="Flow chart of application stages. A table with the same numbers follows."
     >
       <g>
         {layout.links.flatMap((l) =>

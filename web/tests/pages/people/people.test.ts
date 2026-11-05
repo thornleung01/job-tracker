@@ -77,11 +77,11 @@ describe("the People page", () => {
     expect(m.visited.at(-1)).toBe("/people?q=recruiter");
     expect(names(m.container)).toEqual(["DoorDash"]);
     expect(text($(m.container, ".result-line"))).toBe("1 of 3 people across 1 application");
-    expect(text($(m.container, "a.clear-search"))).toBe("Clear");
+    expect(text($(m.container, "a.clear-search"))).toBe("Clear search");
     const byCompany = await mountPage(PeoplePage, db, "/people?q=DEEL");
     expect(names(byCompany.container)).toEqual(["Deel"]);
     const none = await mountPage(PeoplePage, db, "/people?q=zzz");
-    expect(text(none.container)).toContain('Nobody matches "zzz".');
+    expect(text(none.container)).toContain('No people match "zzz".');
   });
 
   it("tells you when there is nobody yet", async () => {
@@ -105,7 +105,7 @@ describe("the People page", () => {
     expect(text($(emails, "summary"))).toBe("1 email");
     expect(text($(emails, "ul.thread li"))).toContain("Intro");
     expect($(emails, "ul.thread a")?.getAttribute("href")).toMatch(/^#\/app\/\d+\?email=\d+$/);
-    expect($$(person, "details.action > summary").map(text)).toEqual(["1 email", "Edit"]);
+    expect($$(person, "details.action > summary").map(text)).toEqual(["1 email", "Edit person"]);
   });
 
   it("saves an edit and says so", async () => {
@@ -113,7 +113,7 @@ describe("the People page", () => {
     const { container } = await mountPage(PeoplePage, db, "/people?q=jocelyn");
     await type($(container, "input[name=name]"), "Jo Ford");
     await type($(container, "input[name=title]"), "Hiring manager");
-    await click(button($(container, ".person")!, "Save"));
+    await click(button($(container, ".person")!, "Save changes"));
     await waitFor(() => text($(container, ".person-head strong")) === "Jo Ford");
     expect(text($(container, ".person-title"))).toBe("Hiring manager");
     expect($$(container, ".person .tag").map(text)).toEqual(["Hiring side", "Edited by you"]);

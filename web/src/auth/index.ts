@@ -122,7 +122,7 @@ export function createAuth(deps: AuthDeps): Auth {
 
   async function signIn(provider: IdentityProvider): Promise<AuthUser> {
     if (deps.isConfigured && !deps.isConfigured(provider)) {
-      const err = new Error(`${provider === "google" ? "Google" : "Microsoft"} sign-in is not set up for this build`);
+      const err = new Error(`${provider === "google" ? "Google" : "Microsoft"} login isn't available on this site yet.`);
       store.update({ status: "signed-out", error: err.message });
       throw err;
     }
@@ -131,7 +131,7 @@ export function createAuth(deps: AuthDeps): Auth {
     store.update({ status: "signing-in", error: null });
     try {
       const user = await (provider === "google" ? google.signIn() : microsoft.signIn());
-      if (gen !== generation) throw new Error("Sign-in was cancelled");
+      if (gen !== generation) throw new Error("Login was cancelled.");
       completeSignIn(user);
       return user;
     } catch (e) {
@@ -150,11 +150,11 @@ export function createAuth(deps: AuthDeps): Auth {
 
   async function connectMail(target: MailTarget): Promise<void> {
     const provider = toMailProvider(target);
-    if (store.getSnapshot().status !== "signed-in") throw new NotConnected("Sign in before connecting a mailbox");
+    if (store.getSnapshot().status !== "signed-in") throw new NotConnected("Log in before you connect a mailbox.");
     const gen = generation;
     try {
       const t = await acquire(provider, true);
-      if (gen !== generation) throw new NotConnected("Signed out");
+      if (gen !== generation) throw new NotConnected("You were logged out. Log in and try again.");
       tokens.set(provider, t);
       setMail(provider, true);
       store.update({ error: null });
@@ -168,10 +168,10 @@ export function createAuth(deps: AuthDeps): Auth {
     const provider = toMailProvider(target);
     if (signal?.aborted) throw abortError();
     const session = store.getSnapshot();
-    if (session.status !== "signed-in") throw new NotConnected("Sign in first");
+    if (session.status !== "signed-in") throw new NotConnected("Log in first, then try again.");
     const cached = tokens.get(provider);
     if (cached && cached.expiresAt - now() > EXPIRY_MARGIN_MS) return cached.token;
-    if (!session.mail[provider]) throw new NotConnected(`${MAIL_LABEL[provider]} is not connected`);
+    if (!session.mail[provider]) throw new NotConnected(`${MAIL_LABEL[provider]} isn't connected. Reconnect it and try again.`);
 
     let pending = inflight.get(provider);
     if (!pending) {
@@ -179,7 +179,7 @@ export function createAuth(deps: AuthDeps): Auth {
       pending = (async () => {
         try {
           const t = await acquire(provider, false);
-          if (gen !== generation) throw new NotConnected("Signed out");
+          if (gen !== generation) throw new NotConnected("Logged out");
           tokens.set(provider, t);
           return t.token;
         } catch (e) {

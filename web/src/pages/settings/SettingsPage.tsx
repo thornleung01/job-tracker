@@ -3,6 +3,7 @@ import { ACCENT_COLORS } from "../../app/accents";
 import { isLocalUser } from "../../app/localUser";
 import type { PageProps } from "../../app/pageProps";
 import { BookmarkletCard } from "../../components/BookmarkletCard";
+import { lowerMeridiem } from "../../components/TimeText";
 import { useQuery } from "../../app/useQuery";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
@@ -61,12 +62,12 @@ const NO_AUTH: SettingsDeps["auth"] = {
   })(),
   subscribe: () => () => undefined,
   signOut: async () => undefined,
-  connectMail: async () => { throw new Error("Mail sync is not set up on this site."); },
-  tokenSource: async () => { throw new Error("Mail sync is not set up on this site."); },
+  connectMail: async () => { throw new Error("Mail sync isn't set up on this site."); },
+  tokenSource: async () => { throw new Error("Mail sync isn't set up on this site."); },
 };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+const when = (iso: string) => lowerMeridiem(new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }));
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function Segmented<T extends string>({ id, label, name, options, value, onChange }: {
@@ -160,7 +161,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       });
       say("ok", `Connected ${PROVIDER_LABEL[provider]} ${address}.`);
     } catch (e) {
-      say("err", `Could not connect ${PROVIDER_LABEL[provider]}. ${errorText(e)}`);
+      say("err", `Couldn't connect ${PROVIDER_LABEL[provider]}. ${errorText(e)}`);
     } finally {
       setConnecting(null);
     }
@@ -201,7 +202,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       const result = describeSync(report);
       say(result.ok ? "ok" : "err", ...result.lines);
     } catch (e) {
-      say("err", errorText(e));
+      console.error(e);
+      say("err", "Sync stopped because something went wrong. Try again.");
     } finally {
       abort.current = null;
       setProgress(null);
@@ -214,7 +216,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       deps.download(exportFilename(), await exportAllAsJson(db));
       say("ok", "Your data was exported.");
     } catch (e) {
-      say("err", `Export failed. ${errorText(e)}`);
+      console.error(e);
+      say("err", "Couldn't export your data. Try again.");
     }
   }
 
@@ -232,7 +235,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
 
   function importFailed(e: unknown) {
     if (e instanceof ImportError) say("err", "This file can't be imported.", ...e.problems.slice(0, 8), ...(e.problems.length > 8 ? [`And ${e.problems.length - 8} more problems.`] : []));
-    else say("err", `Import failed. ${errorText(e)}`);
+    else say("err", "Couldn't import this file. Try again.");
   }
 
   async function confirmImport() {
@@ -260,7 +263,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
     try {
       say("ok", describeImport(await loadDemoData(db)));
     } catch (e) {
-      say("err", `Demo data could not be loaded. ${errorText(e)}`);
+      console.error(e);
+      say("err", "Couldn't load the demo data. Try again.");
     } finally {
       setConfirmDemo(false);
       setBusy(false);
@@ -273,7 +277,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       await clearAll(db);
       say("ok", "All your data was deleted from this device.");
     } catch (e) {
-      say("err", `Delete failed. ${errorText(e)}`);
+      console.error(e);
+      say("err", "Couldn't delete your data. Try again.");
     } finally {
       setConfirmDelete(false);
       setBusy(false);
@@ -325,15 +330,15 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
                         <span className="muted"> · {x.emailCount} email{x.emailCount === 1 ? "" : "s"}</span>
                       </div>
                       {x.active && (
-                        <div className="small muted">{ready ? "Connected in this tab" : "Not connected in this tab. Connect again to sync."}</div>
+                        <div className="small muted">{ready ? "Connected in this tab" : "Not connected in this tab. Reconnect to sync."}</div>
                       )}
                     </div>
                     {!x.active ? (
-                      <button disabled={connecting !== null} onClick={() => void connect(x.provider)}>Reconnect</button>
+                      <button disabled={connecting !== null} onClick={() => void connect(x.provider)}>Reconnect account</button>
                     ) : (
                       <>
-                        {!ready && <button className="primary" disabled={connecting !== null} onClick={() => void connect(x.provider)}>Connect again</button>}
-                        <button onClick={() => void disconnect(x.id, label)}>Disconnect</button>
+                        {!ready && <button className="primary" disabled={connecting !== null} onClick={() => void connect(x.provider)}>Reconnect account</button>}
+                        <button onClick={() => void disconnect(x.id, label)}>Disconnect account</button>
                       </>
                     )}
                   </div>
@@ -410,7 +415,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
           <>
             <Segmented id="l-theme" label="Theme" name="theme" options={THEMES} value={a.theme} onChange={(theme) => void saveAppearance({ theme })} />
             <div className="field-block">
-              <div className="field" id="l-accent">Accent color</div>
+              <div className="field" id="l-accent">Accent colour</div>
               <div className="swatches" role="radiogroup" aria-labelledby="l-accent">
                 {ACCENTS.map((name) => (
                   <label key={name}>
@@ -456,9 +461,9 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <h2 className="sec" id="h-data">Your data</h2>
         <p className="help">Everything is stored in this browser. Export a copy to keep it safe or move it.</p>
         <div className="row field-block">
-          <button onClick={() => void exportData()}>Export</button>
+          <button onClick={() => void exportData()}>Export data</button>
           <label className="btn file-pick">
-            Import
+            Import data
             <input ref={fileInput} type="file" accept=".json,application/json" className="sr" onChange={(e) => void chooseFile(e.target.files?.[0])} />
           </label>
           {isLocalUser(user) && <button disabled={busy} onClick={() => void startDemo()}>Load demo data</button>}
@@ -486,9 +491,9 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <section className="card" id="account" aria-labelledby="h-account">
           <h2 className="sec" id="h-account">Account</h2>
           <p className="help">
-            Signed in as {account.name ?? account.email ?? "you"}{account.name && account.email ? ` (${account.email})` : ""} with {account.provider === "google" ? "Google" : "Microsoft"}.
+            Logged in as {account.name ?? account.email ?? "you"}{account.name && account.email ? ` (${account.email})` : ""} with {account.provider === "google" ? "Google" : "Microsoft"}.
           </p>
-          <button onClick={() => void auth.signOut()}>Sign out</button>
+          <button onClick={() => void auth.signOut()}>Log out</button>
         </section>
       )}
     </>

@@ -4,6 +4,7 @@ import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow
 import { safePostingUrl } from "../db/postingUrl";
 import { isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
+import { MAX_ROUNDS } from "../sync/rounds";
 import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
 import { truncate } from "../sync/text";
 import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData } from "./format";
@@ -110,7 +111,7 @@ function uniqueIds(rows: { id: number }[], name: string, c: Check): void {
 /** Turns an unknown value into export data, or throws an ImportError listing what is wrong. */
 export function parseExportData(raw: unknown): ExportData {
   const c = new Check();
-  if (!isRec(raw)) throw new ImportError(["The file is not a Job Tracker export."]);
+  if (!isRec(raw)) throw new ImportError(["The file isn't a Job Tracker export."]);
   const d = raw;
 
   const accounts: AccountRow[] = [];
@@ -133,6 +134,8 @@ export function parseExportData(raw: unknown): ExportData {
     if (!isStage(stage)) k.fail("stage is not one of the six stages.");
     const company = str(r, "company", k, { max: 200 });
     const postingUrl = safePostingUrl(r.postingUrl);
+    // A rounds count outside 0 to MAX_ROUNDS, or not a whole number, is dropped: the app then works the count out itself.
+    const rounds = typeof r.interviewRounds === "number" && Number.isInteger(r.interviewRounds) && r.interviewRounds >= 0 && r.interviewRounds <= MAX_ROUNDS ? r.interviewRounds : undefined;
     if (rowId && isStage(stage)) {
       applications.push({
         id: rowId, company, companyKey: str(r, "companyKey", k, { max: 200 }), role: str(r, "role", k, { max: 300 }),
@@ -140,6 +143,7 @@ export function parseExportData(raw: unknown): ExportData {
         lastActivity: time(r, "lastActivity", k, true), locked: flag(r, "locked", k), manual: flag(r, "manual", k),
         // A link that is not a plain http(s) address is dropped, never an error and never kept.
         ...(postingUrl ? { postingUrl } : {}),
+        ...(rounds !== undefined ? { interviewRounds: rounds } : {}),
       });
     }
   });
@@ -276,7 +280,7 @@ export function parseExportData(raw: unknown): ExportData {
 
 /** Checks the envelope (format and version) and the data inside it. */
 export function parseEnvelope(raw: unknown): { exportedAt: string; source: string; data: ExportData } {
-  if (!isRec(raw) || raw.format !== EXPORT_FORMAT) throw new ImportError(["The file is not a Job Tracker export."]);
+  if (!isRec(raw) || raw.format !== EXPORT_FORMAT) throw new ImportError(["The file isn't a Job Tracker export."]);
   if (typeof raw.version !== "number" || raw.version > EXPORT_VERSION || raw.version < 1) {
     throw new ImportError([`The file is version ${String(raw.version)}, and this app reads version ${EXPORT_VERSION}. Update the app, or export again.`]);
   }
