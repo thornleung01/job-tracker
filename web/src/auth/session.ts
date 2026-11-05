@@ -6,6 +6,8 @@ export interface Session {
   user: AuthUser | null;
   /** Which mailboxes have been connected in this tab. Never holds the tokens themselves. */
   mail: Record<ProviderName, boolean>;
+  /** The mailbox the login just connected, until the app takes it to start the first sync. Never holds a token. */
+  pendingSync: ProviderName | null;
   /** Last user-facing problem, cleared by the next attempt. */
   error: string | null;
   /** Non-secret hint from a previous visit, to highlight the provider the person used last. */
@@ -18,6 +20,7 @@ const SIGNED_OUT: Omit<Session, "lastProvider"> = {
   status: "signed-out",
   user: null,
   mail: { gmail: false, outlook: false },
+  pendingSync: null,
   error: null,
 };
 

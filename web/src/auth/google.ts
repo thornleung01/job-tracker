@@ -1,22 +1,21 @@
-// Google Identity Services. Identity comes from the ID token credential (so iss/aud/exp/nonce can be checked);
-// mail access comes from the OAuth token client (short-lived access token, no refresh token).
+// Google Identity Services. One OAuth token-client window logs the person in and (unless they decline) grants
+// Gmail read access. Identity comes from Google's tokeninfo endpoint for the access token; mail access is that same
+// short-lived access token (no refresh token). Tokens stay in memory only.
 import { NotConnected } from "../types";
-import { GOOGLE_ISSUERS, randomNonce, validateIdToken } from "./idToken";
 import { userFromClaims, type AuthUser } from "./user";
 
 export const GIS_SRC = "https://accounts.google.com/gsi/client";
+export const TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
+/** Scopes that identify the person. The mail scope is added on top when the person connects their mailbox. */
+export const GOOGLE_LOGIN_SCOPES = "openid email profile";
+const GOOGLE_ISSUER = "https://accounts.google.com";
 
 /** What to tell the person when Google's sign-in window did not open or the silent token request failed. */
 export const POPUP_HINT = "Your browser may have blocked the Google login window. Allow pop-ups for this site and try again.";
+const CANCELLED = "Login was cancelled.";
+const NOT_COMPLETED = "Google login wasn't completed. Try again.";
+const NOT_VERIFIED = "Google login couldn't be verified. Try again.";
 
-interface GisCredentialResponse {
-  credential?: string;
-}
-interface GisPromptNotification {
-  isNotDisplayed(): boolean;
-  isSkippedMoment(): boolean;
-  isDismissedMoment(): boolean;
-}
 interface GisTokenResponse {
   access_token?: string;
   expires_in?: number | string;
@@ -25,23 +24,10 @@ interface GisTokenResponse {
   error_description?: string;
 }
 interface GisTokenClient {
-  requestAccessToken(overrides?: { prompt?: string }): void;
+  requestAccessToken(overrides?: { prompt?: string; scope?: string }): void;
 }
 export interface GisApi {
   accounts: {
-    id: {
-      initialize(config: {
-        client_id: string;
-        callback: (response: GisCredentialResponse) => void;
-        nonce?: string;
-        auto_select?: boolean;
-        use_fedcm_for_prompt?: boolean;
-      }): void;
-      prompt(listener?: (notification: GisPromptNotification) => void): void;
-      renderButton(parent: HTMLElement, options: Record<string, unknown>): void;
-      disableAutoSelect(): void;
-      cancel(): void;
-    };
     oauth2: {
       initTokenClient(config: {
         client_id: string;
@@ -92,101 +78,140 @@ export interface GoogleAccessToken {
   expiresAt: number;
 }
 
+export interface GoogleSignInResult {
+  user: AuthUser;
+  /** The Gmail access token from the same window, or null when mail wasn't asked for or wasn't granted. */
+  mail: GoogleAccessToken | null;
+}
+
 export interface GoogleDeps {
   clientId: string;
   mailScope: string;
   loadGis: () => Promise<GisApi>;
-  makeNonce?: () => string;
   now?: () => number;
-  /** Called when the rendered Google button (not signIn()) produced a valid identity. */
-  onButtonSignIn?: (user: AuthUser) => void;
-  onButtonError?: (error: Error) => void;
+  fetch?: typeof fetch;
 }
 
 export interface GoogleAuth {
-  /** Shows Google's prompt. It can be suppressed by the browser; renderButton is the dependable path. */
-  signIn(): Promise<AuthUser>;
-  renderButton(parent: HTMLElement, options?: Record<string, unknown>): Promise<void>;
+  /** Loads GIS and creates the token client, so signIn() can open its window inside the click. Safe to call often. */
+  prepare(): Promise<void>;
+  /**
+   * Opens Google's window. When prepare() has finished, requestAccessToken runs synchronously in this call
+   * (nothing awaited first), which keeps popup blockers happy. Call it directly from a click handler.
+   */
+  signIn(opts?: { mail?: boolean }): Promise<GoogleSignInResult>;
   /** Needs a user gesture the first time; later calls re-acquire silently while the Google session lives. */
   requestMailToken(opts?: { loginHint?: string; signal?: AbortSignal }): Promise<GoogleAccessToken>;
   revoke(token: string): Promise<void>;
-  disableAutoSelect(): void;
 }
 
-interface Settle {
-  resolve(user: AuthUser): void;
-  reject(error: Error): void;
+interface Pending {
+  mail: boolean;
+  resolve(r: GisTokenResponse): void;
+  reject(e: Error): void;
+}
+
+interface TokenInfo {
+  aud?: unknown;
+  azp?: unknown;
+  sub?: unknown;
+  email?: unknown;
+  scope?: unknown;
 }
 
 export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
-  const makeNonce = deps.makeNonce ?? (() => randomNonce());
   const now = deps.now ?? (() => Date.now());
+  const doFetch: typeof fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   let loaded: GisApi | null = null;
-  let activeNonce = "";
-  let settle: Settle | null = null;
-
-  function initialize(gis: GisApi): void {
-    activeNonce = makeNonce();
-    gis.accounts.id.initialize({
-      client_id: deps.clientId,
-      nonce: activeNonce,
-      auto_select: false,
-      use_fedcm_for_prompt: true,
-      callback: onCredential,
-    });
-  }
-
-  function onCredential(response: GisCredentialResponse): void {
-    const pending = settle;
-    settle = null;
-    try {
-      if (!response.credential) throw new Error("Google didn't complete the login. Try again.");
-      const claims = validateIdToken(response.credential, {
-        issuers: GOOGLE_ISSUERS,
-        audience: deps.clientId,
-        nonce: activeNonce,
-        now: now(),
-      });
-      const user = userFromClaims("google", claims);
-      if (pending) pending.resolve(user);
-      else deps.onButtonSignIn?.(user);
-    } catch (e) {
-      const err = e instanceof Error ? e : new Error(String(e));
-      if (pending) pending.reject(err);
-      else deps.onButtonError?.(err);
-    } finally {
-      // A nonce is single use; the rendered button keeps working with a fresh one.
-      if (loaded) initialize(loaded);
-    }
-  }
+  let loginClient: GisTokenClient | null = null;
+  let preparing: Promise<void> | null = null;
+  let pending: Pending | null = null;
 
   async function gis(): Promise<GisApi> {
     loaded = await deps.loadGis();
     return loaded;
   }
 
-  return {
-    async signIn() {
-      const api = await gis();
-      initialize(api);
-      return new Promise<AuthUser>((resolve, reject) => {
-        settle = { resolve, reject };
-        api.accounts.id.prompt((n) => {
-          if (n.isNotDisplayed() || n.isSkippedMoment()) {
-            settle = null;
-            reject(new Error("Google didn't show its login prompt. Choose the Google button instead."));
-          } else if (n.isDismissedMoment() && settle) {
-            settle = null;
-            reject(new Error("Login was cancelled."));
-          }
-        });
-      });
-    },
+  function settle(): Pending | null {
+    const p = pending;
+    pending = null;
+    return p;
+  }
 
-    async renderButton(parent, options = {}) {
-      const api = await gis();
-      initialize(api);
-      api.accounts.id.renderButton(parent, { type: "standard", theme: "outline", size: "large", text: "continue_with", ...options });
+  function prepare(): Promise<void> {
+    preparing ??= gis().then(
+      (api) => {
+        loginClient = api.accounts.oauth2.initTokenClient({
+          client_id: deps.clientId,
+          scope: `${GOOGLE_LOGIN_SCOPES} ${deps.mailScope}`,
+          callback: (r) => settle()?.resolve(r),
+          error_callback: (e) => {
+            settle()?.reject(new Error(e.type === "popup_failed_to_open" ? POPUP_HINT : e.type === "popup_closed" ? CANCELLED : NOT_COMPLETED));
+          },
+        });
+      },
+      (e: unknown) => {
+        preparing = null;
+        throw e;
+      },
+    );
+    return preparing;
+  }
+
+  /** Must run synchronously from the click. */
+  function open(client: GisTokenClient, mail: boolean): Promise<GisTokenResponse> {
+    settle()?.reject(new Error(CANCELLED));
+    return new Promise<GisTokenResponse>((resolve, reject) => {
+      pending = { mail, resolve, reject };
+      try {
+        client.requestAccessToken(mail ? { prompt: "" } : { prompt: "", scope: GOOGLE_LOGIN_SCOPES });
+      } catch (e) {
+        settle();
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    });
+  }
+
+  async function tokenInfo(accessToken: string): Promise<TokenInfo> {
+    const body = new URLSearchParams({ access_token: accessToken });
+    let res: Response | null = null;
+    try {
+      res = await doFetch(TOKENINFO_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+    } catch {
+      res = null;
+    }
+    // Some browsers or networks refuse the POST; the same call is accepted as a GET.
+    if (!res || res.status === 405 || res.status === 415) {
+      res = await doFetch(`${TOKENINFO_URL}?${body.toString()}`, { method: "GET" });
+    }
+    if (!res.ok) throw new Error(NOT_VERIFIED);
+    const info: unknown = await res.json();
+    if (typeof info !== "object" || info === null) throw new Error(NOT_VERIFIED);
+    return info as TokenInfo;
+  }
+
+  async function finish(r: GisTokenResponse, mail: boolean): Promise<GoogleSignInResult> {
+    if (r.error === "access_denied") throw new Error(CANCELLED);
+    if (r.error || !r.access_token) throw new Error(NOT_COMPLETED);
+    const info = await tokenInfo(r.access_token);
+    if (info.aud !== deps.clientId && info.azp !== deps.clientId) throw new Error(NOT_VERIFIED);
+    if (typeof info.sub !== "string" || !/^\d+$/.test(info.sub)) throw new Error(NOT_VERIFIED);
+    if (typeof info.email !== "string" || info.email === "") throw new Error("Google didn't share your email address. Try again.");
+    const user = userFromClaims("google", { iss: GOOGLE_ISSUER, sub: info.sub, email: info.email });
+    const granted = (r.scope ?? (typeof info.scope === "string" ? info.scope : "")).split(" ");
+    if (!mail || !granted.includes(deps.mailScope)) return { user, mail: null };
+    const seconds = Number(r.expires_in ?? 3600);
+    return { user, mail: { token: r.access_token, expiresAt: now() + seconds * 1000 } };
+  }
+
+  return {
+    prepare,
+
+    signIn(opts = {}) {
+      const mail = opts.mail ?? true;
+      // Prepared: open the window right now, inside the caller's click.
+      const response = loginClient ? open(loginClient, mail) : prepare().then(() => open(loginClient!, mail));
+      return response.then((r) => finish(r, mail));
     },
 
     async requestMailToken({ loginHint, signal } = {}) {
@@ -227,10 +252,6 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
       const api = loaded;
       if (!api) return;
       await new Promise<void>((resolve) => api.accounts.oauth2.revoke(token, () => resolve()));
-    },
-
-    disableAutoSelect() {
-      loaded?.accounts.id.disableAutoSelect();
     },
   };
 }

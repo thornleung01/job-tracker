@@ -1,6 +1,7 @@
 // A one-click way back to a synced mailbox after a reload. Tokens live in memory only, so a signed-in person
 // otherwise has to open Settings, press Connect for each mailbox and then Sync. This does all three in one press,
 // through the same connectMailbox and runSync that Settings uses, so the two screens cannot drift apart.
+// Right after a login that also connected a mailbox (autoStart), it registers that mailbox and runs the first sync by itself.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalUser, type PageUser } from "../app/localUser";
 import { useQuery } from "../app/useQuery";
@@ -9,7 +10,7 @@ import type { Session } from "../auth/session";
 import type { AuthUser } from "../auth/user";
 import { isLocalMode } from "../config";
 import type { AccountRow, JobTrackerDB } from "../db/schema";
-import { PROVIDER_LABEL, accountLabel, connectMailbox, isConnected, runSync, type MailDeps, type SyncReport } from "../pages/settings/actions";
+import { PROVIDER_LABEL, accountLabel, connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../pages/settings/actions";
 import { createProvider, getAddress } from "../providers";
 import { accountSummaries } from "../sync/queries";
 import type { SyncProgress } from "../sync/sync";
@@ -22,11 +23,13 @@ export interface SyncBannerDeps extends Pick<MailDeps, "createProvider" | "getAd
     subscribe(listener: () => void): () => void;
     connectMail(provider: ProviderName): Promise<void>;
     tokenSource: TokenSource;
+    /** The mailbox the login just connected, once. Null otherwise. */
+    takePendingSync(): ProviderName | null;
   };
 }
 
 export const defaultDeps: SyncBannerDeps = {
-  auth: { getSession: realAuth.getSession, subscribe: realAuth.subscribe, connectMail: realAuth.connectMail, tokenSource: realAuth.tokenSource },
+  auth: { getSession: realAuth.getSession, subscribe: realAuth.subscribe, connectMail: realAuth.connectMail, tokenSource: realAuth.tokenSource, takePendingSync: realAuth.takePendingSync },
   createProvider,
   getAddress,
 };
@@ -71,6 +74,11 @@ export interface SyncBannerProps {
   deps?: Partial<SyncBannerDeps>;
   /** Overrides isLocalMode(); local builds have no mail sync at all, so nothing shows. */
   local?: boolean;
+  /**
+   * Take the mailbox the login just connected and sync it, with no window. Nothing happens while this is false (the
+   * carry-over offer may still be waiting for an answer).
+   */
+  autoStart?: boolean;
 }
 
 export function SyncBanner(props: SyncBannerProps) {
@@ -79,7 +87,7 @@ export function SyncBanner(props: SyncBannerProps) {
   return <Banner {...props} user={user} />;
 }
 
-function Banner({ db, user, deps: given }: SyncBannerProps & { user: AuthUser }) {
+function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & { user: AuthUser }) {
   const deps: SyncBannerDeps = { ...defaultDeps, ...given };
   const { auth } = deps;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
@@ -104,26 +112,54 @@ function Banner({ db, user, deps: given }: SyncBannerProps & { user: AuthUser })
     if (result) box.current?.focus();
   }, [result]);
 
+  // Always call the newest closure: it runs from a timer, not from a render.
+  const start = useRef(reconnectAndSync);
+  start.current = reconnectAndSync;
+  const taken = useRef(false);
+  // Deferred a tick so React's development double-mount (mount, unmount, mount) takes the pending mailbox only once,
+  // and a real unmount in between takes nothing.
+  useEffect(() => {
+    if (!autoStart || taken.current) return;
+    const timer = setTimeout(() => {
+      if (!mounted.current || taken.current || busy.current) return;
+      taken.current = true;
+      const provider = auth.takePendingSync();
+      if (provider) void start.current(provider);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const needed: AccountRow[] = (accounts ?? []).filter((a) => a.active && !isConnected(user, a, session.mail));
 
-  async function reconnectAndSync() {
+  /** `auto` is a mailbox that is already connected: register it and sync, with no window. Otherwise reconnect what's needed. */
+  async function reconnectAndSync(auto?: ProviderName) {
     if (busy.current) return;
     busy.current = true;
+    let silent = false;
     const controller = new AbortController();
     abort.current = controller;
-    const providers = [...new Set(needed.map((a) => a.provider))];
+    const providers = auto ? [] : [...new Set(needed.map((a) => a.provider))];
     const safe = <T,>(fn: (v: T) => void) => (v: T) => {
       if (mounted.current) fn(v);
     };
     const setProg = safe(setProgress);
     setRunning(true);
     setResult(null);
-    setProg({ label: "Connecting", percent: null });
+    setProg({ label: auto ? `Connecting ${PROVIDER_LABEL[auto]}` : "Connecting", percent: null });
     const problems: string[] = [];
     let report: SyncReport | null = null;
     try {
       // The first connect must stay inside the click's own turn so the browser lets the Google window open.
       let connectedAny = false;
+      if (auto) {
+        try {
+          const done = await registerMailbox(db, user, auto, { tokenSource: auth.tokenSource, getAddress: deps.getAddress });
+          if ("inactive" in done) silent = true;
+          else connectedAny = true;
+        } catch (e) {
+          problems.push(`Couldn't connect ${PROVIDER_LABEL[auto]}. ${errorText(e)}`);
+        }
+      }
       for (const provider of providers) {
         if (controller.signal.aborted) break;
         setProg({ label: `Connecting ${PROVIDER_LABEL[provider]}`, percent: null });
@@ -161,7 +197,7 @@ function Banner({ db, user, deps: given }: SyncBannerProps & { user: AuthUser })
       abort.current = null;
       busy.current = false;
       if (mounted.current) {
-        setResult(describeBanner(report, problems));
+        if (!silent) setResult(describeBanner(report, problems));
         setRunning(false);
         setProgress(null);
       }

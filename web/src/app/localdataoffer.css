@@ -1,0 +1,14 @@
+/* The offer to bring over the browser's earlier copy: a quiet status row like the local banner, then a notice, then an in-place question. Tokens only. */
+.carryover { --hit: calc((var(--tap) - 1.25rem) / 2); margin-bottom: 12px; }
+.carryover-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 8px; color: var(--muted); font-size: 0.875rem; line-height: 1.25rem; }
+.carryover-text { flex: 0 1 auto; margin-right: 8px; }
+.carryover-row button { font-size: inherit; line-height: 1.25rem; font-weight: 500; color: var(--ink); background: none; box-shadow: none;
+                        min-height: 0; padding: var(--hit) 10px; margin: calc(var(--hit) * -1) 0; }
+.carryover-row button.muted { color: var(--muted); }
+.carryover-row button:hover:not(:disabled) { background: var(--hover); }
+.carryover-row button:focus-visible { outline-offset: 0; }
+.carryover:focus { outline: none; }
+.carryover .notice + .row, .carryover .notice + .carryover-confirm { margin-top: 8px; }
+.carryover-confirm { padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.carryover-confirm-q { margin: 0 0 4px; font-weight: 500; }
+.carryover-confirm .help { margin-bottom: 12px; }

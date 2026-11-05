@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { Session } from "../../src/auth/session";
 import type { AuthUser } from "../../src/auth/user";
 import type { ShellAuth } from "../../src/app/authApi";
+import type { ProviderName } from "../../src/types";
 import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
 import { quiesce, sleep, WAIT_TIMEOUT_MS } from "../support/helpers";
 
@@ -83,12 +84,20 @@ export const q = <T extends Element = HTMLElement>(sel: string, root: ParentNode
 export const byText = (text: string, sel = "button, a, label", root: ParentNode = document) =>
   Array.from(root.querySelectorAll<HTMLElement>(sel)).find((e) => (e.textContent ?? "").trim() === text) ?? null;
 
-const SIGNED_OUT: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null };
+const SIGNED_OUT: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, pendingSync: null, error: null, lastProvider: null };
 
-/** A controllable stand-in for the auth module. */
+/**
+ * A controllable stand-in for the auth module.
+ *
+ * - `signIn(provider, opts)` signs in as `ada` and records the call (check `opts.mail`).
+ * - `prepare(provider)` resolves right away and is recorded.
+ * - `pending.value` is what `takePendingSync()` returns the next time. Like the real one it returns the value once and
+ *   then null. Set `pending.value = "gmail"` (or "outlook") to pretend the login just connected that mailbox.
+ */
 export function fakeAuth(initial: Partial<Session> = {}) {
   let session: Session = { ...SIGNED_OUT, ...initial };
   const listeners = new Set<() => void>();
+  const pending: { value: ProviderName | null } = { value: null };
   const set = (patch: Partial<Session>) =>
     act(async () => {
       session = { ...session, ...patch };
@@ -102,19 +111,18 @@ export function fakeAuth(initial: Partial<Session> = {}) {
       listeners.add(l);
       return () => void listeners.delete(l);
     },
-    signIn: vi.fn(async (p: "google" | "microsoft"): Promise<AuthUser> => {
+    prepare: vi.fn(async (_provider: "google" | "microsoft"): Promise<void> => undefined),
+    signIn: vi.fn(async (_provider: "google" | "microsoft", _opts?: { mail?: boolean }): Promise<void> => {
       await set({ status: "signed-in", user: ada });
-      return { ...ada, provider: p };
     }),
-    renderGoogleButton: vi.fn(async (el: HTMLElement) => {
-      const b = document.createElement("div");
-      b.className = "fake-google";
-      b.textContent = "Google's button";
-      el.appendChild(b);
+    takePendingSync: vi.fn((): ProviderName | null => {
+      const v = pending.value;
+      pending.value = null;
+      return v;
     }),
     signOut: vi.fn(async () => { await set({ ...SIGNED_OUT }); }),
   } satisfies ShellAuth;
-  return { auth, set };
+  return { auth, set, pending };
 }
 
 let counter = 0;

@@ -24,12 +24,22 @@ interface Opts {
   /** called when the provider starts fetching; resolve the returned promise to let it finish */
   gate?: Promise<void>;
   accounts?: [ProviderName, string][];
+  /** the mailbox the login just connected (what takePendingSync returns, once) */
+  pending?: ProviderName | null;
+  autoStart?: boolean;
+  addressFails?: boolean;
+  /** accounts to switch off before the banner mounts */
+  inactive?: [ProviderName, string][];
 }
 
 async function setup(opts: Opts = {}) {
   const db: JobTrackerDB = freshDb();
   for (const [p, a] of opts.accounts ?? [["gmail", "me@gmail.com"]]) await upsertAccount(db, p, a);
+  for (const [p, a] of opts.inactive ?? []) await deactivateAccount(db, await upsertAccount(db, p, a));
   const fake = fakeAuth({ status: "signed-in", user: ada });
+  fake.pending.value = opts.pending ?? null;
+  // The login already stored the token: the session says the mailbox is connected, with no window needed.
+  if (opts.pending) await fake.set({ mail: { ...fake.auth.getSession().mail, [opts.pending]: true } });
   const connectMail = vi.fn(
     opts.connectMail ??
       (async (p: ProviderName) => {
@@ -45,13 +55,14 @@ async function setup(opts: Opts = {}) {
     },
   }));
   const deps: SyncBannerDeps = {
-    auth: { getSession: fake.auth.getSession, subscribe: fake.auth.subscribe, connectMail, tokenSource: vi.fn(async () => "token") },
+    auth: { getSession: fake.auth.getSession, subscribe: fake.auth.subscribe, connectMail, tokenSource: vi.fn(async () => "token"), takePendingSync: fake.auth.takePendingSync },
     createProvider: createProvider as unknown as SyncBannerDeps["createProvider"],
-    getAddress: vi.fn(async (p: ProviderName) => (p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
+    getAddress: vi.fn(async (p: ProviderName) => (opts.addressFails ? Promise.reject(new Error("offline")) : p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
   };
-  await render(h(SyncBanner, { db, user: ada, deps, local: opts.local ?? false }));
+  const view = await render(h(SyncBanner, { db, user: ada, deps, local: opts.local ?? false, autoStart: opts.autoStart }));
   await settle(40);
-  return { db, deps, connectMail, createProvider, fake };
+  const rerender = (autoStart: boolean) => view.rerender(h(SyncBanner, { db, user: ada, deps, local: opts.local ?? false, autoStart }));
+  return { db, deps, connectMail, createProvider, fake, rerender, view };
 }
 
 const banner = () => q(".sync-banner");
@@ -154,5 +165,76 @@ describe("SyncBanner", () => {
     await click(primary()!);
     await waitFor(() => /Synced/.test(banner()?.textContent ?? ""));
     expect(connectMail.mock.calls.map((c) => c[0]).sort()).toEqual(["gmail", "outlook"]);
+  });
+});
+
+describe("SyncBanner first sync after login", () => {
+  it("registers the mailbox and syncs with no window, showing progress and then the result", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { db, connectMail, createProvider, deps, fake } = await setup({ accounts: [], pending: "gmail", autoStart: true, gate });
+    await waitFor(() => banner()?.getAttribute("aria-busy") === "true");
+    expect(q("[role=progressbar]", banner()!)).not.toBeNull();
+    expect(banner()!.textContent).toMatch(/Gmail me@gmail\.com: (finding emails|reading)/);
+
+    release();
+    await waitFor(() => /Synced 2 new emails/.test(banner()?.textContent ?? ""));
+    expect(connectMail).not.toHaveBeenCalled();
+    expect(deps.getAddress).toHaveBeenCalledWith("gmail", deps.auth.tokenSource);
+    expect(createProvider).toHaveBeenCalledWith("gmail", deps.auth.tokenSource, expect.objectContaining({ oldestFirst: true }));
+    expect((await listAccounts(db)).map((a) => [a.provider, a.address, a.active])).toEqual([["gmail", "me@gmail.com", true]]);
+    expect(await db.emails.count()).toBe(2);
+    expect(primary()).toBeNull();
+    expect(fake.auth.takePendingSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing, and shows nothing, when the person disconnected that mailbox on purpose", async () => {
+    const { db, connectMail, createProvider } = await setup({ accounts: [], inactive: [["gmail", "me@gmail.com"]], pending: "gmail", autoStart: true });
+    await settle(40);
+    expect(banner()).toBeNull();
+    expect(connectMail).not.toHaveBeenCalled();
+    expect(createProvider).not.toHaveBeenCalled();
+    const rows = await listAccounts(db);
+    expect(rows.map((a) => a.active)).toEqual([false]);
+    expect(await db.emails.count()).toBe(0);
+  });
+
+  it("waits while autoStart is false, then starts once when it turns true", async () => {
+    const { db, fake, createProvider, rerender } = await setup({ accounts: [], pending: "gmail", autoStart: false });
+    await settle(40);
+    expect(fake.auth.takePendingSync).not.toHaveBeenCalled();
+    expect(createProvider).not.toHaveBeenCalled();
+    expect(await listAccounts(db)).toEqual([]);
+
+    await rerender(true);
+    await waitFor(() => /Synced 2 new emails/.test(banner()?.textContent ?? ""));
+    expect(fake.auth.takePendingSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the pending mailbox only once, even when autoStart flips and re-renders", async () => {
+    const { fake, createProvider, rerender } = await setup({ accounts: [], pending: "gmail", autoStart: true });
+    await waitFor(() => /Synced 2 new emails/.test(banner()?.textContent ?? ""));
+    await rerender(false);
+    await rerender(true);
+    await rerender(true);
+    await settle(40);
+    expect(fake.auth.takePendingSync).toHaveBeenCalledTimes(1);
+    expect(createProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start when the login connected no mailbox", async () => {
+    const { fake, createProvider } = await setup({ accounts: [], pending: null, autoStart: true });
+    await settle(40);
+    expect(fake.auth.takePendingSync).toHaveBeenCalledTimes(1);
+    expect(createProvider).not.toHaveBeenCalled();
+    expect(banner()).toBeNull();
+  });
+
+  it("shows a failed address lookup as an error", async () => {
+    const { createProvider, connectMail } = await setup({ accounts: [], pending: "gmail", autoStart: true, addressFails: true });
+    await waitFor(() => banner()?.getAttribute("role") === "alert");
+    expect(banner()!.textContent).toContain("Couldn't connect Gmail. offline");
+    expect(createProvider).not.toHaveBeenCalled();
+    expect(connectMail).not.toHaveBeenCalled();
   });
 });

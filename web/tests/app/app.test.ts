@@ -3,6 +3,8 @@ import { createElement as h } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { App } from "../../src/app/App";
+import type { ShellAuth } from "../../src/app/authApi";
+import { defaultLoaders } from "../../src/app/pages";
 import { mount } from "../../src/app/mount";
 import { applyAppearance } from "../../src/app/appearance";
 import type { PageLoaders } from "../../src/app/pages";
@@ -50,22 +52,85 @@ describe("signed out", () => {
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
     await settle();
     expect(q("h1")!.textContent).toBe("Log in");
-    expect(auth.renderGoogleButton).toHaveBeenCalledTimes(1);
-    expect(q(".fake-google")).not.toBeNull();
-    expect(byText("Log in with Microsoft")).not.toBeNull();
+    expect(byText("Continue with Google")).not.toBeNull();
+    expect(q("button svg.google-mark")).not.toBeNull();
+    expect(byText("Continue with Microsoft")).not.toBeNull();
+    expect(q(".google-button, .fake-google")).toBeNull();
     expect(q<HTMLAnchorElement>("a[href='./privacy.html']")).not.toBeNull();
     expect(q(".notice")).toBeNull();
-    await click(byText("Log in with Microsoft")!);
-    expect(auth.signIn).toHaveBeenCalledWith("microsoft");
+    await click(byText("Continue with Microsoft")!);
+    expect(auth.signIn).toHaveBeenCalledWith("microsoft", { mail: true });
   });
 
-  it("falls back to a Google sign-in button when Google's button cannot load", async () => {
+  it("logs in with Google and asks for the mailbox in the same click", async () => {
     const { auth } = fakeAuth();
-    auth.renderGoogleButton.mockRejectedValueOnce(new Error("blocked"));
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    const fallback = await waitFor(() => byText("Log in with Google"));
-    await click(fallback);
-    expect(auth.signIn).toHaveBeenCalledWith("google");
+    await click(byText("Continue with Google")!);
+    expect(auth.signIn).toHaveBeenCalledWith("google", { mail: true });
+  });
+
+  it("calls signIn synchronously inside the click, with nothing awaited first", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    auth.signIn.mockImplementationOnce(async () => undefined);
+    byText("Continue with Google")!.click();
+    expect(auth.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("prepares configured providers on mount", async () => {
+    const { auth } = fakeAuth();
+    const both = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    await settle();
+    expect(auth.prepare.mock.calls.map((c) => c[0]).sort()).toEqual(["google", "microsoft"]);
+    both.unmount();
+    await settle();
+    auth.prepare.mockClear();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: true } }));
+    await settle();
+    expect(auth.prepare.mock.calls.map((c) => c[0])).toEqual(["microsoft"]);
+  });
+
+  it("ignores a provider that fails to prepare", async () => {
+    const { auth } = fakeAuth();
+    auth.prepare.mockRejectedValue(new Error("blocked"));
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    await settle();
+    expect(q(".notice")).toBeNull();
+    expect(byText("Continue with Google")).not.toBeNull();
+  });
+
+  it("gives the provider used last the primary style", async () => {
+    const { auth } = fakeAuth({ lastProvider: "microsoft" });
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(byText("Continue with Microsoft")!.classList.contains("primary")).toBe(true);
+    expect(byText("Continue with Google")!.classList.contains("primary")).toBe(false);
+  });
+
+  it("explains the one window and Google's unverified notice", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(q(".signin-help")!.textContent).toBe(
+      "One window logs you in and lets Job Tracker read your email. Google may say it hasn't verified the app: choose Advanced, then Go to Job Tracker.",
+    );
+  });
+
+  it("footer links to the privacy page and to #/setup", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(q<HTMLAnchorElement>(".signin-footer a[href='#/setup']")!.textContent).toBe("Site setup");
+    expect(q<HTMLAnchorElement>(".signin-footer a[href='./privacy.html']")!.textContent).toBe("Privacy");
+  });
+
+  it("offers to log in without the mailbox after an error, and calls signIn with mail false", async () => {
+    const { auth } = fakeAuth();
+    auth.signIn.mockRejectedValueOnce(new Error("Your organization has to approve mail access. You can log in without it."));
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(byText("Log in without connecting your mailbox")).toBeNull();
+    await click(byText("Continue with Microsoft")!);
+    const skip = await waitFor(() => byText("Log in without connecting your mailbox"));
+    await click(skip);
+    expect(auth.signIn).toHaveBeenLastCalledWith("microsoft", { mail: false });
+    await waitFor(() => byText("Log in without connecting your mailbox") === null);
   });
 
   it("shows the session error as an error notice", async () => {
@@ -88,29 +153,29 @@ describe("signed out", () => {
     const { auth } = fakeAuth();
     const none = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
     expect(q(".notice", none.container)!.textContent).toBe("Login isn't available on this site yet.");
-    expect(auth.renderGoogleButton).not.toHaveBeenCalled();
+    expect(auth.prepare).not.toHaveBeenCalled();
     expect(none.container.querySelectorAll("button")).toHaveLength(0);
     expect(none.container.textContent).not.toMatch(/VITE_/);
     none.unmount();
 
     const google = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: false } }));
     await settle();
-    expect(q(".fake-google", google.container)).not.toBeNull();
-    expect(byText("Log in with Microsoft", "button", google.container)).toBeNull();
+    expect(byText("Continue with Google", "button", google.container)).not.toBeNull();
+    expect(byText("Continue with Microsoft", "button", google.container)).toBeNull();
     expect(q(".notice", google.container)).toBeNull();
     expect(google.container.textContent).toContain("Microsoft login isn't available on this site yet.");
     google.unmount();
 
     const microsoft = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: true } }));
-    expect(byText("Log in with Microsoft", "button", microsoft.container)).not.toBeNull();
-    expect(q(".fake-google", microsoft.container)).toBeNull();
-    expect(byText("Log in with Google", "button", microsoft.container)).toBeNull();
+    expect(byText("Continue with Microsoft", "button", microsoft.container)).not.toBeNull();
+    expect(byText("Continue with Google", "button", microsoft.container)).toBeNull();
   });
 
   it("disables the buttons while signing in", async () => {
     const { auth } = fakeAuth({ status: "signing-in" });
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    expect((byText("Log in with Microsoft") as HTMLButtonElement).disabled).toBe(true);
+    expect((byText("Continue with Microsoft") as HTMLButtonElement).disabled).toBe(true);
+    expect((byText("Continue with Google") as HTMLButtonElement).disabled).toBe(true);
     expect(q("[role=status]")!.textContent).toBe("Logging in");
   });
 
@@ -352,5 +417,112 @@ describe("mount", () => {
     expect(el.querySelector("h1")!.textContent).toBe("Log in");
     act(() => root!.unmount());
     el.remove();
+  });
+});
+
+describe("sync banner in the signed-in shell", () => {
+  async function shell(pending: "gmail" | "outlook" | null = null) {
+    const { auth, set, pending: p } = fakeAuth({ status: "signed-in", user: ada });
+    p.value = pending;
+    const dbs: JobTrackerDB[] = [];
+    const openDb = (n: string) => {
+      const d = openTestDb(n);
+      dbs.push(d);
+      return d;
+    };
+    await render(h(App, { local: false, auth, loaders: loaders(), openDb }));
+    await waitFor(() => q("header.top"));
+    return { auth, set, db: () => dbs[dbs.length - 1] };
+  }
+
+  it("shows the banner under the header on any page except Settings", async () => {
+    const { db } = await shell();
+    await upsertAccount(db(), "gmail", "me@gmail.com");
+    const banner = await waitFor(() => q(".sync-banner"));
+    expect(banner.textContent).toContain("Reconnect to sync your mailbox.");
+    expect(q("header.top")!.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(banner.compareDocumentPosition(q("main")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await go("#/people");
+    await waitFor(() => q("h1")?.textContent === "People page");
+    expect(document.querySelectorAll(".sync-banner")).toHaveLength(1);
+
+    await go("#/settings");
+    await waitFor(() => q("h1")?.textContent === "Settings page");
+    expect(q(".sync-banner")).toBeNull();
+
+    await go("#/");
+    await waitFor(() => q("h1")?.textContent === "Applications page");
+    expect(document.querySelectorAll(".sync-banner")).toHaveLength(1);
+  });
+
+  it("takes the mailbox the login connected once, after the offer is settled, and not on Settings", async () => {
+    window.location.hash = "#/settings";
+    const { auth } = await shell("gmail");
+    await waitFor(() => q("h1")?.textContent === "Settings page");
+    await settle(60);
+    expect(auth.takePendingSync).not.toHaveBeenCalled();
+    expect(q(".sync-banner")).toBeNull();
+
+    await go("#/people");
+    await waitFor(() => auth.takePendingSync.mock.calls.length === 1);
+    await go("#/flow");
+    await go("#/");
+    await settle(60);
+    expect(auth.takePendingSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes nothing when the login connected no mailbox", async () => {
+    const { auth } = await shell(null);
+    await waitFor(() => auth.takePendingSync.mock.calls.length === 1);
+    expect(q(".sync-banner")).toBeNull();
+  });
+});
+
+describe("site setup page", () => {
+  const guide = () => q("h1.page")?.textContent === "Set up mail sync";
+
+  it("replaces the login page when signed out at #/setup, with no auth calls", async () => {
+    window.location.hash = "#/setup";
+    const { auth } = fakeAuth();
+    await render(h(App, { local: false, auth, openDb: openTestDb }));
+    await waitFor(guide);
+    expect(byText("Log in")).toBeNull();
+    expect(q("h1")!.textContent).not.toBe("Log in");
+    expect(byText("Continue with Google")).toBeNull();
+    expect(auth.prepare).not.toHaveBeenCalled();
+    expect(auth.signIn).not.toHaveBeenCalled();
+    expect(auth.takePendingSync).not.toHaveBeenCalled();
+  });
+
+  it("goes back to the login page when the address changes", async () => {
+    window.location.hash = "#/setup";
+    const { auth } = fakeAuth();
+    await render(h(App, { local: false, auth, openDb: openTestDb }));
+    await waitFor(guide);
+    await go("#/");
+    await waitFor(() => q("h1")?.textContent === "Log in");
+    expect(guide()).toBe(false);
+  });
+
+  it("shows the login page at any other address", async () => {
+    window.location.hash = "#/people";
+    const { auth } = fakeAuth();
+    await render(h(App, { local: false, auth, openDb: openTestDb }));
+    expect(q("h1")!.textContent).toBe("Log in");
+  });
+
+  it("opens in the demo too, through the normal page list, with auth untouched", async () => {
+    window.location.hash = "#/setup";
+    const untouchable = new Proxy({} as ShellAuth, {
+      get: (_t, key) => {
+        throw new Error(`auth.${String(key)} was used in a local build`);
+      },
+    });
+    await render(h(App, { local: true, auth: untouchable, loaders: defaultLoaders, openDb: openTestDb }));
+    await waitFor(guide);
+    expect(q("header.top")).not.toBeNull();
+    expect(q(".sync-banner")).toBeNull();
+    expect(q(".local-data-offer")).toBeNull();
   });
 });

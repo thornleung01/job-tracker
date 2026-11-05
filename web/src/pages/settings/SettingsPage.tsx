@@ -62,7 +62,7 @@ interface Progress {
 /** What Settings sees of auth in a local build: nothing. Never reaches the real auth module. */
 const NO_AUTH: SettingsDeps["auth"] = {
   getSession: (() => {
-    const session: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null };
+    const session: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null, pendingSync: null };
     return () => session;
   })(),
   subscribe: () => () => undefined,
@@ -420,7 +420,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       ) : (
         <section className="card" id="accounts" aria-labelledby="h-accounts">
           <h2 className="sec" id="h-accounts">Email accounts</h2>
-          <p className="muted">Mail sync isn't set up on this site.</p>
+          <p className="muted">Mail sync isn't set up on this site. <a href="#/setup">Set it up</a></p>
         </section>
       )}
 

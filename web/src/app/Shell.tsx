@@ -13,6 +13,7 @@ export const PAGE_TITLES: Record<PageName, string> = {
   flow: "Flow",
   review: "Needs review",
   settings: "Settings",
+  setup: "Set up",
 };
 
 const hrefFor = (path: string) => "#" + path;

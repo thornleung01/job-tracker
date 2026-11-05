@@ -13,7 +13,6 @@ import type { JobLinkDeps } from "../../components/joblink/deps";
 import { realJobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
 import { Notice } from "../../components/Notice";
-import { SyncBanner } from "../../components/SyncBanner";
 import { ComingUp } from "../../components/upcoming/ComingUp";
 import { useAction } from "../../components/useAction";
 import { isLocalUser } from "../../app/localUser";
@@ -206,7 +205,6 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   return (
     <>
       <h1 className="page">Applications</h1>
-      <SyncBanner db={db} user={user} />
       {filtered ? null : <ComingUp rows={rows} today={today} />}
       <nav className="tabs" aria-label="Filter by stage">
         <a href={"#" + listUrl({})} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>

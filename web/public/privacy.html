@@ -62,9 +62,9 @@
 <ul>
   <li>Gmail: read-only access (the <code>gmail.readonly</code> permission). The app can't send, delete or change emails.</li>
   <li>Outlook: read-only access (the <code>Mail.Read</code> permission). The app can't send, delete or change emails.</li>
-  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is logged in and keeps each person's data apart. The name and address are shown on screen while you're logged in. The account ID is part of the name of your database in this browser.</li>
+  <li>Your email address and a stable account ID from Google or Microsoft (and your name, from Microsoft), so the app knows who is logged in and keeps each person's data apart. The name and address are shown on screen while you're logged in. The account ID is part of the name of your database in this browser.</li>
 </ul>
-<p>Mailbox access is a separate step after login. You choose whether to connect Gmail, Outlook, both or neither.</p>
+<p>With Google, login and mail permission happen in one window, and you can untick the mail permission there. If you say no to it, or choose "Log in without connecting your mailbox", you still log in and can connect later in Settings. With Microsoft, one window logs you in and asks for the mail permission together. You choose whether to connect Gmail, Outlook, both or neither.</p>
 
 <h2>What it stores</h2>
 <ul>
@@ -76,9 +76,10 @@
 </ul>
 <p>Access tokens are kept in memory only. The app never writes them to local storage, cookies or the address bar, and they are gone when you log out or close the tab.</p>
 <p>If this copy of Job Tracker was built without Google or Microsoft login set up, it opens without logging in and can't connect a mailbox. It keeps a local copy of your data in this browser only.</p>
+<p>If you saved applications in this browser before you logged in, the app can offer to bring them into your account. It does this only when you choose to, never by itself. The earlier copy stays in this browser until you remove it with the button the app shows afterwards.</p>
 
 <h2>What leaves your device</h2>
-<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to log you in and to fetch your emails, and the emails are read and sorted on your device. Google and Microsoft may set their own cookies on their own pages when you log in. No analytics, advertising or tracking is used, and your data isn't shared, sold or used to train any model.</p>
+<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to log you in and to fetch your emails, and the emails are read and sorted on your device. With Google, your browser sends the access token to Google (<code>oauth2.googleapis.com</code>) to learn your account ID and email address. That check goes to Google, not to the developer. Google and Microsoft may set their own cookies on their own pages when you log in. No analytics, advertising or tracking is used, and your data isn't shared, sold or used to train any model.</p>
 <p>When you paste a job link from Greenhouse, Lever, Ashby or SmartRecruiters, your browser asks that job board's public API for the job's title, company and location. The request contains only the board name and job number from the link, and it goes straight from your browser to the job board. Links from any other site are read on your device only, with no request. The bookmarklet in Settings reads the job page you are viewing and opens this app with the details in the web address. It makes no network request of its own.</p>
 <p>Export data and Export CSV in Settings each save a file on your device. The data export is a full copy you can import again. The CSV is a spreadsheet of your applications (company, role, stage, dates, posting link and offer details) with no email text. The app doesn't send either file anywhere. Once saved, a file is yours to handle, so keep it as private as you would any file with your job search in it.</p>
 <p>Use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>

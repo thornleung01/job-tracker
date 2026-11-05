@@ -4,7 +4,15 @@
 .signin-card { display: flex; flex-direction: column; gap: var(--gap); }
 .signin-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .signin-actions button { min-width: 240px; }
-.google-button { min-height: 44px; }
-.signin-privacy { margin: 0; }
-.signin-privacy a { font-weight: 500; color: var(--ink); }
+/* Google's light button: white pill, grey outline, Google's G. The last-used state only adds a ring. */
+.signin-actions button.google-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 999px;
+  background: #fff; color: #1f1f1f; box-shadow: inset 0 0 0 1px #747775; }
+.signin-actions button.google-btn:hover:not(:disabled) { background: #f6f6f6; }
+.signin-actions button.google-btn.primary { box-shadow: inset 0 0 0 1px #747775, 0 0 0 2px var(--ink); }
+.google-mark { flex: none; }
+.signin-help { margin: 0; text-wrap: pretty; }
+.signin-skip { align-self: flex-start; background: none; box-shadow: none; padding: 0; color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.signin-skip:hover:not(:disabled) { background: none; }
+.signin-footer { margin: 0; }
+.signin-footer a { font-weight: 500; color: var(--ink); }
 .signin .lede { font: 400 1.125rem/1.4 var(--font-ui); letter-spacing: -0.2px; color: var(--muted); margin: 0 0 var(--gap); text-wrap: balance; }
