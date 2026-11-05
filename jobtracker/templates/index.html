@@ -252,7 +252,15 @@
 <details class="card" id="add-application">
   <summary class="disclosure"><span class="chev" aria-hidden="true"></span>Add an application manually</summary>
   <p class="help" style="margin-top:10px">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
-  <form method="post" action="/app/add" class="row" style="margin-top:12px;align-items:flex-end">
+  <form method="post" action="/app/add" class="row" style="margin-top:12px;align-items:flex-end" id="add-form">
+    <div class="fgroup" style="flex:1 1 100%">
+      <label for="add-link">Paste a job link</label>
+      <div class="row" style="align-items:flex-end;flex-wrap:nowrap">
+        <input id="add-link" type="text" inputmode="url" autocomplete="off" maxlength="2000" placeholder="https://" style="flex:1 1 auto;min-width:0" aria-describedby="derive-status">
+        <button type="button" id="derive-go">Fill in</button>
+      </div>
+      <p id="derive-status" class="help" role="status" aria-live="polite" aria-busy="false" style="margin:6px 0 0"></p>
+    </div>
     <div class="fgroup" style="flex:1 1 200px">
       <label for="add-company">Company</label>
       <input id="add-company" name="company" required pattern=".*\S.*" title="Enter a company name" style="width:100%">
@@ -260,6 +268,10 @@
     <div class="fgroup" style="flex:1 1 200px">
       <label for="add-role">Role (optional)</label>
       <input id="add-role" name="role" style="width:100%">
+    </div>
+    <div class="fgroup" style="flex:1 1 100%">
+      <label for="add-url">Posting link (optional)</label>
+      <input id="add-url" name="url" type="text" inputmode="url" maxlength="500" style="width:100%">
     </div>
     <div class="fgroup">
       <label for="add-stage">Stage</label>
@@ -272,6 +284,41 @@
     <button class="primary">Add application</button>
   </form>
 </details>
+<script>
+  // "Fill in": the server reads the posting (it can open pages this one can't) and sends back company, role and place.
+  // Company and role are only filled when empty or still what this button put there; anything typed by hand stays.
+  (() => {
+    const link = document.getElementById('add-link'), go = document.getElementById('derive-go'), status = document.getElementById('derive-status');
+    const company = document.getElementById('add-company'), role = document.getElementById('add-role'), url = document.getElementById('add-url');
+    const form = document.getElementById('add-form');
+    if (!link || !go || !status || !form) return;
+    [company, role].forEach(el => el.addEventListener('input', () => { delete el.dataset.auto; }));
+    const put = (el, text) => { if (text && (!el.value.trim() || el.dataset.auto)) { el.value = text; el.dataset.auto = '1'; } };
+    const say = (text, busy) => { status.textContent = text; status.setAttribute('aria-busy', String(!!busy)); };
+    async function fill() {
+      const value = link.value.trim();
+      if (!value) { say('Paste the address of a job posting first.'); link.focus(); return; }
+      go.disabled = true; say('Reading the posting', true);
+      try {
+        const res = await fetch('/app/derive', { method: 'POST', body: new URLSearchParams({ url: value }), headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || data.error) { say(typeof data.error === 'string' ? data.error : "Couldn't read that link. Fill the form in by hand."); return; }
+        put(company, data.company); put(role, data.role);
+        if (data.url) url.value = data.url;
+        const parts = [];
+        if (data.guessed_company || data.guessed_role) parts.push('Guessed from the link: check it.');
+        else parts.push('Filled in from the posting.');
+        if (data.location) parts.push('Location: ' + data.location + '.');
+        say(parts.join(' '));
+      } catch { say("Couldn't read that link. Fill the form in by hand."); }
+      finally { go.disabled = false; }
+    }
+    go.addEventListener('click', fill);
+    link.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); fill(); } });
+    // A pasted link that was never filled in is still kept with the application.
+    form.addEventListener('submit', () => { if (!url.value.trim() && /^https?:\/\//i.test(link.value.trim())) url.value = link.value.trim().slice(0, 500); });
+  })();
+</script>
 <script>
   // "+ Add application" opens the form below and puts the cursor in it, wherever you are on the page.
   (() => {

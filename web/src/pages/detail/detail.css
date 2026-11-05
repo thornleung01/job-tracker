@@ -22,3 +22,6 @@ h2.section.spaced.detail-timeline-h { margin-top: 0; padding-top: var(--gap); bo
 .timeline-note { font-family: var(--font-ui); font-weight: 400; }
 .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pad); }
 .timeline > li > .card { margin-bottom: 0; }
+
+.detail-posting { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; }
+.detail-posting svg { flex: none; }

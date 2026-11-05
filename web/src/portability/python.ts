@@ -14,11 +14,14 @@ const TABLES: [string, string][] = [
   ["feedback", "feedback"], ["ignored_mail", "ignoredMail"], ["learned_rules", "learnedRules"], ["contact_edits", "contactEdits"],
 ];
 
-function convertRow(row: unknown): unknown {
+// The local edition's applications.url column is this app's postingUrl.
+const RENAMED: Record<string, Record<string, string>> = { applications: { url: "postingUrl" } };
+
+function convertRow(row: unknown, table: string): unknown {
   if (!isRec(row)) return row;
   const out: Rec = {};
   for (const [key, value] of Object.entries(row)) {
-    const k = camel(key);
+    const k = RENAMED[table]?.[key] ?? camel(key);
     if (DROPPED.has(k)) continue;
     out[k] = FLAGS.has(k) && (value === 0 || value === 1) ? value === 1 : value;
   }
@@ -47,7 +50,7 @@ export function convertPythonExport(raw: unknown): ExportEnvelope {
   const data: Rec = {};
   for (const [from, to] of TABLES) {
     const rows = raw.tables[from];
-    data[to] = Array.isArray(rows) ? rows.map(convertRow) : rows === undefined ? [] : rows;
+    data[to] = Array.isArray(rows) ? rows.map((r) => convertRow(r, to)) : rows === undefined ? [] : rows;
   }
   data.settings = convertSettings(raw.settings);
   return {

@@ -319,6 +319,7 @@ Filter tabs (Matches, Notifications, Your profile, Sources) sit above a second r
 - **One target per row.** A list row expands from its name or anywhere on the row; "Open full page" lives inside the expanded panel, never beside every name.
 - **Demo banner.** A quiet one-line status row ("Demo mode: not signed in, data stays in this browser.") with text actions. It never carries a primary button, and "Load demo data" shows only while the database is empty.
 - **Detail actions.** One stage select that applies on change, plus a "More" menu (merge, not an application, delete). Merge and delete confirm in place, not in a browser dialog.
+- **Paste a job link.** The link field sits at the top of the add form with a quiet "Fill in" button. Anything derived is a suggestion: guessed fields carry a muted "Guessed from the link" hint that clears when you edit, and nothing is saved until Save is pressed. Untrusted text from links, APIs and the bookmarklet is only ever rendered as text.
 - **Lists are lists.** People is one hairline-divided list on the page background, not a card per company. Cards are for grouping a form or a self-contained object such as an email.
 
 ### Disclosures

@@ -356,3 +356,80 @@ describe("people and emails", () => {
     }
   });
 });
+
+describe("the posting link", () => {
+  const link = (c: ParentNode) => $$(c, "a").find((a) => text(a) === "Open posting") ?? null;
+
+  it("is an Open posting link that opens safely in a new tab, with the host as its title", async () => {
+    const { db, acme } = await setup();
+    await db.applications.update(acme, { postingUrl: "https://boards.greenhouse.io/acme/jobs/1" });
+    const { container } = await open(db, acme);
+    const a = link(container)!;
+    expect(a).not.toBeNull();
+    expect(a.getAttribute("href")).toBe("https://boards.greenhouse.io/acme/jobs/1");
+    expect(a.getAttribute("target")).toBe("_blank");
+    expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(a.getAttribute("title")).toBe("boards.greenhouse.io");
+    const icon = $(a, "svg")!;
+    expect([icon.getAttribute("width"), icon.getAttribute("height"), icon.getAttribute("stroke-width")]).toEqual(["16", "16", "3"]);
+    expect(a.classList.contains("primary")).toBe(false);
+    expect($$(container, ".card:not(article)")).toHaveLength(1);
+  });
+
+  it("is not there when there is no link", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    expect(link(container)).toBeNull();
+    expect($$(container, "a[target=_blank]")).toHaveLength(0);
+  });
+
+  it.each([
+    ["javascript:alert(1)"], ["data:text/html,<b>x</b>"], ["https://user:pw@example.com/x"], ["ftp://example.com/x"], ["not a link"], [""],
+  ])("does not render %s as a link even if it is in the database", async (bad) => {
+    const { db, acme } = await setup();
+    await db.applications.update(acme, { postingUrl: bad });
+    const { container } = await open(db, acme);
+    expect(link(container)).toBeNull();
+    expect($$(container, "a").some((a) => /^(javascript|data|ftp):/i.test(a.getAttribute("href") ?? ""))).toBe(false);
+  });
+
+  it("shows markup-looking text as text, never as elements", async () => {
+    const { db, acme } = await setup();
+    const evil = "https://example.com/\"><img src=x onerror=alert(1)>";
+    await db.applications.update(acme, { postingUrl: evil });
+    const { container } = await open(db, acme);
+    expect($(container, "img")).toBeNull();
+    for (const a of $$(container, "a")) expect(a.getAttribute("href") ?? "").not.toContain("<");
+    // the value is only ever put in a field as its value, not as markup
+    const input = $(container, "#ed-url") as HTMLInputElement;
+    expect(input.value).toBe(evil);
+  });
+
+  it("is edited in the company and role disclosure, and can be cleared", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    const details = $(container, "details.more")!;
+    expect($(details, "label[for=ed-url]")!.textContent).toBe("Posting link (optional)");
+    await type($(container, "#ed-url"), " https://example.com/job#top ");
+    await click(button(details, "Save"));
+    await waitFor(() => link(container) !== null);
+    expect(link(container)!.getAttribute("href")).toBe("https://example.com/job");
+    expect((await db.applications.get(acme))!.postingUrl).toBe("https://example.com/job");
+    await type($(container, "#ed-url"), "");
+    await click(button(details, "Save"));
+    await waitFor(() => link(container) === null);
+    expect("postingUrl" in (await db.applications.get(acme))!).toBe(false);
+  });
+
+  it("explains a bad link and keeps the old one", async () => {
+    const { db, acme } = await setup();
+    await db.applications.update(acme, { postingUrl: "https://example.com/keep" });
+    const { container } = await open(db, acme);
+    await type($(container, "#ed-url"), "javascript:alert(1)");
+    await click(button($(container, "details.more")!, "Save"));
+    await waitFor(() => /does not look right/.test(text($(container, ".notice.err, .notice"))));
+    expect(text($(container, ".notice.err, .notice"))).toBe("That link does not look right. Use a web address that starts with https://.");
+    expect((await db.applications.get(acme))!.postingUrl).toBe("https://example.com/keep");
+    expect(link(container)!.getAttribute("href")).toBe("https://example.com/keep");
+  });
+});

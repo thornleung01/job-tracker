@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { ExternalLink } from "lucide-react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
@@ -12,6 +13,7 @@ import { StageBadge } from "../../components/StageBadge";
 import { TimeText } from "../../components/TimeText";
 import { setFlash } from "../../components/flash";
 import { useAction } from "../../components/useAction";
+import { postingHost, safePostingUrl } from "../../db/postingUrl";
 import { STAGES, type Stage } from "../../db/stages";
 import {
   deleteApplication, editApplication, learnedNotice, mergeApplications, notAnApplication, setStage, unlockStage,
@@ -36,6 +38,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const app = data?.application;
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
+  const [postingUrl, setPostingUrl] = useState("");
   const [stage, setStageChoice] = useState<Stage>("Applied");
   const [mergeInto, setMergeInto] = useState(0);
   // The one inline step open under the action row: choosing a merge target, or asking which Delete.
@@ -43,11 +46,12 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const controls = useRef<HTMLDivElement>(null);
   const stepBox = useRef<HTMLDivElement>(null);
   // Fill the forms when the application first arrives, and again when it changes under them (a merge, a rename elsewhere).
-  const seen = app ? `${app.id}|${app.company}|${app.role}|${app.stage}` : "";
+  const seen = app ? `${app.id}|${app.company}|${app.role}|${app.stage}|${app.postingUrl ?? ""}` : "";
   useEffect(() => {
     if (!app) return;
     setCompany(app.company);
     setRole(app.role === UNKNOWN_ROLE ? "" : app.role);
+    setPostingUrl(app.postingUrl ?? "");
     setStageChoice(app.stage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen]);
@@ -80,12 +84,14 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   }
 
   const latestEmailId = data.emails[0]?.id;
+  // Checked again here, whatever the database holds: only a plain http(s) address ever becomes a link.
+  const posting = safePostingUrl(app.postingUrl);
   const say = (message: string) => setNotice(message);
 
   const saveCompany = (e: FormEvent) => {
     e.preventDefault();
     void act.run("edit", async () => {
-      await editApplication(db, id, company, role);
+      await editApplication(db, id, company, role, postingUrl);
       return "Saved.";
     });
   };
@@ -146,6 +152,11 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
       <div className="card">
         <h1 className="page detail-title">{app.company}</h1>
         <div className="muted">{app.role}</div>
+        {posting ? (
+          <a className="btn detail-posting" href={posting} target="_blank" rel="noopener noreferrer" title={postingHost(posting)}>
+            <ExternalLink size={16} strokeWidth={3} aria-hidden="true" />Open posting
+          </a>
+        ) : null}
         <div className="row detail-facts">
           <StageBadge stage={app.stage} />
           <span className="small muted">Applied {app.appliedAt ? app.appliedAt.slice(0, 10) : "unknown"} {"·"} last activity {app.lastActivity ? app.lastActivity.slice(0, 10) : "unknown"}</span>
@@ -158,6 +169,8 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
             <input id="ed-company" name="company" value={company} maxLength={80} required onChange={(e) => setCompany(e.target.value)} />
             <label className="sr" htmlFor="ed-role">Role</label>
             <input id="ed-role" name="role" value={role} maxLength={100} placeholder="Role" onChange={(e) => setRole(e.target.value)} />
+            <label className="sr" htmlFor="ed-url">Posting link (optional)</label>
+            <input id="ed-url" name="url" type="text" inputMode="url" value={postingUrl} maxLength={500} placeholder="Posting link (optional)" autoComplete="off" onChange={(e) => setPostingUrl(e.target.value)} />
             <button type="submit" {...act.button("edit")}>Save</button>
           </form>
         </details>

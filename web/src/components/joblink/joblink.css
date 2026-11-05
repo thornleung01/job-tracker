@@ -1,0 +1,15 @@
+/* "Paste a job link" in the add form. Colours, radii and sizes come from the shared tokens. */
+.joblink { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 16px; }
+.joblink > .fgroup { width: 100%; }
+.joblink-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.joblink-row input { flex: 1 1 260px; min-width: 0; }
+.joblink-line { margin: 0; }
+.joblink-line:empty { display: none; }
+.joblink-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; box-shadow: none; color: var(--muted); font-size: 0.875rem; font-weight: 500; padding: 0 4px; text-decoration: none; }
+.joblink-toggle:hover { color: var(--ink); }
+.joblink-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.joblink-toggle:hover:not(:disabled) { background: none; color: var(--ink); }
+.joblink #add-paste-box { width: 100%; }
+.joblink #add-paste-box[hidden] { display: none; }
+.joblink #add-paste-box .row { margin-top: 8px; }
+.field-hint { margin: 2px 0 0 4px; font-size: 0.8125rem; color: var(--muted); }

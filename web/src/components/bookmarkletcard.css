@@ -1,0 +1,5 @@
+/* The "Save jobs from any site" card in Settings. Everything else comes from the shared stylesheet. */
+.bookmarklet-link { cursor: grab; user-select: none; -webkit-user-drag: element; }
+.bookmarklet-link:active { cursor: grabbing; }
+.bookmarklet-sub { margin: var(--gap) 0 4px; font-size: 1rem; font-weight: 500; }
+.bookmarklet-steps { margin: 0 0 12px; padding-left: 1.5rem; display: grid; gap: 4px; }

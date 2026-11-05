@@ -1,6 +1,7 @@
 // Checks an export before anything is written, so a bad or hostile file can never half-replace your data.
 import { BODY_LIMIT } from "../types";
 import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow, RuleKind } from "../db/schema";
+import { safePostingUrl } from "../db/postingUrl";
 import { isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
 import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
@@ -131,11 +132,14 @@ export function parseExportData(raw: unknown): ExportData {
     const stage = r.stage;
     if (!isStage(stage)) k.fail("stage is not one of the six stages.");
     const company = str(r, "company", k, { max: 200 });
+    const postingUrl = safePostingUrl(r.postingUrl);
     if (rowId && isStage(stage)) {
       applications.push({
         id: rowId, company, companyKey: str(r, "companyKey", k, { max: 200 }), role: str(r, "role", k, { max: 300 }),
         roleKey: str(r, "roleKey", k, { max: 300 }), stage, stageAt: time(r, "stageAt", k, true), appliedAt: time(r, "appliedAt", k, true),
         lastActivity: time(r, "lastActivity", k, true), locked: flag(r, "locked", k), manual: flag(r, "manual", k),
+        // A link that is not a plain http(s) address is dropped, never an error and never kept.
+        ...(postingUrl ? { postingUrl } : {}),
       });
     }
   });
