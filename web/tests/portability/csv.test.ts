@@ -112,3 +112,11 @@ describe("csvFilename", () => {
     expect(csvFilename(new Date("2026-11-05T15:00:00Z"))).toBe("job-tracker-applications-2026-11-05.csv");
   });
 });
+
+describe("formula injection with leading spaces", () => {
+  it("defuses a field that starts with spaces before the formula character", () => {
+    expect(csvField("  =HYPERLINK(\"x\")")).toContain("'  =HYPERLINK");
+    expect(csvField(" @SUM(A1)")).toBe("' @SUM(A1)");
+    expect(csvField("Acme")).toBe("Acme");
+  });
+});

@@ -69,7 +69,8 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     const idleDays = daysSince(a.lastActivity, now);
     return {
       ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays),
-      nextInterview: nextInterviewDay(interviews.get(a.id) ?? [], localToday(now)),
+      // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
+      nextInterview: a.stage === "Rejected" || a.stage === "Offer" ? null : nextInterviewDay(interviews.get(a.id) ?? [], localToday(now)),
       rounds: rounds(a),
     };
   });

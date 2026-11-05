@@ -62,6 +62,24 @@ describe("upcoming interviews in the list", () => {
   });
 });
 
+describe("closed applications", () => {
+  it("shows no interview line and no Coming up row for a rejected application or an offer", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    const rejected = await interview(db, account, "Turned", inDays(2));
+    await db.applications.update(rejected, { stage: "Rejected" });
+    const offer = await interview(db, account, "Won", inDays(2));
+    await db.applications.update(offer, { stage: "Offer" });
+    await interview(db, account, "Open", inDays(2));
+    const { container } = await mountPage(ApplicationsPage, db);
+    expect($(row(container, "Turned"), ".interview-line")).toBeNull();
+    expect($(row(container, "Won"), ".interview-line")).toBeNull();
+    expect($(row(container, "Open"), ".interview-line")).not.toBeNull();
+    expect(stripRows(container).join(" ")).toContain("Open");
+    expect(stripRows(container).join(" ")).not.toMatch(/Turned|Won/);
+  });
+});
+
 describe("the Coming up strip", () => {
   it("lists interviews in the next week, soonest first, each linking to its application", async () => {
     const db = freshDb();

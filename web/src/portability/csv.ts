@@ -17,7 +17,7 @@ const BOM = "﻿";
 const EOL = "\r\n";
 
 /** A field that starts with one of these would be run as a formula by a spreadsheet. */
-const FORMULA_START = /^[=+\-@\t\r]/;
+const FORMULA_START = /^\s*[=+\-@]|^[\t\r]/;
 
 /** One field, safe to write: a leading ' defuses a formula, then RFC 4180 quoting when it holds a comma, quote or line break. */
 export function csvField(value: string | number | null | undefined): string {
