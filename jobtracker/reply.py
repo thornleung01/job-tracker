@@ -74,7 +74,7 @@ def send(conn: sqlite3.Connection, get_provider, email_id: int, body: str, token
     for window, cap, words in ((timedelta(hours=1), MAX_PER_HOUR, "hour"), (timedelta(days=1), MAX_PER_DAY, "day")):
         n = conn.execute("SELECT COUNT(*) FROM sent_replies WHERE created_at >= ?", (db.iso(now - window),)).fetchone()[0]
         if n >= cap:
-            raise ReplyError(f"You've already sent {n} replies in the last {words}. This limit protects your mailbox; try again later.")
+            raise ReplyError(f"You've already sent {n} replies in the last {words}. This limit protects your mailbox. Try again later.")
 
     subject = subject_for(row["subject"])
     created = db.iso(now)

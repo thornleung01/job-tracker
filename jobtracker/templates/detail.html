@@ -44,9 +44,9 @@
       <button>Merge into…</button>
     </form>
     {% endif %}
-    <form method="post" action="/app/{{ a.id }}/not-application" class="inline" onsubmit="return confirm('Remove this and teach the app it was not a job application? Mail like it will be ignored from now on.')"><button class="danger" title="Removes it and learns to ignore mail like the emails that made it">Not an application</button></form>
-    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox is not touched.')"><input type="hidden" name="emails" value="clear"><button class="danger">Delete</button></form>
-    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application and send its emails to Needs review so you can place them yourself?')"><input type="hidden" name="emails" value="review"><button class="danger" title="Use this when the emails belong to a different application">Delete, keep emails for review</button></form>
+    <form method="post" action="/app/{{ a.id }}/not-application" class="inline" onsubmit="return confirm('Remove this and teach the app it wasn\'t a job application? Emails like it will be ignored from now on.')"><button class="danger" title="Removes it and learns to ignore emails like the ones that made it.">Not an application</button></form>
+    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox isn\'t touched.')"><input type="hidden" name="emails" value="clear"><button class="danger">Delete application</button></form>
+    <form method="post" action="/app/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Delete this application and send its emails to Needs review so you can place them yourself?')"><input type="hidden" name="emails" value="review"><button class="danger" title="Use this when the emails belong to a different application.">Delete, keep emails for review</button></form>
   </div>
 </div>
 

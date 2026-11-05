@@ -82,7 +82,7 @@ describe("SyncBanner", () => {
     const el = banner()!;
     expect(el.getAttribute("role")).toBe("status");
     expect(el.classList.contains("notice")).toBe(true);
-    expect(el.textContent).toContain("Reconnect to sync your mail.");
+    expect(el.textContent).toContain("Reconnect to sync your mailbox.");
     const buttons = Array.from(el.querySelectorAll("button"));
     expect(buttons.map((b) => b.textContent)).toEqual(["Reconnect and sync"]);
     expect(buttons[0].classList.contains("primary")).toBe(true);
@@ -122,7 +122,7 @@ describe("SyncBanner", () => {
     });
     await click(primary()!);
     await waitFor(() => banner()?.getAttribute("role") === "alert");
-    expect(banner()!.textContent).toContain("Your browser may have blocked the Google sign-in window. Allow pop-ups for this site and try again.");
+    expect(banner()!.textContent).toContain("Your browser may have blocked the Google login window. Allow pop-ups for this site and try again.");
     expect(createProvider).not.toHaveBeenCalled();
     expect(primary()).not.toBeNull();
     expect(primary()!.disabled).toBe(false);

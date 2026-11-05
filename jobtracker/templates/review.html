@@ -1,38 +1,55 @@
 {% extends "base.html" %}
 {% block title %}Needs review · Job Tracker{% endblock %}
 {% block content %}
+<style>
+  .review-title { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+  .review-title .mail-subject { min-width: 0; overflow-wrap: anywhere; }
+  .review-title form, .review-title button { flex: none; }
+  .review-decide { display: grid; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .review-stage select { min-width: 180px; }
+  .review-form { flex-wrap: nowrap; }
+  .review-form > select, .review-form > input { flex: 1 1 0; min-width: 0; }
+  @media (max-width: 640px) { .review-form { flex-wrap: wrap; } .review-form > * { flex: 1 1 100%; } }
+</style>
 <h1 class="page">Needs review</h1>
 {% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
 {% if error %}<div class="notice err" role="alert" tabindex="-1" data-focus>{{ error }}</div>{% endif %}
-<p class="muted">The tracker wasn't sure about these, so it didn't change any stage. Pick what each one is. <b>Every answer teaches it:</b> mail you mark "Not job mail" is ignored next time.</p>
 {% for e in emails %}
 <article class="card">
   {% set nm = e.sender|sender_name %}{% set ad = e.sender|sender_addr %}
   <header class="mail-head">
-    <h2 class="mail-subject">{{ e.subject or '(no subject)' }}</h2>
+    <div class="review-title">
+      <h2 class="mail-subject">{{ e.subject or '(no subject)' }}</h2>
+      <form method="post" action="/review/{{ e.id }}"><button name="action" value="dismiss" class="danger small" title="Not about a job application. Its content is erased and the app learns to ignore emails like it.">Not job mail</button></form>
+    </div>
     <p class="mail-meta"><span class="who">{{ nm or ad }}</span>{% if nm and ad %}<span class="addr">{{ ad }}</span>{% endif %}<span class="when"><time class="local" datetime="{{ e.received_at }}" data-rel>{{ e.received_at[:16].replace('T', ' ') }} UTC</time></span></p>
     <p class="mail-guess">Looks like <b>{{ e.event|replace('_', ' ')|capitalize if e.event else 'something unclear' }}</b>, {{ e.confidence }} confidence</p>
   </header>
   {{ e.body|mailtext }}
   {% set o = mailbox_link(e.provider, e.address, e.thread_id, e.web_link) %}
-  {% with r_id = e.id, r_can = e.can_reply, rp = reply_link(e.provider, e.address, e.sender, e.subject, e.web_link), r_to = (e.sender|sender_addr), r_subject = (e.subject or ''), r_open = o, r_account = (e.provider|capitalize ~ ' ' ~ e.address) %}
+  {% with r_id = e.id, r_can = e.can_reply, rp = reply_link(e.provider, e.address, e.sender, e.subject, e.web_link), r_to = (e.sender|sender_addr), r_subject = (e.subject or ''), r_open = o, r_quiet = true, r_account = (e.provider|capitalize ~ ' ' ~ e.address) %}
   {% include "_reply.html" %}
   {% endwith %}
 
-  <form method="post" action="/review/{{ e.id }}" class="row" style="margin-top:12px">
-    <select name="stage" aria-label="Stage">{% for s in stages %}<option {{ 'selected' if s == e.guess_stage }}>{{ s }}</option>{% endfor %}</select>
-    <select name="app_id" aria-label="Existing application">
-      <option value="0">Existing application…</option>
-      {% for a in apps %}<option value="{{ a.id }}">{{ a.company }} · {{ a.role }}</option>{% endfor %}
-    </select>
-    <button name="action" value="assign">Add to it</button>
-  </form>
-  <form method="post" action="/review/{{ e.id }}" class="row" style="margin-top:8px">
-    <input name="company" pattern=".*\S.*" value="{{ e.guess_company if e.guess_company != 'Unknown company' else '' }}" placeholder="Company" aria-label="Company">
-    <input name="role" value="{{ e.guess_role if e.guess_role != 'Unknown role' else '' }}" placeholder="Role" aria-label="Role">
-    <select name="stage" aria-label="Stage">{% for s in stages %}<option {{ 'selected' if s == e.guess_stage }}>{{ s }}</option>{% endfor %}</select>
-    <button name="action" value="new" class="primary">New application</button>
-    <button name="action" value="dismiss" class="danger" title="Not about a job application; its content is erased and the app learns to ignore mail like it">Not job mail</button>
+  {# One form, so the stage you choose applies to either button. A hidden first button makes Enter in Company or Role start a new application. #}
+  <form method="post" action="/review/{{ e.id }}" class="review-decide">
+    <button name="action" value="new" hidden tabindex="-1" aria-hidden="true"></button>
+    <div class="review-stage">
+      <label class="field small" for="stage-{{ e.id }}">Stage</label>
+      <select id="stage-{{ e.id }}" name="stage">{% for s in stages %}<option {{ 'selected' if s == e.guess_stage }}>{{ s }}</option>{% endfor %}</select>
+    </div>
+    <div class="row review-form">
+      <select name="app_id" aria-label="Existing application">
+        <option value="0">Existing application…</option>
+        {% for a in apps %}<option value="{{ a.id }}">{{ a.company }} · {{ a.role }}</option>{% endfor %}
+      </select>
+      <button name="action" value="assign" formnovalidate>Add to application</button>
+    </div>
+    <div class="row review-form">
+      <input name="company" pattern=".*\S.*" value="{{ e.guess_company if e.guess_company != 'Unknown company' else '' }}" placeholder="Company" aria-label="Company">
+      <input name="role" value="{{ e.guess_role if e.guess_role != 'Unknown role' else '' }}" placeholder="Role" aria-label="Role">
+      <button name="action" value="new" class="primary">Create application</button>
+    </div>
   </form>
 </article>
 {% else %}
@@ -42,7 +59,7 @@
 <section class="card" id="learned" aria-labelledby="h-learned">
   <h2 id="h-learned" class="section">What the app has learned</h2>
   {% if learned %}
-  <p class="help">Built from your answers. They apply to new mail and to mail already saved. Undo any that are wrong.</p>
+  <p class="help">These come from your answers. They apply to new and saved emails. Undo any that are wrong.</p>
   {% for r in learned %}
   <div class="row" style="justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)">
     <span>{{ r.text }}</span>
@@ -50,7 +67,7 @@
   </div>
   {% endfor %}
   {% else %}
-  <p class="muted" style="margin:0">Nothing yet. When something here isn't a job email, press <b>Not job mail</b>. On an application, <b>Not an application</b> does the same and removes it.</p>
+  <p class="muted" style="margin:0">Nothing yet. When an email here isn't about a job, choose <b>Not job mail</b>. On an application, choose <b>Not an application</b> to do the same and remove it.</p>
   {% endif %}
 </section>
 

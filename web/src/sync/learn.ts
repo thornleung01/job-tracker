@@ -53,13 +53,13 @@ export function describe(kind: RuleKind, value: string, evidence: number): strin
   const times = `${evidence} time${evidence !== 1 ? "s" : ""}`;
   switch (kind) {
     case "block_sender":
-      return `Ignoring mail from ${value} (you flagged it ${times})`;
+      return `Ignoring emails from ${value} (you flagged it ${times})`;
     case "block_domain":
-      return `Ignoring all mail from ${value} (you flagged ${evidence} of its addresses)`;
+      return `Ignoring all emails from ${value} (you flagged ${evidence} of its addresses)`;
     case "allow_sender":
-      return `Trusting mail from ${value} (you confirmed it ${times})`;
+      return `Trusting emails from ${value} (you confirmed it ${times})`;
     case "distrust_pattern":
-      return `Not trusting one wording on its own: "${value}" was wrong ${times}, so matches go to Needs review`;
+      return `Not trusting the wording "${value}" on its own (it was wrong ${times}, so matches go to Needs review)`;
   }
 }
 

@@ -35,7 +35,7 @@ _NAME_PARTICLE = {"de", "la", "van", "von", "del", "da", "di", "le", "al", "bin"
 _MENTION = re.compile(r"(?P<n>[A-Z][A-Za-z'’-]+(?: (?:[a-z]{2,3}|[A-Z][a-z]+))*(?: [A-Z][A-Za-z'’-]+){1,2}) \((?P<t>[^()]{3,90})\)")
 _TEAM_INTRO = re.compile(r"\b(?:I'm|I am|my name is|My name’s|My name's)\s+(?P<n>[A-Z][a-z]+)[^.]{0,40}?\b(?:from|part of|on) the (?P<t>[A-Z][\w&/ ]{2,40}? team)", re.I)
 
-KIND_LABEL = {"recruiter": "Recruiter", "hiring": "Hiring side", "people": "People Ops"}
+KIND_LABEL = {"recruiter": "Recruiter", "hiring": "Hiring side", "people": "People ops"}
 
 
 def kind_of(title: str) -> str:

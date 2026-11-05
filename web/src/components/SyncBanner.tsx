@@ -54,9 +54,9 @@ export function describeBanner(report: SyncReport | null, problems: string[]): R
     );
     const review = report.synced.reduce((n, s) => n + (s.counts.review ?? 0), 0);
     if (report.synced.length > 0) {
-      lines.push(read === 0 ? "Synced. No new emails." : `Synced ${read} new ${plural(read, "email", "emails")}.${review ? ` ${review} need review.` : ""}`);
+      lines.push(read === 0 ? "Synced. No new emails." : `Synced ${read} new ${plural(read, "email", "emails")}.${review ? ` ${review} ${plural(review, "needs", "need")} review.` : ""}`);
     }
-    for (const a of report.needConnect) lines.push(`Reconnect ${accountLabel(a)} and try again.`);
+    for (const a of report.needConnect) lines.push(`Reconnect ${accountLabel(a)}, then try again.`);
     for (const f of report.failed) lines.push(`${accountLabel(f.account)}: ${f.message}`);
     if (report.stopped) lines.push("Sync stopped.");
   }
@@ -133,7 +133,7 @@ function Banner({ db, user, deps: given }: SyncBannerProps & { user: AuthUser })
           });
           connectedAny = true;
         } catch (e) {
-          problems.push(e instanceof NotConnected ? e.message : `Could not connect ${PROVIDER_LABEL[provider]}. ${errorText(e)}`);
+          problems.push(e instanceof NotConnected ? e.message : `Couldn't connect ${PROVIDER_LABEL[provider]}. ${errorText(e)}`);
         }
       }
       if (connectedAny) {
@@ -194,7 +194,7 @@ function Banner({ db, user, deps: given }: SyncBannerProps & { user: AuthUser })
         ) : result ? (
           result.lines.map((l, i) => <p className="line" key={i}>{l}</p>)
         ) : (
-          <p className="line">Reconnect to sync your mail.</p>
+          <p className="line">Reconnect to sync your mailbox.</p>
         )}
         {(showButton || running || result) && (
           <div className="sync-banner-actions">

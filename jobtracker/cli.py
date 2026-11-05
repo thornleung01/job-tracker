@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", help="Profile id to work on. Default: every profile for sync, jobs and status; the first for connect.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    connect = sub.add_parser("connect", help="Sign in to a mail account (read-only)")
+    connect = sub.add_parser("connect", help="Log in to a mail account (read-only)")
     connect.add_argument("provider", choices=["gmail", "outlook"])
 
     sync = sub.add_parser("sync", help="Fetch new mail and update applications")

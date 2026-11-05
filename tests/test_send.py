@@ -296,7 +296,7 @@ def test_the_review_page_can_reply_too(env):
     env.add("g3", "Sam <sam@acme.com>", "Quick question", review=1)
     env.conn.commit()
     html = env.client.get("/review").text
-    assert 'class="action primary reply"' in html and "Send reply" in html
+    assert 'class="action reply"' in html and "Send reply" in html
 
 
 def test_settings_turns_replying_on_with_a_new_sign_in_and_off_again(env):
@@ -310,7 +310,7 @@ def test_settings_turns_replying_on_with_a_new_sign_in_and_off_again(env):
     page = env.client.get("/settings").text
     assert "Replying is on." in page and "Turn off replying" in env.client.get("/settings").text
     off = env.client.post(f"/settings/reply-access/{env.acct}", data={"mode": "off"})
-    assert "will not send anything" in env.client.get(off.headers["location"]).text and env.conn.execute("SELECT can_reply FROM accounts").fetchone()[0] == 0
+    assert "won&#39;t send anything" in env.client.get(off.headers["location"]).text and env.conn.execute("SELECT can_reply FROM accounts").fetchone()[0] == 0
 
 
 def test_an_ordinary_reconnect_drops_the_send_permission_flag(env):

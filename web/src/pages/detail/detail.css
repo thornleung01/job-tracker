@@ -25,3 +25,4 @@ h2.section.spaced.detail-timeline-h { margin-top: 0; padding-top: var(--gap); bo
 
 .detail-posting { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; }
 .detail-posting svg { flex: none; }
+.detail-rounds { margin-top: 8px; }

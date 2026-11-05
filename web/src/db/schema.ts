@@ -31,6 +31,8 @@ export interface ApplicationRow {
   manual: boolean;
   /** the job posting's web address; absent when there is none. Not indexed. */
   postingUrl?: string;
+  /** the number of interview rounds you typed; absent means "work it out from the emails and steps". Not indexed. */
+  interviewRounds?: number;
 }
 
 export interface EmailRow {

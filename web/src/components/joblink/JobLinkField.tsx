@@ -20,11 +20,10 @@ export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(t
         <label htmlFor="add-link">Paste a job link</label>
         <div className="joblink-row">
           <input id="add-link" name="job_link" type="text" inputMode="url" autoComplete="off" autoCapitalize="off" spellCheck={false}
-                 value={link.linkText} aria-describedby="add-link-help add-link-result add-link-checking"
+                 value={link.linkText} aria-describedby="add-link-result add-link-checking"
                  onChange={(e) => link.onLinkChange(e.target.value)} onPaste={link.onLinkPaste} onKeyDown={onKey} />
-          <button type="button" className="quiet" onClick={link.fillFromLink}>Fill in</button>
+          <button type="button" className="quiet" onClick={link.fillFromLink}>Fill in details</button>
         </div>
-        <p className="help flush" id="add-link-help">We read the link and fill in what we can. You can change anything before saving.</p>
       </div>
       {/* Both lines are live regions that exist before they have words, so a screen reader announces them when they fill. */}
       <p className="joblink-line small" id="add-link-result" role="status">{link.result}</p>

@@ -20,7 +20,7 @@
 <nav class="tabs" aria-label="Filter by stage">
   <a href="/" class="tab" {% if not stage %}aria-current="true"{% endif %}>All <span class="n">{{ total }}</span></a>
   {% for s in stages %}
-  <a href="{{ '/' if s == stage else '/?stage=' ~ s }}" class="tab" {% if s == stage %}aria-current="true" title="Click again to show all stages"{% endif %}>{{ s }} <span class="n" id="count-{{ s }}">{{ counts[s] }}</span></a>
+  <a href="{{ '/' if s == stage else '/?stage=' ~ s }}" class="tab" {% if s == stage %}aria-current="true" title="Choose again to show all stages"{% endif %}>{{ s }} <span class="n" id="count-{{ s }}">{{ counts[s] }}</span></a>
   {% endfor %}
 </nav>
 
@@ -65,7 +65,7 @@
 </div>
 
 {% if not accounts %}
-<div class="notice">No mail account connected yet. <a href="/settings#sync">Connect one in Settings</a> to start syncing.</div>
+<div class="notice">No email account connected yet. <a href="/settings#sync">Connect one in Settings</a> to start syncing.</div>
 {% endif %}
 {% if review_count %}
 <div class="notice"><a href="/review">{{ review_count }} email{{ 's' if review_count != 1 }} need{{ '' if review_count != 1 else 's' }} a look</a>. The tracker wasn't sure which application {{ 'they belong' if review_count != 1 else 'it belongs' }} to.</div>
@@ -98,7 +98,7 @@
     </tr>
   {% else %}
     <tr><td colspan="{{ columns|length }}" class="muted" style="padding:24px 16px">
-      {% if q or stage or account %}No applications match these filters.{% else %}No applications yet. <a href="/settings#sync">Sync your mail in Settings</a>, or add one with "Add an application manually" below.{% endif %}
+      {% if q or stage or account %}No applications match these filters.{% else %}No applications yet. <a href="/settings#sync">Sync your mailbox in Settings</a>, or add one with "Add an application manually" below.{% endif %}
     </td></tr>
   {% endfor %}
   </tbody>
@@ -251,7 +251,7 @@
 
 <details class="card" id="add-application">
   <summary class="disclosure"><span class="chev" aria-hidden="true"></span>Add an application manually</summary>
-  <p class="help" style="margin-top:10px">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
+  <p class="help" style="margin-top:10px">Applied somewhere that never emailed you, or the email is in another account? Add it here. It stays yours, so a sync never changes it.</p>
   <form method="post" action="/app/add" class="row" style="margin-top:12px;align-items:flex-end" id="add-form">
     <div class="fgroup" style="flex:1 1 100%">
       <label for="add-link">Paste a job link</label>

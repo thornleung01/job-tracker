@@ -142,6 +142,6 @@ export function createGmailProvider(tokenSource: TokenSource, opts: GmailOptions
 export async function getGmailAddress(tokenSource: TokenSource, opts: HttpOptions = {}, signal?: AbortSignal): Promise<string> {
   const http = createHttp("gmail", tokenSource, opts);
   const data = await readJson<{ emailAddress?: string }>(await http.get(`${GMAIL}/users/me/profile`, { signal }));
-  if (!data.emailAddress) throw new Error("Gmail did not share this account's email address.");
+  if (!data.emailAddress) throw new Error("Gmail didn't share this account's email address. Try again.");
   return data.emailAddress;
 }

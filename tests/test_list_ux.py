@@ -153,5 +153,5 @@ def test_shared_styles_have_touch_targets_states_and_scalable_type(env):
 def test_flow_chart_works_on_touch_screens(env):
     _, client = env
     html = client.get("/flow").text
-    assert "swipe sideways" in html
+    assert "Swipe sideways" in html
     assert "matchMedia('(max-width: 720px)')" in html and "tip.hidden = true" in html

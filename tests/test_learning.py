@@ -61,7 +61,7 @@ def test_flagging_an_application_removes_it_learns_the_sender_and_blocks_the_nex
     r = env.client.post(f"/app/{app}/not-application")
     assert r.status_code == 303 and r.headers["location"].startswith("/review?notice=")
     page = env.client.get(r.headers["location"]).text
-    assert "Removed CoachCo." in page and "Ignoring mail from hi@coachco.io" in page and "What the app has learned" in page
+    assert "Removed CoachCo." in page and "Ignoring emails from hi@coachco.io" in page and "What the app has learned" in page
     assert env.conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 0
     row = env.conn.execute("SELECT * FROM emails").fetchone()
     assert row["related"] == 0 and row["subject"] is None and row["body"] is None      # content erased

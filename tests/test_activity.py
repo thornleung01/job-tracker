@@ -258,7 +258,7 @@ def test_step_field_is_a_dropdown_of_presets_not_free_text(env):
     assert '<optgroup label="Moves the application to a stage">' in html and '<optgroup label="Other steps">' in html
     for preset in ("Interview", "Rejected", "Phone screen", "Take-home assignment", "Withdrew application"):
         assert f'<option value="{preset}"' in html
-    assert "Other steps only go in the history." in html
+    assert "Other steps only go in the history." not in html          # the group labels already say which steps move the application
 
 
 def test_forged_or_free_text_step_is_refused_and_nothing_is_saved(env):

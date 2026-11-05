@@ -8,6 +8,7 @@ import { listAccounts, upsertAccount } from "../../src/db/repo";
 import { exportAllAsJson } from "../../src/portability";
 import { loadSettings, saveSettings } from "../../src/sync/settings";
 import type { JobTrackerDB } from "../../src/db/schema";
+import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider, type Message, type ProviderName } from "../../src/types";
 import { mk } from "../sync/helpers";
 import fixture from "../fixtures/python-export.json";
@@ -87,7 +88,7 @@ describe("page structure", () => {
       if (t) expect(t.replace(/Gmail|Outlook/g, "x")).not.toMatch(/ [A-Z]/);
     }
     expect(document.body.textContent).not.toMatch(/[–—]/);
-    expect(byText("Sign out")).not.toBeNull();
+    expect(byText("Log out")).not.toBeNull();
   });
 
   it("section links scroll instead of changing the hash", async () => {
@@ -188,7 +189,7 @@ describe("email accounts", () => {
     (deps.auth.connectMail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NotConnected("Google did not give access"));
     await click(byText("Connect Gmail")!);
     await waitFor(() => q(".notice.err"));
-    expect(noticeText()).toBe("Could not connect Gmail. Google did not give access");
+    expect(noticeText()).toBe("Couldn't connect Gmail. Google did not give access");
     expect(await listAccounts(db)).toEqual([]);
   });
 
@@ -199,8 +200,8 @@ describe("email accounts", () => {
     await setup({ db });
     const row = q(".prof")!;
     expect(row.textContent).toContain("Synced");
-    expect(row.textContent).toContain("Not connected in this tab. Connect again to sync.");
-    expect(byText("Connect again")).not.toBeNull();
+    expect(row.textContent).toContain("Not connected in this tab. Reconnect to sync.");
+    expect(byText("Reconnect account")).not.toBeNull();
     expect(q(".provider .addr")!.textContent).toBe("Not connected in this tab");
   });
 
@@ -216,11 +217,11 @@ describe("email accounts", () => {
     const db = freshDb();
     await upsertAccount(db, "gmail", "me@gmail.com");
     const { deps } = await setup({ db });
-    await click(byText("Disconnect")!);
-    await waitFor(() => byText("Reconnect"));
+    await click(byText("Disconnect account")!);
+    await waitFor(() => byText("Reconnect account"));
     expect((await listAccounts(db))[0].active).toBe(false);
     expect(q(".prof")!.textContent).toContain("Disconnected");
-    await click(byText("Reconnect")!);
+    await click(byText("Reconnect account")!);
     await waitFor(async () => (await listAccounts(db))[0].active);
     expect(deps.auth.connectMail).toHaveBeenCalledWith("gmail");
     expect(await listAccounts(db)).toHaveLength(1);
@@ -267,7 +268,7 @@ describe("sync", () => {
     await click(byText("Connect Gmail")!);
     await waitFor(() => byText("Sync now"));
     const scan = q<HTMLSelectElement>("#scan")!;
-    expect(Array.from(scan.options).map((o) => o.textContent)).toEqual(["New mail since last sync", "Last 30 days", "Last 90 days", "Last 180 days"]);
+    expect(Array.from(scan.options).map((o) => o.textContent)).toEqual(["New emails since last sync", "Last 30 days", "Last 90 days", "Last 180 days"]);
     await act(async () => {
       scan.value = "90";
       scan.dispatchEvent(new Event("change", { bubbles: true }));
@@ -317,7 +318,7 @@ describe("sync", () => {
     await waitFor(() => byText("Sync now"));
     await click(byText("Sync now")!);
     await waitFor(() => q(".notice.err"));
-    expect(noticeText()).toBe("Connect Gmail me@gmail.com again, then sync.");
+    expect(noticeText()).toBe("Reconnect Gmail me@gmail.com, then try again.");
     expect(q(".notice")!.getAttribute("role")).toBe("alert");
   });
 
@@ -327,7 +328,7 @@ describe("sync", () => {
     const { createProvider } = await setup({ db });
     await click(byText("Sync now")!);
     await waitFor(() => q(".notice.err"));
-    expect(noticeText()).toBe("Connect Gmail me@gmail.com again, then sync.");
+    expect(noticeText()).toBe("Reconnect Gmail me@gmail.com, then try again.");
     expect(createProvider).not.toHaveBeenCalled();
   });
 
@@ -338,21 +339,21 @@ describe("sync", () => {
     await click(byText("Connect Gmail")!); // connects me@gmail.com, a second account
     await waitFor(async () => (await listAccounts(db)).length === 2);
     await click(byText("Sync now")!);
-    await waitFor(() => noticeText().includes("Connect Gmail other@gmail.com again"));
+    await waitFor(() => noticeText().includes("Reconnect Gmail other@gmail.com"));
     expect(createProvider).toHaveBeenCalledTimes(1);
   });
 
   it("reports another failure by name and keeps going", async () => {
     await setup({
-      maker: (name) => ({ name, address: "me@gmail.com", async *fetch() { throw new Error("Gmail answered 500"); } }),
+      maker: (name) => ({ name, address: "me@gmail.com", async *fetch() { throw new ProviderHttpError(500, "HTTP 500"); } }),
     });
     await click(byText("Connect Gmail")!);
     await waitFor(() => byText("Sync now"));
     await click(byText("Sync now")!);
     await waitFor(() => q(".notice.err"));
-    expect(noticeText()).toBe("Gmail me@gmail.com: Gmail answered 500");
+    expect(noticeText()).toBe("Gmail me@gmail.com: Gmail is busy right now. Try again in a few minutes.");
     await waitFor(() => q(".prof .status-bad"));
-    expect(q(".prof .status-bad")!.textContent).toBe("Error: Gmail answered 500");
+    expect(q(".prof .status-bad")!.textContent).toBe("Gmail is busy right now. Try again in a few minutes.");
   });
 });
 
@@ -360,7 +361,7 @@ describe("your data", () => {
   it("exports everything as a JSON file", async () => {
     const { db, download } = await setup();
     await withApplications(db, 2);
-    await click(byText("Export")!);
+    await click(byText("Export data")!);
     await waitFor(() => download.mock.calls.length === 1);
     const [filename, text] = download.mock.calls[0];
     expect(filename).toMatch(/^job-tracker-\d{4}-\d{2}-\d{2}\.json$/);
@@ -420,7 +421,7 @@ describe("your data", () => {
     await chooseFile("notes.json", "this is not json");
     await waitFor(() => q(".notice.err"));
     expect(noticeText()).toContain("This file can't be imported.");
-    expect(noticeText()).toContain("The file is not valid JSON.");
+    expect(noticeText()).toContain("The file isn't valid JSON.");
     expect(q(".confirm")).toBeNull();
 
     await chooseFile("wrong.json", JSON.stringify({ format: "jobtracker-export", version: 1, data: { applications: "nope" } }));
@@ -457,10 +458,10 @@ describe("your data", () => {
 });
 
 describe("account", () => {
-  it("names who is signed in and signs out", async () => {
+  it("names who is logged in and logs out", async () => {
     const { deps } = await setup();
-    expect(q("#account")!.textContent).toContain("Signed in as Ada Lovelace (ada@example.com) with Google.");
-    await click(byText("Sign out")!);
+    expect(q("#account")!.textContent).toContain("Logged in as Ada Lovelace (ada@example.com) with Google.");
+    await click(byText("Log out")!);
     expect(deps.auth.signOut).toHaveBeenCalledTimes(1);
   });
 });

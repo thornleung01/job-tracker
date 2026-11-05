@@ -35,7 +35,7 @@ describe("the whole loop", () => {
 
     const out = await notAnApplication(db, app);
     expect(out.company).toBe("CoachCo");
-    expect(out.rules.join(" ")).toContain("Ignoring mail from hi@coachco.io");
+    expect(out.rules.join(" ")).toContain("Ignoring emails from hi@coachco.io");
     expect(await db.applications.count()).toBe(0);
     const row = (await db.emails.toArray())[0];
     expect([row.related, row.subject, row.body]).toEqual([false, null, null]); // content erased

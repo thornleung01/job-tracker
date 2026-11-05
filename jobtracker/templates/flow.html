@@ -42,7 +42,7 @@
 </style>
 
 <h1 class="page">Application flow</h1>
-<p class="muted" style="margin:0 0 var(--gap);max-width:60ch">Where your applications went. Each band's width is the number of applications that took that path.</p>
+<p class="muted" style="margin:0 0 var(--gap);max-width:60ch">Where your applications went.</p>
 
 <form method="get" class="row" style="margin-bottom:var(--gap)">
   <select name="account" aria-label="Account">
@@ -57,7 +57,7 @@
 
 <div class="card viz-root" style="position:relative">
   {% if data.total %}
-  <p class="lede">Of <strong>{{ data.total }}</strong> {{ 'application' if data.total == 1 else 'applications' }}, <strong>{{ data.heard_back }}</strong> heard back ({{ (100 * data.heard_back / data.total)|round|int }}%), <strong>{{ data.interviews }}</strong> reached an interview, <strong>{{ data.offers }}</strong> {{ 'led to an offer' if data.offers == 1 else 'led to offers' }} and <strong>{{ data.rejected }}</strong> {{ 'was' if data.rejected == 1 else 'were' }} rejected.</p>
+  <p class="lede">Of <strong>{{ data.total }}</strong> {{ 'application' if data.total == 1 else 'applications' }}, <strong>{{ data.heard_back }}</strong> heard back ({{ (100 * data.heard_back / data.total)|round|int }}%), <strong>{{ data.interviews }}</strong> reached an interview, <strong>{{ data.offers }}</strong> {{ 'led to an offer' if data.offers == 1 else 'led to offers' }}, and <strong>{{ data.rejected }}</strong> {{ 'was' if data.rejected == 1 else 'were' }} rejected.</p>
   <div class="share" role="group" aria-label="Share this chart">
     <button type="button" id="share-save">Save as image</button>
     <button type="button" id="share-copy">Copy image</button>
@@ -65,7 +65,7 @@
     <span class="small muted">The image shows totals only: no company names or email addresses.</span>
   </div>
   <p class="small muted" id="share-status" role="status" style="min-height:1.5em;margin:4px 0 12px"></p>
-  <p class="small mobile-only" style="color:var(--ink2)">The chart is wide: swipe sideways to see all of it. The table below has the same numbers.</p>
+  <p class="small mobile-only" style="color:var(--ink2)">Swipe sideways to see the whole chart. The table below has the same numbers.</p>
   <div class="scroll"><svg id="sankey" role="group" aria-label="Sankey diagram of application stages. A table with the same numbers follows."></svg></div>
   <div id="tip" class="tip" hidden></div>
 
@@ -82,7 +82,7 @@
   </details>
   <script type="application/json" id="flow-data">{{ data|tojson }}</script>
   {% else %}
-  <p class="muted" style="margin:8px 0">No applications to chart{% if account or days %} for this filter{% endif %}. Sync your mail, or add one on the Applications page.</p>
+  <p class="muted" style="margin:8px 0">No applications to chart{% if account or days %} for this filter{% endif %}. Sync your mailbox, or add one on the Applications page.</p>
   {% endif %}
 </div>
 

@@ -4,7 +4,7 @@ import type {
 } from "../db/schema";
 
 export const EXPORT_FORMAT = "jobtracker-export";
-/** 2 added the posting link on applications. Version 1 files are still read. */
+/** 2 added the posting link on applications. Version 1 files are still read. Applications may also carry `interviewRounds`, an optional number you typed: it is additive, so it needed no new version. */
 export const EXPORT_VERSION = 2;
 
 export interface ExportData {

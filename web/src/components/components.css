@@ -9,7 +9,6 @@
 .flush-p { margin: 0; }
 details.action > .flush-p { margin-top: 4px; }
 .step-note { min-height: 64px; }
-.panel-h-history { margin-top: 16px; }
 .panel-danger { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .note-tight { margin: 4px 0 0; }
 .step-field select { width: 100%; }

@@ -108,8 +108,8 @@ describe("validation", () => {
 
   it("refuses text that is not JSON, or not an export", async () => {
     const db = freshDb();
-    await expect(importAll(db, "{nope")).rejects.toThrow(/not valid JSON/);
-    await expect(importAll(db, { hello: 1 })).rejects.toThrow(/not a Job Tracker export/);
+    await expect(importAll(db, "{nope")).rejects.toThrow(/isn't valid JSON/);
+    await expect(importAll(db, { hello: 1 })).rejects.toThrow(/isn't a Job Tracker export/);
     await expect(importAll(db, null)).rejects.toBeInstanceOf(ImportError);
     await expect(importAll(db, [])).rejects.toBeInstanceOf(ImportError);
   });

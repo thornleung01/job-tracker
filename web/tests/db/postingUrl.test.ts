@@ -10,7 +10,7 @@ import { closeAll, freshDb } from "../sync/helpers";
 
 afterEach(closeAll);
 
-const MESSAGE = "That link does not look right. Use a web address that starts with https://.";
+const MESSAGE = "That link doesn't look right. Use a web address that starts with https://.";
 
 describe("cleanPostingUrl", () => {
   it("keeps a plain https link and trims it", () => {

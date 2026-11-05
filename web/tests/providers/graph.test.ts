@@ -143,7 +143,7 @@ describe("graph provider fetch", () => {
     const g = scriptedFetch(({ url }) =>
       url.pathname.includes("/mailFolders/") ? json({ id: "x" }) : json({ value: [], "@odata.nextLink": "https://evil.example/steal" }),
     );
-    await expect(collect(createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false))).rejects.toThrow(/next page/);
+    await expect(collect(createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false))).rejects.toThrow(/unexpected response/);
     expect(g.calls.some((c) => c.url.host === "evil.example")).toBe(false);
   });
 

@@ -5,6 +5,7 @@ import {
   connectMailbox, connectedAddress, describeImport, describeSync, exportFilename, forgetConnections, isConnected, parseImportText, runSync,
 } from "../../src/pages/settings/actions";
 import { listAccounts, upsertAccount } from "../../src/db/repo";
+import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider } from "../../src/types";
 import { ada, closeDbs, freshDb } from "../app/helpers";
 import type { SyncReport } from "../../src/pages/settings/actions";
@@ -92,12 +93,12 @@ describe("runSync", () => {
     const createProvider = (name: "gmail" | "outlook"): MailProvider => ({
       name, address: "x",
       async *fetch() {
-        throw name === "gmail" ? new NotConnected("expired") : new Error("Graph answered 500");
+        throw name === "gmail" ? new NotConnected("expired") : new ProviderHttpError(500, "HTTP 500");
       },
     });
     const report = await runSync(db, { tokenSource: vi.fn(), createProvider: createProvider as never, isConnected: () => true });
     expect(report.needConnect.map((a) => a.provider)).toEqual(["gmail"]);
-    expect(report.failed.map((f) => [f.account.provider, f.message])).toEqual([["outlook", "Graph answered 500"]]);
+    expect(report.failed.map((f) => [f.account.provider, f.message])).toEqual([["outlook", "Outlook is busy right now. Try again in a few minutes."]]);
   });
 });
 
@@ -107,13 +108,13 @@ describe("describeSync", () => {
 
   it("summarises", () => {
     const r = describeSync({ ...base, synced: [{ account: acct("gmail", "a"), counts: { "applied-to-application": 2, review: 1 } }, { account: acct("outlook", "b"), counts: {} }] });
-    expect(r).toEqual({ ok: true, lines: ["Synced 2 accounts. 2 added to applications, 1 need review."] });
+    expect(r).toEqual({ ok: true, lines: ["Synced 2 accounts. 2 added to applications, 1 needs review."] });
   });
 
   it("asks to connect again, names failures and never uses a dash", () => {
     const r = describeSync({ ...base, needConnect: [acct("outlook", "b@o.com")], failed: [{ account: acct("gmail", "a@g.com"), message: "boom" }], stopped: true });
     expect(r.ok).toBe(false);
-    expect(r.lines).toEqual(["Connect Outlook b@o.com again, then sync.", "Gmail a@g.com: boom", "Sync stopped."]);
+    expect(r.lines).toEqual(["Reconnect Outlook b@o.com, then try again.", "Gmail a@g.com: boom", "Sync stopped."]);
     expect(r.lines.join(" ")).not.toMatch(/[–—]/);
   });
 

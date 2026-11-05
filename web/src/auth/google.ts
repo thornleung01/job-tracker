@@ -7,7 +7,7 @@ import { userFromClaims, type AuthUser } from "./user";
 export const GIS_SRC = "https://accounts.google.com/gsi/client";
 
 /** What to tell the person when Google's sign-in window did not open or the silent token request failed. */
-export const POPUP_HINT = "Your browser may have blocked the Google sign-in window. Allow pop-ups for this site and try again.";
+export const POPUP_HINT = "Your browser may have blocked the Google login window. Allow pop-ups for this site and try again.";
 
 interface GisCredentialResponse {
   credential?: string;
@@ -72,13 +72,13 @@ export function createGisLoader(doc: Document = document, win: Window = window):
         if (gis?.accounts) resolve(gis);
         else {
           loading = null;
-          reject(new Error("Google sign-in loaded but is not available"));
+          reject(new Error("Google login didn't load. Reload the page and try again."));
         }
       };
       script.onerror = () => {
         loading = null;
         script.remove();
-        reject(new Error("Could not load Google sign-in. Check your connection or content blocker."));
+        reject(new Error("Couldn't load Google login. Check your connection or content blocker."));
       };
       doc.head.appendChild(script);
     });
@@ -140,7 +140,7 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
     const pending = settle;
     settle = null;
     try {
-      if (!response.credential) throw new Error("Google did not return a sign-in credential");
+      if (!response.credential) throw new Error("Google didn't complete the login. Try again.");
       const claims = validateIdToken(response.credential, {
         issuers: GOOGLE_ISSUERS,
         audience: deps.clientId,
@@ -174,10 +174,10 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
         api.accounts.id.prompt((n) => {
           if (n.isNotDisplayed() || n.isSkippedMoment()) {
             settle = null;
-            reject(new Error("Google did not show its sign-in prompt. Use the Google button instead."));
+            reject(new Error("Google didn't show its login prompt. Choose the Google button instead."));
           } else if (n.isDismissedMoment() && settle) {
             settle = null;
-            reject(new Error("Sign-in was cancelled"));
+            reject(new Error("Login was cancelled."));
           }
         });
       });
@@ -186,7 +186,7 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
     async renderButton(parent, options = {}) {
       const api = await gis();
       initialize(api);
-      api.accounts.id.renderButton(parent, { type: "standard", theme: "outline", size: "large", text: "signin_with", ...options });
+      api.accounts.id.renderButton(parent, { type: "standard", theme: "outline", size: "large", text: "continue_with", ...options });
     },
 
     async requestMailToken({ loginHint, signal } = {}) {
@@ -207,16 +207,16 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
           callback: done((r: GisTokenResponse) => {
             if (r.error || !r.access_token) {
               // access_denied is the person saying no; anything else is the silent request failing or the window being blocked.
-              reject(new NotConnected(r.error === "access_denied" ? "Gmail access needs your permission (access_denied)" : POPUP_HINT));
+              reject(new NotConnected(r.error === "access_denied" ? "Gmail needs your permission to read your emails. Try again and allow access when Google asks." : POPUP_HINT));
             } else if (r.scope && !r.scope.split(" ").includes(deps.mailScope)) {
-              reject(new NotConnected("Gmail access was not granted"));
+              reject(new NotConnected("Gmail access wasn't granted. Try again and allow access when Google asks."));
             } else {
               const seconds = Number(r.expires_in ?? 3600);
               resolve({ token: r.access_token, expiresAt: now() + seconds * 1000 });
             }
           }),
           error_callback: done((e: { type?: string }) => {
-            reject(new NotConnected(e.type === "popup_failed_to_open" ? POPUP_HINT : "Gmail connection was not completed"));
+            reject(new NotConnected(e.type === "popup_failed_to_open" ? POPUP_HINT : "Gmail connection wasn't completed. Try again."));
           }),
         });
         client.requestAccessToken({ prompt: "" });

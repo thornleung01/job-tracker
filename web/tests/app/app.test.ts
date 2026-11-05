@@ -49,13 +49,13 @@ describe("signed out", () => {
     const { auth } = fakeAuth();
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
     await settle();
-    expect(q("h1")!.textContent).toBe("Sign in");
+    expect(q("h1")!.textContent).toBe("Log in");
     expect(auth.renderGoogleButton).toHaveBeenCalledTimes(1);
     expect(q(".fake-google")).not.toBeNull();
-    expect(byText("Sign in with Microsoft")).not.toBeNull();
+    expect(byText("Log in with Microsoft")).not.toBeNull();
     expect(q<HTMLAnchorElement>("a[href='./privacy.html']")).not.toBeNull();
     expect(q(".notice")).toBeNull();
-    await click(byText("Sign in with Microsoft")!);
+    await click(byText("Log in with Microsoft")!);
     expect(auth.signIn).toHaveBeenCalledWith("microsoft");
   });
 
@@ -63,16 +63,16 @@ describe("signed out", () => {
     const { auth } = fakeAuth();
     auth.renderGoogleButton.mockRejectedValueOnce(new Error("blocked"));
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    const fallback = await waitFor(() => byText("Sign in with Google"));
+    const fallback = await waitFor(() => byText("Log in with Google"));
     await click(fallback);
     expect(auth.signIn).toHaveBeenCalledWith("google");
   });
 
   it("shows the session error as an error notice", async () => {
-    const { auth } = fakeAuth({ error: "Sign-in was cancelled" });
+    const { auth } = fakeAuth({ error: "Login was cancelled" });
     await render(h(App, { local: false, auth, loaders: loaders(), openDb: openTestDb }));
     const err = q(".notice.err")!;
-    expect(err.textContent).toBe("Sign-in was cancelled");
+    expect(err.textContent).toBe("Login was cancelled");
     expect(err.getAttribute("role")).toBe("alert");
   });
 
@@ -87,7 +87,7 @@ describe("signed out", () => {
   it("shows only the providers this build has, and plain copy when there are none", async () => {
     const { auth } = fakeAuth();
     const none = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
-    expect(q(".notice", none.container)!.textContent).toBe("Sign-in isn't available on this site yet.");
+    expect(q(".notice", none.container)!.textContent).toBe("Login isn't available on this site yet.");
     expect(auth.renderGoogleButton).not.toHaveBeenCalled();
     expect(none.container.querySelectorAll("button")).toHaveLength(0);
     expect(none.container.textContent).not.toMatch(/VITE_/);
@@ -96,22 +96,22 @@ describe("signed out", () => {
     const google = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: false } }));
     await settle();
     expect(q(".fake-google", google.container)).not.toBeNull();
-    expect(byText("Sign in with Microsoft", "button", google.container)).toBeNull();
+    expect(byText("Log in with Microsoft", "button", google.container)).toBeNull();
     expect(q(".notice", google.container)).toBeNull();
-    expect(google.container.textContent).toContain("Microsoft sign-in isn't available on this site yet.");
+    expect(google.container.textContent).toContain("Microsoft login isn't available on this site yet.");
     google.unmount();
 
     const microsoft = await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: true } }));
-    expect(byText("Sign in with Microsoft", "button", microsoft.container)).not.toBeNull();
+    expect(byText("Log in with Microsoft", "button", microsoft.container)).not.toBeNull();
     expect(q(".fake-google", microsoft.container)).toBeNull();
-    expect(byText("Sign in with Google", "button", microsoft.container)).toBeNull();
+    expect(byText("Log in with Google", "button", microsoft.container)).toBeNull();
   });
 
   it("disables the buttons while signing in", async () => {
     const { auth } = fakeAuth({ status: "signing-in" });
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    expect((byText("Sign in with Microsoft") as HTMLButtonElement).disabled).toBe(true);
-    expect(q("[role=status]")!.textContent).toBe("Signing in");
+    expect((byText("Log in with Microsoft") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("[role=status]")!.textContent).toBe("Logging in");
   });
 
   it("goes from signed out to signed in and back, closing the user's database", async () => {
@@ -123,7 +123,7 @@ describe("signed out", () => {
       return d;
     };
     await render(h(App, { local: false, auth, loaders: loaders(), openDb }));
-    expect(q("h1")!.textContent).toBe("Sign in");
+    expect(q("h1")!.textContent).toBe("Log in");
     await set({ status: "signed-in", user: ada });
     await waitFor(() => q("header.top"));
     await waitFor(() => q("h1")?.textContent === "Applications page");
@@ -132,7 +132,7 @@ describe("signed out", () => {
     await set({ status: "signed-out", user: null });
     await settle();
     expect(q("header.top")).toBeNull();
-    expect(q("h1")!.textContent).toBe("Sign in");
+    expect(q("h1")!.textContent).toBe("Log in");
     await waitFor(() => !dbs[0].isOpen());   // Dexie closes asynchronously
   });
 });
@@ -232,7 +232,7 @@ describe("signed in shell", () => {
     await waitFor(() => q("header.top"));
     await go("#/people");
     const note = await waitFor(() => q(".notice"));
-    expect(note.textContent).toBe("This page is not available in this build.");
+    expect(note.textContent).toBe("This page isn't available.");
   });
 
   it("catches a page that throws, and recovers when you move on", async () => {
@@ -246,7 +246,7 @@ describe("signed in shell", () => {
     });
     await go("#/flow");
     const note = await waitFor(() => q(".notice.err"));
-    expect(note.textContent).toBe("Something went wrong on this page.");
+    expect(note.textContent).toBe("Something went wrong on this page. Try again, or go back to Applications.");
     expect(q("header.top")).not.toBeNull();
     expect(byText("Try again")).not.toBeNull();
     await go("#/people");
@@ -279,7 +279,7 @@ describe("signed in shell", () => {
     await db().emails.bulkAdd([{ ...base, providerMsgId: "1" }, { ...base, providerMsgId: "2" }]);
     const badge = await waitFor(() => q(".count"));
     expect(badge.textContent).toBe("2");
-    expect(badge.getAttribute("aria-label")).toBe("2 to review");
+    expect(badge.getAttribute("aria-label")).toBe("2 emails need review");
   });
 
   it("opens each user's own database and switches when the user changes", async () => {
@@ -349,7 +349,7 @@ describe("mount", () => {
     await act(async () => {
       root = mount(el, { local: false, auth, loaders: loaders(), openDb: openTestDb }, false);
     });
-    expect(el.querySelector("h1")!.textContent).toBe("Sign in");
+    expect(el.querySelector("h1")!.textContent).toBe("Log in");
     act(() => root!.unmount());
     el.remove();
   });

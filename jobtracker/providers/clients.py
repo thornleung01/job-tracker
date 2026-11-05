@@ -61,6 +61,6 @@ def save_gmail(data: bytes) -> None:
 def save_outlook(client_id: str) -> None:
     client_id = (client_id or "").strip()
     if not GUID.match(client_id):
-        raise ClientError("That doesn't look like an Application (client) ID. It is 36 characters, like 1a2b3c4d-1234-5678-9abc-0123456789ab.")
+        raise ClientError("That doesn't look like an Application (client) ID. It's 36 characters, such as 1a2b3c4d-1234-5678-9abc-0123456789ab.")
     config.SECRETS_DIR.mkdir(parents=True, exist_ok=True)
     outlook_path().write_text(json.dumps({"client_id": client_id}), encoding="utf-8")

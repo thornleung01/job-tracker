@@ -1,13 +1,8 @@
 {% extends "base.html" %}
-{% block title %}People · Job Tracker<script>
-  // Expand all / Collapse all for the company dropdowns.
-  document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () =>
-    document.querySelectorAll('details.company').forEach(d => { d.open = b.dataset.fold === 'open'; })));
-</script>
-{% endblock %}
+{% block title %}People · Job Tracker{% endblock %}
 {% block content %}
 <h1 class="page">People</h1>
-<p class="muted">Who you are talking to on each application, and what they do there, worked out from that application's emails: signatures, and names in interview invites. A title belongs to the application it was found in. Fix any that is wrong.</p>
+<p class="muted">Who you're talking to on each application, and what they do there. This comes from that application's emails, such as signatures and names in interview invites. A title belongs to the application it was found in. Fix any that are wrong.</p>
 {% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
 
 <form method="get" class="row" style="margin-bottom:var(--gap);align-items:flex-end">
@@ -47,4 +42,9 @@
 {% else %}
 <p class="muted">{% if q %}Nobody matches "{{ q }}".{% else %}No people yet. They appear once emails from real people, such as a recruiter or an interviewer, belong to an application.{% endif %}</p>
 {% endfor %}
+<script>
+  // Expand all / Collapse all for the company dropdowns.
+  document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () =>
+    document.querySelectorAll('details.company').forEach(d => { d.open = b.dataset.fold === 'open'; })));
+</script>
 {% endblock %}

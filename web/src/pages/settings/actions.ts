@@ -4,7 +4,7 @@ import type { AccountRow, JobTrackerDB } from "../../db/schema";
 import { userKey, type AuthUser } from "../../auth/user";
 import { importAll, importFromPythonExport, ImportError, PYTHON_FORMAT, type ImportSummary } from "../../portability";
 import type { createProvider as createProviderFn, getAddress as getAddressFn } from "../../providers";
-import { syncAccount, type Counts, type SyncProgress } from "../../sync/sync";
+import { syncAccount, syncFailureText, type Counts, type SyncProgress } from "../../sync/sync";
 import { NotConnected, type ProviderName, type TokenSource } from "../../types";
 
 export const PROVIDER_LABEL: Record<ProviderName, string> = { gmail: "Gmail", outlook: "Outlook" };
@@ -42,7 +42,7 @@ export function isConnected(user: AuthUser, account: Pick<AccountRow, "provider"
 
 export interface SyncReport {
   synced: { account: AccountRow; counts: Counts }[];
-  /** accounts that need Connect before they can sync */
+  /** accounts that need to be connected again before they can sync */
   needConnect: AccountRow[];
   failed: { account: AccountRow; message: string }[];
   stopped: boolean;
@@ -95,7 +95,7 @@ export async function runSync(db: JobTrackerDB, deps: SyncDeps, opts: SyncOption
         break;
       }
       if (err instanceof NotConnected) report.needConnect.push(account);
-      else report.failed.push({ account, message: err instanceof Error ? err.message : String(err) });
+      else report.failed.push({ account, message: syncFailureText(err, account.provider) });
     }
   }
   return report;
@@ -108,9 +108,9 @@ export function describeSync(report: SyncReport): { ok: boolean; lines: string[]
   const review = report.synced.reduce((n, s) => n + (s.counts.review ?? 0), 0);
   if (report.synced.length > 0) {
     const n = report.synced.length;
-    lines.push(`Synced ${n} account${n === 1 ? "" : "s"}. ${added} added to applications, ${review} need review.`);
+    lines.push(`Synced ${n} account${n === 1 ? "" : "s"}. ${added} added to applications, ${review} ${review === 1 ? "needs" : "need"} review.`);
   }
-  for (const a of report.needConnect) lines.push(`Connect ${accountLabel(a)} again, then sync.`);
+  for (const a of report.needConnect) lines.push(`Reconnect ${accountLabel(a)}, then try again.`);
   for (const f of report.failed) lines.push(`${accountLabel(f.account)}: ${f.message}`);
   if (report.stopped) lines.push("Sync stopped.");
   if (lines.length === 0) lines.push("There are no accounts to sync.");
@@ -142,7 +142,7 @@ export function parseImportText(text: string): ParsedImport {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new ImportError(["The file is not valid JSON."]);
+    throw new ImportError(["The file isn't valid JSON. Choose a file exported from Job Tracker."]);
   }
   const kind: ImportKind = (data as { format?: unknown } | null)?.format === PYTHON_FORMAT ? "python" : "web";
   return { kind, data };

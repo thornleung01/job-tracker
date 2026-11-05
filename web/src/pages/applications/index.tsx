@@ -7,7 +7,9 @@ import { JobLinkField } from "../../components/joblink/JobLinkField";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
 import { Notice } from "../../components/Notice";
-import { StageCell } from "../../components/StageBadge";
+import { QuickDate } from "../../components/quickedit/QuickDate";
+import { QuickRole } from "../../components/quickedit/QuickRole";
+import { QuickStage } from "../../components/quickedit/QuickStage";
 import { SyncBanner } from "../../components/SyncBanner";
 import { LastActivity } from "../../components/TimeText";
 import { useAction } from "../../components/useAction";
@@ -161,7 +163,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       setPostingUrl("");
       setAddStage("Applied");
       setAppliedOn(localToday());
-      return `Added ${added}. It is kept as yours, so a sync never changes it.`;
+      return `Added ${added}. It stays yours, so a sync never changes it.`;
     }).then((ok) => {
       if (!ok) return;
       setAddOpen(false);
@@ -209,9 +211,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             <span className="role-sub">{r.role}</span>
           </td>
         );
-      case "role": return <td role="cell" data-col="role" key={c}>{r.role}</td>;
-      case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><StageCell stage={r.stage} locked={r.locked} /></td>;
-      case "applied": return <td role="cell" data-col="applied" key={c} className="small muted">{r.appliedAt ? r.appliedAt.slice(0, 10) : "unknown"}</td>;
+      case "role": return <td role="cell" data-col="role" key={c}><QuickRole db={db} appId={r.id} company={r.company} role={r.role} /></td>;
+      case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><QuickStage db={db} appId={r.id} company={r.company} stage={r.stage} stageAt={r.stageAt} locked={r.locked} /></td>;
+      case "applied": return <td role="cell" data-col="applied" key={c} className="small muted"><QuickDate db={db} appId={r.id} company={r.company} appliedAt={r.appliedAt} /></td>;
       case "lastActivity":
         return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} /></td>;
       case "emails": return <td role="cell" data-col="emails" key={c} className="small muted">{r.nEmails}</td>;
@@ -226,7 +228,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         <a href={"#" + listUrl({})} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
         {STAGES.map((s) => (
           <a key={s} href={"#" + listUrl(s === stage ? {} : { stage: s })} className="tab"
-             aria-current={s === stage ? "true" : undefined} title={s === stage ? "Click again to show all stages" : undefined}>
+             aria-current={s === stage ? "true" : undefined} title={s === stage ? "Choose again to show all stages" : undefined}>
             {s} <span className="n" id={`count-${s}`}>{counts[s]}</span>
           </a>
         ))}
@@ -264,16 +266,16 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       {addOpen ? (
         <section className="card" id="add-application" ref={addBox} aria-labelledby="add-application-title" onKeyDown={onAddKey}>
           <h2 className="section" id="add-application-title">Add application</h2>
-          <p className="help add-note">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
+          <p className="help add-note">Applied somewhere that never emailed you, or the email is in another account? Add it here. It stays yours, so a sync never changes it.</p>
           {add.error ? <Notice tone="err">{add.error}</Notice> : null}
           <form onSubmit={submitAdd}>
             <div className="add-link-slot" id="add-link-slot">
               <JobLinkField link={link} navigate={navigate} />
             </div>
-            <div className="row row-end">
+            <div className="row add-fields">
               <div className="fgroup f-grow">
                 <label htmlFor="add-company">Company</label>
-                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name" value={company}
+                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name." value={company}
                        aria-describedby={link.hints.company ? "add-company-hint" : undefined}
                        onChange={(e) => { link.edited("company"); setCompany(e.target.value); }} />
                 {link.hints.company ? <p className="field-hint" id="add-company-hint">{link.hints.company}</p> : null}
@@ -318,10 +320,10 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         {filtered ? <a className="small clear-filters" href={"#" + listUrl({})}>Clear filters</a> : null}
       </div>
 
-      {!accounts.length && !local ? <Notice>No mail account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
+      {!accounts.length && !local ? <Notice>No email account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
       {review ? (
         <Notice>
-          <a href="#/review">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} a look</a>. The tracker wasn't sure which application {review !== 1 ? "they belong" : "it belongs"} to.
+          <a href="#/review">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} review</a>. We weren't sure which application {review !== 1 ? "they belong" : "it belongs"} to.
         </Notice>
       ) : null}
 
@@ -355,7 +357,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             {!rows.length ? (
               <tr role="row">
                 <td role="cell" colSpan={columns.length} className="muted list-empty">
-                  {filtered ? "No applications match these filters." : (local ? <>No applications yet. Choose "Add application" to add one, or load the demo data from the banner above.</> : <>No applications yet. <a href="#/settings">Sync your mail in Settings</a>, or choose "Add application" to add one.</>)}
+                  {filtered ? "No applications match these filters." : (local ? <>No applications yet. Choose "Add application" to add one, or load the demo data from the banner above.</> : <>No applications yet. <a href="#/settings">Sync your mailbox in Settings</a>, or choose "Add application" to add one.</>)}
                 </td>
               </tr>
             ) : null}

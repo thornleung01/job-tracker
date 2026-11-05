@@ -66,8 +66,8 @@ describe("local mode (no client IDs)", () => {
     await openLocalApp();
     expect(opened).toEqual([LOCAL_DB_NAME]);
     expect(q("h1")!.textContent).toBe("Applications");
-    expect(document.body.textContent).not.toMatch(/Sign in|Sign out|VITE_/);
-    expect(byText("Sign out")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Log in|Log out|Sign in|Sign out|VITE_/);
+    expect(byText("Log out")).toBeNull();
   });
 
   it("shows a quiet one-line banner with plain copy, and dismissing it lasts for the session", async () => {
@@ -75,7 +75,7 @@ describe("local mode (no client IDs)", () => {
     const banner = q(".local-banner")!;
     expect(banner.getAttribute("role")).toBe("status");
     expect(banner.classList.contains("notice")).toBe(false);
-    expect(banner.textContent).toContain("Demo mode: not signed in, data stays in this browser.");
+    expect(banner.textContent).toContain("Demo mode: not logged in, data stays in this browser.");
     expect(banner.textContent!.length).toBeLessThanOrEqual(90);
     expect(banner.textContent).not.toMatch(/[–—]|VITE_|Google|Microsoft/);
     await click(byText("Dismiss")!);
@@ -115,7 +115,7 @@ describe("local mode (no client IDs)", () => {
   it("loads demo data from the banner without asking when the database is empty, then shows Applications", async () => {
     await openLocalApp();
     await go("#/flow");
-    await waitFor(() => q("h1")?.textContent === "Application flow");
+    await waitFor(() => q("h1")?.textContent === "Flow");
     expect(await hasData(currentDb())).toBe(false);
     await click(byText("Load demo data")!);
     expect(q("[role=alertdialog]")).toBeNull();
@@ -141,7 +141,7 @@ describe("local mode (no client IDs)", () => {
     await click(byText("Load demo data")!);
     await waitFor(() => q("tr.app-row"));
     await go("#/flow");
-    await waitFor(() => q("h1")?.textContent === "Application flow");
+    await waitFor(() => q("h1")?.textContent === "Flow");
     await waitFor(() => (q("svg") && document.querySelectorAll("table tbody tr").length > 0) || null);
     await go("#/people");
     await waitFor(() => q("h1")?.textContent === "People");
@@ -190,8 +190,8 @@ describe("local mode (no client IDs)", () => {
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up on this site.");
     expect(byText("Connect Gmail")).toBeNull();
     expect(byText("Connect Outlook")).toBeNull();
-    expect(byText("Sign out")).toBeNull();
-    for (const label of ["Export", "Import", "Delete all my data", "Load demo data"]) expect(byText(label)).not.toBeNull();
+    expect(byText("Log out")).toBeNull();
+    for (const label of ["Export data", "Import data", "Delete all my data", "Load demo data"]) expect(byText(label)).not.toBeNull();
     expect(document.body.textContent).not.toMatch(/VITE_/);
   });
 
@@ -234,7 +234,7 @@ describe("builds with client IDs", () => {
   it("require sign-in and never open the local database", async () => {
     const { auth, set } = fakeAuth();
     await render(h(App, { local: false, auth, openDb }));
-    expect(q("h1")!.textContent).toBe("Sign in");
+    expect(q("h1")!.textContent).toBe("Log in");
     expect(q(".local-banner")).toBeNull();
     expect(opened).toEqual([]);
     await set({ status: "signed-in", user: ada });
@@ -251,7 +251,7 @@ describe("builds with client IDs", () => {
     window.localStorage.setItem("local", "1");
     const { auth } = fakeAuth();
     await render(h(App, { local: false, auth, openDb }));
-    expect(q("h1")!.textContent).toBe("Sign in");
+    expect(q("h1")!.textContent).toBe("Log in");
     expect(opened).toEqual([]);
     window.localStorage.clear();
   });

@@ -20,7 +20,7 @@ const rejection = async (p: Promise<unknown>) => (await p.then(() => null, (e: u
 
 describe("the Google NotConnected hint", () => {
   it("is plain text a person can act on", () => {
-    expect(POPUP_HINT).toBe("Your browser may have blocked the Google sign-in window. Allow pop-ups for this site and try again.");
+    expect(POPUP_HINT).toBe("Your browser may have blocked the Google login window. Allow pop-ups for this site and try again.");
     expect(POPUP_HINT).not.toMatch(/[–—]/);
   });
 

@@ -32,7 +32,7 @@ describe("the application page", () => {
     expect(text(back)).toBe("All applications");
     expect(text($(container, "h1.page"))).toBe("Acme");
     expect(text($(container, ".card .badge"))).toBe("Applied");
-    expect(text($(container, ".detail-facts"))).toMatch(/Applied \d{4}-\d{2}-\d{2} · last activity \d{4}-\d{2}-\d{2}$/);
+    expect(text($(container, ".detail-facts"))).toMatch(/Applied [A-Z][a-z]+ \d{1,2}, \d{4} · last activity [A-Z][a-z]+ \d{1,2}, \d{4}$/);
     expect(text($(container, "#h-notes"))).toBe("Notes and steps");
     expect(text($(container, "h2.section.spaced"))).toContain("Email timeline newest first");
     expect($$(container, ".card:not(article)")).toHaveLength(1);   // one card for the header and its actions; People and Notes are plain sections
@@ -52,7 +52,7 @@ describe("the application page", () => {
     const { container } = await open(db, acme);
     await type($(container, "#ed-company"), "Acme Corp");
     await type($(container, "#ed-role"), "Lead analyst");
-    await click(button($(container, "details.more")!, "Save"));
+    await click(button($(container, "details.more")!, "Save changes"));
     await waitFor(() => text($(container, "h1.page")) === "Acme Corp");
     expect(text($(container, ".card .muted"))).toBe("Lead analyst");
     expect((await db.applications.get(acme))!.manual).toBe(true);
@@ -65,7 +65,7 @@ describe("the application page", () => {
     await type($(container, "#ed-company"), "   ");
     await submitForm($(container, "details.more form"));
     expect($(container, ".notice.err")?.getAttribute("role")).toBe("alert");
-    expect(text($(container, ".notice.err"))).toBe("The company cannot be empty.");
+    expect(text($(container, ".notice.err"))).toBe("Enter a company name.");
     expect((await db.applications.get(acme))!.company).toBe("Acme");
   });
 });
@@ -74,15 +74,15 @@ describe("stage and lock", () => {
   it("sets the stage by hand, locks it, and unlocks", async () => {
     const { db, acme } = await setup();
     const { container } = await open(db, acme);
-    expect(button(container, "Unlock")).toBeNull();
+    expect(button(container, "Unlock stage")).toBeNull();
     expect(button(container, "Set stage")).toBeNull();
     await type($(container, "select[aria-label='Set stage']"), "Interview");
     await waitFor(() => text($(container, ".card .badge")) === "Interview");
     expect((await db.applications.get(acme))!.locked).toBe(true);
     expect(text($(container, ".detail-facts"))).toContain("Stage set by you. Syncs won't change it.");
     expect(text($(container, ".notice"))).toBe("Stage set to Interview. Syncs won't change it.");
-    await click(button(container, "Unlock"));
-    await waitFor(() => !button(container, "Unlock"));
+    await click(button(container, "Unlock stage"));
+    await waitFor(() => !button(container, "Unlock stage"));
     expect((await db.applications.get(acme))!.locked).toBe(false);
     expect(text($(container, ".detail-facts"))).not.toContain("Stage set by you");
   });
@@ -112,14 +112,14 @@ describe("the action row", () => {
     expect(more.getAttribute("aria-haspopup")).toBe("menu");
     expect(more.getAttribute("aria-expanded")).toBe("false");
     expect($(container, "[role=menu]")).toBeNull();
-    for (const label of ["Delete", "Not an application", "Merge into…", "Delete, keep emails for review"]) expect(button(container, label)).toBeNull();
+    for (const label of ["Delete application", "Not an application", "Merge into…", "Delete, keep emails in Needs review"]) expect(button(container, label)).toBeNull();
   });
 
   it("keeps Unlock beside the select while the stage is locked", async () => {
     const db = freshDb();
     const id = await addApp(db, "Locked", { locked: true });
     const { container } = await open(db, id);
-    expect($$($(container, ".detail-controls")!, "select, button").map((el) => el.getAttribute("aria-label") ?? text(el))).toEqual(["Set stage", "Unlock", "More actions"]);
+    expect($$($(container, ".detail-controls")!, "select, button").map((el) => el.getAttribute("aria-label") ?? text(el))).toEqual(["Set stage", "Unlock stage", "More actions"]);
   });
 
   it("lists merge, not an application and delete as menu items", async () => {
@@ -127,7 +127,7 @@ describe("the action row", () => {
     const { container } = await open(db, acme);
     await openMenu(container);
     expect(menu(container).getAttribute("aria-expanded")).toBe("true");
-    expect($$(container, "[role=menu] [role=menuitem]").map(text)).toEqual(["Merge into…", "Not an application", "Delete"]);
+    expect($$(container, "[role=menu] [role=menuitem]").map(text)).toEqual(["Merge into…", "Not an application", "Delete application"]);
     expect($$(container, "[role=menuitem]").every((b) => b.tagName === "BUTTON")).toBe(true);
     expect($$(container, "[role=menuitem].danger")).toHaveLength(0);
   });
@@ -137,7 +137,7 @@ describe("the action row", () => {
     const only = await addApp(db, "Solo");
     const { container } = await open(db, only);
     await openMenu(container);
-    expect($$(container, "[role=menuitem]").map(text)).toEqual(["Not an application", "Delete"]);
+    expect($$(container, "[role=menuitem]").map(text)).toEqual(["Not an application", "Delete application"]);
   });
 });
 
@@ -155,7 +155,7 @@ describe("merge and delete", () => {
     expect(document.activeElement).toBe(select);
     expect(button(m.container, "Cancel")).not.toBeNull();
     expect(text($(m.container, ".detail-step .help")!)).toContain("move across");
-    await click(button(m.container, "Merge"));
+    await click(button(m.container, "Merge applications"));
     expect(window.confirm).not.toHaveBeenCalled();   // the inline step is the confirmation
     expect(m.visited.at(-1)).toBe(`/app/${other}`);
     expect(await db.applications.get(acme)).toBeUndefined();
@@ -178,9 +178,9 @@ describe("merge and delete", () => {
     const { db, acme } = await setup();
     const m = await open(db, acme);
     await openMenu(m.container);
-    await click(item(m.container, "Delete"));
+    await click(item(m.container, "Delete application"));
     const step = $(m.container, ".detail-step")!;
-    expect($$(step, "button").map(text)).toEqual(["Delete the application and its emails", "Delete the application, keep emails for review", "Cancel"]);
+    expect($$(step, "button").map(text)).toEqual(["Delete the application and its emails", "Delete the application, keep emails in Needs review", "Cancel"]);
     expect($$(step, "button.danger")).toHaveLength(2);
     expect(window.confirm).not.toHaveBeenCalled();
     expect(await db.applications.get(acme)).toBeDefined();
@@ -191,7 +191,7 @@ describe("merge and delete", () => {
     await addMail(db, account, acme);
     const m = await open(db, acme);
     await openMenu(m.container);
-    await click(item(m.container, "Delete"));
+    await click(item(m.container, "Delete application"));
     await click(button(m.container, "Delete the application and its emails"));
     expect(window.confirm).not.toHaveBeenCalled();
     expect(m.visited.at(-1)).toBe("/");
@@ -205,8 +205,8 @@ describe("merge and delete", () => {
     await addMail(db, account, acme);
     const m = await open(db, acme);
     await openMenu(m.container);
-    await click(item(m.container, "Delete"));
-    await click(button(m.container, "Delete the application, keep emails for review"));
+    await click(item(m.container, "Delete application"));
+    await click(button(m.container, "Delete the application, keep emails in Needs review"));
     expect(m.visited.at(-1)).toBe("/");
     const [mail] = await db.emails.toArray();
     expect([mail.applicationId, mail.needsReview, mail.hold]).toEqual([null, true, true]);
@@ -216,13 +216,13 @@ describe("merge and delete", () => {
     const { db, acme } = await setup();
     const m = await open(db, acme);
     await openMenu(m.container);
-    await click(item(m.container, "Delete"));
+    await click(item(m.container, "Delete application"));
     await click(button(m.container, "Cancel"));
     expect($(m.container, ".detail-step")).toBeNull();
     expect(m.visited).toEqual([]);
     expect(await db.applications.get(acme)).toBeDefined();
     await openMenu(m.container);
-    await click(item(m.container, "Delete"));
+    await click(item(m.container, "Delete application"));
     await key($(m.container, ".detail-step")!.querySelector("button"), "Escape");
     expect($(m.container, ".detail-step")).toBeNull();
     expect(document.activeElement).toBe(menu(m.container));
@@ -292,7 +292,7 @@ describe("people and emails", () => {
     await addMail(db, account, acme, { sender: "Pat Lee <pat@acme.com>", body: "Pat Lee Senior Recruiter Acme" });
     const { container } = await open(db, acme);
     await type($(container, "input[name=title]"), "Hiring manager");
-    await click(button($$(container, ".person details.action").at(-1)!, "Save"));
+    await click(button($$(container, ".person details.action").at(-1)!, "Save changes"));
     await waitFor(() => text($(container, ".person-title")) === "Hiring manager");
     expect(text($(container, ".person .tag:nth-of-type(1)"))).toBe("Hiring side");
     expect($$(container, ".person .tag").map(text)).toContain("Edited by you");
@@ -411,12 +411,12 @@ describe("the posting link", () => {
     const details = $(container, "details.more")!;
     expect($(details, "label[for=ed-url]")!.textContent).toBe("Posting link (optional)");
     await type($(container, "#ed-url"), " https://example.com/job#top ");
-    await click(button(details, "Save"));
+    await click(button(details, "Save changes"));
     await waitFor(() => link(container) !== null);
     expect(link(container)!.getAttribute("href")).toBe("https://example.com/job");
     expect((await db.applications.get(acme))!.postingUrl).toBe("https://example.com/job");
     await type($(container, "#ed-url"), "");
-    await click(button(details, "Save"));
+    await click(button(details, "Save changes"));
     await waitFor(() => link(container) === null);
     expect("postingUrl" in (await db.applications.get(acme))!).toBe(false);
   });
@@ -426,9 +426,9 @@ describe("the posting link", () => {
     await db.applications.update(acme, { postingUrl: "https://example.com/keep" });
     const { container } = await open(db, acme);
     await type($(container, "#ed-url"), "javascript:alert(1)");
-    await click(button($(container, "details.more")!, "Save"));
-    await waitFor(() => /does not look right/.test(text($(container, ".notice.err, .notice"))));
-    expect(text($(container, ".notice.err, .notice"))).toBe("That link does not look right. Use a web address that starts with https://.");
+    await click(button($(container, "details.more")!, "Save changes"));
+    await waitFor(() => /doesn't look right/.test(text($(container, ".notice.err, .notice"))));
+    expect(text($(container, ".notice.err, .notice"))).toBe("That link doesn't look right. Use a web address that starts with https://.");
     expect((await db.applications.get(acme))!.postingUrl).toBe("https://example.com/keep");
     expect(link(container)!.getAttribute("href")).toBe("https://example.com/keep");
   });

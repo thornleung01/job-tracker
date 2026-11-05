@@ -35,8 +35,8 @@ export function LocalBanner({ db }: { db: JobTrackerDB }) {
       if (await hasData(db)) return;
       await loadDemoData(db);
       navigate("/");
-    } catch (e) {
-      setError(`Demo data could not be loaded. ${e instanceof Error ? e.message : String(e)}`);
+    } catch {
+      setError("Couldn't load the demo data. Try again.");
     } finally {
       setBusy(false);
     }
@@ -53,7 +53,7 @@ export function LocalBanner({ db }: { db: JobTrackerDB }) {
 
   return (
     <div className="local-banner" role="status">
-      <span className="local-banner-text">Demo mode: not signed in, data stays in this browser.</span>
+      <span className="local-banner-text">Demo mode: not logged in, data stays in this browser.</span>
       {applications === 0 && (
         <button type="button" disabled={busy} onClick={() => void load()}>Load demo data</button>
       )}

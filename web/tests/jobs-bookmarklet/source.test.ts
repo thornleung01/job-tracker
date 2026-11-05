@@ -107,7 +107,7 @@ describe("buildBookmarkletSource", () => {
     const { doc, timers, win } = click(source, "<html><body></body></html>", "https://example.com/p", () => null);
     expect(win.open).toHaveBeenCalledTimes(1);
     const toast = doc.body.lastElementChild!;
-    expect(toast.textContent).toBe("Allow pop-ups to save this job");
+    expect(toast.textContent).toBe("Allow pop-ups to save this job.");
     expect(toast.children).toHaveLength(0);
     expect(timers).toHaveLength(1);
     expect(timers[0].ms).toBe(4000);
@@ -140,7 +140,7 @@ describe("buildBookmarkletSource", () => {
 
   it("prefers the pop-up message when the pop-up was blocked and nothing was read", () => {
     const { doc } = click(source, bare.html, bare.url, () => null);
-    expect(doc.body.lastElementChild!.textContent).toBe("Allow pop-ups to save this job");
+    expect(doc.body.lastElementChild!.textContent).toBe("Allow pop-ups to save this job.");
   });
 
   it("never throws into the page, even when window.open does", () => {

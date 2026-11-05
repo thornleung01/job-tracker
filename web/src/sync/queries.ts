@@ -6,6 +6,7 @@ import * as activity from "./activity";
 import * as contacts from "./contacts";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
+import { deriveRounds, type Rounds } from "./rounds";
 
 export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails";
 export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails"];
@@ -160,6 +161,8 @@ export interface ApplicationDetail {
   people: contacts.Contact[];
   /** address -> title for senders on this application's emails */
   titles: Record<string, string>;
+  /** interview rounds: yours, or worked out from the emails and logged steps; null when there is nothing to count */
+  rounds: Rounds | null;
 }
 
 /** The application page. Returns null when there is no such application. */
@@ -177,6 +180,7 @@ export async function applicationDetail(db: JobTrackerDB, appId: number, now: Da
   return {
     application, idleDays: daysSince(application.lastActivity, now), nEmails: rows.length, emails, notes: items, notesTotal: total, others, people,
     titles: contacts.titlesFrom(people),
+    rounds: deriveRounds(rows, await db.activity.where("applicationId").equals(appId).toArray(), application.interviewRounds),
   };
 }
 

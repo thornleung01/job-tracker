@@ -26,7 +26,7 @@ function ReviewCount({ db }: { db: JobTrackerDB }) {
   const n = useQuery(() => reviewCount(db), [db]);
   if (!n) return null;
   return (
-    <span className="count" aria-label={`${n} to review`}>
+    <span className="count" aria-label={`${n} ${n === 1 ? "email needs" : "emails need"} review`}>
       {n}
     </span>
   );

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Privacy - Job Tracker</title>
+<title>Privacy · Job Tracker</title>
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <style>
   /* Tokens copied from web/src/styles/base.css so this page matches the app. Self-contained: no requests, no scripts. */
@@ -60,33 +60,33 @@
 
 <h2>What it reads</h2>
 <ul>
-  <li>Gmail: read-only access (the <code>gmail.readonly</code> permission). The app cannot send, delete or change mail.</li>
-  <li>Outlook: read-only access (the <code>Mail.Read</code> permission). The app cannot send, delete or change mail.</li>
-  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is signed in and keeps each person's data apart. The name and address are shown on screen while you are signed in. The account ID is part of the name of your database in this browser.</li>
+  <li>Gmail: read-only access (the <code>gmail.readonly</code> permission). The app can't send, delete or change emails.</li>
+  <li>Outlook: read-only access (the <code>Mail.Read</code> permission). The app can't send, delete or change emails.</li>
+  <li>Your name, email address and a stable account ID from Google or Microsoft, so the app knows who is logged in and keeps each person's data apart. The name and address are shown on screen while you're logged in. The account ID is part of the name of your database in this browser.</li>
 </ul>
-<p>Mailbox access is a separate step after sign-in. You choose whether to connect Gmail, Outlook, both or neither.</p>
+<p>Mailbox access is a separate step after login. You choose whether to connect Gmail, Outlook, both or neither.</p>
 
 <h2>What it stores</h2>
 <ul>
   <li>Your applications, and the details the app picks out of job-related emails: company, role, stage, sender, subject, date, a link back to the message, and the start of the message text (up to 4,096 characters). This is saved in your browser's IndexedDB on this device, in a database that belongs to your account.</li>
-  <li>For email that is not job-related, only its message ID and date, so it is not read again. Its sender, subject and text are not kept. If a rule you taught the app hides a message, that message is kept for about 30 days so you can bring it back.</li>
-  <li>What you add yourself: notes and steps on an application, contact edits, corrections you give about what is or is not a job email, and the sender and domain rules the app learns from them.</li>
-  <li>The address of each mailbox you connect, when it last synced, and your settings: appearance, table columns, and how far back to read. All of it is saved in the same database.</li>
-  <li>The name of the provider you last signed in with (Google or Microsoft), kept in local storage so the sign-in screen can remind you. It is not a secret.</li>
+  <li>For email that isn't job-related, only its message ID and date, so it isn't read again. Its sender, subject and text aren't kept. If a rule you taught the app hides a message, that message is kept for about 30 days so you can bring it back.</li>
+  <li>What you add yourself: notes and steps on an application, contact edits, corrections you give about what is or isn't a job email, and the sender and domain rules the app learns from them.</li>
+  <li>The address of each mailbox you connect, when it last synced, and your settings: appearance, table columns and how far back to read. All of it is saved in the same database.</li>
+  <li>The name of the provider you last logged in with (Google or Microsoft), kept in local storage so the login screen can remind you. It isn't a secret.</li>
 </ul>
-<p>Access tokens are kept in memory only. The app never writes them to local storage, cookies or the address bar, and they are gone when you sign out or close the tab.</p>
-<p>If this copy of Job Tracker was built without Google or Microsoft sign-in set up, it opens without signing in and cannot connect a mailbox. It keeps a local copy of your data in this browser only.</p>
+<p>Access tokens are kept in memory only. The app never writes them to local storage, cookies or the address bar, and they are gone when you log out or close the tab.</p>
+<p>If this copy of Job Tracker was built without Google or Microsoft login set up, it opens without logging in and can't connect a mailbox. It keeps a local copy of your data in this browser only.</p>
 
 <h2>What leaves your device</h2>
-<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to sign you in and to fetch your mail, and the emails are read and sorted on your device. Google and Microsoft may set their own cookies on their own pages when you sign in. No analytics, advertising or tracking is used, and your data is not shared, sold or used to train any model.</p>
-<p>When you paste a job link from Greenhouse, Lever, Ashby or SmartRecruiters, your browser asks that job board's public API for the job's title, company and location. The request contains only the board name and job number from the link, and it goes straight from your browser to the job board. Links from any other site are read on your device only, with no request. The bookmarklet in Settings reads the job page you are viewing and opens this app with the details in the web address; it makes no network request of its own.</p>
-<p>Export in Settings saves your data to a file on your device. The app does not send it anywhere.</p>
+<p>Nothing is sent to any server run by the developer. Your browser talks only to Google and Microsoft, to log you in and to fetch your emails, and the emails are read and sorted on your device. Google and Microsoft may set their own cookies on their own pages when you log in. No analytics, advertising or tracking is used, and your data isn't shared, sold or used to train any model.</p>
+<p>When you paste a job link from Greenhouse, Lever, Ashby or SmartRecruiters, your browser asks that job board's public API for the job's title, company and location. The request contains only the board name and job number from the link, and it goes straight from your browser to the job board. Links from any other site are read on your device only, with no request. The bookmarklet in Settings reads the job page you are viewing and opens this app with the details in the web address. It makes no network request of its own.</p>
+<p>Export in Settings saves your data to a file on your device. The app doesn't send it anywhere.</p>
 <p>Use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
 <h2>Deleting your data and removing access</h2>
 <ul>
   <li>To delete your data, open Settings, go to Your data and choose Delete all my data. This empties your database in this browser. You can also clear this site's data in your browser settings, which removes everything, including the last-provider hint.</li>
-  <li>Sign out clears tokens from memory. If you connected Gmail, it also revokes that Google access token. A Microsoft token is dropped from memory, but the permission stays until you remove it.</li>
+  <li>Log out clears tokens from memory. If you connected Gmail, it also revokes that Google access token. A Microsoft token is dropped from memory, but the permission stays until you remove it.</li>
   <li>To remove Job Tracker's access to Google, open <a href="https://myaccount.google.com/permissions">your Google account permissions</a> and remove Job Tracker.</li>
   <li>To remove its access to Microsoft, open <a href="https://account.live.com/consent/Manage">your personal Microsoft account permissions</a>, or <a href="https://myapps.microsoft.com">My Apps</a> for a work or school account, and remove Job Tracker.</li>
 </ul>

@@ -1,9 +1,10 @@
 // Reading mail into applications (jobtracker/sync.py): classify, match, create, and keep unrelated mail out of storage.
 import type { MailProvider, Message } from "../types";
-import { BODY_LIMIT } from "../types";
+import { BODY_LIMIT, NotConnected } from "../types";
 import Dexie from "dexie";
 import type { AccountRow, JobTrackerDB } from "../db/schema";
 import { tx } from "../db/schema";
+import { ProviderHttpError } from "../providers/backoff";
 import { emailSeen, listAccounts } from "../db/repo";
 import { addDays, iso } from "../db/time";
 import { decide, rememberIgnored, rememberUnrelated } from "./decide";
@@ -125,6 +126,23 @@ export interface SyncOptions {
   now?: Date;
 }
 
+const PROVIDER_NAME = { gmail: "Gmail", outlook: "Outlook" } as const;
+
+/** What to tell the person when an account's sync failed: a plain sentence with what to do next, never a status code or class name. */
+export function syncFailureText(err: unknown, provider: keyof typeof PROVIDER_NAME): string {
+  const name = PROVIDER_NAME[provider];
+  if (err instanceof NotConnected) return err.message;
+  if (err instanceof DOMException && err.name === "AbortError") return "Sync stopped.";
+  if (err instanceof ProviderHttpError) {
+    if (err.status === 401 || err.status === 403) return `${name} refused access to your mailbox. Reconnect and try again.`;
+    if (err.status === 429 || err.status >= 500) return `${name} is busy right now. Try again in a few minutes.`;
+    return `${name} couldn't read your emails. Try again.`;
+  }
+  // fetch() reports a network failure as a TypeError; any other TypeError is a bug and gets the general sentence below
+  if (err instanceof TypeError && /fetch|network|load failed/i.test(err.message)) return `Couldn't reach ${name}. Check your connection and try again.`;
+  return "Sync stopped because something went wrong. Try again.";
+}
+
 /** Fetches and processes one account. Records the outcome on the account row. Throws if the provider fails. */
 export async function syncAccount(
   db: JobTrackerDB, account: AccountRow | number, provider: MailProvider, opts: SyncOptions = {},
@@ -187,19 +205,18 @@ export async function syncAccount(
       add(counts, await processMessages(db, row.id, all, now));
     }
   } catch (err) {
-    // one broken account must not stop the others
-    const name = err instanceof Error ? err.name : "Error";
-    const text = err instanceof Error ? err.message : String(err);
-    await db.accounts.update(row.id, { lastError: `${name}: ${text}` });
+    // one broken account must not stop the others. The person sees a plain sentence, so the real error goes to the console.
+    console.error(err);
+    await db.accounts.update(row.id, { lastError: syncFailureText(err, row.provider) });
     throw err;
   }
 
   await settleReview(db); // new mail may be what an older, unsure email was waiting for
   const skipped = counts.error ?? 0;
-  const note = skipped ? `Skipped ${skipped} unreadable message${skipped !== 1 ? "s" : ""}` : null;
+  const note = skipped ? `Skipped ${skipped} unreadable email${skipped !== 1 ? "s" : ""}.` : null;
   if (counts.retry) {
     // Keep the old window start so the emails that hit a database error are fetched again next time.
-    await db.accounts.update(row.id, { lastError: `${counts.retry} message(s) hit a database error and will be retried` });
+    await db.accounts.update(row.id, { lastError: `${counts.retry} ${counts.retry === 1 ? "email" : "emails"} couldn't be saved. The next sync will try again.` });
     return counts;
   }
   await db.accounts.update(row.id, { lastSync: iso(now), lastError: note });

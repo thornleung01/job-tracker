@@ -1,6 +1,6 @@
 # Job Tracker, hosted edition
 
-A static, client-side build of Job Tracker for GitHub Pages (https://thornleung01.github.io/job-tracker/). There is no server. Sign-in is Google or Microsoft OAuth in the browser, mail is read straight from Gmail and Microsoft Graph, and everything is stored in IndexedDB on your device, separately for each signed-in user. Tokens are kept in memory only, so after a reload you sign in and connect mail again. Sync runs while the app is open.
+A static, client-side build of Job Tracker for GitHub Pages (https://thornleung01.github.io/job-tracker/). There is no server. Login is Google or Microsoft OAuth in the browser, emails are read straight from Gmail and Microsoft Graph, and everything is stored in IndexedDB on your device, separately for each logged-in user. Tokens are kept in memory only, so after a reload you log in and connect your mailbox again. Sync runs while the app is open.
 
 The Python app in the repo root is the local edition and is unchanged by this. See `PRODUCT.md` and `DESIGN.md`.
 
@@ -14,7 +14,7 @@ npm test
 npm run build
 ```
 
-Sign-in needs two client IDs. Put them in `web/.env.local`:
+Login needs two client IDs. Put them in `web/.env.local`:
 
 ```
 VITE_GOOGLE_CLIENT_ID=...
@@ -52,7 +52,7 @@ It opens the database read-only and writes `export.json`. Then use Settings, You
 
 In Add application, paste a job link and the form fills in what it can.
 
-- **Greenhouse, Lever, Ashby, SmartRecruiters:** the app reads the company and role from the link, then confirms them with the board's public API (the six API hosts are allowed in the page's `connect-src`). Ashby uses its hosted pages' small lookup for the exact title, location and company, with the full board listing as a fallback. Lever's API has no company name and its hosted pages can't be read from a browser, so the company stays a marked guess; the bookmarklet gives the exact name.
+- **Greenhouse, Lever, Ashby, SmartRecruiters:** the app reads the company and role from the link, then confirms them with the board's public API (the six API hosts are allowed in the page's `connect-src`). Ashby uses its hosted pages' small lookup for the exact title, location and company, with the full board listing as a fallback. Lever's API has no company name and its hosted pages can't be read from a browser, so the company stays a marked guess. The bookmarklet gives the exact name.
 - **Other sites:** the company and role are guessed from the link and marked "Guessed from the link".
 - **LinkedIn, Indeed, Workday and company career pages:** use the "Save to Job Tracker" bookmarklet in Settings. It reads the page you are viewing in your own browser and opens the app with the details filled in. It never saves by itself.
 - **Fallback:** "Or paste the job text instead" reads text you copied off the page.
@@ -61,12 +61,12 @@ The link is stored on the application and shown as "Open posting". The local Pyt
 
 ## What is not in this edition
 
-Replying from the app, the Jobs tab (resume matching, Adzuna, Windows pop-ups), multiple profiles (each signed-in user has their own data instead) and scheduled background sync.
+Replying from the app, the Jobs tab (resume matching, Adzuna, Windows pop-ups), multiple profiles (each logged-in user has their own data instead) and scheduled background sync.
 
 ## Layout
 
-- `src/auth` sign-in, token handling, per-user database name
+- `src/auth` login, token handling, per-user database name
 - `src/providers` Gmail and Graph readers
 - `src/pipeline` the classifier, ported from Python and checked against golden fixtures (`tests/fixtures/pipeline-golden.json`, regenerate with `scripts/export_fixtures.py`)
 - `src/db`, `src/sync`, `src/portability` Dexie storage, sync, stats, import and export
-- `src/app`, `src/pages`, `src/components` the UI; `src/styles/base.css` is the shared stylesheet, kept in step with `jobtracker/templates/base.html`
+- `src/app`, `src/pages`, `src/components` the UI. `src/styles/base.css` is the shared stylesheet, kept in step with `jobtracker/templates/base.html`
