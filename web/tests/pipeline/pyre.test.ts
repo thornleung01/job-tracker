@@ -120,3 +120,94 @@ describe("string helpers", () => {
     expect(quote("caf\u{e9}~-_.")).toBe("caf%C3%A9~-_.");
   });
 });
+
+// translate() is a loop over small readers (escape, set, group opener, brace, plain character). These pin each
+// reader's exact output, taken from the one-function version they replaced.
+describe("translate, one construct at a time", () => {
+  const out = (src: string, ignoreCase = false) => translate(src, ignoreCase).source;
+
+  describe("numeric escapes read the same inside and outside a set", () => {
+    it.each([
+      [String.raw`\x41`, String.raw`\x41`],
+      ["\\u00e9", "\\u{00e9}"],
+      [String.raw`\u{1F680}`, String.raw`\u{1F680}`],
+      [String.raw`\U0001F680`, String.raw`\u{1F680}`],
+      [String.raw`\U00000041`, String.raw`\u{41}`],
+    ])("%s", (src, expected) => {
+      expect(out(src)).toBe(expected);
+      expect(out(`[${src}]`)).toBe(`[${expected}]`);
+    });
+  });
+
+  describe("escapes outside a set", () => {
+    it("shorthands and anchors", () => {
+      expect(out(String.raw`\A\Z`)).toBe("^$");
+      expect(out(String.raw`\d\D`)).toBe(String.raw`\p{Nd}\P{Nd}`);
+      expect(out(String.raw`\n\t\r\f\v`)).toBe(String.raw`\n\t\r\f\v`);
+      expect(out(String.raw`\1`)).toBe(String.raw`\1`);
+    });
+    it("punctuation: JS syntax characters keep their backslash, the rest lose it", () => expect(out(String.raw`\.\/\-\#`)).toBe(String.raw`\.\/-#`));
+    it("an unknown letter, or a backslash at the end, fails loudly", () => {
+      expect(() => out(String.raw`\a`)).toThrow("unsupported escape \\a");
+      expect(() => out("\\")).toThrow("trailing backslash");
+    });
+  });
+
+  describe("sets", () => {
+    it("a hyphen after \\d or \\w is literal, after anything else it is a range", () => {
+      expect(out(String.raw`[\d-z]`)).toBe(String.raw`[\p{Nd}\-z]`);
+      expect(out(String.raw`[\w-]`)).toBe(String.raw`[\p{L}\p{N}_\-]`);
+      expect(out("[a-z]")).toBe("[a-z]");
+    });
+    it("a hyphen after a numeric escape is still a range", () => expect(out(String.raw`[\x41-\x5a]`)).toBe(String.raw`[\x41-\x5a]`));
+    it("\\b is backspace in a set", () => expect(out(String.raw`[\b]`)).toBe(String.raw`[\x08]`));
+    it("a leading ] is a member, a [ is escaped", () => {
+      expect(out("[]a]")).toBe(String.raw`[\]a]`);
+      expect(out("[^]a]")).toBe(String.raw`[^\]a]`);
+      expect(out("[a[b]")).toBe(String.raw`[a\[b]`);
+    });
+    it("ignore case adds the dotted and dotless i to every i in a set", () => {
+      expect(out("[ab-i]", true)).toBe(String.raw`[ab-iI\u{130}\u{131}]`);
+      expect(out("[x]", false)).toBe("[x]");
+    });
+    it("fails on \\W \\S \\B, a bad escape, a trailing backslash, or no closing bracket", () => {
+      expect(() => out(String.raw`[\W]`)).toThrow("inside a character class");
+      expect(() => out(String.raw`[\a]`)).toThrow("unsupported escape \\a");
+      expect(() => out("[\\")).toThrow("trailing backslash");
+      expect(() => out("[a")).toThrow("unterminated character set");
+    });
+  });
+
+  describe("group openers", () => {
+    it("named groups and back references", () => expect(out("(?P<n>a)(?P=n)")).toBe(String.raw`(?<n>a)\k<n>`));
+    it("non-capturing and look-around groups pass through", () => expect(out("(?:a)(?=b)(?!c)(?<=d)(?<!e)")).toBe("(?:a)(?=b)(?!c)(?<=d)(?<!e)"));
+    it("(?i) at the start turns on ignore case and writes nothing", () => {
+      expect(translate("(?i)x")).toEqual({ source: "x", ignoreCase: true });
+      expect(translate("(?i)i")).toEqual({ source: "[iI\\u{130}\\u{131}]", ignoreCase: true });
+    });
+    it("(?i) anywhere else, and other inline flags, fail loudly", () => {
+      expect(() => out("x(?i)")).toThrow("unsupported group syntax");
+      expect(() => out("(?s)a")).toThrow("unsupported group syntax");
+    });
+  });
+
+  describe("braces and plain characters", () => {
+    it("counted quantifiers, with {,n} as {0,n}", () => {
+      expect(out("a{2}")).toBe("a{2}");
+      expect(out("a{2,}")).toBe("a{2,}");
+      expect(out("a{2,3}")).toBe("a{2,3}");
+      expect(out("a{,3}")).toBe("a{0,3}");
+    });
+    it("a brace that is not a quantifier is literal", () => {
+      expect(out("a{}")).toBe(String.raw`a\{\}`);
+      expect(out("a{,}")).toBe(String.raw`a\{,\}`);
+      expect(out("a}")).toBe(String.raw`a\}`);
+      expect(out("a]")).toBe(String.raw`a\]`);
+    });
+    it("a possessive quantifier fails loudly, counted or not", () => {
+      for (const src of ["a{2}+", "a++", "a?+", "a*+"]) expect(() => out(src)).toThrow("possessive quantifier");
+    });
+    it(". and $", () => expect(out("a.b$")).toBe("a[^\\n]b(?=\\n?$)"));
+    it("ignore case widens i outside a set", () => expect(out("i", true)).toBe(String.raw`[iI\u{130}\u{131}]`));
+  });
+});

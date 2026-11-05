@@ -2,6 +2,7 @@
 import type { Message } from "../types";
 import { BODY_LIMIT } from "../types";
 import type { EmailRow, JobTrackerDB } from "../db/schema";
+import { safeWebLink } from "../db/mailLink";
 import { applyEvent, createApplication } from "../db/repo";
 import { STAGE_FOR_EVENT } from "../db/stages";
 import { addDays, iso } from "../db/time";
@@ -40,7 +41,7 @@ export async function rememberIgnored(
     await db.ignoredMail.add({
       accountId, providerMsgId: msg.id, threadId: msg.threadId, receivedAt: when,
       sender: `${msg.senderName} <${msg.senderEmail}>`, subject: msg.subject, body: truncate(msg.body, BODY_LIMIT),
-      webLink: msg.webLink ?? null, reason, createdAt: iso(now), bulk: Boolean(msg.bulk),
+      webLink: safeWebLink(msg.webLink), reason, createdAt: iso(now), bulk: Boolean(msg.bulk),
     });
   }
   const cutoff = iso(addDays(now, -IGNORED_KEEP_DAYS));
@@ -62,6 +63,7 @@ export function messageFromRow(row: Pick<EmailRow, "providerMsgId" | "threadId" 
     receivedAt: row.receivedAt,
     body: row.body ?? "",
     bulk: Boolean(row.bulk),
+    webLink: row.webLink,
   };
 }
 

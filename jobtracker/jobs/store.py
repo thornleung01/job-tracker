@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
 
 from .. import activity, db, settings
 from ..extract import UNKNOWN_COMPANY, UNKNOWN_ROLE, company_key, role_key
@@ -23,10 +22,6 @@ def load_profile(conn: sqlite3.Connection) -> dict:
 def profile_ready(profile: dict) -> bool:
     """Scoring needs something to compare against: target titles or skills."""
     return bool(profile.get("titles") or profile.get("skills_must") or profile.get("skills_nice"))
-
-
-def _now() -> str:
-    return db.iso(datetime.now(timezone.utc))
 
 
 def add_postings(conn: sqlite3.Connection, postings: list[dict], profile: dict | None = None) -> int:
@@ -64,7 +59,7 @@ def add_postings(conn: sqlite3.Connection, postings: list[dict], profile: dict |
                 "INSERT INTO job_postings (source, source_key, dedupe_key, title, company, location, remote, url, description, "
                 "posted_at, found_at, score, reasons, partial) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (p["source"], p["source_key"], key, title, p["company"], p["location"], int(p["remote"]), p.get("url") or "",
-                 p["description"], p.get("posted_at"), _now(), score, json.dumps(reasons), int(bool(p.get("partial")))),
+                 p["description"], p.get("posted_at"), db.now_iso(), score, json.dumps(reasons), int(bool(p.get("partial")))),
             )
             added += 1
     return added
@@ -86,10 +81,12 @@ def rescore_all(conn: sqlite3.Connection) -> int:
     """Recompute every score, after your profile changed."""
     profile = load_profile(conn)
     rows = conn.execute("SELECT * FROM job_postings").fetchall()
-    with conn:
-        for r in rows:
-            score, reasons = score_posting(profile, dict(r))
-            conn.execute("UPDATE job_postings SET score = ?, reasons = ? WHERE id = ?", (score, json.dumps(reasons), r["id"]))
+    scored = []
+    for r in rows:
+        score, reasons = score_posting(profile, dict(r))
+        scored.append((score, json.dumps(reasons), r["id"]))
+    with conn:          # one write transaction for all of them, taken after the scoring is done
+        conn.executemany("UPDATE job_postings SET score = ?, reasons = ? WHERE id = ?", scored)
     return len(rows)
 
 
@@ -137,7 +134,7 @@ def mark_applied(conn: sqlite3.Connection, posting_id: int) -> int | None:
         return p["application_id"]
     company, role = p["company"] or UNKNOWN_COMPANY, p["title"] or UNKNOWN_ROLE
     with conn:
-        app_id = db.create_application(conn, company, company_key(company), role, role_key(role), "Applied", _now(), manual=True)
+        app_id = db.create_application(conn, company, company_key(company), role, role_key(role), "Applied", db.now_iso(), manual=True)
         conn.execute("UPDATE job_postings SET status = 'applied', application_id = ? WHERE id = ?", (app_id, posting_id))
     if p["url"]:
         activity.add_note(conn, app_id, f"Found as a job posting: {p['url']}")

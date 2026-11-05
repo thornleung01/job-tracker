@@ -1,10 +1,8 @@
-from datetime import datetime, timezone
-
 import pytest
 
 from jobtracker import db
-from jobtracker.models import Message
 from jobtracker.sync import process_message, process_messages
+from tests.helpers import mk
 
 
 @pytest.fixture
@@ -17,14 +15,6 @@ def conn():
 @pytest.fixture
 def acct(conn):
     return db.upsert_account(conn, "gmail", "me@gmail.com")
-
-
-def mk(id, subject, body="", sender="Acme Careers <no-reply@greenhouse.io>", thread=None, day=1):
-    name, _, addr = sender.partition("<")
-    return Message(
-        id=id, thread_id=thread or id, sender_name=name.strip(), sender_email=addr.rstrip(">").strip(),
-        subject=subject, received_at=datetime(2026, 10, day, 9, 0, tzinfo=timezone.utc), body=body,
-    )
 
 
 def apps(conn):

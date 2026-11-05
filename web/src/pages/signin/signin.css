@@ -16,5 +16,4 @@
 .signin-skip { align-self: flex-start; background: none; box-shadow: none; padding: 0; color: var(--ink); font-weight: 500; }
 .signin-skip:hover:not(:disabled) { background: none; }
 .signin-footer { margin: 0; }
-.signin-footer a { font-weight: 500; color: var(--ink); }
 .signin .lede { font: 400 1.125rem/1.4 var(--font-ui); letter-spacing: -0.2px; color: var(--muted); margin: 0 0 var(--gap); text-wrap: balance; }

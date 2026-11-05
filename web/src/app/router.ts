@@ -1,6 +1,6 @@
-// Hash router. The route table is ROUTES in pageProps.ts; this file only matches and parses.
+// Hash router. The route table is ROUTES in routes.ts; this file only matches and parses.
 // It never writes the hash by itself: only navigate() does, and only when a person asks for it.
-import { ROUTES } from "./pageProps";
+import { ROUTES } from "./routes";
 
 export type Route = (typeof ROUTES)[number];
 export type PageName = Route["page"];
@@ -23,7 +23,7 @@ export interface RouteMatch {
  * Real routes always start with "#/", so they are never mistaken for it.
  */
 export function isAuthResponseHash(hash: string): boolean {
-  return !hash.startsWith("#/") && /[#&](code|error|state|id_token)=/.test(hash);
+  return !hash.startsWith("#/") && /[#&](code|error|state)=/.test(hash);
 }
 
 function safeDecode(part: string): string {

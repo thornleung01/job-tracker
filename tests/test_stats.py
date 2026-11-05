@@ -5,7 +5,7 @@ from jobtracker import db, stats
 from jobtracker.stats import application_path
 from jobtracker.sync import process_messages
 from jobtracker.web import create_app
-from tests.test_pipeline import mk
+from tests.helpers import mk
 
 
 def test_paths():

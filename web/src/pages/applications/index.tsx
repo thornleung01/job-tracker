@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { BulkBar } from "../../components/bulk/BulkBar";
@@ -18,6 +18,7 @@ import { useAction } from "../../components/useAction";
 import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
 import { STAGES, isStage, type Stage } from "../../db/stages";
+import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
 import { localToday } from "../../db/time";
 import { addApplication as realAddApplication } from "../../sync/actions";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
@@ -86,7 +87,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       rows, counts, accounts: await listAccounts(db), review: await reviewCount(db),
       columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
     };
-  }, [db, stage, q, account, followUp, sort, dir]);
+  }, [db, stage, q, account, followUp, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
 
   // The ticked rows live here, not in the address, and are dropped when the filters change.
   const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp]));
@@ -110,7 +111,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const toggle = (id: number) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
   // Rows are memoised, so the callback they get must keep its identity: it reads the latest `toggle` through a ref.
   const toggleRef = useRef(toggle);
-  toggleRef.current = toggle;
+  useLayoutEffect(() => {
+    toggleRef.current = toggle;
+  });
   const onToggleOpen = useCallback((id: number) => toggleRef.current(id), []);
 
   // Add an application by hand: one button opens the form under the filter card
@@ -258,14 +261,14 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             <div className="row add-fields">
               <div className="fgroup f-grow">
                 <label htmlFor="add-company">Company</label>
-                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name." value={company}
+                <input id="add-company" name="company" ref={companyInput} required maxLength={MAX_COMPANY_CHARS} pattern=".*\S.*" title="Enter a company name." value={company}
                        aria-describedby={link.hints.company ? "add-company-hint" : undefined}
                        onChange={(e) => { link.edited("company"); setCompany(e.target.value); }} />
                 {link.hints.company ? <p className="field-hint" id="add-company-hint">{link.hints.company}</p> : null}
               </div>
               <div className="fgroup f-grow">
                 <label htmlFor="add-role">Role (optional)</label>
-                <input id="add-role" name="role" value={role} aria-describedby={link.hints.role ? "add-role-hint" : undefined}
+                <input id="add-role" name="role" value={role} maxLength={MAX_ROLE_CHARS} aria-describedby={link.hints.role ? "add-role-hint" : undefined}
                        onChange={(e) => { link.edited("role"); setRole(e.target.value); }} />
                 {link.hints.role ? <p className="field-hint" id="add-role-hint">{link.hints.role}</p> : null}
               </div>
@@ -283,7 +286,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             <div className="row add-url-row">
               <div className="fgroup f-grow">
                 <label htmlFor="add-url">Posting link (optional)</label>
-                <input id="add-url" name="url" type="text" inputMode="url" autoComplete="off" spellCheck={false} value={postingUrl}
+                <input id="add-url" name="url" type="text" inputMode="url" autoComplete="off" spellCheck={false} value={postingUrl} maxLength={MAX_URL_CHARS}
                        onChange={(e) => { link.edited("url"); setPostingUrl(e.target.value); }} />
               </div>
             </div>

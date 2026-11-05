@@ -1,3 +1,7 @@
+"""Gmail: sign in with Google's installed-app flow, read mail through the Gmail API, and send a reply when you turn that on.
+
+Reading asks only for gmail.readonly. The send permission is asked for separately, per account, when you allow replying.
+"""
 from __future__ import annotations
 
 import base64
@@ -8,12 +12,11 @@ from datetime import datetime, timezone
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Callable, Iterator
 
-from ..config import GMAIL_SCOPES, GMAIL_SEND_SCOPE
+from ..config import GMAIL_SCOPES, GMAIL_SEND_SCOPE, SIGN_IN_TIMEOUT
 from ..models import Message
 from . import clients
-from .base import NotAllowed, NotConnected, html_to_text, token_persistence
+from .base import NotAllowed, NotConnected, html_to_text, is_bulk, token_persistence
 
-SIGN_IN_TIMEOUT = 300   # seconds to finish signing in before giving up
 RETRY_WAITS = (5, 15, 30, 60, 60)   # seconds to wait after each rate-limit answer before asking again
 _sleep = time.sleep
 log = logging.getLogger(__name__)
@@ -177,12 +180,6 @@ def _received_at(raw: dict, headers: dict) -> datetime:
     return when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when.astimezone(timezone.utc)
 
 
-def _is_bulk(headers: dict) -> bool:
-    """Mailing lists and newsletters say so in their headers; people and hiring systems don't."""
-    return bool(headers.get("list-unsubscribe") or headers.get("list-id")
-                or headers.get("precedence", "").strip().lower() in ("bulk", "list", "junk"))
-
-
 def parse_message(raw: dict) -> Message:
     payload = raw.get("payload") or {}
     headers = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
@@ -192,7 +189,7 @@ def parse_message(raw: dict) -> Message:
     if body is None:
         body = html_to_text(html) if html else raw.get("snippet", "")
     return Message(
-        bulk=_is_bulk(headers),
+        bulk=is_bulk(headers),
         id=raw["id"],
         thread_id=raw.get("threadId", raw["id"]),
         sender_name=name,

@@ -16,7 +16,7 @@ export function setupValues(origin: string, baseUrl: string): SetupValues {
   return {
     origin,
     redirectUri,
-    googleScopes: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+    googleScopes: "openid email https://www.googleapis.com/auth/gmail.readonly",
     msScopes: "openid profile email Mail.Read",
     privacyUrl: redirectUri + "privacy.html",
   };

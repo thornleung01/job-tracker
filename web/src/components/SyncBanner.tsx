@@ -1,6 +1,7 @@
 // A one-click way back to a synced mailbox after a reload. Tokens live in memory only, so a signed-in person
-// otherwise has to open Settings, press Connect for each mailbox and then Sync. This does all three in one press,
-// through the same connectMailbox and runSync that Settings uses, so the two screens cannot drift apart.
+// otherwise has to open Settings, press Connect for each mailbox and then Sync. This does all three in one press.
+// It uses the same connectMailbox and runSync as Settings, and the same progress tracking, lock and problem wording
+// (components/syncprogress/), so what a sync shows does not depend on which screen started it.
 // Right after a login that also connected a mailbox (autoStart), it registers that mailbox and runs the first sync by itself.
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalUser, type PageUser } from "../app/localUser";
@@ -8,14 +9,16 @@ import { useQuery } from "../app/useQuery";
 import * as realAuth from "../auth";
 import type { Session } from "../auth/session";
 import type { AuthUser } from "../auth/user";
-import { isLocalMode } from "../config";
 import type { AccountRow, JobTrackerDB } from "../db/schema";
-import { PROVIDER_LABEL, accountLabel, connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../pages/settings/actions";
+import { PROVIDER_LABEL } from "../sync/accountLabel";
+import { connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../sync/mailbox";
 import { createProvider, getAddress } from "../providers";
 import { accountSummaries } from "../sync/queries";
-import { isSyncing, tryAcquire } from "../sync/syncLock";
-import type { SyncProgress } from "../sync/sync";
+import { isSyncing } from "../sync/syncLock";
 import { NotConnected, type ProviderName, type TokenSource } from "../types";
+import { useSyncRun } from "./syncprogress/progress";
+import { ALREADY_RUNNING, describeBannerRun, errorText, type RunResult } from "./syncprogress/result";
+import { SyncBar } from "./syncprogress/SyncBar";
 import "./syncbanner.css";
 
 export interface SyncBannerDeps extends Pick<MailDeps, "createProvider" | "getAddress"> {
@@ -35,46 +38,10 @@ export const defaultDeps: SyncBannerDeps = {
   getAddress,
 };
 
-interface Progress {
-  label: string;
-  percent: number | null;
-}
-
-interface Result {
-  ok: boolean;
-  lines: string[];
-}
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-
-/** Plain sentences for what the one click did. */
-export function describeBanner(report: SyncReport | null, problems: string[]): Result {
-  const lines = [...problems];
-  if (report) {
-    const read = report.synced.reduce(
-      (n, s) => n + Object.entries(s.counts).reduce((m, [k, v]) => (k === "duplicate" || k === "error" || k === "retry" ? m : m + (v ?? 0)), 0),
-      0,
-    );
-    const review = report.synced.reduce((n, s) => n + (s.counts.review ?? 0), 0);
-    if (report.synced.length > 0) {
-      lines.push(read === 0 ? "Synced. No new emails." : `Synced ${read} new ${plural(read, "email", "emails")}.${review ? ` ${review} ${plural(review, "needs", "need")} review.` : ""}`);
-    }
-    for (const a of report.needConnect) lines.push(`Reconnect ${accountLabel(a)}, then try again.`);
-    for (const f of report.failed) lines.push(`${accountLabel(f.account)}: ${f.message}`);
-    if (report.stopped) lines.push("Sync stopped.");
-  }
-  if (lines.length === 0) lines.push("There are no accounts to sync.");
-  const ok = problems.length === 0 && !!report && report.needConnect.length === 0 && report.failed.length === 0 && !report.stopped;
-  return { ok, lines };
-}
-
 export interface SyncBannerProps {
   db: JobTrackerDB;
   user: PageUser;
   deps?: Partial<SyncBannerDeps>;
-  /** Overrides isLocalMode(); local builds have no mail sync at all, so nothing shows. */
-  local?: boolean;
   /**
    * Take the mailbox the login just connected and sync it, with no window. Nothing happens while this is false (the
    * carry-over offer may still be waiting for an answer).
@@ -89,7 +56,7 @@ export interface SyncBannerProps {
 
 export function SyncBanner(props: SyncBannerProps) {
   const { user } = props;
-  if ((props.local ?? isLocalMode()) || isLocalUser(user)) return null;
+  if (isLocalUser(user)) return null;  // the local edition has no mail sync
   return <Banner {...props} user={user} />;
 }
 
@@ -99,21 +66,10 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const accounts = useQuery(() => accountSummaries(db), [db]);
 
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
-  const busy = useRef(false);
-  const abort = useRef<AbortController | null>(null);
+  const sync = useSyncRun();
+  const running = sync.progress !== null;
+  const [result, setResult] = useState<RunResult | null>(null);
   const box = useRef<HTMLDivElement>(null);
-  const mounted = useRef(true);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      abort.current?.abort();
-    };
-  }, []);
   // Focus moves to the result only when the person pressed Reconnect and sync themselves. An automatic first sync
   // finishes seconds after login, wherever they are by then, and role=status already announces what it found.
   const focusResult = useRef(false);
@@ -136,7 +92,7 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
     if (!autoStart || taken.current) return;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const attempt = () => {
-      if (!mounted.current || taken.current || busy.current) return;
+      if (!sync.isMounted() || taken.current || sync.isActive()) return;
       // Settings' own sync is running: wait for it rather than take the mailbox and lose it.
       if (isSyncing()) {
         retry = setTimeout(attempt, 250);
@@ -157,25 +113,16 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
 
   /** `auto` is a mailbox that is already connected: register it and sync, with no window. Otherwise reconnect what's needed. */
   async function reconnectAndSync(auto?: ProviderName) {
-    if (busy.current) return;
-    const release = tryAcquire();
-    if (!release) {
-      setResult({ ok: true, lines: ["A sync is already running."] });
+    if (sync.isActive()) return;
+    const run = sync.begin(auto ? `Connecting ${PROVIDER_LABEL[auto]}` : "Connecting");
+    if (!run) {
+      setResult({ ok: true, lines: [ALREADY_RUNNING] });
       return;
     }
-    busy.current = true;
     if (auto) focusResult.current = false;
     let switchedOff: ProviderName | null = null;
-    const controller = new AbortController();
-    abort.current = controller;
     const providers = auto ? [] : [...new Set(needed.map((a) => a.provider))];
-    const safe = <T,>(fn: (v: T) => void) => (v: T) => {
-      if (mounted.current) fn(v);
-    };
-    const setProg = safe(setProgress);
-    setRunning(true);
     setResult(null);
-    setProg({ label: auto ? `Connecting ${PROVIDER_LABEL[auto]}` : "Connecting", percent: null });
     const problems: string[] = [];
     let report: SyncReport | null = null;
     try {
@@ -191,8 +138,8 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
         }
       }
       for (const provider of providers) {
-        if (controller.signal.aborted) break;
-        setProg({ label: `Connecting ${PROVIDER_LABEL[provider]}`, percent: null });
+        if (run.signal.aborted) break;
+        run.show(`Connecting ${PROVIDER_LABEL[provider]}`);
         try {
           await connectMailbox(db, user, provider, {
             connectMail: auth.connectMail, tokenSource: auth.tokenSource, createProvider: deps.createProvider, getAddress: deps.getAddress,
@@ -203,35 +150,17 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
         }
       }
       if (connectedAny) {
-        let label = "";
         report = await runSync(
           db,
           { tokenSource: auth.tokenSource, createProvider: deps.createProvider, isConnected: (a) => isConnected(user, a, auth.getSession().mail) },
-          {
-            signal: controller.signal,
-            onAccount: (l) => {
-              label = l;
-              setProg({ label: `${l}: finding emails`, percent: null });
-            },
-            onProgress: (p: SyncProgress) =>
-              setProg({
-                label: p.phase === "finding" ? `${label}: finding emails` : `${label}: reading ${p.done}${p.total ? ` of ${p.total}` : ""}`,
-                percent: p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : null,
-              }),
-          },
+          { signal: run.signal, onAccount: run.onAccount, onProgress: run.onProgress },
         );
       }
     } catch (e) {
       problems.push(errorText(e));
     } finally {
-      abort.current = null;
-      busy.current = false;
-      release();
-      if (mounted.current) {
-        setResult(switchedOff ? { ok: true, lines: [`${PROVIDER_LABEL[switchedOff]} is switched off in Settings.`] } : describeBanner(report, problems));
-        setRunning(false);
-        setProgress(null);
-      }
+      run.end();
+      if (sync.isMounted()) setResult(switchedOff ? { ok: true, lines: [`${PROVIDER_LABEL[switchedOff]} is switched off in Settings.`] } : describeBannerRun(report, problems));
     }
   }
 
@@ -252,11 +181,8 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
       <div>
         {running ? (
           <>
-            <p className="line">{progress?.label ?? "Connecting"}</p>
-            <div className={`bar${progress?.percent == null ? " indet" : ""}`} role="progressbar" aria-label="Sync progress" aria-valuemin={0} aria-valuemax={100}
-              aria-valuenow={progress?.percent ?? undefined}>
-              <i style={progress?.percent != null ? { width: `${progress.percent}%` } : undefined} />
-            </div>
+            <p className="line">{sync.progress?.label ?? "Connecting"}</p>
+            <SyncBar percent={sync.progress?.percent ?? null} />
           </>
         ) : result ? (
           result.lines.map((l, i) => <p className="line" key={i}>{l}</p>)
@@ -273,7 +199,7 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
                 Reconnect and sync
               </button>
             )}
-            {running && <button className="quiet" onClick={() => abort.current?.abort()}>Stop</button>}
+            {running && <button className="quiet" onClick={sync.stop}>Stop</button>}
             {!running && result && <button className="quiet" onClick={() => setResult(null)}>Dismiss</button>}
           </div>
         )}

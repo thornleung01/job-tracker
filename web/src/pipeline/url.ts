@@ -1,7 +1,12 @@
 // urllib.parse.urlparse(url).hostname, including the ValueError cases Python raises for malformed hosts.
 import { partition, rpartition } from "./pystr";
 
-export class UrlValueError extends Error {}
+export class UrlValueError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = "UrlValueError";
+  }
+}
 
 const HEX4 = /^[0-9a-fA-F]{1,4}$/;
 const IPV_FUTURE = /^v[a-fA-F0-9]+\..+$/;

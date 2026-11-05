@@ -1,6 +1,6 @@
 // Ported from tests/test_mailtext.py. Samples are the shapes of real mail that looked bad.
 import { describe, expect, it } from "vitest";
-import { cleanMailText, parts, render, splitSender } from "../../src/pipeline";
+import { parts, render, splitSender } from "../../src/pipeline";
 import { textOf } from "./helpers";
 
 const DEEL =
@@ -128,8 +128,3 @@ describe("link domains", () => {
   });
 });
 
-it("cleanMailText is the message without thread or footer", () => {
-  expect(cleanMailText(DEEL)).toContain("Customer Referral Policy");
-  expect(cleanMailText(DEEL)).not.toContain("wrote:");
-  expect(cleanMailText("")).toBe("");
-});

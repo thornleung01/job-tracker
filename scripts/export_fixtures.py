@@ -1,7 +1,16 @@
 """Golden fixtures for the TypeScript pipeline port.
 
-    python scripts/export_fixtures.py            # rewrites web/tests/fixtures/pipeline-golden.json
-    python scripts/export_fixtures.py --check    # exit 1 if the committed file is out of date
+    python scripts/export_fixtures.py            # rewrites web/tests/fixtures/pipeline-golden.json and python-export.golden.json
+    python scripts/export_fixtures.py --check    # exit 1 if either committed file is out of date
+
+web/tests/fixtures/python-export.json is the one input this script does not make: it is a snapshot of `scripts/seed_demo.py` run
+through `scripts/export_json.py`, which stamps today's dates, so it cannot be rebuilt byte for byte. python-export.golden.json
+(the Flow numbers and counts the local edition computes from that snapshot) is rebuilt from it here, at the moment recorded in
+its "now" field, so a change to jobtracker/stats.py or contacts.py shows up as a drifted golden instead of going unnoticed.
+
+The file records the Python and Unicode versions that made it. --check ignores the Python patch number (3.14.4 vs 3.14.5)
+but not the minor version or the Unicode version: those can change what the functions return. Regenerate with the same
+Python minor version the committed file names, and commit rules.json, unicodeTables.ts and the fixtures together.
 
 Runs the real Python functions (jobtracker.classify / extract / mailtext / links / match) over a deterministic corpus and
 stores {input, expected} per function. The corpus is built from (a) the subjects, bodies and senders the Python tests use,
@@ -16,10 +25,11 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 import unicodedata
-import warnings
 import urllib.parse
+import warnings
 from datetime import datetime, timezone
 from itertools import product
 from pathlib import Path
@@ -27,8 +37,6 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-
-import re  # noqa: E402
 
 from jobtracker import classify as C  # noqa: E402
 from jobtracker import extract as E  # noqa: E402
@@ -39,11 +47,12 @@ from jobtracker.learn import Learned  # noqa: E402
 from jobtracker.models import Message  # noqa: E402
 
 OUT = ROOT / "web" / "tests" / "fixtures" / "pipeline-golden.json"
+PY_EXPORT = ROOT / "web" / "tests" / "fixtures" / "python-export.json"
+PY_EXPORT_GOLDEN = ROOT / "web" / "tests" / "fixtures" / "python-export.golden.json"
 
-NBSP, NNBSP, ZWSP, SHY, ZWNJ, BOM, CGJ = "\xa0", "\U0000202F", "\U0000200B", "\xad", "\U0000200C", "\U0000FEFF", "\U0000034F"
-LSQ, RSQ, LDQ, RDQ = "\U00002018", "\U00002019", "\U0000201C", "\U0000201D"
-EMDASH, ENDASH, BULLET, MIDDOT = "\U00002014", "\U00002013", "\U00002022", "\xb7"
-EACUTE, COPY = "\xe9", "\xa9"
+NBSP, NNBSP, ZWSP, SHY, BOM, CGJ = "\xa0", "\U0000202F", "\U0000200B", "\xad", "\U0000FEFF", "\U0000034F"
+EMDASH, ENDASH, MIDDOT = "\U00002014", "\U00002013", "\xb7"
+COPY = "\xa9"
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -650,6 +659,77 @@ def build_match() -> None:
             "applications": [{"id": a["id"], "role": a["role"], "roleKey": a["role_key"], "stage": a["stage"]} for a in apps],
         }, {"kind": m.kind, "applicationId": m.application_id})
 
+    # The random cases above rarely line up two or three applications for one role in specific stages, so the
+    # re-application rules (an Offer counts as closed for "applied" mail, the newest same-role application wins) get
+    # an exhaustive sweep of their own.
+    def run(apps, event, role, ckey="acme", thread_app=None, thread_id=""):
+        rkey = E.role_key(role)
+        with mock.patch.object(MA.db, "thread_application", lambda conn, account_id, tid: thread_app if tid else None), \
+                mock.patch.object(MA.db, "all_applications_for", lambda conn, ck: [dict(a) for a in apps]):
+            m = MA.find_application(None, 1, thread_id, ckey, rkey, event=event, role=role)
+        add("findApplication", {
+            "threadId": thread_id, "threadApplicationId": thread_app, "ckey": ckey, "rkey": rkey, "event": event, "role": role,
+            "applications": [{"id": a["id"], "role": a["role"], "roleKey": a["role_key"], "stage": a["stage"]} for a in apps],
+        }, {"kind": m.kind, "applicationId": m.application_id})
+
+    def app(i, role, stage):
+        return {"id": i, "role": role, "role_key": E.role_key(role), "stage": stage}
+
+    sweep_events = [None, "applied", "interview", "rejected"]
+    for n in (1, 2):
+        for combo in product(stages, repeat=n):
+            for event in sweep_events:
+                run([app(10 + i, "Data Analyst", s) for i, s in enumerate(combo)], event, "Data Analyst")
+    for combo in product(["Applied", "Interview", "Offer", "Rejected"], repeat=3):
+        for event in sweep_events:
+            run([app(10 + i, "Data Analyst", s) for i, s in enumerate(combo)], event, "Data Analyst")
+    # One application for the role and one for another job, in every pair of stages.
+    for s1, s2 in product(stages, repeat=2):
+        for event in sweep_events:
+            for role in ("Data Analyst", "Product Manager", ""):
+                run([app(10, "Data Analyst", s1), app(11, "Operations Manager", s2)], event, role)
+    # A closed application for the role next to an open one with no role: a re-application is still new, not the open one.
+    for s1, s2 in product(stages, repeat=2):
+        for event in sweep_events:
+            run([app(10, "Data Analyst", s1), app(11, "", s2)], event, "Data Analyst")
+    # A longer title for the same job, a re-application, and a thread that already knows the application.
+    for s in stages:
+        run([app(10, "Data Analyst | NAM", s), app(11, "Data Analyst", "Offer")], "applied", "Data Analyst")
+        run([app(10, "Data Analyst", s)], "applied", "Data Analyst", thread_app=5, thread_id="t1")
+
+
+def build_headers() -> None:
+    """The hosted mail providers read headers with web/src/providers/headers.ts; the local ones use email.utils and email.header."""
+    from email.header import decode_header, make_header
+    from email.utils import parseaddr
+
+    froms = [
+        "Acme Careers <jobs@acme.com>", '"Acme Careers" <jobs@acme.com>', "jobs@acme.com", "<jobs@acme.com>", "Acme <JOBS@Acme.COM>", "Acme Careers <no-reply@greenhouse.io>",
+        '"Lee, Pat" <pat@acme.com>', '"Pat \\"The Hire\\" Lee" <pat@acme.com>', "Pat <pat+tag@acme.com>", "pat@acme.com (Pat Lee)", "Pat Lee pat@acme.com",
+        "Acme Careers<jobs@acme.com>", '"Acme <Careers>" <jobs@acme.com>', "", " ", "Acme", "<>", "Acme <>", "Caf\xe9 Recrutement <rh@caf\xe9.fr>", "\u5c71\u7530 <yamada@example.jp>", "Acme (Careers) <jobs@acme.com>", "Acme <jobs@acme.com> (comment)",
+        "Acme <jobs@acme.com", "A.B. Smith <a.b.smith@mail.example.co.uk>", "no-reply@accounts.google.com",
+        "Workday <acme@myworkday.com>", "LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>", "\"O'Brien, Sam\" <sam@acme.com>",
+    ]
+    # Left out on purpose, because the TypeScript port reads them differently (pinned in web/tests/providers/headers.test.ts):
+    # an unquoted comma in the name, several addresses in one header, runs of spaces in the name, an address-looking name,
+    # a stray ">", and encoded names (parseaddr leaves them encoded, the port decodes them). The same for decodeMimeWords below:
+    # a word glued straight onto an encoded word is left out.
+    for f in froms:
+        name, addr = parseaddr(f)
+        add("parseAddress", f, {"name": name, "email": addr})
+    words = [
+        "Thank you for applying", "", "=?UTF-8?B?VGhhbmsgeW91IGZvciBhcHBseWluZw==?=", "=?utf-8?Q?Thank_you_for_applying?=", "=?UTF-8?Q?Caf=C3=A9_=E2=80=93_Offer?=",
+        "=?UTF-8?B?QWNtZSDigJMgSW50ZXJ2aWV3?= invitation", "Re: =?UTF-8?B?44GT44KT44Gr44Gh44Gv?=", "=?ISO-8859-1?Q?Caf=E9?=", "=?iso-8859-1?B?Q2Fm6Q==?=",
+        "=?UTF-8?B?Q2Fm?= =?UTF-8?B?w6k=?=", "=?UTF-8?Q?Caf?=\r\n =?UTF-8?Q?=C3=A9?=", "=?UTF-8?Q?a?= b =?UTF-8?Q?c?=",
+        "=?UTF-8?B?not base64!?=", "=?UTF-8?Q?bad=ZZhex?=", "=?UTF-8?X?abc?=", "=?UTF-8?B??=", "plain =? text ?= here", "100% =?UTF-8?Q?_=E2=9C=93?=",
+    ]
+    for w in words:
+        try:
+            expected = str(make_header(decode_header(w)))
+        except Exception:
+            continue
+        add("decodeMimeWords", w, expected)
+
 
 def build_links() -> None:
     threads = [None, "", "18c2f0a1b2c3d4e5", "a/b c", "t\xe9 &x=1", "\U0001F680"]
@@ -822,6 +902,7 @@ def build() -> dict:
     build_mailtext(msgs)
     build_urls()
     build_match()
+    build_headers()
     build_links()
     build_pystr()
     build_regex()
@@ -835,6 +916,13 @@ def build() -> dict:
         },
         "cases": dict(sorted(CASES.items())),
     }
+
+
+def same_apart_from_python_patch(a: str, b: str) -> bool:
+    """Two fixture texts are the same once the Python patch number (3.14.4 vs 3.14.5) is left out of "python"."""
+    def tolerant(text: str) -> str:
+        return re.sub(r'("python": "\d+\.\d+)\.\d+"', r'\1"', text, count=1)
+    return tolerant(a) == tolerant(b)
 
 
 def dump(data: dict) -> str:
@@ -851,6 +939,31 @@ def dump(data: dict) -> str:
     return "\n".join(lines)
 
 
+def python_export_golden(now: str) -> dict:
+    """What the local edition computes from the committed python-export.json: Flow data for every account and period, people, counts."""
+    from jobtracker import contacts, db, stats
+
+    export = json.loads(PY_EXPORT.read_text(encoding="utf-8"))
+    at = datetime.fromisoformat(now.replace("Z", "+00:00"))
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return at if tz else at.replace(tzinfo=None)
+
+    conn = db.connect(":memory:")
+    try:
+        for name, rows in export["tables"].items():
+            for row in rows:
+                cols = list(row)
+                conn.execute(f"INSERT INTO {name} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", [row[c] for c in cols])
+        with mock.patch.object(stats, "datetime", Frozen):
+            sankey = {f"{account}:{days}": stats.sankey(conn, account, days) for account in (0, 1, 2) for days in (0, 30, 60, 90, 180)}
+        return {"now": now, "sankey": sankey, "contacts": contacts.derive(conn), "counts": {name: len(rows) for name, rows in export["tables"].items()}}
+    finally:
+        conn.close()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if the committed fixture file is out of date")
@@ -860,12 +973,21 @@ def main() -> int:
     missing = coverage_report()
     if missing:
         print("warning: no sample sentence triggers these rule patterns:", *missing, sep="\n  ", file=sys.stderr)
+    previous = json.loads(PY_EXPORT_GOLDEN.read_text(encoding="utf-8")) if PY_EXPORT_GOLDEN.exists() else {}
+    snapshot_golden = python_export_golden(previous.get("now") or json.loads(PY_EXPORT.read_text(encoding="utf-8"))["exportedAt"])
+    snapshot_text = json.dumps(snapshot_golden, indent=2, ensure_ascii=False) + "\n"
     if args.check:
-        ok = OUT.exists() and OUT.read_text(encoding="utf-8") == text
+        ok = OUT.exists() and same_apart_from_python_patch(OUT.read_text(encoding="utf-8"), text)
+        snapshot_ok = previous == snapshot_golden
         print("fixtures up to date" if ok else "fixtures are out of date: run scripts/export_fixtures.py")
-        return 0 if ok else 1
+        if not snapshot_ok:
+            print("python-export.golden.json is out of date: run scripts/export_fixtures.py")
+        return 0 if ok and snapshot_ok else 1
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text, encoding="utf-8")
+    if previous != snapshot_golden:
+        PY_EXPORT_GOLDEN.write_text(snapshot_text, encoding="utf-8")
+        print(f"wrote {PY_EXPORT_GOLDEN}")
     total = sum(data["meta"]["counts"].values())
     print(f"wrote {OUT} ({total} cases, {OUT.stat().st_size // 1024} KiB)")
     for k, v in data["meta"]["counts"].items():

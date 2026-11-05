@@ -6,8 +6,11 @@ import { userFromClaims, type AuthUser } from "./user";
 
 export const GIS_SRC = "https://accounts.google.com/gsi/client";
 export const TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
-/** Scopes that identify the person. The mail scope is added on top when the person connects their mailbox. */
-export const GOOGLE_LOGIN_SCOPES = "openid email profile";
+// Not imported from providers/gmail: auth does not depend on the provider layer.
+export const GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
+const DEFAULT_TOKEN_SECONDS = 3600;
+/** Scopes that identify the person: only `sub` and `email` are read, so no `profile`. The mail scope is added when the person connects their mailbox. */
+export const GOOGLE_LOGIN_SCOPES = "openid email";
 const GOOGLE_ISSUER = "https://accounts.google.com";
 
 /** What to tell the person when Google's sign-in window did not open or the silent token request failed. */
@@ -15,6 +18,12 @@ export const POPUP_HINT = "Your browser may have blocked the Google login window
 const CANCELLED = "Login was cancelled.";
 const NOT_COMPLETED = "Google login wasn't completed. Try again.";
 const NOT_VERIFIED = "Google login couldn't be verified. Try again.";
+/** A failure that is not the person's doing (network, Google busy): the mailbox stays connected and a retry can work. */
+export const GOOGLE_UNREACHABLE = "Couldn't reach Google. Check your connection and try again.";
+const NEEDS_PERMISSION = "Gmail needs your permission to read your emails. Try again and allow access when Google asks.";
+// What GIS answers when a silent request needs the person: consent, a login, or a window they have to see.
+// Anything else (server_error, temporarily_unavailable, no code at all) is treated as transient.
+const INTERACTION_ERRORS = new Set(["access_denied", "interaction_required", "consent_required", "login_required", "invalid_grant", "immediate_failed"]);
 
 interface GisTokenResponse {
   access_token?: string;
@@ -100,8 +109,13 @@ export interface GoogleAuth {
    * (nothing awaited first), which keeps popup blockers happy. Call it directly from a click handler.
    */
   signIn(opts?: { mail?: boolean }): Promise<GoogleSignInResult>;
-  /** Needs a user gesture the first time; later calls re-acquire silently while the Google session lives. */
+  /**
+   * Needs a user gesture the first time; later calls re-acquire silently while the Google session lives.
+   * Throws NotConnected only when the person has to act (consent, login, pop-up); a network or Google-side failure throws a plain Error.
+   */
   requestMailToken(opts?: { loginHint?: string; signal?: AbortSignal }): Promise<GoogleAccessToken>;
+  /** The Gmail address a mail token belongs to (the same lookup the account row uses). Lets a refreshed token be checked against the mailbox that was connected. */
+  mailboxAddress(token: string, signal?: AbortSignal): Promise<string>;
   revoke(token: string): Promise<void>;
 }
 
@@ -201,8 +215,22 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
       if (hasMailScope) void revoke(r.access_token).catch(() => undefined);
       return { user, mail: null };
     }
-    const seconds = Number(r.expires_in ?? 3600);
+    const seconds = Number(r.expires_in ?? DEFAULT_TOKEN_SECONDS);
     return { user, mail: { token: r.access_token, expiresAt: now() + seconds * 1000 } };
+  }
+
+  async function mailboxAddress(token: string, signal?: AbortSignal): Promise<string> {
+    let res: Response;
+    try {
+      res = await doFetch(GMAIL_PROFILE_URL, { method: "GET", headers: { Authorization: `Bearer ${token}` }, signal });
+    } catch (e) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      throw new Error(GOOGLE_UNREACHABLE, { cause: e });
+    }
+    const data: unknown = res.ok ? await res.json().catch(() => null) : null;
+    const address = typeof data === "object" && data !== null ? (data as { emailAddress?: unknown }).emailAddress : undefined;
+    if (typeof address !== "string" || address === "") throw new Error("Gmail didn't share this account's email address. Try again.");
+    return address;
   }
 
   async function revoke(token: string): Promise<void> {
@@ -238,22 +266,28 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
           ...(loginHint ? { login_hint: loginHint } : {}),
           callback: done((r: GisTokenResponse) => {
             if (r.error || !r.access_token) {
-              // access_denied is the person saying no; anything else is the silent request failing or the window being blocked.
-              reject(new NotConnected(r.error === "access_denied" ? "Gmail needs your permission to read your emails. Try again and allow access when Google asks." : POPUP_HINT));
+              if (r.error === "access_denied") reject(new NotConnected(NEEDS_PERMISSION));
+              else if (r.error && INTERACTION_ERRORS.has(r.error)) reject(new NotConnected(POPUP_HINT));
+              else reject(new Error(GOOGLE_UNREACHABLE));
             } else if (r.scope && !r.scope.split(" ").includes(deps.mailScope)) {
               reject(new NotConnected("Gmail access wasn't granted. Try again and allow access when Google asks."));
             } else {
-              const seconds = Number(r.expires_in ?? 3600);
+              const seconds = Number(r.expires_in ?? DEFAULT_TOKEN_SECONDS);
               resolve({ token: r.access_token, expiresAt: now() + seconds * 1000 });
             }
           }),
           error_callback: done((e: { type?: string }) => {
-            reject(new NotConnected(e.type === "popup_failed_to_open" ? POPUP_HINT : "Gmail connection wasn't completed. Try again."));
+            // The window did not open or was closed: the person has to act. Any other type is Google failing, not them.
+            if (e.type === "popup_failed_to_open") reject(new NotConnected(POPUP_HINT));
+            else if (e.type === "popup_closed") reject(new NotConnected("Gmail connection wasn't completed. Try again."));
+            else reject(new Error(GOOGLE_UNREACHABLE));
           }),
         });
         client.requestAccessToken({ prompt: "" });
       });
     },
+
+    mailboxAddress,
 
     revoke,
   };

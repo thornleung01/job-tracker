@@ -3,10 +3,10 @@ import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { Notice } from "../../components/Notice";
 import { PersonCard } from "../../components/PersonCard";
+import { useNoticeFocus } from "../../components/useNoticeFocus";
+import { UNKNOWN_ROLE } from "../../pipeline/extract";
 import { derive, type Contact } from "../../sync/contacts";
 import "./people.css";
-
-const UNKNOWN_ROLE = "Unknown role";
 
 interface Group {
   id: number;
@@ -34,6 +34,11 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
   const [draft, setDraft] = useState(q);
   useEffect(() => setDraft(q), [q]);
   const [notice, setNotice] = useState<string | null>(null);
+  const result = useNoticeFocus();
+  const say = (message: string, removed?: boolean) => {
+    setNotice(message);
+    if (removed) result.focus();   // the Not a person button is gone with the card
+  };
   const list = useRef<HTMLDivElement>(null);
 
   if (!everyone) return <h1 className="page">People</h1>;
@@ -51,7 +56,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
   return (
     <>
       <h1 className="page">People</h1>
-      {notice ? <Notice>{notice}</Notice> : null}
+      <div ref={result.box}>{notice ? <Notice>{notice}</Notice> : null}</div>
 
       <form className="row people-search" onSubmit={search}>
         <div className="fgroup f-search">
@@ -84,7 +89,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
               <span className="muted company-count">{g.people.length} {g.people.length === 1 ? "person" : "people"}</span>
             </summary>
             <ul className="people">
-              {g.people.map((c) => <li key={c.key}><PersonCard db={db} contact={c} onNotice={setNotice} /></li>)}
+              {g.people.map((c) => <li key={c.key}><PersonCard db={db} contact={c} onNotice={say} /></li>)}
             </ul>
             <p className="small company-open"><a href={`#/app/${g.id}`}>Open this application</a></p>
           </details>

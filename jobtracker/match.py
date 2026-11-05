@@ -1,7 +1,12 @@
+"""Decide which application an email belongs to: same conversation, same company and role, or the one open application at
+that company. Anything else is a new application or, when it could be several, a question for you (Needs review).
+
+The hosted edition has a TypeScript port of this module (web/src/pipeline/match.ts). A change here changes what that port
+must return, so regenerate the golden fixtures (`python scripts/export_fixtures.py`) and commit them with the change.
+"""
 from __future__ import annotations
 
 import re
-
 import sqlite3
 from dataclasses import dataclass
 

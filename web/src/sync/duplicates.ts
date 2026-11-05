@@ -1,4 +1,5 @@
 // Is the application you are adding one you already have? Used by the Add application form to say so. It never blocks a save.
+import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS } from "../db/limits";
 import { parsePostingUrl } from "../db/postingUrl";
 import type { JobTrackerDB } from "../db/schema";
 import type { Stage } from "../db/stages";
@@ -24,8 +25,8 @@ export const DUPLICATES_MAX = 3;
  */
 export async function findDuplicates(db: JobTrackerDB, company: string, role: string, url = ""): Promise<DuplicateMatch[]> {
   const p = pipeline();
-  const ckey = p.companyKey(squeeze(company).slice(0, 80));
-  const rkey = p.roleKey(squeeze(role).slice(0, 100));
+  const ckey = p.companyKey(squeeze(company).slice(0, MAX_COMPANY_CHARS));
+  const rkey = p.roleKey(squeeze(role).slice(0, MAX_ROLE_CHARS));
   const link = parsePostingUrl(url) ?? "";
   if (!ckey && !link) return [];
 

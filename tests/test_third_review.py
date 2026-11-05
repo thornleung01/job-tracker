@@ -1,5 +1,4 @@
 """Regression tests for the third code review (jobs feature)."""
-import logging
 import sqlite3
 
 import pytest

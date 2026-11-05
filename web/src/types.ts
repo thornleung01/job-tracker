@@ -15,13 +15,14 @@ export interface Message {
   body: string;
   /** direct link to the message in the provider's web mail, if it gives one */
   webLink?: string | null;
-  /** the HTML version, when there is one (job-alert emails keep their links there) */
-  html?: string;
   /** the sender marked it as a mailing list / newsletter (List-Unsubscribe and similar headers) */
   bulk?: boolean;
 }
 
 export type ProviderName = "gmail" | "outlook";
+
+/** How a mailbox is named to a person. Here, the lowest layer, so auth and sync say it the same way. */
+export const PROVIDER_LABEL: Record<ProviderName, string> = { gmail: "Gmail", outlook: "Outlook" };
 
 /** Mirrors the `Provider` protocol in jobtracker/providers/base.py, minus the Python-only connect/disconnect. */
 export interface MailProvider {

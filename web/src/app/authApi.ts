@@ -2,6 +2,7 @@
 import { getSession, prepare, signIn, signOut, subscribe, takePendingSync } from "../auth";
 import type { Session } from "../auth";
 import type { IdentityProvider } from "../auth/user";
+import { signOutAndForget } from "../sync/mailbox";
 import type { ProviderName } from "../types";
 
 export interface ShellAuth {
@@ -23,5 +24,6 @@ export const defaultAuth: ShellAuth = {
   // The shell reads the result from the session, so the user isn't returned here.
   signIn: (provider, opts) => signIn(provider, opts).then(() => undefined),
   takePendingSync,
-  signOut,
+  // The remembered mailbox addresses go with the tokens.
+  signOut: signOutAndForget(signOut),
 };

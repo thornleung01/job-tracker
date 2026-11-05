@@ -504,3 +504,16 @@ def test_adzuna_runs_only_with_a_key_and_reports_a_bad_key(conn, monkeypatch):
     monkeypatch.setattr(adzuna, "load_credentials", lambda profile="default": {"app_id": "a", "app_key": "bad"})
     run_discovery(conn, force=True, get=lambda *a, **k: FakeResponse(401), toast=lambda *a: None)
     assert "app ID and key" in conn.execute("SELECT last_error FROM job_sources").fetchone()[0]
+
+
+@pytest.mark.parametrize("href,expected_host", [
+    ("https://evil.example/viewjob?jk=0a1b2c3d4e5f6789", "www.indeed.com"),
+    ("http://ca.indeed.com.evil.example/rc/clk?jk=0a1b2c3d4e5f6789", "www.indeed.com"),
+    ("https://user@evil.example/rc/clk?jk=0a1b2c3d4e5f6789", "www.indeed.com"),
+    ("http://ca.indeed.com/rc/clk?jk=0a1b2c3d4e5f6789", "ca.indeed.com"),          # a real Indeed host is kept, and always over https
+    ("https://notindeed.com/viewjob?jk=0a1b2c3d4e5f6789", "www.indeed.com"),
+])
+def test_a_spoofed_indeed_alert_cannot_plant_another_sites_link(href, expected_host):
+    html = f'<html><body><div><a href="{href}">Junior Data Analyst</a><div>Acme Corp</div><div>Vancouver, BC</div></div></body></html>'
+    [posting_found] = alerts.parse(alert_msg("alert@indeed.com", "new Data Analyst jobs in Vancouver", html))
+    assert posting_found["url"] == f"https://{expected_host}/viewjob?jk=0a1b2c3d4e5f6789"

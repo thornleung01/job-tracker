@@ -1,4 +1,8 @@
-"""Links from a stored email to the original message in the user's web mail."""
+"""Links from a stored email to the original message in the user's web mail, and who a reply goes to.
+
+The hosted edition has a TypeScript port of these (web/src/pipeline/links.ts). A change here changes what it must return, so
+regenerate the golden fixtures (`python scripts/export_fixtures.py`) and commit them with the change.
+"""
 from __future__ import annotations
 
 import re
@@ -20,24 +24,36 @@ def mailbox_link(provider: str, address: str, thread_id: str | None, web_link: s
     return None
 
 
-_NO_REPLY = re.compile(r"(?:^|[._-])(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|bounces?|notifications?)(?:[._-]|$)", re.I)
-_ADDRESS = re.compile(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+")
+NO_REPLY = re.compile(r"(?:^|[._-])(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|bounces?|notifications?)(?:[._-]|$)", re.I)
+ADDRESS = re.compile(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+")
 _CONSUMER_OUTLOOK = ("outlook.com", "hotmail.com", "live.com", "msn.com")
+
+
+def recipient(sender: str | None) -> str | None:
+    """Where a reply to this sender would go, or None when they don't take replies (or the address isn't a plain one)."""
+    to = split_sender(sender)[1]
+    return to if ADDRESS.fullmatch(to or "") and not NO_REPLY.search(to.split("@")[0]) else None
+
+
+def _with_re(subject: str) -> str:
+    return subject if re.match(r"re:", subject, re.I) else f"Re: {subject}".strip()
+
+
+def reply_subject(subject: str | None) -> str:
+    """The subject of a reply that is sent from the app: "Re: " once, on one line (no line break can smuggle in a header)."""
+    return _with_re(" ".join((subject or "").split()))
 
 
 def reply_link(provider: str, account: str, sender: str, subject: str | None, web_link: str | None = None) -> tuple[str, str] | None:
     """(button label, https URL) that opens a reply to this sender in the account's own web mail, or None.
 
-    The app never sends mail (it only has permission to read), so a reply is written in Gmail or Outlook itself: the
-    link opens a new message there, already addressed, with "Re:" and the subject filled in. Senders that say they
-    don't take replies ("no-reply@...") get none.
+    The link opens a new message in Gmail or Outlook, already addressed, with "Re:" and the subject filled in. It works
+    whether or not replying from the app is turned on. Senders that say they don't take replies ("no-reply@...") get none.
     """
-    _, to = split_sender(sender)
-    if not _ADDRESS.fullmatch(to or "") or _NO_REPLY.search(to.split("@")[0]):
+    to = recipient(sender)
+    if not to:
         return None
-    subject = (subject or "").strip()
-    if not re.match(r"re:", subject, re.I):
-        subject = f"Re: {subject}".strip()
+    subject = _with_re((subject or "").strip())      # the mail program shows what we pass, so only the ends are trimmed
     if provider == "gmail" and account:
         return "Reply in Gmail", f"https://mail.google.com/mail/?authuser={quote(account)}&view=cm&fs=1&to={quote(to)}&su={quote(subject)}"
     if provider == "outlook":

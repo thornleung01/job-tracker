@@ -99,7 +99,9 @@ export interface IgnoredMailRow {
   bulk: boolean;
 }
 
-export type RuleKind = "block_sender" | "block_domain" | "allow_sender" | "distrust_pattern";
+export const RULE_KINDS = ["block_sender", "block_domain", "allow_sender", "distrust_pattern"] as const;
+export type RuleKind = (typeof RULE_KINDS)[number];
+export const isRuleKind = (value: unknown): value is RuleKind => typeof value === "string" && (RULE_KINDS as readonly string[]).includes(value);
 
 export interface LearnedRuleRow {
   id: number;
@@ -154,11 +156,6 @@ export class JobTrackerDB extends Dexie {
       }),
     );
   }
-}
-
-/** The per-user database name the auth module uses. */
-export function userDbName(iss: string, sub: string): string {
-  return `jobtracker:${iss}:${sub}`;
 }
 
 export function openDatabase(name: string): JobTrackerDB {

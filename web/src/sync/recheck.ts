@@ -5,7 +5,8 @@
 // it was made by a sync, you never locked or edited its stage, and you added no notes or steps. Applications you made
 // or touched are never changed.
 import { applyEvent, clearEmail } from "../db/repo";
-import { tx, type JobTrackerDB } from "../db/schema";
+import { tx, type EmailRow, type JobTrackerDB } from "../db/schema";
+import { byAsc } from "./compare";
 import { decide, messageFromRow, rememberIgnored } from "./decide";
 import { loadLearned } from "./learn";
 import { pipeline } from "./pipeline";
@@ -19,7 +20,7 @@ export interface RecheckResult {
 }
 
 /** True when no one has edited this application: a sync made it and only a sync has moved it. */
-async function untouched(db: JobTrackerDB, appId: number | null): Promise<boolean> {
+async function isUntouched(db: JobTrackerDB, appId: number | null): Promise<boolean> {
   if (appId == null) return true;
   const app = await db.applications.get(appId);
   if (!app) return true;
@@ -31,36 +32,44 @@ export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise
   const rows = (await db.emails.orderBy("id").toArray()).filter((e) => e.related);
   const learned = await loadLearned(db);
   const p = pipeline();
-  const cleared: number[] = [];
-  const touched = new Set<number>();
-  const why = new Map<number, string>();
-  for (const row of rows) {
+  // Classifying is the slow part and needs no database, so it runs outside the transaction. What to do about each email
+  // is decided inside it, from what is stored at that moment: a note or a stage lock added while this ran is still respected.
+  const unbelieved = rows.flatMap((row) => {
     const cls = p.classify(messageFromRow(row), learned);
-    if (cls.related || !(await untouched(db, row.applicationId))) continue;
-    cleared.push(row.id);
-    if (cls.reason.startsWith("learned:")) why.set(row.id, cls.reason);
-    if (row.applicationId) touched.add(row.applicationId);
-  }
+    return cls.related ? [] : [{ row, reason: cls.reason }];
+  });
 
+  let cleared = 0;
   let removed = 0;
   await tx(db, async () => {
-    for (const row of rows) {
-      const reason = why.get(row.id);
-      if (reason === undefined) continue;
-      // a learned rule did this: keep it restorable for a while
-      const msg = messageFromRow(row);
-      await rememberIgnored(
-        db, row.accountId,
-        { id: row.providerMsgId, threadId: row.threadId, senderName: msg.senderName, senderEmail: msg.senderEmail, subject: msg.subject,
-          body: msg.body, webLink: row.webLink, bulk: row.bulk },
-        row.receivedAt, reason, now,
-      );
+    const touched = new Set<number>();
+    const untouchedApp = new Map<number, boolean>();
+    for (const { row, reason } of unbelieved) {
+      const current = await db.emails.get(row.id);
+      if (!current?.related) continue; // you settled it while this ran
+      const appId = current.applicationId;
+      if (appId != null) {
+        if (!untouchedApp.has(appId)) untouchedApp.set(appId, await isUntouched(db, appId));
+        if (!untouchedApp.get(appId)) continue;
+      }
+      if (reason.startsWith("learned:")) {
+        // a learned rule did this: keep it restorable for a while
+        const msg = messageFromRow(row);
+        await rememberIgnored(
+          db, row.accountId,
+          { id: row.providerMsgId, threadId: row.threadId, senderName: msg.senderName, senderEmail: msg.senderEmail, subject: msg.subject,
+            body: msg.body, webLink: row.webLink, bulk: row.bulk },
+          row.receivedAt, reason, now,
+        );
+      }
+      await clearEmail(db, row.id); // the same as dismissing it in Needs review
+      cleared++;
+      if (appId != null) touched.add(appId);
     }
-    for (const id of cleared) await clearEmail(db, id); // the same as dismissing it in Needs review
     for (const appId of touched) {
       const left = (await db.emails.where("applicationId").equals(appId).toArray())
         .filter((e) => e.related)
-        .sort((a, b) => (a.receivedAt < b.receivedAt ? -1 : a.receivedAt > b.receivedAt ? 1 : a.id - b.id));
+        .sort((a, b) => byAsc<EmailRow>((e) => e.receivedAt)(a, b) || a.id - b.id);
       if (!left.length) {
         await removeApplicationRow(db, appId);
         removed++;
@@ -71,10 +80,10 @@ export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise
       for (const e of left) if (e.event) await applyEvent(db, appId, e.event, e.receivedAt);
     }
   });
-  return { checked: rows.length, cleared: cleared.length, removed, settled: await settleReview(db), roles: await fillMissingRoles(db) };
+  return { checked: rows.length, cleared, removed, settled: await settleReview(db), roles: await fillMissingRoles(db) };
 }
 
-/** Deletes an application row together with what is keyed to it (the SQLite trigger and cascades). */
+/** Deletes an application row together with what is keyed to it: its notes and steps, people corrections, and the links from feedback and emails. */
 export async function removeApplicationRow(db: JobTrackerDB, appId: number): Promise<void> {
   await db.activity.where("applicationId").equals(appId).delete();
   await db.contactEdits.where("key").startsWith(`${appId}|`).delete();
@@ -98,7 +107,9 @@ export async function settleReview(db: JobTrackerDB): Promise<number> {
       const cls = p.classify(msg, learned);
       if (!cls.related) continue;
       const { appId, needsReview } = await decide(db, row.accountId, msg, cls, row.receivedAt);
-      await db.emails.update(row.id, { event: cls.event, confidence: cls.confidence, reason: cls.reason, applicationId: appId, needsReview });
+      // Only a row that changed is written: every write makes the open pages read their data again.
+      const same = row.event === cls.event && row.confidence === cls.confidence && row.reason === cls.reason && row.applicationId === appId && row.needsReview === needsReview;
+      if (!same) await db.emails.update(row.id, { event: cls.event, confidence: cls.confidence, reason: cls.reason, applicationId: appId, needsReview });
       if (!needsReview) settled++;
     }
     return settled;
@@ -113,7 +124,7 @@ export async function fillMissingRoles(db: JobTrackerDB): Promise<number> {
     for (const app of (await db.applications.orderBy("id").toArray()).filter((a) => a.roleKey === "" && !a.manual)) {
       const mails = (await db.emails.where("applicationId").equals(app.id).toArray())
         .filter((e) => e.related)
-        .sort((a, b) => (a.receivedAt < b.receivedAt ? -1 : a.receivedAt > b.receivedAt ? 1 : a.id - b.id));
+        .sort((a, b) => byAsc<EmailRow>((e) => e.receivedAt)(a, b) || a.id - b.id);
       for (const row of mails) {
         const [, role] = p.extractCompanyRole(messageFromRow(row));
         if (role !== p.UNKNOWN_ROLE) {

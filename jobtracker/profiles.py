@@ -13,8 +13,9 @@ import threading
 from pathlib import Path
 
 from . import config
+from .textutil import collapse_spaces
 
-DEFAULT_ID = "default"
+DEFAULT_ID = config.DEFAULT_PROFILE
 MAX_PROFILES = 20
 MAX_NAME = 40
 
@@ -72,12 +73,12 @@ class Profiles:
         return self.data_dir / "profiles" / profile_id / "tracker.db"
 
     def token_dir(self, profile_id: str) -> Path:
-        return self.secrets_dir if profile_id == DEFAULT_ID else self.secrets_dir / "profiles" / profile_id
+        return config.token_dir(profile_id, self.secrets_dir)
 
     # -- changes -----------------------------------------------------------------------
     @staticmethod
     def clean_name(name: str) -> str:
-        name = re.sub(r"\s+", " ", name or "").strip()
+        name = collapse_spaces(name)
         if not name:
             raise ProfileError("Give the profile a name.")
         if len(name) > MAX_NAME:

@@ -1,8 +1,12 @@
 import type { MailProvider, Message, TokenSource } from "../types";
+import { safeWebLink } from "../db/mailLink";
 import { createHttp, ensureNotAborted, readJson, type HttpOptions } from "./backoff";
+import { isBulk } from "./headers";
 import { htmlToText } from "./htmlToText";
 
 export const GRAPH = "https://graph.microsoft.com/v1.0";
+/** Messages per Graph page, with bodies. */
+const PAGE_SIZE = 50;
 export const SKIP_FOLDERS = ["junkemail", "sentitems", "drafts", "deleteditems"];
 
 // Immutable ids survive folder moves, which keeps dedup stable.
@@ -10,6 +14,8 @@ const HEADERS = { Prefer: 'IdType="ImmutableId"' };
 
 export interface GraphOptions extends HttpOptions {
   address?: string | null;
+  /** Yield oldest first, like Gmail's option, so a sync that saves in batches processes mail in the order it arrived. Default: newest first. */
+  oldestFirst?: boolean;
 }
 
 export interface GraphProvider extends MailProvider {
@@ -30,20 +36,10 @@ interface RawGraphMessage {
   internetMessageHeaders?: { name?: string; value?: string }[] | null;
 }
 
-function isBulk(headers: Record<string, string>): boolean {
-  return Boolean(
-    headers["list-unsubscribe"] || headers["list-id"] || ["bulk", "list", "junk"].includes((headers["precedence"] ?? "").trim().toLowerCase()),
-  );
-}
-
 export function parseGraphMessage(raw: RawGraphMessage): Message {
   const sender = raw.from?.emailAddress ?? {};
   let text = raw.body?.content ?? "";
-  let html = "";
-  if ((raw.body?.contentType ?? "").toLowerCase() === "html") {
-    html = text;
-    text = htmlToText(text);
-  }
+  if ((raw.body?.contentType ?? "").toLowerCase() === "html") text = htmlToText(text);
   const headers: Record<string, string> = {};
   for (const h of raw.internetMessageHeaders ?? []) headers[(h.name ?? "").toLowerCase()] = h.value ?? "";
   const when = new Date(raw.receivedDateTime);
@@ -57,8 +53,7 @@ export function parseGraphMessage(raw: RawGraphMessage): Message {
     subject: raw.subject ?? "",
     receivedAt: when.toISOString(),
     body: text,
-    webLink: raw.webLink || null,
-    html,
+    webLink: safeWebLink(raw.webLink),
   };
 }
 
@@ -76,13 +71,15 @@ export function createGraphProvider(tokenSource: TokenSource, opts: GraphOptions
       const excluded = new Set<string>();
       for (const folder of SKIP_FOLDERS) {
         const res = await http.get(`${GRAPH}/me/mailFolders/${folder}?$select=id`, { signal });
-        if (res.ok) excluded.add(((await res.json()) as { id: string }).id);
+        // Only "no such folder" may be skipped. A throttled or refused lookup would let Junk and Sent mail through as job mail, so it fails the sync.
+        if (res.status === 404) continue;
+        excluded.add((await readJson<{ id: string }>(res)).id);
       }
 
       const sinceUtc = since.toISOString().slice(0, 19) + "Z";
       let url: string | undefined =
         `${GRAPH}/me/messages?$filter=receivedDateTime%20ge%20${sinceUtc}` +
-        "&$orderby=receivedDateTime%20desc&$top=50" +
+        `&$orderby=receivedDateTime%20${opts.oldestFirst ? "asc" : "desc"}&$top=${PAGE_SIZE}` +
         "&$select=id,conversationId,subject,from,receivedDateTime,body,parentFolderId,webLink,internetMessageHeaders";
       while (url) {
         const data: { value?: RawGraphMessage[]; "@odata.nextLink"?: string } = await readJson(await http.get(url, { signal }));

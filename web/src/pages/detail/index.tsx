@@ -4,8 +4,10 @@ import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { EmailText } from "../../components/EmailText";
+import { InlineConfirm } from "../../components/InlineConfirm";
 import { MailActions } from "../../components/MailActions";
 import { MailMeta } from "../../components/MailMeta";
+import { eventLabel } from "../../components/eventLabel";
 import { MoreMenu } from "../../components/detail/MoreMenu";
 import { Notice } from "../../components/Notice";
 import { PersonCard } from "../../components/PersonCard";
@@ -15,7 +17,10 @@ import { StageBadge } from "../../components/StageBadge";
 import { TimeText, dayText } from "../../components/TimeText";
 import { setFlash } from "../../components/flash";
 import { useAction } from "../../components/useAction";
+import { useNoticeFocus } from "../../components/useNoticeFocus";
+import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
 import { postingHost, safePostingUrl } from "../../db/postingUrl";
+import { UNKNOWN_ROLE } from "../../pipeline/extract";
 import { STAGES, type Stage } from "../../db/stages";
 import {
   deleteApplication, editApplication, learnedNotice, mergeApplications, notAnApplication, setStage, unlockStage,
@@ -24,18 +29,12 @@ import { mailboxLink, replyLink } from "../../sync/links";
 import { applicationDetail } from "../../sync/queries";
 import "./detail.css";
 
-const UNKNOWN_ROLE = "Unknown role";
-
-const eventLabel = (event: string): string => {
-  const words = event.replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
-
 export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const id = Number(params.id);
   const data = useQuery(() => applicationDetail(db, id), [db, id]);
   const act = useAction();
   const [notice, setNotice] = useState<string | null>(null);
+  const result = useNoticeFocus();
 
   const app = data?.application;
   const [company, setCompany] = useState("");
@@ -43,28 +42,39 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const [postingUrl, setPostingUrl] = useState("");
   const [stage, setStageChoice] = useState<Stage>("Applied");
   const [mergeInto, setMergeInto] = useState(0);
-  // The one inline step open under the action row: choosing a merge target, or asking which Delete.
-  const [step, setStep] = useState<"merge" | "delete" | null>(null);
+  // The one inline step open under the action row: choosing a merge target, or a question before a removal.
+  const [step, setStep] = useState<"merge" | "delete" | "not" | null>(null);
   const controls = useRef<HTMLDivElement>(null);
   const stepBox = useRef<HTMLDivElement>(null);
   // Fill the forms when the application first arrives, and again when it changes under them (a merge, a rename elsewhere).
-  const seen = app ? `${app.id}|${app.company}|${app.role}|${app.stage}|${app.postingUrl ?? ""}` : "";
+  // The stage has its own seed: a stage change (or a sync moving it) must not wipe text typed in Edit details.
+  const seenFields = app ? `${app.id}|${app.company}|${app.role}|${app.postingUrl ?? ""}` : "";
   useEffect(() => {
     if (!app) return;
     setCompany(app.company);
     setRole(app.role === UNKNOWN_ROLE ? "" : app.role);
     setPostingUrl(app.postingUrl ?? "");
-    setStageChoice(app.stage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seen]);
+  }, [seenFields]);
+  const seenStage = app ? `${app.id}|${app.stage}` : "";
+  useEffect(() => {
+    if (app) setStageChoice(app.stage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seenStage]);
+
+  // The tab and the history name the application, not just "Application".
+  const titleName = app?.company;
+  useEffect(() => {
+    if (titleName) document.title = `${titleName} · Job Tracker`;
+  }, [titleName]);
   const firstOther = data?.others[0]?.id ?? 0;
   useEffect(() => {
     setMergeInto((cur) => (data?.others.some((o) => o.id === cur) ? cur : firstOther));
   }, [data?.others, firstOther]);
 
-  // An inline step takes focus when it opens.
+  // The merge step takes focus when it opens. The removal questions put focus on Cancel themselves.
   useEffect(() => {
-    if (step) stepBox.current?.querySelector<HTMLElement>("select, button")?.focus();
+    if (step === "merge") stepBox.current?.querySelector<HTMLElement>("select, button")?.focus();
   }, [step]);
 
   // Arriving from a person's email list: bring that email into view.
@@ -88,7 +98,10 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const latestEmailId = data.emails[0]?.id;
   // Checked again here, whatever the database holds: only a plain http(s) address ever becomes a link.
   const posting = safePostingUrl(app.postingUrl);
-  const say = (message: string) => setNotice(message);
+  const say = (message: string, removed?: boolean) => {
+    setNotice(message);
+    if (removed) result.focus();   // the Not a person button is gone with the card
+  };
 
   const saveCompany = (e: FormEvent) => {
     e.preventDefault();
@@ -111,9 +124,10 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
     await unlockStage(db, id);
     return "Unlocked. Emails can move the stage again.";
   });
+  const menuButton = () => controls.current?.querySelector<HTMLElement>("[aria-haspopup='menu']") ?? null;
   const closeStep = () => {
     setStep(null);
-    controls.current?.querySelector<HTMLElement>("[aria-haspopup='menu']")?.focus();
+    menuButton()?.focus();
   };
   const onStepKey = (e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
@@ -130,7 +144,6 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
     });
   };
   const notApplication = () => {
-    if (!window.confirm("Remove this and teach the app it wasn't a job application? Emails like it will be ignored from now on.")) return;
     void act.run("not", async () => {
       const done = await notAnApplication(db, id);
       setFlash(learnedNotice(done.rules, done.cleared, `Removed ${done.company}.`));
@@ -147,7 +160,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   return (
     <>
       <a className="back" href="#/"><span className="chev" aria-hidden="true"></span>All applications</a>
-      {notice ? <Notice>{notice}</Notice> : null}
+      <div ref={result.box}>{notice ? <Notice>{notice}</Notice> : null}</div>
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       {act.status ? <Notice>{act.status}</Notice> : null}
 
@@ -155,7 +168,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
         <h1 className="page detail-title">{app.company}</h1>
         <div className="muted">{app.role}</div>
         {posting ? (
-          <a className="btn detail-posting" href={posting} target="_blank" rel="noopener noreferrer" title={postingHost(posting)}>
+          <a className="btn detail-posting" href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open posting (opens in a new tab)" title={postingHost(posting)}>
             <ExternalLink size={16} strokeWidth={3} aria-hidden="true" />Open posting
           </a>
         ) : null}
@@ -170,11 +183,11 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           <summary>Edit details</summary>
           <form className="row" onSubmit={saveCompany}>
             <label className="sr" htmlFor="ed-company">Company</label>
-            <input id="ed-company" name="company" value={company} maxLength={80} required onChange={(e) => setCompany(e.target.value)} />
+            <input id="ed-company" name="company" value={company} maxLength={MAX_COMPANY_CHARS} required onChange={(e) => setCompany(e.target.value)} />
             <label className="sr" htmlFor="ed-role">Role</label>
-            <input id="ed-role" name="role" value={role} maxLength={100} placeholder="Role" onChange={(e) => setRole(e.target.value)} />
+            <input id="ed-role" name="role" value={role} maxLength={MAX_ROLE_CHARS} placeholder="Role" onChange={(e) => setRole(e.target.value)} />
             <label className="sr" htmlFor="ed-url">Posting link (optional)</label>
-            <input id="ed-url" name="url" type="text" inputMode="url" value={postingUrl} maxLength={500} placeholder="Posting link (optional)" autoComplete="off" onChange={(e) => setPostingUrl(e.target.value)} />
+            <input id="ed-url" name="url" type="text" inputMode="url" value={postingUrl} maxLength={MAX_URL_CHARS} placeholder="Posting link (optional)" autoComplete="off" onChange={(e) => setPostingUrl(e.target.value)} />
             <button type="submit" {...act.button("edit")}>Save changes</button>
           </form>
         </details>
@@ -187,7 +200,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
             disabled={act.busy !== null}
             items={[
               ...(data.others.length ? [{ key: "merge", label: "Merge into\u2026", onSelect: () => setStep("merge") }] : []),
-              { key: "not", label: "Not an application", onSelect: notApplication },
+              { key: "not", label: "Not an application", onSelect: () => setStep("not") },
               { key: "delete", label: "Delete application", onSelect: () => setStep("delete") },
             ]}
           />
@@ -205,15 +218,30 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           </div>
         ) : null}
         {step === "delete" ? (
-          <div className="detail-step" role="group" aria-labelledby="h-delete" ref={stepBox} onKeyDown={onStepKey}>
-            <p id="h-delete" className="detail-step-q">Delete this application?</p>
-            <p className="help">Its notes and steps are removed. Your mailbox isn't touched.</p>
-            <div className="row">
-              <button type="button" className="danger" onClick={() => remove("clear")} {...act.button("delete-clear")}>Delete the application and its emails</button>
-              <button type="button" className="danger" onClick={() => remove("review")} {...act.button("delete-review")}>Delete the application, keep emails in Needs review</button>
-              <button type="button" onClick={closeStep}>Cancel</button>
-            </div>
-          </div>
+          <InlineConfirm
+            title="Delete this application?"
+            help="Its notes and steps are removed. Your mailbox isn't touched."
+            confirmLabel="Delete the application and its emails"
+            onConfirm={() => remove("clear")}
+            onCancel={() => setStep(null)}
+            act={act}
+            actionKey="delete-clear"
+            opener={menuButton()}
+          >
+            <button type="button" className="danger" onClick={() => remove("review")} {...act.button("delete-review")}>Delete the application, keep emails in Needs review</button>
+          </InlineConfirm>
+        ) : null}
+        {step === "not" ? (
+          <InlineConfirm
+            title="Remove this and teach the app it wasn't a job application?"
+            help="Emails like it will be ignored from now on."
+            confirmLabel="Remove and ignore emails like it"
+            onConfirm={notApplication}
+            onCancel={() => setStep(null)}
+            act={act}
+            actionKey="not"
+            opener={menuButton()}
+          />
         ) : null}
       </div>
 

@@ -99,6 +99,45 @@ describe("createHttp", () => {
     expect(s.calls).toHaveLength(1);
   });
 
+  it("one rate limit holds back every other request on the client until the wait ends", async () => {
+    let limited = false;
+    const s = scriptedFetch((c) => {
+      if (c.url.pathname === "/first" && !limited) {
+        limited = true;
+        return json({}, 429, { "Retry-After": "3" });
+      }
+      return json({ ok: c.url.pathname });
+    });
+    const waits: number[] = [];
+    let endWait!: () => void;
+    const sleep = (ms: number) => {
+      waits.push(ms);
+      return new Promise<void>((resolve) => (endWait = resolve));
+    };
+    const http = createHttp("gmail", token, { fetch: s.fetch, sleep });
+    const first = http.get("https://example.test/first");
+    await vi.waitFor(() => expect(waits).toEqual([3000]));
+    const second = http.get("https://example.test/second");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(s.calls.map((c) => c.url.pathname)).toEqual(["/first"]); // the second request is waiting too
+    endWait();
+    expect((await second).status).toBe(200);
+    expect((await first).status).toBe(200);
+    expect(waits).toEqual([3000]); // one wait, shared
+  });
+
+  it("a request waiting on someone else's rate limit can still be aborted", async () => {
+    const s = scriptedFetch((c) => (c.url.pathname === "/first" ? json({}, 429) : json({})));
+    const http = createHttp("gmail", token, { fetch: s.fetch, sleep: () => new Promise<void>(() => {}), retryWaits: [1] });
+    void http.get("https://example.test/first");
+    await vi.waitFor(() => expect(s.calls).toHaveLength(1));
+    const ctl = new AbortController();
+    const second = http.get("https://example.test/second", { signal: ctl.signal });
+    ctl.abort();
+    await expect(second).rejects.toMatchObject({ name: "AbortError" });
+    expect(s.calls).toHaveLength(1);
+  });
+
   it("abort interrupts a backoff wait", async () => {
     const s = scriptedFetch(() => json({}, 429));
     const ctl = new AbortController();

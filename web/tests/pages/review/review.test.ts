@@ -31,6 +31,12 @@ describe("the Needs review page", () => {
     expect(text($(container, "h1.page"))).toBe("Needs review");
     const card = $(container, "article.card")!;
     expect(text($(card, ".mail-subject"))).toBe("Quick chat about the Data Analyst role at Initech");
+    // Every card repeats these buttons, so each one names its email (and starts with its visible words).
+    expect($$(card, "button[aria-label]").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Not job mail: Quick chat about the Data Analyst role at Initech",
+      "Add to application: Quick chat about the Data Analyst role at Initech",
+      "Create application from: Quick chat about the Data Analyst role at Initech",
+    ]);
     expect(text($(card, ".mail-meta .who"))).toBe("Pat Lee");
     expect(text($(card, ".mail-meta .addr"))).toBe("pat@coachco.io");
     expect(text($(card, ".mail-guess"))).toBe("Looks like Interview, high confidence");
@@ -41,8 +47,8 @@ describe("the Needs review page", () => {
     expect($(card, "a.btn.primary")).toBeNull();   // the card's one primary action is Create application
     expect([reply.getAttribute("target"), reply.getAttribute("rel")]).toEqual(["_blank", "noopener noreferrer"]);
     expect(text($$(card, "a.btn")[1])).toBe("Open in Gmail");
-    expect($$(card, "select[aria-label=Stage]").map((s) => (s as HTMLSelectElement).value)).toEqual(["Interview"]);
-    expect(($(card, "input[aria-label=Company]") as HTMLInputElement).value).toBeTruthy();
+    expect($$(card, "select[name=stage]").map((s) => (s as HTMLSelectElement).value)).toEqual(["Interview"]);
+    expect(($(card, "input[aria-label=Company]") as HTMLInputElement).value).toBe("Coachco");   // the guess comes from the sender, not the subject
     expect($$(card, "select[aria-label='Existing application'] option").map(text)).toEqual(["Existing application…", "Acme · Analyst"]);
   });
 
@@ -57,11 +63,12 @@ describe("the Needs review page", () => {
     const { db, acme, mail } = await setup();
     const { container } = await open(db);
     await type($(container, "select[aria-label='Existing application']"), String(acme));
-    await type($(container, "select[aria-label=Stage]"), "Assessment");
+    await type($(container, "select[name=stage]"), "Assessment");
     await click(button(container, "Add to application"));
     await waitFor(() => !$(container, "article.card") && text($(container, ".notice")).includes("Added to Acme."));
     expect(text(container)).toContain("Nothing to review.");
     expect(text($(container, ".notice"))).toContain("Added to Acme.");
+    expect(document.activeElement).toBe($(container, ".notice"));   // the card and its button are gone, so the result has focus
     const row = (await db.emails.get(mail))!;
     expect([row.applicationId, row.needsReview, row.event]).toEqual([acme, false, "assessment"]);
     expect((await db.applications.get(acme))!.stage).toBe("Assessment");
@@ -125,6 +132,7 @@ describe("the Needs review page", () => {
     await click(button(line, "Undo"));
     await waitFor(() => !$(container, "#learned .review-line"));
     expect(text($(container, ".notice"))).toBe("Rule removed. New emails are judged without it. Emails it already cleared stay cleared.");
+    expect(document.activeElement).toBe($(container, ".notice"));
     expect((await db.learnedRules.toArray())[0].active).toBe(false);
   });
 

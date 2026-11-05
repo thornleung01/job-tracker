@@ -79,7 +79,9 @@ function Results({ view }: { view: View }) {
   const summary = flowSummary(data)!;
   const phone = usePhone();
   const phoneRef = useRef(phone);
-  phoneRef.current = phone;
+  useLayoutEffect(() => {
+    phoneRef.current = phone;
+  });
   const [tip, setTip] = useState<Tip | null>(null);
   const pinned = useRef<string | null>(null);
   const [tableOpen, setTableOpen] = useState(phone); // on a narrow screen the table is the readable version of the chart
@@ -279,7 +281,7 @@ export default function FlowPage({ db, query, navigate }: PageProps) {
     const days = daysParam ?? settings.appearance.flowDays; // the period in Settings is the default
     const data = await sankey(db, { account: accountParam, days });
     return { data, accounts: accounts.map((a) => ({ id: a.id, address: a.address })), account: accountParam, days };
-  }, [db, accountParam, daysParam]);
+  }, [db, accountParam, daysParam], { keepPrevious: true });
 
   const apply = (account: number, days: number) => navigate(`/flow?account=${account}&days=${days}`);
 

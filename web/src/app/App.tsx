@@ -2,10 +2,10 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { isLocalMode } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
 import { Notice } from "../components/Notice";
-import { PROVIDER_LABEL } from "../pages/settings/actions";
+import { PROVIDER_LABEL } from "../sync/accountLabel";
 import { SyncBanner, defaultDeps as syncBannerDefaults, type SyncBannerDeps } from "../components/SyncBanner";
 import { SignIn } from "../pages/signin/SignIn";
-import { AppearanceSync, applyDefaultAppearance } from "./appearance";
+import { AppearanceSync, applyAppearance, applyDefaultAppearance, readLookHint } from "./appearance";
 import type { Session } from "../auth";
 import { defaultAuth, type ShellAuth } from "./authApi";
 import { LocalBanner } from "./LocalBanner";
@@ -80,7 +80,9 @@ function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrac
     );
   }
   const Page = state.Component;
-  return <Page db={db} user={user} params={match.params} query={match.query} navigate={navigate} />;
+  // Keyed by the route, so /app/5 and /app/6 are two pages with their own state (an open merge form must not carry over).
+  // The key is on the page, not on PageHost, so moving between pages doesn't flash Loading. `path` leaves out the query, so filters keep their state.
+  return <Page key={match.path} db={db} user={user} params={match.params} query={match.query} navigate={navigate} />;
 }
 
 /** The sync banner reads the session and the first-sync handoff from the app's auth; connecting and tokens stay the real module's. */
@@ -121,6 +123,13 @@ function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: Pa
     document.title = `${PAGE_TITLES[match.page]} · Job Tracker`;
   }, [match.page]);
 
+  // The saved look is read from the database, which opens after the first paint. Until then use the copy kept for this user.
+  const dbName = dbNameForUser(user);
+  useLayoutEffect(() => {
+    const hint = readLookHint(dbName);
+    if (hint) applyAppearance(document.documentElement, hint);
+  }, [dbName]);
+
   // After a navigation (not the first paint) move focus to the new page's heading.
   useEffect(() => {
     if (first.current) {
@@ -148,13 +157,13 @@ function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: Pa
         {!isLocalUser(user) && <LocalDataOffer db={db} onResolved={resolveOffer} />}
         {auth && !isLocalUser(user) && <MailDeclinedNotice auth={auth} />}
         {/* On every page, so the first sync starts wherever the person lands and keeps going when they move. Settings has its own buttons, so there it is quiet. A signed-in user is never a local build. */}
-        {!isLocalUser(user) && <SyncBanner db={db} user={user} deps={bannerDeps} autoStart={offerResolved} quiet={match.page === "settings"} local={false} />}
+        {!isLocalUser(user) && <SyncBanner db={db} user={user} deps={bannerDeps} autoStart={offerResolved} quiet={match.page === "settings"} />}
         <main id="main" ref={mainRef} tabIndex={-1}>
           <ErrorBoundary
             resetKey={match.path}
             fallback={(_error, retry) => (
               <>
-                <div className="notice err" role="alert">
+                <div className="notice err" role="alert" tabIndex={-1} ref={(el) => el?.focus()}>
                   Something went wrong on this page. Try again, or go back to Applications.
                 </div>
                 <div className="row">
@@ -203,7 +212,8 @@ function AuthedApp({ auth, loaders, openDb }: { auth: ShellAuth; loaders: PageLo
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const signedIn = session.status === "signed-in" && session.user !== null;
 
-  useEffect(() => {
+  // Layout effect, so the sign-in screen is never painted for a frame with the previous look.
+  useLayoutEffect(() => {
     if (!signedIn) applyDefaultAppearance();
   }, [signedIn]);
 

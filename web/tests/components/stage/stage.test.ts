@@ -1,7 +1,7 @@
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { StageBadge, StageCell, stageClass } from "../../../src/components/StageBadge";
+import { StageBadge, stageClass } from "../../../src/components/StageBadge";
 import { COLORS } from "../../../src/pages/flow/layout";
 
 // vitest blanks stylesheets on import, so read the files themselves. (No @types/node here, hence the computed specifier.)
@@ -85,14 +85,9 @@ describe("stage colour map", () => {
   });
 });
 
-describe("StageBadge and StageCell", () => {
+describe("StageBadge", () => {
   it("keeps the class contract and puts nothing but the stage word in the badge", () => {
     expect(stageClass("Heard back")).toBe("Heard-back");
     expect(renderToStaticMarkup(h(StageBadge, { stage: "Heard back" }))).toBe('<span class="badge Heard-back">Heard back</span>');
-  });
-
-  it("notes a stage you set by hand", () => {
-    expect(renderToStaticMarkup(h(StageCell, { stage: "Offer", locked: true }))).toContain("set by you");
-    expect(renderToStaticMarkup(h(StageCell, { stage: "Offer", locked: false }))).not.toContain("set by you");
   });
 });

@@ -29,6 +29,9 @@ export interface MsalSettings {
   redirectUri: string;
 }
 
+/** Lifetime assumed for a token whose response has no expiry, a little under MSAL's usual hour. */
+const DEFAULT_TOKEN_MS = 55 * 60_000;
+
 export async function createMsalClient(s: MsalSettings): Promise<MsalLike> {
   const { PublicClientApplication } = await import("@azure/msal-browser");
   const app = new PublicClientApplication({
@@ -77,9 +80,13 @@ export interface MicrosoftAuth {
   clear(): Promise<void>;
 }
 
+// Every MSAL error carries a string errorCode, network failures included (network_error, no_network_connectivity, timed_out),
+// so "has an errorCode" cannot mean "the person must act". Only these do; anything else is transient and keeps the mailbox connected.
+const INTERACTION_CODES = new Set(["interaction_required", "consent_required", "login_required", "no_account_error", "invalid_grant"]);
+
 function needsInteraction(e: unknown): boolean {
   const err = e as { name?: string; errorCode?: string } | null;
-  return err?.name === "InteractionRequiredAuthError" || typeof err?.errorCode === "string";
+  return err?.name === "InteractionRequiredAuthError" || (typeof err?.errorCode === "string" && INTERACTION_CODES.has(err.errorCode));
 }
 
 /** What to tell the person when their organization blocks the mail permission. */
@@ -109,7 +116,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
   function toToken(r: MsalResult, gen: number): MicrosoftAccessToken {
     if (!r.accessToken) throw new NotConnected("Outlook didn't return an access token. Try again.");
     if (r.account && gen === generation) account = r.account;
-    return { token: r.accessToken, expiresAt: r.expiresOn?.getTime() ?? now() + 55 * 60_000 };
+    return { token: r.accessToken, expiresAt: r.expiresOn?.getTime() ?? now() + DEFAULT_TOKEN_MS };
   }
 
   async function popup(app: MsalLike, gen: number): Promise<MicrosoftAccessToken> {

@@ -7,25 +7,13 @@ or touched are never changed.
 """
 from __future__ import annotations
 
-import re
 import sqlite3
-from datetime import datetime, timezone
 
-from . import db
-from . import learn
-from . import sync as sync_module
+from . import db, learn
 from .classify import classify
-from .models import Message
-
-
-def _message(row: sqlite3.Row) -> Message:
-    name, _, address = (row["sender"] or "").partition("<")
-    return Message(
-        id=row["provider_msg_id"], thread_id=row["thread_id"] or "", sender_name=name.strip(),
-        sender_email=(address.rstrip(">") if address else name).strip(), subject=row["subject"] or "",
-        received_at=datetime.strptime(row["received_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
-        body=row["body"] or "", bulk=bool(row["bulk"]),
-    )
+from .extract import UNKNOWN_ROLE, extract_company_role, role_key
+from .ingest import decide, remember_ignored
+from .models import message_from_row, split_stored_sender
 
 
 def _untouched(conn: sqlite3.Connection, app_id: int | None) -> bool:
@@ -45,14 +33,35 @@ def clear_email(conn: sqlite3.Connection, email_id: int) -> None:
                  "body = NULL, sender = NULL, web_link = NULL, reason = NULL, application_id = NULL, hold = 0 WHERE id = ?", (email_id,))
 
 
-def recheck(conn: sqlite3.Connection) -> dict[str, int]:
-    """Returns {"checked": n, "cleared": emails turned back into ordinary mail, "removed": applications deleted}."""
-    rows = conn.execute("SELECT * FROM emails WHERE related = 1").fetchall()
+def _rows_to_check(conn: sqlite3.Connection, learned: learn.Learned, only_blocked: bool) -> list[sqlite3.Row]:
+    if not only_blocked:
+        return conn.execute("SELECT * FROM emails WHERE related = 1").fetchall()
+    # Only a learned block can turn a stored job email back into ordinary mail, so only mail from a blocked sender or domain
+    # needs reading again. The sender is checked first, on its own, so the stored text of every other email is never loaded.
+    ids = [r["id"] for r in conn.execute("SELECT id, sender FROM emails WHERE related = 1")
+           if learned.blocks(*_sender_and_domain(r["sender"]))]
+    return [conn.execute("SELECT * FROM emails WHERE id = ?", (i,)).fetchone() for i in ids]
+
+
+def _sender_and_domain(sender: str | None) -> tuple[str, str]:
+    """The lowercase address and domain the classifier looks learned blocks up by."""
+    address = split_stored_sender(sender)[1].lower()
+    return address, address.rsplit("@", 1)[-1]
+
+
+def recheck(conn: sqlite3.Connection, only_blocked: bool = False) -> dict[str, int]:
+    """Returns {"checked": n, "cleared": emails turned back into ordinary mail, "removed": applications deleted}.
+
+    `only_blocked=True` is for right after you flagged mail and a learned block appeared: reading every stored email again
+    takes seconds, and only mail from a blocked sender or domain can change. The Re-check button reads them all, because
+    the wording rules themselves may have changed.
+    """
     learned = learn.load(conn)
+    rows = _rows_to_check(conn, learned, only_blocked)
     cleared, touched = [], set()
     why: dict[int, str] = {}
     for row in rows:
-        cls = classify(_message(row), learned)
+        cls = classify(message_from_row(row), learned)
         if cls.related or not _untouched(conn, row["application_id"]):
             continue
         cleared.append(row["id"])
@@ -65,8 +74,8 @@ def recheck(conn: sqlite3.Connection) -> dict[str, int]:
     with conn:
         for row in rows:
             if row["id"] in why:                       # a learned rule did this: keep it restorable for a while
-                msg = _message(row)
-                sync_module._remember_ignored(conn, row["account_id"], msg, row["received_at"], why[row["id"]])
+                msg = message_from_row(row)
+                remember_ignored(conn, row["account_id"], msg, row["received_at"], why[row["id"]])
                 conn.execute("UPDATE ignored_mail SET thread_id = ?, web_link = ?, bulk = ? WHERE account_id = ? AND provider_msg_id = ?",
                              (row["thread_id"], row["web_link"], row["bulk"], row["account_id"], row["provider_msg_id"]))
         for email_id in cleared:      # the same as dismissing it in Needs review
@@ -98,11 +107,11 @@ def settle_review(conn: sqlite3.Connection) -> int:
     settled = 0
     with conn:
         for row in conn.execute("SELECT * FROM emails WHERE needs_review = 1 AND related = 1 AND hold = 0 ORDER BY received_at").fetchall():
-            msg = _message(row)
+            msg = message_from_row(row)
             cls = classify(msg, learned)
             if not cls.related:
                 continue
-            app_id, needs_review = sync_module.decide(conn, row["account_id"], msg, cls, row["received_at"])
+            app_id, needs_review = decide(conn, row["account_id"], msg, cls, row["received_at"])
             conn.execute("UPDATE emails SET event = ?, confidence = ?, reason = ?, application_id = ?, needs_review = ? WHERE id = ?",
                          (cls.event, cls.confidence, cls.reason, app_id, int(needs_review), row["id"]))
             settled += 0 if needs_review else 1
@@ -111,13 +120,11 @@ def settle_review(conn: sqlite3.Connection) -> int:
 
 def fill_missing_roles(conn: sqlite3.Connection) -> int:
     """Give applications that have no role the one their saved emails name, now that the reader is better at finding it."""
-    from .extract import UNKNOWN_ROLE, extract_company_role, role_key
-
     filled = 0
     with conn:
         for app in conn.execute("SELECT id FROM applications WHERE role_key = '' AND manual = 0").fetchall():
             for row in conn.execute("SELECT * FROM emails WHERE application_id = ? AND related = 1 ORDER BY received_at", (app["id"],)):
-                _, role = extract_company_role(_message(row))
+                _, role = extract_company_role(message_from_row(row))
                 if role != UNKNOWN_ROLE:
                     conn.execute("UPDATE applications SET role = ?, role_key = ? WHERE id = ?", (role, role_key(role), app["id"]))
                     filled += 1

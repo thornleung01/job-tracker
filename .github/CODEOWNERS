@@ -1,2 +1,8 @@
-# Changing these changes whose Google or Microsoft app people consent to, so changes are reviewed by the owner.
+# These decide who can log in, whose Google or Microsoft app people consent to, and what the site tells people about their data,
+# and they can change what runs on the site, so changes are reviewed by the owner.
 /web/site-config.json @thornleung01
+/web/src/auth/ @thornleung01
+/web/src/config.ts @thornleung01
+/web/index.html @thornleung01
+/web/public/privacy.html @thornleung01
+/.github/ @thornleung01

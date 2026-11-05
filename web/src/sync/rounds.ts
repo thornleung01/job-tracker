@@ -1,12 +1,14 @@
 // How many interview rounds an application has had. It is an estimate from the emails the app already classified,
 // firmed up by the steps you log, and always replaceable by a number you type.
 import type { ActivityRow, EmailRow } from "../db/schema";
+import { MAX_ROUNDS } from "../db/limits";
 import { DAY_MS } from "../db/time";
+import { byDesc } from "./compare";
 import { groupBy } from "./groupBy";
 
 /** Steps that are an interview round when you log them. A recruiter call, take-home or reference check is not. */
 export const ROUND_STEPS: readonly string[] = ["Interview", "Phone screen", "Technical interview", "Final round"];
-export const MAX_ROUNDS = 20;
+export { MAX_ROUNDS };
 
 export type RoundsSource = "yours" | "logged" | "estimated";
 export interface Rounds {
@@ -104,7 +106,7 @@ export function interviewMeetings(emails: readonly MailForRounds[]): Meeting[] {
   const threads = groupBy(emails.filter((e) => e.event === "interview"), (e) => e.threadId ?? `msg:${e.id}`);
   const meetings: Meeting[] = [];
   for (const [thread, mails] of threads) {
-    const newestFirst = [...mails].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : b.id - a.id));
+    const newestFirst = [...mails].sort((a, b) => byDesc<MailForRounds>((m) => m.receivedAt)(a, b) || b.id - a.id);
     if (CANCELLED.test(head(newestFirst[0].subject))) continue;       // a cancelled meeting adds nothing, not even a named round
     let day: string | null = null;
     for (const m of newestFirst) {

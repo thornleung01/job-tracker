@@ -13,7 +13,7 @@ import { SignIn } from "../../src/pages/signin/SignIn";
 import { upsertAccount } from "../../src/db/repo";
 import { saveSettings } from "../../src/sync/settings";
 import type { JobTrackerDB } from "../../src/db/schema";
-import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, grace, openTestDb, q, render, settle, waitFor } from "./helpers";
+import { ada, byText, click, cleanupRendered, closeDbs, go, fakeAuth, grace, openTestDb, q, render, settle, waitFor } from "./helpers";
 
 const page = (name: string) => async () => ({ default: (p: PageProps) => h("section", null, h("h1", { className: "page" }, name), h("p", { "data-id": p.params.id ?? "" }, p.query.toString())) });
 
@@ -28,13 +28,6 @@ function loaders(extra: PageLoaders = {}): PageLoaders {
     ...extra,
   };
 }
-
-const go = async (hash: string) => {
-  await act(async () => {
-    window.location.hash = hash;
-    await new Promise((r) => setTimeout(r, 30));
-  });
-};
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
@@ -367,7 +360,8 @@ describe("signed in shell", () => {
     await db().emails.bulkAdd([{ ...base, providerMsgId: "1" }, { ...base, providerMsgId: "2" }]);
     const badge = await waitFor(() => q(".count"));
     expect(badge.textContent).toBe("2");
-    expect(badge.getAttribute("aria-label")).toBe("2 emails need review");
+    expect(q("nav a[href='#/review']")!.textContent).toBe("Needs review2, 2 emails");   // the number is hidden from screen readers, the words are not
+    expect(badge.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("opens each user's own database and switches when the user changes", async () => {

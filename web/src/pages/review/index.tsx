@@ -1,13 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { UNKNOWN_COMPANY, UNKNOWN_ROLE } from "../../pipeline/extract";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { EmailText } from "../../components/EmailText";
 import { MailActions } from "../../components/MailActions";
 import { MailMeta } from "../../components/MailMeta";
+import { eventLabel } from "../../components/eventLabel";
 import { Notice } from "../../components/Notice";
 import { TimeText, dayText } from "../../components/TimeText";
 import { clearFlash, peekFlash } from "../../components/flash";
 import { useAction, type ActionRunner } from "../../components/useAction";
+import { useNoticeFocus } from "../../components/useNoticeFocus";
 import { STAGES, type Stage } from "../../db/stages";
 import type { JobTrackerDB } from "../../db/schema";
 import { ignoredIsReal, learnedNotice, resolveReview, undoRule } from "../../sync/actions";
@@ -15,30 +18,27 @@ import { mailboxLink, replyLink } from "../../sync/links";
 import { reviewPage, type ReviewItem } from "../../sync/queries";
 import "./review.css";
 
-const UNKNOWN_COMPANY = "Unknown company";
-const UNKNOWN_ROLE = "Unknown role";
-
-const eventLabel = (event: string): string => {
-  const words = event.replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
-
 export default function ReviewPage({ db }: PageProps) {
   const data = useQuery(() => reviewPage(db), [db]);
   const act = useAction();
   const [notice, setNotice] = useState<string | null>(() => peekFlash());
   useEffect(() => clearFlash(), []);
+  const result = useNoticeFocus();
 
   if (!data) return <h1 className="page">Needs review</h1>;
 
-  const tell = (message: string) => setNotice(message || null);
+  // Settling an email or undoing a rule removes the button that was pressed, so the result takes focus.
+  const tell = (message: string) => {
+    setNotice(message || null);
+    if (message) result.focus();
+  };
   const undo = (id: number) => act.run(`undo-${id}`, async () => tell(await undoRule(db, id)));
   const restore = (id: number) => act.run(`real-${id}`, async () => tell((await ignoredIsReal(db, id)).message));
 
   return (
     <>
       <h1 className="page">Needs review</h1>
-      {notice ? <Notice>{notice}</Notice> : null}
+      <div ref={result.box}>{notice ? <Notice>{notice}</Notice> : null}</div>
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
 
       {data.emails.map((e) => <ReviewCard key={e.id} db={db} email={e} apps={data.apps} onDone={tell} />)}
@@ -52,7 +52,7 @@ export default function ReviewPage({ db }: PageProps) {
             {data.learned.map((r) => (
               <div className="row review-line" key={r.id}>
                 <span>{r.text}</span>
-                <button type="button" className="small" onClick={() => void undo(r.id)} {...act.button(`undo-${r.id}`)}>Undo</button>
+                <button type="button" className="small" aria-label={`Undo: ${r.text}`} onClick={() => void undo(r.id)} {...act.button(`undo-${r.id}`)}>Undo</button>
               </div>
             ))}
           </>
@@ -71,7 +71,7 @@ export default function ReviewPage({ db }: PageProps) {
                 <b>{m.subject || "(no subject)"}</b>
                 <span className="small muted who">{m.sender} {"·"} {dayText(m.receivedAt, "short")}</span>
               </span>
-              <button type="button" className="small" onClick={() => void restore(m.id)} {...act.button(`real-${m.id}`)}>Restore email</button>
+              <button type="button" className="small" aria-label={`Restore email: ${m.subject || "(no subject)"}`} onClick={() => void restore(m.id)} {...act.button(`real-${m.id}`)}>Restore email</button>
             </div>
           ))}
         </section>
@@ -120,7 +120,7 @@ function ReviewCard({ db, email: e, apps, onDone }: CardProps) {
       <header className="mail-head">
         <div className="review-title">
           <h2 className="mail-subject">{e.subject || "(no subject)"}</h2>
-          <button type="button" className="danger small" title="Not about a job application. Its content is erased and the app learns to ignore emails like it."
+          <button type="button" className="danger small" aria-label={`Not job mail: ${e.subject || "(no subject)"}`} title="Not about a job application. Its content is erased and the app learns to ignore emails like it."
                   onClick={() => void settle("dismiss", { action: "dismiss" }, "Marked as not job mail.")} {...act.button("dismiss")}>Not job mail</button>
         </div>
         <MailMeta sender={e.sender}><TimeText iso={e.receivedAt} relative /></MailMeta>
@@ -133,7 +133,7 @@ function ReviewCard({ db, email: e, apps, onDone }: CardProps) {
       <div className="review-decide">
         <div className="review-stage">
           <label className="field small" htmlFor={`stage-${e.id}`}>Stage</label>
-          <select id={`stage-${e.id}`} aria-label="Stage" name="stage" value={stage} onChange={(ev) => setStage(ev.target.value as Stage)}>
+          <select id={`stage-${e.id}`} name="stage" value={stage} onChange={(ev) => setStage(ev.target.value as Stage)}>
             {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -142,12 +142,12 @@ function ReviewCard({ db, email: e, apps, onDone }: CardProps) {
             <option value={0}>Existing application{"…"}</option>
             {apps.map((a) => <option key={a.id} value={a.id}>{a.company} {"·"} {a.role}</option>)}
           </select>
-          <button type="submit" {...act.button("assign")}>Add to application</button>
+          <button type="submit" aria-label={`Add to application: ${e.subject || "(no subject)"}`} {...act.button("assign")}>Add to application</button>
         </form>
         <form className="row review-form" onSubmit={create}>
           <input name="company" aria-label="Company" placeholder="Company" pattern=".*\S.*" value={company} onChange={(ev) => setCompany(ev.target.value)} />
           <input name="role" aria-label="Role" placeholder="Role" value={role} onChange={(ev) => setRole(ev.target.value)} />
-          <button type="submit" className="primary" {...act.button("new")}>Create application</button>
+          <button type="submit" className="primary" aria-label={`Create application from: ${e.subject || "(no subject)"}`} {...act.button("new")}>Create application</button>
         </form>
       </div>
     </article>

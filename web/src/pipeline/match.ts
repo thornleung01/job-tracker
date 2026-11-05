@@ -1,14 +1,16 @@
-// Port of jobtracker/match.py: which application does an email belong to?
+// Port of jobtracker/match.py: which application does an email belong to? The app calls findApplication (through
+// sync/match.ts, which only reads the database); the golden fixtures check the same function.
 import { casefold } from "./pystr";
 
-export interface Match {
+/** `Id` is the application id type of whoever asks: numbers in the app (Dexie rows), strings or numbers in the fixtures. */
+export interface Match<Id extends number | string = number | string> {
   kind: "matched" | "new" | "ambiguous";
-  applicationId: number | string | null;
+  applicationId: Id | null;
 }
 
 /** The stored fields of an application that matching looks at. */
-export interface MatchCandidate {
-  id: number | string;
+export interface MatchCandidate<Id extends number | string = number | string> {
+  id: Id;
   role: string;
   roleKey: string;
   stage: string;
@@ -36,22 +38,22 @@ export function sameRole(aKey: string, bKey: string, aRole = "", bRole = ""): bo
   return short.length >= 2 && short.every((w, i) => long[i] === w) && !long.slice(short.length).some((w) => LEVEL_WORDS.has(w));
 }
 
-const matched = (id: number | string): Match => ({ kind: "matched", applicationId: id });
-const NEW: Match = { kind: "new", applicationId: null };
-const AMBIGUOUS: Match = { kind: "ambiguous", applicationId: null };
+const matched = <Id extends number | string>(id: Id): Match<Id> => ({ kind: "matched", applicationId: id });
+const NEW: Match<never> = { kind: "new", applicationId: null };
+const AMBIGUOUS: Match<never> = { kind: "ambiguous", applicationId: null };
 
 /**
  * The matching rules, on data already loaded. `threadApplicationId` is the application the same email thread already
  * belongs to (if any). `applications` are this company's applications in creation order (oldest first).
  */
-export function matchApplication(
-  threadApplicationId: number | string | null | undefined,
-  applications: readonly MatchCandidate[],
+export function matchApplication<Id extends number | string>(
+  threadApplicationId: Id | null | undefined,
+  applications: readonly MatchCandidate<Id>[],
   ckey: string,
   rkey: string,
   event: string | null = null,
   role = "",
-): Match {
+): Match<Id> {
   // 1. Same email thread.
   if (threadApplicationId) return matched(threadApplicationId);
 
@@ -88,22 +90,23 @@ export function matchApplication(
 
 type Maybe<T> = T | Promise<T>;
 
-/** Where the matcher reads from; implemented over Dexie by the db layer. */
-export interface MatchStore {
+/** Where the matcher reads from; sync/match.ts implements it over Dexie. */
+export interface MatchStore<Id extends number | string = number | string> {
   /** The newest application any stored email in this thread (for this account) belongs to. */
-  threadApplication(threadId: string): Maybe<number | string | null | undefined>;
+  threadApplication(threadId: string): Maybe<Id | null | undefined>;
   /** Applications of one company, oldest first. */
-  applicationsFor(ckey: string): Maybe<readonly MatchCandidate[]>;
+  applicationsFor(ckey: string): Maybe<readonly MatchCandidate<Id>[]>;
 }
 
-export async function findApplication(
-  store: MatchStore,
+/** The one place the app decides which application an email belongs to (the golden fixtures run this exact function). */
+export async function findApplication<Id extends number | string>(
+  store: MatchStore<Id>,
   threadId: string,
   ckey: string,
   rkey: string,
   event: string | null = null,
   role = "",
-): Promise<Match> {
+): Promise<Match<Id>> {
   const thread = threadId ? await store.threadApplication(threadId) : null;
   if (thread) return matched(thread);
   if (!ckey) return AMBIGUOUS;

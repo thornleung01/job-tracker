@@ -105,7 +105,7 @@
 </table>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const table = document.querySelector('table.list');
   if (!table) return;
@@ -177,7 +177,7 @@
 </script>
 
 <script type="application/json" id="suggest-data">{{ suggestions|tojson }}</script>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Search suggestions: a combobox over the companies and roles that exist. Typing filters them; picking one
 // searches for it. Enter on plain text still searches for that text, and without JavaScript it is a normal field.
 (() => {
@@ -284,7 +284,7 @@
     <button class="primary">Add application</button>
   </form>
 </details>
-<script>
+<script nonce="{{ csp_nonce }}">
   // "Fill in": the server reads the posting (it can open pages this one can't) and sends back company, role and place.
   // Company and role are only filled when empty or still what this button put there; anything typed by hand stays.
   (() => {
@@ -319,7 +319,7 @@
     form.addEventListener('submit', () => { if (!url.value.trim() && /^https?:\/\//i.test(link.value.trim())) url.value = link.value.trim().slice(0, 500); });
   })();
 </script>
-<script>
+<script nonce="{{ csp_nonce }}">
   // "+ Add application" opens the form below and puts the cursor in it, wherever you are on the page.
   (() => {
     const box = document.getElementById('add-application'); if (!box) return;

@@ -1,19 +1,22 @@
 """Fill a separate demo database with mock applications, run through the real pipeline.
 
-    .venv\\Scripts\\python.exe scripts\\seed_demo.py            # writes data\\demo.db
+    .venv\\Scripts\\python.exe scripts\\seed_demo.py            # writes data\\demo.db, replacing it if it exists
+    .venv\\Scripts\\python.exe scripts\\seed_demo.py other.db  # or another file
     $env:JOBTRACKER_DB = "data\\demo.db"; .venv\\Scripts\\python.exe -m jobtracker serve
 
-Your real data\\tracker.db is never touched.
+Your real data\\tracker.db is never touched: the script refuses to write to it.
 """
+import argparse
 import random
 import sys
-from datetime import datetime, timedelta, timezone
+from contextlib import closing
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jobtracker import db  # noqa: E402
+from jobtracker import activity, db  # noqa: E402
 from jobtracker.models import Message  # noqa: E402
 from jobtracker.sync import process_messages  # noqa: E402
 
@@ -51,11 +54,28 @@ TEXT = {
 }
 
 
-def main() -> None:
-    path = ROOT / "data" / "demo.db"
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Fill a demo database with mock applications.")
+    ap.add_argument("output", nargs="?", type=Path, default=ROOT / "data" / "demo.db", help="the database file to (re)create")
+    path = ap.parse_args(argv).output.resolve()
+    if path == (ROOT / "data" / "tracker.db").resolve():
+        print(f"{path} is your real database, so it will not be replaced. Choose another file.", file=sys.stderr)
+        return 1
     for suffix in ("", "-wal", "-shm"):
         Path(str(path) + suffix).unlink(missing_ok=True)
-    conn = db.connect(path)
+    with closing(db.connect(path)) as conn:
+        seed(conn)
+        print(f"Wrote {path}")
+        for row in conn.execute("SELECT stage, COUNT(*) n FROM applications GROUP BY stage ORDER BY n DESC"):
+            print(f"  {row['stage']}: {row['n']}")
+        review = conn.execute("SELECT COUNT(*) FROM emails WHERE needs_review = 1").fetchone()[0]
+        print(f"  (needs review: {review})")
+        roles = [r[0] for r in conn.execute("SELECT DISTINCT role FROM applications")]
+        print("  roles extracted:", roles)
+    return 0
+
+
+def seed(conn) -> None:
     accounts = [db.upsert_account(conn, "gmail", "demo@gmail.com"), db.upsert_account(conn, "outlook", "demo@outlook.com")]
 
     rng = random.Random(7)
@@ -84,8 +104,6 @@ def main() -> None:
         process_messages(conn, account, messages)
 
     # A few of your own notes and steps, so the expandable rows have something in them.
-    from datetime import date
-    from jobtracker import activity
     ids = [r[0] for r in conn.execute("SELECT id FROM applications ORDER BY last_activity DESC LIMIT 8")]
     samples = [
         (ids[0], "Phone screen", 6, "30 min with the hiring manager. Asked about SQL and stakeholder work."),
@@ -101,14 +119,6 @@ def main() -> None:
         else:
             activity.add_note(conn, app_id, text)
 
-    print(f"Wrote {path}")
-    for row in conn.execute("SELECT stage, COUNT(*) n FROM applications GROUP BY stage ORDER BY n DESC"):
-        print(f"  {row['stage']}: {row['n']}")
-    review = conn.execute("SELECT COUNT(*) FROM emails WHERE needs_review = 1").fetchone()[0]
-    print(f"  (needs review: {review})")
-    roles = [r[0] for r in conn.execute("SELECT DISTINCT role FROM applications")]
-    print("  roles extracted:", roles)
-
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

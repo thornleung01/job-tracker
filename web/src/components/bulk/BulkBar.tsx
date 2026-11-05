@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { bulkDelete, bulkRestoreStages, bulkSetStage, type StageBefore } from "../../sync/bulk";
 import { Notice } from "../Notice";
+import { UNDO_MS } from "../undo";
 import { useAction } from "../useAction";
 import { BULK_CONFIRM_ID, BulkDeleteConfirm } from "./BulkDeleteConfirm";
 import type { Selection } from "./useSelection";
 import "./bulk.css";
 
 const applicationsLabel = (count: number) => `${count} application${count === 1 ? "" : "s"}`;
-
-/** How long Undo stays on screen after a bulk stage change, as in the list's own stage dropdown. */
-const UNDO_MS = 8000;
 
 /**
  * What you can do to the ticked applications, shown between the filter card and the list while at least one is ticked: set their
@@ -66,16 +64,6 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
     setRefocus(null);
   }, [refocus, act.busy]);
 
-  const closeConfirm = () => {
-    setConfirming(false);
-    deleteButton.current?.focus();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    // Escape can't call off a delete that is already running.
-    if (e.key !== "Escape" || !confirming || act.busy !== null) return;
-    e.preventDefault();
-    closeConfirm();
-  };
   const pick = (e: ChangeEvent<HTMLSelectElement>) => setStage(isStage(e.target.value) ? e.target.value : "");
 
   const setStageOnAll = () => {
@@ -127,7 +115,7 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
         </div>
       ) : null}
       {selectedCount ? (
-        <section className="card bulk-bar" aria-label="Selected applications" onKeyDown={onKey}>
+        <section className="card bulk-bar" aria-label="Selected applications">
           {act.error ? <Notice tone="err">{act.error}</Notice> : null}
           <div className="row">
             <span className="bulk-count" role="status">{selectedCount} selected{selection.capped ? ", the most you can change at once" : ""}</span>
@@ -141,7 +129,7 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
             <button type="button" onClick={clear} disabled={act.busy !== null}>Clear selection</button>
           </div>
           {confirming ? (
-            <BulkDeleteConfirm what={applicationsLabel(selectedCount)} act={act} onDelete={deleteAll} onCancel={closeConfirm} deleteRef={confirmDeleteButton} />
+            <BulkDeleteConfirm what={applicationsLabel(selectedCount)} act={act} onDelete={deleteAll} onCancel={() => setConfirming(false)} opener={deleteButton.current} deleteRef={confirmDeleteButton} />
           ) : null}
         </section>
       ) : null}

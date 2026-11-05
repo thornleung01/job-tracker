@@ -1,6 +1,6 @@
 // Upcoming interviews: the next day an application's interview emails say a meeting is on, and how to show it.
-import { dayText } from "../components/TimeText";
-import { DAY_MS } from "../db/time";
+import { dayText } from "../db/dayText";
+import { daysBetween } from "../db/time";
 import { interviewMeetings, type MailForRounds } from "./rounds";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -9,7 +9,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const COMING_UP_DAYS = 7;
 const COMING_UP_MAX = 5;
 
-const parts = (day: string): [number, number, number] => {
+const parseDay = (day: string): [number, number, number] => {
   const [y, m, d] = day.split("-").map(Number);
   return [y, m, d];
 };
@@ -26,16 +26,9 @@ export function nextInterviewDay(emails: readonly MailForRounds[], today: string
   return next;
 }
 
-/** Whole calendar days from one YYYY-MM-DD to another. */
-export function daysBetween(from: string, to: string): number {
-  const [fy, fm, fd] = parts(from);
-  const [ty, tm, td] = parts(to);
-  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / DAY_MS);
-}
-
 /** "Thu, Oct 15" for a YYYY-MM-DD. */
 export function shortDay(day: string): string {
-  const [y, m, d] = parts(day);
+  const [y, m, d] = parseDay(day);
   return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${dayText(day, "plain")}`;
 }
 
@@ -51,9 +44,6 @@ export function dayWhen(day: string, today: string): DayWhen {
   if (away === 1) return { when: "tomorrow", text: "Tomorrow" };
   return { when: "later", text: shortDay(day) };
 }
-
-/** "Today", "Tomorrow", or "Thu, Oct 15". */
-export const dayLabel = (day: string, today: string): string => dayWhen(day, today).text;
 
 export interface UpcomingRow {
   id: number;

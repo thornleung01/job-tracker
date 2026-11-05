@@ -22,21 +22,34 @@ export interface Learned {
   distrust: ReadonlySet<string>;
 }
 
+/** The sets the blocking rule reads. An allowed sender is never blocked; otherwise a blocked sender or a blocked domain (or a subdomain of one) is. */
+export interface BlockRules {
+  allowSenders: ReadonlySet<string>;
+  blockSenders: ReadonlySet<string>;
+  blockDomains: Iterable<string>;
+}
+
+/** The one blocking rule: learn.Learned in the app and makeLearned in tests both call it. */
+export function isBlocked(rules: BlockRules, sender: string, domain: string): boolean {
+  if (rules.allowSenders.has(sender)) return false;
+  if (rules.blockSenders.has(sender)) return true;
+  for (const d of rules.blockDomains) if (domain === d || domain.endsWith("." + d)) return true;
+  return false;
+}
+
 /** A Learned built from plain lists, with the same blocking logic as learn.Learned. */
 export function makeLearned(
   parts: { blockSenders?: Iterable<string>; blockDomains?: Iterable<string>; allowSenders?: Iterable<string>; distrust?: Iterable<string> } = {},
 ): Learned {
-  const blockSenders = new Set(parts.blockSenders ?? []);
-  const blockDomains = [...(parts.blockDomains ?? [])];
-  const allowSenders = new Set(parts.allowSenders ?? []);
-  const distrust = new Set(parts.distrust ?? []);
+  const rules: BlockRules = {
+    blockSenders: new Set(parts.blockSenders ?? []),
+    blockDomains: [...(parts.blockDomains ?? [])],
+    allowSenders: new Set(parts.allowSenders ?? []),
+  };
   return {
-    allowSenders,
-    distrust,
-    blocks(sender, domain) {
-      if (allowSenders.has(sender)) return false;
-      return blockSenders.has(sender) || blockDomains.some((d) => domain === d || domain.endsWith("." + d));
-    },
+    allowSenders: rules.allowSenders,
+    distrust: new Set(parts.distrust ?? []),
+    blocks: (sender, domain) => isBlocked(rules, sender, domain),
   };
 }
 

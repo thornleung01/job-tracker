@@ -3,7 +3,8 @@
 // The text comes from HTML flattened to plain text, so it carries the marks of that: line breaks in the middle of
 // sentences, non-breaking spaces, invisible padding characters, whole reply chains and marketing footers. This repairs the
 // line breaks, folds the reply chain and the footer, and shows each link as its domain. Everything is escaped, and links
-// are shown but never made clickable.
+// are shown but never made clickable. The app reads `parts` and turns the blocks into text with `blocksToHtml` (in
+// components/EmailText.tsx); `render` makes the same HTML in one step and is used by the parity tests.
 import { py, pyFull, match, sub, finditer, test } from "./pyre";
 import { cpLen, escapeHtml, firstChar, isLower, partition, rstrip, strip } from "./pystr";
 import { UrlValueError, urlHostname } from "./url";
@@ -193,9 +194,4 @@ export function render(body: string | null | undefined): string {
   if (thread.length) html.push(`<details class="mail-fold"><summary>Earlier in this thread</summary>${blocksToHtml(thread)}</details>`);
   if (footer.length) html.push(`<details class="mail-fold"><summary>Footer and links</summary>${blocksToHtml(footer)}</details>`);
   return '<div class="mail-text">' + html.join("") + "</div>";
-}
-
-/** Not in Python: just the readable message text (no thread, no footer), paragraphs separated by a blank line. */
-export function cleanMailText(body: string | null | undefined): string {
-  return parts(body)[0].join("\n\n");
 }

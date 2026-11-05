@@ -1,0 +1,4 @@
+/* The question in place before a removal (InlineConfirm): a tinted block under whatever opened it. */
+.inline-confirm { margin-top: 12px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.inline-confirm-q { margin: 0 0 4px; font-weight: 500; }
+.inline-confirm .help { margin-bottom: 12px; }

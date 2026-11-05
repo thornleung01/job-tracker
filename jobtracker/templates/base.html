@@ -29,8 +29,7 @@
     --stage-interview: #eece2d;   --stage-interview-text: #736109;
     --stage-offer: #409652;       --stage-offer-text: #2f6e3c;
     --stage-rejected: #e22b18;    --stage-rejected-text: #be2414;
-    --applied: var(--stage-applied-text); --heard: var(--stage-heard-back-text); --assess: var(--stage-assessment-text);
-    --interview: var(--stage-interview-text); --offer: var(--stage-offer-text); --rejected: var(--stage-rejected-text);   /* short names for text uses outside the badges */
+    --offer: var(--stage-offer-text); --rejected: var(--stage-rejected-text);   /* short names for text uses outside the badges */
     --font-ui: "Wealthsimple Sans Display", "Figtree", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
     --r-pill: 999px; --r-lg: 20px; --r: 12px; --r-seg: 8px;
     --pad: 16px; --cell-y: 16px; --gap: 24px; --section: 32px;
@@ -82,7 +81,8 @@
   }
   :root[data-density="compact"] { --pad: 12px; --cell-y: 8px; --gap: 12px; --section: 24px; --tap: 36px; }
   @media (min-width: 721px) { :root[data-density="compact"] { --section: 40px; } }
-  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; } }
+  :root { --tap-sm: calc(var(--tap) - 8px); }   /* small controls (Delete on a history row, the mail summary) are a little under --tap, and 44px on touch */
+  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; --tap-sm: 44px; } }
   :root[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; --r-seg: 3px; }
 
   * { box-sizing: border-box; }
@@ -93,6 +93,10 @@
   ::selection { background: color-mix(in srgb, var(--ink) 20%, transparent); }
   input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
   a { color: inherit; text-decoration: none; }
+  /* A link in running text has no underline (DESIGN.md), so it is told apart by full-contrast ink, weight 500 and a tonal hover. Buttons, tabs and the
+     other link components style themselves. */
+  :is(p, li, .notice, .help, .small, .muted) a:not(.btn, .back, .expander, .sort) { color: var(--ink); font-weight: 500; border-radius: var(--r-seg); }
+  :is(p, li, .notice, .help, .small, .muted) a:not(.btn, .back, .expander, .sort):hover { background: var(--hover); }
   a, button, summary, label, select { touch-action: manipulation; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 16px 96px; }   /* the page gutter is 16px at every width */
 
@@ -353,7 +357,6 @@
   .person { padding: 14px 0; border-top: 1px solid var(--line); }
   ul.people > li:first-child .person { border-top: 0; padding-top: 4px; }
   .person-head { display: flex; gap: 6px 10px; align-items: baseline; flex-wrap: wrap; }
-  .person-name { font: 500 1rem/1.375 var(--font-ui); margin: 0; }
   .person-title { margin: 2px 0 6px; }
   .person-meta { margin: 0; color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
   ul.thread { list-style: none; padding: 0; margin: 6px 0 0; }
@@ -387,14 +390,16 @@
   .tag.latest { background: var(--accent); color: var(--accent-ink); }
   a.btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
                   box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
-  button.hist-del { min-height: 34px; padding: 0 14px; font-size: 0.875rem; }
-  details.mail > summary { list-style: none; cursor: pointer; min-height: 34px; }
+  button.hist-del { min-height: var(--tap-sm); padding: 0 14px; font-size: 0.875rem; }
+  details.mail > summary { list-style: none; cursor: pointer; min-height: var(--tap-sm); }
   details.mail > summary::-webkit-details-marker { display: none; }
   details.mail[open] > summary .chev { transform: rotate(90deg); }
   details.mail > summary strong { font-weight: 700; }
   .mail-body { margin: 8px 0 6px 24px; padding: 2px 0 2px 20px; border-left: 1px solid var(--line); }
   .mail-body .mail-meta { margin-bottom: 12px; }
   a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  h2.sec { font-size: 1.25rem; line-height: 1.4; margin: 0 0 6px; }   /* settings and jobs sections */
+  .checks input { width: 18px; height: 18px; }
   @media (prefers-reduced-motion: no-preference) {
     button, a, .tab, input, select, textarea { transition: background-color .16s ease-out, border-color .16s ease-out, color .16s ease-out; }
     button, a.btn, details.action > summary { transition: transform .12s ease-out, background-color .16s ease-out, color .16s ease-out; }
@@ -433,7 +438,7 @@
   {% block content %}{% endblock %}
   </main>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   // Times are stored in UTC. Show them in your own time zone, with how long ago, and keep doing it for panels that load later.
   (() => {
     const ago = d => {
@@ -457,8 +462,16 @@
     localize(document);
     new MutationObserver(list => list.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && localize(n)))).observe(document.body, { childList: true, subtree: true });
   })();
+  // Move focus to the result of an action (a notice marked data-focus) so screen readers announce it, unless the link points at something on the page.
+  if (!location.hash) document.querySelector('.notice[data-focus]')?.focus();
   // The profile picker switches as soon as you choose.
   document.addEventListener('change', e => { if (e.target.matches('select[data-autosubmit]')) e.target.form.requestSubmit(); });
+  // Forms with data-confirm="Question?" ask first. The text is plain data, never script. Capture phase, so a cancel is
+  // already in place when the other submit handlers (data-busy below, the panel forms) look at defaultPrevented.
+  document.addEventListener('submit', e => {
+    const message = e.target.dataset && e.target.dataset.confirm;
+    if (message && !confirm(message)) e.preventDefault();
+  }, true);
   // Forms with data-busy="Working…" show progress and can't be pressed twice while they run.
   document.addEventListener('submit', e => {
     const form = e.target, msg = form.dataset && form.dataset.busy;
@@ -476,5 +489,6 @@
     });
   });
 </script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

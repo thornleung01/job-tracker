@@ -11,6 +11,7 @@ fetched, and no error text, is ever handed back: only the derived fields and a s
 """
 from __future__ import annotations
 
+import codecs
 import concurrent.futures
 import html
 import http.client
@@ -65,7 +66,7 @@ _BAD_URL_CHARS = re.compile(r"[\x00-\x20\x7f\"<>\\^`{}]")
 _HOST_OK = re.compile(r"^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*$")
 
 
-def _is_global(ip: ipaddress._BaseAddress) -> bool:
+def _is_global(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """True only for an address that is reachable on the public internet."""
     if isinstance(ip, ipaddress.IPv6Address):
         if ip.ipv4_mapped is not None:                     # ::ffff:127.0.0.1 is 127.0.0.1
@@ -299,19 +300,24 @@ class _Fetcher:
                 ctype = (resp.headers.get("content-type") or "").split(";")[0].strip().lower()
                 if ctype not in PAGE_TYPES:
                     raise _FetchFailed
-                chunks, size = [], 0
-                while size < MAX_BYTES:                      # never more than 1 MB, however much the server sends
-                    self.left()
-                    chunk = resp.read(min(65536, MAX_BYTES - size))
-                    if not chunk:
-                        break
-                    chunks.append(chunk)
-                    size += len(chunk)
+                body, _ = self._read_capped(resp)
                 charset = re.search(r"charset=([\w-]+)", resp.headers.get("content-type") or "", re.I)
-                return ctype, b"".join(chunks), url, (charset.group(1) if charset else "")
+                return ctype, body, url, (charset.group(1) if charset else "")
             finally:
                 resp.close()
         raise _FetchFailed                                    # too many redirects
+
+    def _read_capped(self, resp) -> tuple[bytes, int]:
+        """(the body, its size): never more than MAX_BYTES (1 MB), however much the server sends, and always inside the total deadline."""
+        chunks, size = [], 0
+        while size < MAX_BYTES:
+            self.left()
+            chunk = resp.read(min(65536, MAX_BYTES - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+        return b"".join(chunks), size
 
     def post_json(self, op: str, payload: dict) -> bytes:
         """POST `payload` as JSON to one of the fixed Ashby GraphQL operations and return the body.
@@ -337,17 +343,10 @@ class _Fetcher:
                 raise _FetchFailed
             if (resp.headers.get("content-type") or "").split(";")[0].strip().lower() != "application/json":
                 raise _FetchFailed
-            chunks, size = [], 0
-            while size < MAX_BYTES:
-                self.left()
-                chunk = resp.read(min(65536, MAX_BYTES - size))
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                size += len(chunk)
+            body, size = self._read_capped(resp)
             if size >= MAX_BYTES:                             # too big to be one of these tiny answers
                 raise _FetchFailed
-            return b"".join(chunks)
+            return body
         finally:
             resp.close()
 
@@ -750,8 +749,6 @@ def derive(url: str, *, resolver: Callable | None = None, transport: Callable | 
 
 
 def _known_codec(name: str) -> bool:
-    import codecs
-
     try:
         codecs.lookup(name or "utf-8")
         return True

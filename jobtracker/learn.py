@@ -14,14 +14,13 @@ You can see and undo every rule. An undone rule stays undone until you give it n
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 from . import db
 from .classify import is_ats_domain
+from .extract import FREE_MAIL
 
-PERSONAL_DOMAINS = {"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com",
-                    "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com"}
+PERSONAL_DOMAINS = FREE_MAIL | {"msn.com"}          # mail anyone can open an account with: never blocked as a whole domain
 DISTRUST_MIN_FLAGS = 3
 DISTRUST_MIN_SHARE = 0.75
 DOMAIN_MIN_ADDRESSES = 2
@@ -41,9 +40,6 @@ class Learned:
         return sender in self.block_senders or any(domain == d or domain.endswith("." + d) for d in self.block_domains)
 
 
-EMPTY = Learned()
-
-
 def load(conn: sqlite3.Connection) -> Learned:
     by_kind: dict[str, set] = {}
     for r in conn.execute("SELECT kind, value FROM learned_rules WHERE active = 1"):
@@ -52,17 +48,17 @@ def load(conn: sqlite3.Connection) -> Learned:
                    frozenset(by_kind.get("allow_sender", ())), frozenset(by_kind.get("distrust_pattern", ())))
 
 
-def split_sender(sender: str) -> str:
+def sender_address(sender: str) -> str:
     """The address from 'Name <address>'."""
     return (sender.rpartition("<")[2].rstrip(">") if "<" in (sender or "") else (sender or "")).strip().lower()
 
 
 def record(conn: sqlite3.Connection, verdict: str, email: sqlite3.Row, application_id: int | None = None) -> None:
     """Remember what this email looked like and what you said about it. Call before its content is erased."""
-    address = split_sender(email["sender"] or "")
+    address = sender_address(email["sender"] or "")
     conn.execute(
         "INSERT INTO feedback (created_at, verdict, sender_email, sender_domain, subject, reason, application_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (db.iso(datetime.now(timezone.utc)), verdict, address,
+        (db.now_iso(), verdict, address,
          address.rpartition("@")[2], email["subject"] or "", _reason(email), application_id),
     )
 
@@ -128,7 +124,7 @@ def rebuild(conn: sqlite3.Connection) -> list[str]:
             row = existing.get(key)
             if row is None:
                 conn.execute("INSERT INTO learned_rules (kind, value, evidence, active, created_at) VALUES (?, ?, ?, 1, ?)",
-                             (*key, evidence, db.iso(datetime.now(timezone.utc))))
+                             (*key, evidence, db.now_iso()))
                 new_rules.append(describe(*key, evidence))
             elif not row["active"] and evidence > row["evidence"]:        # undone, but you gave it new evidence
                 conn.execute("UPDATE learned_rules SET active = 1, evidence = ? WHERE id = ?", (evidence, row["id"]))

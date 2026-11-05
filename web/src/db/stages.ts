@@ -30,5 +30,10 @@ export function isStage(value: unknown): value is Stage {
   return typeof value === "string" && (STAGES as readonly string[]).includes(value);
 }
 export function isEvent(value: unknown): value is EventName {
-  return typeof value === "string" && value in STAGE_FOR_EVENT;
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(STAGE_FOR_EVENT, value);
+}
+
+export const CONFIDENCES: readonly Confidence[] = ["high", "medium", "low"];
+export function isConfidence(value: unknown): value is Confidence {
+  return typeof value === "string" && (CONFIDENCES as readonly string[]).includes(value);
 }

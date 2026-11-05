@@ -184,6 +184,17 @@ def test_phone_sort_buttons_meet_the_tap_size_and_show_the_active_column(env):
     assert '.list-card table.list th[aria-sort="ascending"] a.sort, .list-card table.list th[aria-sort="descending"] a.sort { background: var(--accent); color: var(--accent-ink); }' in css
 
 
+def test_small_controls_use_the_tap_sm_token_and_links_in_text_are_told_apart(env):
+    _, client = env
+    css = client.get("/").text
+    # Same tokens as the hosted edition (web/src/styles/base.css): small controls follow --tap, 44px on touch, never a fixed 34px.
+    assert ":root { --tap-sm: calc(var(--tap) - 8px); }" in css and "--tap: 44px; --tap-sm: 44px;" in css
+    assert "button.hist-del { min-height: var(--tap-sm);" in css and "details.mail > summary { list-style: none; cursor: pointer; min-height: var(--tap-sm); }" in css
+    assert "34px" not in css
+    # A link in running text has no underline, so full-contrast ink and weight 500 set it apart.
+    assert ":is(p, li, .notice, .help, .small, .muted) a:not(.btn, .back, .expander, .sort) { color: var(--ink); font-weight: 500;" in css
+
+
 def test_last_activity_shows_just_days(env):
     conn, client = env
     cell = lambda page: re.search(r'<td role="cell" data-col="last_activity"[^>]*>(.*?)</td>', page, flags=re.S).group(1)  # noqa: E731
@@ -262,12 +273,6 @@ def test_phone_nav_fits_one_row(env):
     _, client = env
     css = client.get("/").text
     assert "@media (max-width: 520px)" in css and "justify-content: space-between" in css
-
-
-def test_settings_accounts_table_lines_up_with_the_card_text(env):
-    _, client = env
-    html = client.get("/settings").text
-    assert ".scroll-x table.list th:first-child, .scroll-x table.list td:first-child { padding-left: 0; }" in html
 
 
 def test_flow_labels_are_larger_and_stages_use_the_data_viz_palette(env):

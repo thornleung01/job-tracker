@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGmailProvider, EXCLUDE, getGmailAddress, parseGmailMessage } from "../../src/providers/gmail";
+import { createGmailProvider, EXCLUDE, FETCH_CONCURRENCY, getGmailAddress, parseGmailMessage } from "../../src/providers/gmail";
+import { RETRY_WAITS } from "../../src/providers/backoff";
 import { NotConnected } from "../../src/types";
 import { b64, collect, fakeSleep, json, scriptedFetch, token } from "./helpers";
 
@@ -45,7 +46,7 @@ describe("parseGmailMessage", () => {
     });
     expect([m.id, m.threadId, m.senderName, m.senderEmail]).toEqual(["g1", "th1", "Acme Careers", "no-reply@greenhouse.io"]);
     expect(m.body).toBe("plain version");
-    expect(m.html).toBe("<p>html version</p>");
+    expect("html" in m).toBe(false); // nothing reads it, so it is not kept
     expect(m.receivedAt).toBe(new Date(1790000000000).toISOString());
     expect(m.webLink).toBeNull();
   });
@@ -215,6 +216,180 @@ describe("gmail provider fetch", () => {
       })(),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(seen).toEqual(["a"]);
+  });
+});
+
+describe("gmail provider downloads in parallel, in order", () => {
+  const since = new Date("2026-09-01T00:00:00Z");
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i + 1}`);
+  const bodiesFor = (list: string[]) => Object.fromEntries(list.map((id, i) => [id, raw(id, i + 1)]));
+  const isBody = (url: URL) => !url.pathname.endsWith("/messages");
+  const idOf = (url: URL) => decodeURIComponent(url.pathname.split("/").pop()!);
+  const tick = () => new Promise<void>((r) => setTimeout(r, 0));
+
+  /** A Gmail whose message downloads wait until the test releases them, and that notices how many are open at once. */
+  function gated(list: string[]) {
+    const bodies = bodiesFor(list);
+    const gates = new Map<string, () => void>();
+    let open = 0;
+    let peak = 0;
+    const g = scriptedFetch(async ({ url }) => {
+      if (!isBody(url)) return json({ messages: list.map((id) => ({ id })) });
+      const id = idOf(url);
+      open++;
+      peak = Math.max(peak, open);
+      await new Promise<void>((resolve) => gates.set(id, resolve));
+      open--;
+      return json(bodies[id]);
+    });
+    return { g, release: (id: string) => gates.get(id)?.(), releaseAll: () => gates.forEach((release) => release()), started: () => g.calls.filter((c) => isBody(c.url)).map((c) => idOf(c.url)), peak: () => peak };
+  }
+
+  it("has several downloads in flight, never more than the pool size", async () => {
+    const list = ids(10);
+    const t = gated(list);
+    let done = false;
+    const run = collect(createGmailProvider(token, { fetch: t.g.fetch }).fetch(since, () => false)).then(() => (done = true));
+    await vi.waitFor(() => expect(t.started()).toHaveLength(FETCH_CONCURRENCY));
+    await tick();
+    expect(t.started()).toHaveLength(FETCH_CONCURRENCY); // the fifth waits for a free slot
+    expect(FETCH_CONCURRENCY).toBe(4);
+    while (!done) {
+      t.releaseAll();
+      await tick();
+    }
+    await run;
+    expect(t.peak()).toBe(FETCH_CONCURRENCY);
+  });
+
+  it("hands messages out in list order even when later downloads finish first", async () => {
+    const list = ids(6);
+    const t = gated(list);
+    const seen: string[] = [];
+    const run = (async () => {
+      for await (const m of createGmailProvider(token, { fetch: t.g.fetch }).fetch(since, () => false)) seen.push(m.id);
+    })();
+    await vi.waitFor(() => expect(t.started()).toEqual(["m1", "m2", "m3", "m4"]));
+    for (const id of ["m4", "m3", "m2"]) t.release(id);
+    await tick();
+    await tick();
+    expect(seen).toEqual([]); // m1 is still downloading, so nothing is handed out ahead of it
+    t.release("m1");
+    await vi.waitFor(() => expect(seen).toEqual(["m1", "m2", "m3", "m4"]));
+    await vi.waitFor(() => expect(t.started()).toHaveLength(6));
+    t.release("m6");
+    t.release("m5");
+    await run;
+    expect(seen).toEqual(list);
+  });
+
+  it("keeps skip(): stored messages are never downloaded and onPending counts only the rest", async () => {
+    const list = ids(5);
+    const g = gmail([list], bodiesFor(list));
+    const onPending = vi.fn();
+    const got = await collect(createGmailProvider(token, { fetch: g.fetch, onPending }).fetch(since, (id) => id === "m2" || id === "m4"));
+    expect(got.map((m) => m.id)).toEqual(["m1", "m3", "m5"]);
+    expect(onPending).toHaveBeenCalledWith(3);
+    expect(g.calls.filter((c) => isBody(c.url)).map((c) => idOf(c.url)).sort()).toEqual(["m1", "m3", "m5"]);
+  });
+
+  it("drops a deleted or malformed message in the middle without disturbing the order", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const list = ids(6);
+    const bodies: Record<string, object> = { ...bodiesFor(list), m3: { id: "m3", payload: { headers: [] } } };
+    const g = gmail([list], bodies, { m2: [json({}, 404)] });
+    const got = await collect(createGmailProvider(token, { fetch: g.fetch }).fetch(since, () => false));
+    expect(got.map((m) => m.id)).toEqual(["m1", "m4", "m5", "m6"]);
+    warn.mockRestore();
+  });
+
+  it("stops at the first failure in list order, after handing out everything before it", async () => {
+    const list = ids(6);
+    const g = gmail([list], bodiesFor(list), { m3: [json({ error: "bad" }, 400)] });
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const m of createGmailProvider(token, { fetch: g.fetch }).fetch(since, () => false)) seen.push(m.id);
+      })(),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(seen).toEqual(["m1", "m2"]);
+  });
+
+  it("one rate limit pauses every download, and the wait is shared", async () => {
+    const list = ids(8);
+    const bodies = bodiesFor(list);
+    let limited = false;
+    const g = scriptedFetch(({ url }) => {
+      if (!isBody(url)) return json({ messages: list.map((id) => ({ id })) });
+      if (idOf(url) === "m3" && !limited) {
+        limited = true;
+        return json({}, 429, { "Retry-After": "7" });
+      }
+      return json(bodies[idOf(url)]);
+    });
+    const waits: number[] = [];
+    let release!: () => void;
+    const sleep = (ms: number) => {
+      waits.push(ms);
+      return new Promise<void>((resolve) => (release = resolve));
+    };
+    const run = collect(createGmailProvider(token, { fetch: g.fetch, sleep }).fetch(since, () => false));
+    await vi.waitFor(() => expect(waits).toEqual([7000]));
+    await tick();
+    // m1 and m2 are done and handed out, which frees two slots: m5 and m6 must not start while m3 waits for Gmail
+    expect(g.calls.filter((c) => isBody(c.url)).map((c) => idOf(c.url))).toEqual(["m1", "m2", "m3", "m4"]);
+    await tick();
+    expect(g.calls.filter((c) => isBody(c.url))).toHaveLength(4);
+    release();
+    const got = await run;
+    expect(got.map((m) => m.id)).toEqual(list);
+    expect(waits).toEqual([7000]); // not once per download
+  });
+
+  it("aborts the downloads in flight, and the ones nobody awaits never become unhandled rejections", async () => {
+    // Vitest fails the run on an unhandled rejection, so reaching the end of this test is the check for that.
+    const list = ids(10);
+    const signals: AbortSignal[] = [];
+    const g = scriptedFetch(({ url, signal }) => {
+      if (!isBody(url)) return json({ messages: list.map((id) => ({ id })) });
+      signals.push(signal!);
+      return new Promise<Response>((_, reject) => signal!.addEventListener("abort", () => reject(signal!.reason ?? new DOMException("Aborted", "AbortError"))));
+    });
+    const ctl = new AbortController();
+    const run = collect(createGmailProvider(token, { fetch: g.fetch }).fetch(since, () => false, ctl.signal));
+    const settled = run.then(() => null, (e: unknown) => e as Error);
+    await vi.waitFor(() => expect(signals).toHaveLength(FETCH_CONCURRENCY));
+    ctl.abort();
+    expect((await settled)?.name).toBe("AbortError");
+    expect(signals.every((s) => s.aborted)).toBe(true);
+    await tick();
+    expect(signals).toHaveLength(FETCH_CONCURRENCY); // nothing new after the abort
+  });
+
+  it("cancels the downloads in flight when the caller stops reading early", async () => {
+    const list = ids(10);
+    const t = gated(list);
+    const signals: AbortSignal[] = [];
+    const wrapped = scriptedFetch((call) => {
+      if (isBody(call.url)) signals.push(call.signal!);
+      return t.g.fetch(call.url.toString(), { headers: call.headers, signal: call.signal });
+    });
+    const gen = createGmailProvider(token, { fetch: wrapped.fetch }).fetch(since, () => false);
+    const first = gen.next();
+    await vi.waitFor(() => expect(signals).toHaveLength(FETCH_CONCURRENCY));
+    t.release("m1");
+    expect((await first).value).toMatchObject({ id: "m1" });
+    expect(signals.some((s) => s.aborted)).toBe(false);
+    await gen.return(undefined);
+    expect(signals.every((s) => s.aborted)).toBe(true);
+  });
+
+  it("keeps the retry schedule for a single rate-limited download (waits are not doubled)", async () => {
+    const g = gmail([["a"]], { a: raw("a", 1) }, { a: [json({}, 429), json({}, 429)] });
+    const { sleep, waits } = fakeSleep();
+    const got = await collect(createGmailProvider(token, { fetch: g.fetch, sleep }).fetch(since, () => false));
+    expect(got.map((m) => m.id)).toEqual(["a"]);
+    expect(waits).toEqual(RETRY_WAITS.slice(0, 2).map((w) => w * 1000));
   });
 });
 

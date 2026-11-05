@@ -1,9 +1,9 @@
 // syncAccount: windows, saved progress, errors and the review settle pass, against a fake provider.
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MailProvider, Message } from "../../src/types";
 import { NotConnected } from "../../src/types";
-import { syncAccount, syncAll } from "../../src/sync/sync";
+import { syncAccount } from "../../src/sync/sync";
 import { saveSettings } from "../../src/sync/settings";
 import { closeAll, dbWithAccount, mk } from "./helpers";
 
@@ -108,16 +108,30 @@ describe("syncAccount", () => {
   });
 });
 
-describe("syncAll", () => {
-  it("syncs every active account and reports a failure per account", async () => {
-    const { db } = await dbWithAccount();
-    const { upsertAccount, deactivateAccount } = await import("../../src/db/repo");
-    const broken = await upsertAccount(db, "outlook", "me@outlook.com");
-    const off = await upsertAccount(db, "outlook", "old@outlook.com");
-    await deactivateAccount(db, off);
-    const results = await syncAll(db, (a) => (a.id === broken ? provider([], { failAfter: 0, error: new Error("token expired") }) : provider([mk("1", "Thank you for applying to Acme")])), { now });
-    expect(Object.keys(results).sort()).toEqual(["gmail:me@gmail.com", "outlook:me@outlook.com"]);
-    expect(results["gmail:me@gmail.com"]).toEqual({ "applied-to-application": 1 });
-    expect(results["outlook:me@outlook.com"]).toBe("error: token expired");
+describe("pressing Stop", () => {
+  it("is not logged and leaves no error on the account", async () => {
+    const { db, acct } = await dbWithAccount();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(syncAccount(db, acct, provider([], { failAfter: 0, error: new DOMException("Aborted", "AbortError") }), { now })).rejects.toThrow("Aborted");
+      expect(logged).not.toHaveBeenCalled();
+      expect((await db.accounts.get(acct))!.lastError).toBeNull();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("still records a real failure, and reports that failure even when saving the note about it fails", async () => {
+    const { db, acct } = await dbWithAccount();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(syncAccount(db, acct, provider([], { failAfter: 0, error: new Error("token expired") }), { now })).rejects.toThrow("token expired");
+      expect((await db.accounts.get(acct))!.lastError).toBe("Sync stopped because something went wrong. Try again.");
+      const update = vi.spyOn(db.accounts, "update").mockRejectedValue(new Error("database closed"));
+      await expect(syncAccount(db, acct, provider([], { failAfter: 0, error: new Error("token expired") }), { now })).rejects.toThrow("token expired");
+      update.mockRestore();
+    } finally {
+      logged.mockRestore();
+    }
   });
 });

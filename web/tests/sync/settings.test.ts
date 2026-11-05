@@ -34,6 +34,12 @@ describe("settings", () => {
     expect((await saveSettings(db, "appearance", { flowDays: "90" })).flowDays).toBe(90);
   });
 
+  it("refuses a section it doesn't know, rather than saving it under that name", async () => {
+    const db = freshDb();
+    await expect(saveSettings(db, "profile" as never, { lookbackDays: 90 })).rejects.toThrow(/Unknown settings section/);
+    expect(await db.settings.count()).toBe(0);
+  });
+
   it("cannot hide the company and stage columns", () => {
     expect(sanitize("appearance", { columns: ["role"] }).columns).toEqual(["company", "role", "stage"]);
     expect(sanitize("appearance", { columns: ["lastActivity", "bogus"] }).columns).toEqual(["company", "stage", "lastActivity"]);

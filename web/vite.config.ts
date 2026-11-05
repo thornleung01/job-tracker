@@ -11,7 +11,14 @@ export default defineConfig({
     alias: [
       { find: /^\.\.\/site-config\.json$/, replacement: "/tests/fixtures/site-config.empty.json" },
     ],
+    // The same for the build-time IDs: a developer's web/.env.local must not turn a "no IDs" test into a "build IDs" one.
+    env: { VITE_GOOGLE_CLIENT_ID: "", VITE_MS_CLIENT_ID: "" },
     environment: "jsdom",
+    setupFiles: ["tests/support/setup.ts"],
+    // A spy or stubbed global from one test never reaches the next, even when an assertion throws before its own cleanup.
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
     // Generous on purpose: the GitHub runner has 2 shared cores. A passing test never waits for these limits.
     testTimeout: 30000,

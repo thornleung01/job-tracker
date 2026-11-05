@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import flash, utc %}
 {% block title %}Jobs · Job Tracker{% endblock %}
 {% block content %}
 <style>
@@ -19,11 +20,9 @@
   .stack > * + * { margin-top: 28px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px; } @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
   .checks label { display: flex; align-items: center; gap: 10px; min-height: var(--tap); }
-  .checks input { width: 18px; height: 18px; }
   ol.steps { padding-left: 20px; margin: 8px 0 0; } ol.steps li { margin: 6px 0; }
   .src { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--line); }
   .src:first-of-type { border-top: 0; }
-  h2.sec { font-size: 1.25rem; line-height: 1.4; margin: 0 0 6px; }
   .notif { padding: 16px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .notif:first-of-type { border-top: 0; }
   .notif.unread strong { font-weight: 700; }
@@ -31,9 +30,9 @@
 
 <h1 class="page">Jobs</h1>
 
-{% if notice %}<div class="notice" role="status" tabindex="-1" data-focus>{{ notice }}</div>{% endif %}
-{% if error %}<div class="notice err" role="alert" tabindex="-1" data-focus>{{ error }}</div>{% endif %}
-{% if saved_msg %}<div class="notice" role="status" tabindex="-1" data-focus>{{ saved_msg }}</div>{% endif %}
+{{ flash(notice) }}
+{{ flash(error, err=True) }}
+{{ flash(saved_msg) }}
 
 <nav class="tabs" aria-label="Jobs sections">
   <a class="tab" href="/jobs?tab=matches" {% if tab == 'matches' %}aria-current="true"{% endif %}>Matches <span class="n">{{ counts.new }}</span></a>
@@ -55,7 +54,7 @@
   <form method="get" class="row" style="margin-bottom:12px;align-items:flex-end">
     <input type="hidden" name="tab" value="matches"><input type="hidden" name="view" value="{{ view }}">
     <div class="fgroup"><label for="f-min">Show</label>
-      <select id="f-min" name="min" onchange="this.form.requestSubmit()">
+      <select id="f-min" name="min" data-autosubmit>
         {% for v, label in score_choices %}<option value="{{ v }}" {{ 'selected' if v == floor }}>{{ label }}</option>{% endfor %}
       </select></div>
     <noscript><button>Apply</button></noscript>
@@ -105,7 +104,7 @@
     <p class="help">A pop-up appears on this PC when a sync finds new jobs that score {{ profile.min_score }} or more. Each one is listed here too.</p>
     {% for n in notifications %}
       <div class="notif {{ 'unread' if not n.read }}"><div><strong>{{ n.text }}</strong></div>
-        <div class="small muted"><time class="local" datetime="{{ n.created_at }}">{{ n.created_at[:16].replace('T', ' ') }} UTC</time> · <a href="/jobs?tab=matches">See matches</a></div></div>
+        <div class="small muted">{{ utc(n.created_at) }} · <a href="/jobs?tab=matches">See matches</a></div></div>
     {% else %}
       <p class="muted">No notifications yet. They start once a sync finds a job that fits.</p>
     {% endfor %}
@@ -122,7 +121,7 @@
       <input type="file" name="file" accept=".pdf,.docx,.txt" required aria-label="Resume file" style="border-radius:var(--r);padding:8px 12px;min-height:var(--tap)">
       <button class="primary">{{ 'Replace resume' if profile.resume_text else 'Read my resume' }}</button>
     </form>
-    <p class="help" style="margin-top:8px">PDF, Word (.docx) or plain text, up to 5 MB. A scanned image of a resume can't be read.</p>
+    <p class="help" style="margin-top:8px">PDF, Word (.docx) or plain text, up to {{ limits.resume_mb }} MB. A scanned image of a resume can't be read.</p>
     {% if profile.resume_text %}<form method="post" action="/jobs/profile/resume/remove" style="margin-top:8px"><button class="danger">Remove the resume text</button></form>{% endif %}
   </section>
 
@@ -189,7 +188,7 @@
     {% for s in sources %}
       <div class="src"><div><strong>{{ s.company }}</strong> <span class="small muted">{{ s.platform }}</span>
         <div class="small {{ '' if not s.last_error else 'status-bad' }}" style="{{ 'color:var(--rejected)' if s.last_error else 'color:var(--muted)' }}">
-          {% if s.last_error %}{{ s.last_error }}{% elif s.last_checked %}Checked <time class="local" datetime="{{ s.last_checked }}">{{ s.last_checked[:16].replace('T', ' ') }} UTC</time>{% else %}Not checked yet{% endif %}</div></div>
+          {% if s.last_error %}{{ s.last_error }}{% elif s.last_checked %}Checked {{ utc(s.last_checked) }}{% else %}Not checked yet{% endif %}</div></div>
         <form method="post" action="/jobs/sources/{{ s.id }}/remove"><button class="danger">Remove</button></form></div>
     {% else %}
       <p class="muted small">No companies yet.</p>
@@ -201,9 +200,9 @@
     <h2 class="sec" id="h-adz">Adzuna search</h2>
     <p class="help">A free search across many job boards. Get an app ID and key at <a href="https://developer.adzuna.com/" target="_blank" rel="noopener noreferrer">developer.adzuna.com</a>. Only your job titles and cities are sent to Adzuna, never your resume.</p>
     {% if adzuna_ready %}
-      <p class="small">Connected{% if adzuna_row and adzuna_row.last_checked %}, last searched <time class="local" datetime="{{ adzuna_row.last_checked }}">{{ adzuna_row.last_checked[:16].replace('T', ' ') }} UTC</time>{% endif %}.
+      <p class="small">Connected{% if adzuna_row and adzuna_row.last_checked %}, last searched {{ utc(adzuna_row.last_checked) }}{% endif %}.
         {% if adzuna_row and adzuna_row.last_error %}<span style="color:var(--rejected)">{{ adzuna_row.last_error }}</span>{% endif %}</p>
-      {% if adzuna_searches %}<p class="small muted">Each run does {{ adzuna_searches|length }} search{{ 'es' if adzuna_searches|length != 1 }} (up to {{ max_searches }}), at most every 6 hours: {% for what, where, country in adzuna_searches[:6] %}“{{ what }}”{% if where %} in {{ where }}{% endif %} ({{ country|upper }}){{ ', ' if not loop.last }}{% endfor %}{% if adzuna_searches|length > 6 %}, …{% endif %}.</p>
+      {% if adzuna_searches %}<p class="small muted">Each run does {{ adzuna_searches|length }} search{{ 'es' if adzuna_searches|length != 1 }} (up to {{ max_searches }}), at most every {{ limits.adzuna_hours }} hours: {% for what, where, country in adzuna_searches[:6] %}“{{ what }}”{% if where %} in {{ where }}{% endif %} ({{ country|upper }}){{ ', ' if not loop.last }}{% endfor %}{% if adzuna_searches|length > 6 %}, …{% endif %}.</p>
       {% else %}<p class="small muted">Add job titles on your profile so it knows what to search for.</p>{% endif %}
       <form method="post" action="/jobs/sources/adzuna/remove"><button class="danger">Remove Adzuna</button></form>
     {% else %}
@@ -216,13 +215,4 @@
   </section>
   </div>
 {% endif %}
-
-<script>
-  document.querySelectorAll('time.local').forEach(el => {
-    const d = new Date(el.getAttribute('datetime'));
-    if (!isNaN(d)) el.textContent = d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-  });
-  const note = document.querySelector('.notice[data-focus]');
-  if (note) note.focus();
-</script>
 {% endblock %}

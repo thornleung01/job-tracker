@@ -1,8 +1,15 @@
+"""Settings kept per profile in the `settings` table, one JSON section each: appearance, sync, and the job-search profile.
+
+Every value is checked against the lists below when it is read and when it is saved, so a hand-edited or corrupt row falls back
+to the defaults instead of breaking a page.
+"""
 from __future__ import annotations
 
 import json
 import re
 import sqlite3
+
+from .textutil import collapse_spaces
 
 THEMES = ["system", "light", "dark"]
 DENSITIES = ["comfortable", "compact"]
@@ -50,15 +57,11 @@ def clean_list(raw) -> list[str]:
     items = re.split(r"[\n,;]+", raw) if isinstance(raw, str) else list(raw or [])
     seen, out = set(), []
     for item in items:
-        item = re.sub(r"\s+", " ", str(item)).strip()[:MAX_LEN]
+        item = collapse_spaces(item, MAX_LEN)
         if item and item.casefold() not in seen:
             seen.add(item.casefold())
             out.append(item)
     return out[:MAX_ITEMS]
-
-
-def _ensure(conn: sqlite3.Connection) -> None:
-    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
 
 
 def _choice_int(value, allowed: list[int], default: int) -> int:
@@ -73,10 +76,9 @@ def sanitize(section: str, values: dict) -> dict:
     base = DEFAULTS[section]
     out = dict(base)
     if section == "appearance":
-        if values.get("theme") in THEMES: out["theme"] = values["theme"]
-        if values.get("accent") in ACCENTS: out["accent"] = values["accent"]
-        if values.get("density") in DENSITIES: out["density"] = values["density"]
-        if values.get("corners") in CORNERS: out["corners"] = values["corners"]
+        for key, allowed in (("theme", THEMES), ("accent", ACCENTS), ("density", DENSITIES), ("corners", CORNERS)):
+            if values.get(key) in allowed:
+                out[key] = values[key]
         if "columns" in values:
             wanted = values["columns"] if isinstance(values["columns"], list) else [values["columns"]]
             cols = [c for c in COLUMNS if c in wanted]
@@ -101,7 +103,6 @@ def sanitize(section: str, values: dict) -> dict:
 
 
 def load(conn: sqlite3.Connection) -> dict:
-    _ensure(conn)
     stored = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM settings")}
     result = {}
     for section, base in DEFAULTS.items():
@@ -115,7 +116,6 @@ def load(conn: sqlite3.Connection) -> dict:
 
 
 def save(conn: sqlite3.Connection, section: str, values: dict) -> dict:
-    _ensure(conn)
     clean = sanitize(section, values)
     with conn:
         conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "

@@ -1,7 +1,7 @@
 // Python str behaviours the pipeline relies on, where JavaScript's differ. Strings are walked by code point, as Python does.
 import { CASEFOLD_EXCEPTIONS, COMBINING_RANGES, TITLECASE_EXCEPTIONS } from "./unicodeTables";
 
-// str.isspace(): the same set Python's \s, split() and strip() use.
+// str.isspace(): the same set Python's \s, split() and strip() use. JS's \s also matches the BOM, which Python's does not.
 const SPACE_CLASS = /^[\t-\r\x1c-\x20\x85\xa0\u{1680}\u{2000}-\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}]$/u;
 const ALNUM = /^[\p{L}\p{N}]$/u;
 const LOWER = /^\p{Lowercase}$/u;
@@ -40,12 +40,13 @@ export function firstChar(s: string): string {
   return cp === undefined ? "" : String.fromCodePoint(cp);
 }
 
-export const isSpace = (ch: string): boolean => SPACE_CLASS.test(ch);
-export const isAlnum = (ch: string): boolean => ALNUM.test(ch);
+const isSpace = (ch: string): boolean => SPACE_CLASS.test(ch);
+const isAlnum = (ch: string): boolean => ALNUM.test(ch);
 export const isLower = (ch: string): boolean => LOWER.test(ch);
-export const isAscii = (ch: string): boolean => ch.charCodeAt(0) < 128;
+const isAscii = (ch: string): boolean => ch.charCodeAt(0) < 128;
 
-export function combining(ch: string): boolean {
+/** unicodedata.combining(ch) != 0: a binary search of the generated ranges, because JS has no direct equivalent. */
+function combining(ch: string): boolean {
   const cp = ch.codePointAt(0) ?? 0;
   if (cp < 0x300) return false;
   let lo = 0;
@@ -72,6 +73,7 @@ export function strip(s: string, chars?: string): string {
   return cps.slice(a, b).join("");
 }
 
+/** str.rstrip(chars), by code point: unlike JS's trimEnd it takes the set of characters to remove. */
 export function rstrip(s: string, chars: string): string {
   const set = new Set(Array.from(chars));
   const cps = Array.from(s);
@@ -100,11 +102,13 @@ export function partition(s: string, sep: string): [string, string, string] {
   return i < 0 ? [s, "", ""] : [s.slice(0, i), sep, s.slice(i + sep.length)];
 }
 
+/** str.rpartition(sep): splits at the last sep, and a missing sep puts the whole string last (unlike partition). */
 export function rpartition(s: string, sep: string): [string, string, string] {
   const i = s.lastIndexOf(sep);
   return i < 0 ? ["", "", s] : [s.slice(0, i), sep, s.slice(i + sep.length)];
 }
 
+/** str.casefold(): full case folding. toLowerCase alone misses cases like "\u{df}" (to "ss"), so the exceptions come from a table. */
 export function casefold(s: string): string {
   let out = "";
   for (const ch of s) out += CASEFOLD_EXCEPTIONS[ch] ?? ch.toLowerCase();
@@ -133,7 +137,7 @@ export function quote(s: string, safe = "/"): string {
 
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&#34;" };
 
-/** markupsafe.escape */
+/** markupsafe.escape: the five characters it escapes, with its numeric entities for the two quotes. */
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>'"]/g, (c) => ESCAPES[c]);
 }
@@ -142,7 +146,9 @@ export function escapeHtml(s: string): string {
 export function fold(value: string): string {
   const out: string[] = [];
   for (const ch of casefold(value).normalize("NFKD")) {
-    if (combining(ch) && out.length > 0 && isAscii(out[out.length - 1])) continue; // keeps kana/Hangul marks
+    // Marks are dropped, not kept: this one explicitly after an ASCII letter, any other because a mark is not a letter
+    // or digit (so kana with a dakuten fold to the plain kana). Python's own comment says otherwise: PARITY_NOTES 4.
+    if (combining(ch) && out.length > 0 && isAscii(out[out.length - 1])) continue;
     if (isAlnum(ch)) out.push(ch);
   }
   return out.join("");

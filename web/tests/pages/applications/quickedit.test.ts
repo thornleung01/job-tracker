@@ -1,8 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { $, addApp, cleanup, click, freshDb, key, mountPage, text, type, waitFor } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 import { localToday } from "../../../src/db/time";
 
+// Undo stays on screen for 8 s, and "set by you" only shows once it has gone. Tests that wait for that note shorten it.
+const undo = vi.hoisted(() => ({ ms: 8000 }));
+vi.mock("../../../src/components/undo", () => ({ get UNDO_MS() { return undo.ms; } }));
+
+beforeEach(() => {
+  undo.ms = 8000;
+});
 afterEach(cleanup);
 
 const row = (container: HTMLElement, company: string) =>
@@ -37,6 +44,7 @@ describe("quick edits in the list", () => {
   });
 
   it("changes the stage from the dropdown and locks it", async () => {
+    undo.ms = 100;
     const db = freshDb();
     const id = await addApp(db, "Acme", { stage: "Applied" });
     const { container } = await mountPage(ApplicationsPage, db);
@@ -47,7 +55,7 @@ describe("quick edits in the list", () => {
     expect($(row(container, "Acme"), ".badge")?.className).toContain("Interview");
   });
 
-  it("changes the applied date and refuses a day in the future", async () => {
+  it("changes the applied date on Enter, and the field stops at today", async () => {
     const db = freshDb();
     const id = await addApp(db, "Acme", { applied: 20 });
     const { container } = await mountPage(ApplicationsPage, db);
@@ -61,6 +69,33 @@ describe("quick edits in the list", () => {
     expect(document.activeElement?.getAttribute("aria-label")).toContain("edit applied date for Acme");
     expect((await db.applications.get(id))?.appliedAt?.slice(0, 10)).toBe("2026-01-15");
     expect(text($(row(container, "Acme"), "[data-col=applied]"))).toContain("Jan 15");
+  });
+
+  it("says no to a day in the future and keeps the old date", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { applied: 20 });
+    const before = (await db.applications.get(id))?.appliedAt;
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click($(row(container, "Acme"), "button[aria-label$='edit applied date for Acme']"));
+    const field = $(row(container, "Acme"), "input[aria-label='Applied date for Acme']") as HTMLInputElement;
+    await type(field, "2999-01-01");      // typing ignores the field's max, as a pasted or hand-typed date would
+    await key(field, "Enter");
+    await waitFor(() => $(row(container, "Acme"), ".quick-error") !== null);
+    expect(text($(row(container, "Acme"), ".quick-error"))).toBe("The date can't be in the future.");
+    expect($(row(container, "Acme"), "input[type=date]")).not.toBeNull();      // still open, so what you typed isn't lost
+    expect((await db.applications.get(id))?.appliedAt).toBe(before);
+  });
+
+  it("opens the date field on the day the label shows, also for a late-evening mail time", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { applied: 20 });
+    // 9 pm on a local day: the UTC date can be the next one (it is, west of Greenwich), the label and the field must not be.
+    const evening = new Date(2026, 5, 10, 21, 0, 0);
+    await db.applications.update(id, { appliedAt: evening.toISOString().replace(/\.\d{3}Z$/, "Z") });
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click($(row(container, "Acme"), "button[aria-label$='edit applied date for Acme']"));
+    const field = $(row(container, "Acme"), "input[aria-label='Applied date for Acme']") as HTMLInputElement;
+    expect(field.value).toBe("2026-06-10");
   });
 
   it("keeps the focus on the role after Enter, and names the button with the words it shows", async () => {
@@ -92,6 +127,7 @@ describe("quick edits in the list", () => {
   });
 
   it("keeps the stage select focused after a change", async () => {
+    undo.ms = 100;
     const db = freshDb();
     await addApp(db, "Acme", { stage: "Applied" });
     const { container } = await mountPage(ApplicationsPage, db);

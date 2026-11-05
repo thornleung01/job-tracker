@@ -7,11 +7,13 @@ related_targets: ["jobtracker/templates/index.html","jobtracker/templates/flow.h
 
 # Surface brief: Job Tracker (whole app)
 
+Scope: the local edition's templates (`jobtracker/templates/`). The hosted edition (`web/`) follows the same system and has no brief of its own; see DESIGN.md, Hosted-edition patterns.
+
 ## Scope and mode
-Operate. Every page: Applications list (rows expand in place), Flow (Sankey), Needs review, Application detail, Settings. Visual restyle only; behavior, URLs, copy facts, and data do not change.
+Operate. Every page: Applications list (rows expand in place), Flow (Sankey), Needs review, Application detail, Settings. The restyle this brief covered was visual only: behavior, URLs, copy facts, and data did not change.
 
 ## Audience, job, constraints
-One person tracking their own job search on a local PC, who also shows the app to others. Job: see where each application stands, log notes and steps, read the emails behind a status. Works offline, so type is self-hosted. WCAG AA in light and dark. Settings (theme, accent, density, corners, columns) keep working, re-skinned.
+One person tracking their own job search on a local PC, who also shows the app to others. Job: see where each application stands, log dated steps, read the emails behind a status. Works offline, so type is self-hosted. WCAG AA in light and dark. Settings (theme, accent, density, corners, columns) keep working, re-skinned.
 
 ## Direction (brief-pinned, not rolled)
 Wealthsimple's styling from the `use-ws-styling` prototype primer: light grey ground, raised near-white surfaces, true black text, one sans typeface, pill controls, Lucide icons, soft raised strokes and shadows, no uppercase. Wealthsimple's name, logo and proprietary typeface files are not used; Figtree stands in, with Wealthsimple Sans Display named first for devices that have it.

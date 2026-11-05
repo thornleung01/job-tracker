@@ -1,13 +1,16 @@
 """Generate the data the TypeScript pipeline needs from the Python source of truth.
 
-    python scripts/build_rules_json.py
+    python scripts/build_rules_json.py            # rewrites the two generated files
+    python scripts/build_rules_json.py --check    # exit 1 if either is out of date, writes nothing
 
 Writes web/src/pipeline/rules.json (jobtracker/rules.yaml, verbatim) and web/src/pipeline/unicodeTables.ts
 (the few places where Python's str methods differ from JavaScript's: casefold, titlecase, combining classes).
-Commit both outputs. The vitest suite fails when rules.json drifts from rules.yaml.
+Commit both outputs. The vitest suite fails when rules.json drifts from rules.yaml, and so does --check.
+unicodeTables.ts depends on the Unicode version of the Python that runs this (named in its second line).
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import unicodedata
@@ -70,10 +73,18 @@ def build_unicode_tables() -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
-    (OUT_DIR / "rules.json").write_text(build_rules(), encoding="utf-8")
-    (OUT_DIR / "unicodeTables.ts").write_text(build_unicode_tables(), encoding="utf-8")
-    print(f"wrote {OUT_DIR / 'rules.json'} and {OUT_DIR / 'unicodeTables.ts'}")
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Generate web/src/pipeline/rules.json and unicodeTables.ts from the Python source of truth.")
+    ap.add_argument("--check", action="store_true", help="exit 1 if the generated files are out of date, and write nothing")
+    args = ap.parse_args(argv)
+    outputs = {OUT_DIR / "rules.json": build_rules(), OUT_DIR / "unicodeTables.ts": build_unicode_tables()}
+    if args.check:
+        stale = [path.name for path, text in outputs.items() if not path.exists() or path.read_text(encoding="utf-8") != text]
+        print(f"out of date, run scripts/build_rules_json.py: {', '.join(stale)}" if stale else "generated files up to date")
+        return 1 if stale else 0
+    for path, text in outputs.items():
+        path.write_text(text, encoding="utf-8")
+    print(f"wrote {' and '.join(str(p) for p in outputs)}")
     return 0
 
 

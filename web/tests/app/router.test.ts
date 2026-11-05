@@ -42,7 +42,7 @@ describe("matchRoute", () => {
   });
 
   it("ignores OAuth response fragments", () => {
-    for (const h of ["#code=abc&state=xyz", "#error=access_denied&error_description=x", "#state=1", "#id_token=a.b.c&state=1"]) {
+    for (const h of ["#code=abc&state=xyz", "#error=access_denied&error_description=x", "#state=1"]) {
       expect(isAuthResponseHash(h)).toBe(true);
       expect(matchRoute(h)).toMatchObject({ authResponse: true, page: "applications", path: "/" });
     }

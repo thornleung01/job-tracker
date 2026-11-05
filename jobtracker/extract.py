@@ -1,9 +1,16 @@
+"""Read the company and the role out of a job email: from the subject and body, the sender's name, and the sender's domain.
+
+Plain rules, no AI. The hosted edition has a TypeScript port of this module (web/src/pipeline/extract.ts). A change here
+changes what that port must return, so regenerate the golden fixtures (`python scripts/export_fixtures.py`) and commit them
+with the change. See web/src/pipeline/PARITY_NOTES.md.
+"""
 from __future__ import annotations
 
 import re
 import unicodedata
 
 from .classify import is_ats_domain
+from .mailtext import INVISIBLE
 from .models import Message
 
 UNKNOWN_COMPANY = "Unknown company"
@@ -48,7 +55,6 @@ _PATTERNS = [
     re.compile(rf"(?:position|role) of (?P<r>{_TITLE})\s*(?:[.!]|\n|$)", re.I),        # "our position of Customer Experience Lead."
     re.compile(r"next steps for (?:the )?(?P<r>[^|!\n]+?)\s*\|", re.I),                  # "Next Steps for Senior Associate | Name"
 ]
-_INVISIBLE = re.compile("[\u034f\u200b-\u200f\u2060\ufeff\u00ad]")
 
 
 def _clean(value: str | None, limit: int | None = 60) -> str:
@@ -74,7 +80,7 @@ def _clean_role(value: str | None) -> str:
 
 def _tidy(text: str) -> str:
     """Invisible spacer characters (LinkedIn pads its mail with them) and runs of spaces break phrase matching."""
-    text = re.sub("[\u00a0\u2000-\u200a\u202f\u205f\u3000]", " ", _INVISIBLE.sub("", text or ""))  # no-break and other odd spaces
+    text = re.sub("[\u00a0\u2000-\u200a\u202f\u205f\u3000]", " ", INVISIBLE.sub("", text or ""))  # no-break and other odd spaces
     return re.sub(r"[ \t]+", " ", text)
 
 

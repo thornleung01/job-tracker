@@ -1,0 +1,6 @@
+/* The sync progress bar (SyncBar), used by the Settings sync card and the sync banner. */
+.bar { height: 10px; border-radius: var(--r-pill); background: var(--fog); overflow: hidden; position: relative; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .5s ease-out; }
+.bar.indet > i { position: absolute; width: 35%; animation: sync-bar-slide 1.4s ease-in-out infinite; }
+@keyframes sync-bar-slide { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } .bar.indet > i { animation: none; width: 100%; opacity: .35; } }

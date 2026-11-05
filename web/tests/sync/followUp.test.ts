@@ -9,6 +9,9 @@ import { closeAll, freshDb } from "./helpers";
 
 afterEach(closeAll);
 
+// the app tsconfig has no Node types; the tests run in Node
+declare const process: { env: Record<string, string | undefined> };
+
 describe("needsFollowUp", () => {
   it("waits a week", () => {
     expect(FOLLOW_UP_DAYS).toBe(7);
@@ -31,7 +34,9 @@ describe("needsFollowUp", () => {
 });
 
 describe("the follow-up filter", () => {
-  const NOW = new Date("2026-11-05T12:00:00Z");
+  // Not exactly 12:00:00Z: that time is read as a day someone picked (db/time.ts), which is the same day in every zone and would
+  // make "6 days ago" 7 calendar days in zones east of UTC+12.
+  const NOW = new Date("2026-11-05T12:30:00Z");
   const ago = (days: number) => iso(new Date(NOW.getTime() - days * 86_400_000));
 
   async function seed() {
@@ -79,5 +84,31 @@ describe("the follow-up filter", () => {
   it("leaves the stage counts alone", async () => {
     const counts = await stageCounts(await seed());
     expect([counts.Applied, counts["Heard back"], counts.Interview]).toEqual([4, 1, 1]);
+  });
+});
+
+describe("idle days are calendar days", () => {
+  it("count a quiet evening as a whole day, so a follow-up shows up on the date the list says it is a week", async () => {
+    const before = process.env.TZ;
+    process.env.TZ = "America/Toronto";
+    try {
+      const db = freshDb();
+      // last activity at 9 pm on Oct 29 in Toronto; it is 9 am on Nov 5: 6.5 days have passed, and the calendar says 7
+      const id = await createApplication(db, { company: "Acme", companyKey: "acme", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-10-30T01:00:00Z" });
+      const [row] = await listApplications(db, { now: new Date("2026-11-05T14:00:00Z") });
+      expect([row.id, row.idleDays, row.followUp]).toEqual([id, 7, true]);
+      const [sooner] = await listApplications(db, { now: new Date("2026-11-05T04:00:00Z") }); // 11 pm on Nov 4: only 6 calendar days
+      expect([sooner.idleDays, sooner.followUp]).toEqual([6, false]);
+    } finally {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    }
+  });
+
+  it("are never negative, so a stamp a little ahead of the clock is today", async () => {
+    const db = freshDb();
+    await createApplication(db, { company: "Acme", companyKey: "acme", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-11-06T12:00:00Z" });
+    const [row] = await listApplications(db, { now: new Date("2026-11-05T12:00:00Z") });
+    expect(row.idleDays).toBe(0);
   });
 });

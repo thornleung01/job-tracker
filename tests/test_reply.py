@@ -1,6 +1,5 @@
-"""Replying (written in your own webmail, since the app only reads) and showing which email is newest."""
+"""The reply links that open your own webmail, and showing which email is newest."""
 import re
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pytest

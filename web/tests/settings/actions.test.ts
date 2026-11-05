@@ -112,7 +112,7 @@ describe("runSync", () => {
     expect(createProvider).toHaveBeenCalledTimes(1);
   });
 
-  it("reports progress and passes oldestFirst to Gmail only", async () => {
+  it("reports progress and asks both providers for oldest first", async () => {
     const db = freshDb();
     await upsertAccount(db, "gmail", "a@gmail.com");
     await upsertAccount(db, "outlook", "b@outlook.com");
@@ -121,7 +121,7 @@ describe("runSync", () => {
     await runSync(db, { tokenSource: vi.fn(), createProvider: createProvider as never, isConnected: () => true }, { onAccount: (l) => labels.push(l) });
     expect(labels).toEqual(["Gmail a@gmail.com", "Outlook b@outlook.com"]);
     expect(createProvider.mock.calls[0][2]).toMatchObject({ oldestFirst: true });
-    expect(createProvider.mock.calls[1][2]).toEqual({});
+    expect(createProvider.mock.calls[1][2]).toEqual({ oldestFirst: true });
   });
 
   it("skips inactive accounts and stops when aborted", async () => {
@@ -183,6 +183,6 @@ describe("import helpers", () => {
 
   it("words the result and names the file", () => {
     expect(describeImport({ applications: 1, emails: 2 } as never)).toBe("Imported 1 application and 2 emails.");
-    expect(exportFilename(new Date("2026-11-03T12:00:00Z"))).toBe("job-tracker-2026-11-03.json");
+    expect(exportFilename(new Date(2026, 10, 3, 12, 0))).toBe("job-tracker-2026-11-03.json");
   });
 });

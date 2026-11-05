@@ -67,3 +67,10 @@ export function parseAddress(value: string): { name: string; email: string } {
   if (name.startsWith('"') && name.endsWith('"') && name.length >= 2) name = name.slice(1, -1).replace(/\\(.)/g, "$1");
   return { name: decodeMimeWords(name).trim(), email };
 }
+
+/** The sender marked it as a mailing list or newsletter: List-Unsubscribe, List-Id, or Precedence bulk/list/junk. `headers` has lowercase names. */
+export function isBulk(headers: Record<string, string>): boolean {
+  return Boolean(
+    headers["list-unsubscribe"] || headers["list-id"] || ["bulk", "list", "junk"].includes((headers["precedence"] ?? "").trim().toLowerCase()),
+  );
+}

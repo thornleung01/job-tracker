@@ -1,4 +1,4 @@
-/* Shared stylesheet, ported verbatim from jobtracker/templates/base.html (the local edition). Keep the two in step. See DESIGN.md. */
+/* Shared stylesheet, first ported from jobtracker/templates/base.html (the local edition); the two copies have since diverged in places. form.who, .reply-form and article.sent style markup that only the local edition has. See DESIGN.md. */
   /* Typeface: Wealthsimple Sans Display is used when it is installed on the device. Figtree is the self-hosted stand-in, so the app works offline. */
   @font-face { font-family: "Figtree"; src: url("../assets/fonts/Figtree-latin-wght.woff2") format("woff2"); font-weight: 300 900; font-style: normal; font-display: swap; }
 
@@ -9,6 +9,7 @@
     --fog: rgba(0,0,0,.05); --hover: rgba(0,0,0,.04);   /* inactive-bg, a touch stronger than the 3% reference so badges and the current tab stay visible */
     --ink: #000000; --muted: rgba(0,0,0,.55); --line: rgba(0,0,0,.08);
     --field-line: #8c8c8c;          /* control borders: 3:1 against the surface, unlike the decorative --line */
+    --accent-l: #000000; --accent-d: #ffffff;   /* graphite, the default: the app writes the chosen accent over these, and primary buttons have a fill before it does */
     --accent: var(--accent-l); --accent-ink: #ffffff; --accent-end: color-mix(in srgb, var(--accent), #fff 16%);
     --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
     --raise-btn: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10);
@@ -73,7 +74,8 @@
   }
   :root[data-density="compact"] { --pad: 12px; --cell-y: 8px; --gap: 12px; --section: 24px; --tap: 36px; }
   @media (min-width: 721px) { :root[data-density="compact"] { --section: 40px; } }
-  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; } }
+  :root { --tap-sm: calc(var(--tap) - 8px); }   /* small controls (Undo, Delete on a history row, quick edits) keep a 36px target, and 44px on touch */
+  @media (pointer: coarse) { :root, :root[data-density="compact"] { --tap: 44px; --tap-sm: 44px; } }
   :root[data-corners="sharp"] { --r-pill: 3px; --r-lg: 3px; --r: 3px; --r-seg: 3px; }
 
   * { box-sizing: border-box; }
@@ -84,6 +86,10 @@
   ::selection { background: color-mix(in srgb, var(--ink) 20%, transparent); }
   input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
   a { color: inherit; text-decoration: none; }
+  /* A link in running text has no underline (DESIGN.md), so it is told apart by full-contrast ink, weight 500 and a tonal hover. Buttons, tabs and the
+     other link components style themselves. */
+  :is(p, li, .notice, .help, .small, .muted) a:not(.btn, .back, .expander, .sort) { color: var(--ink); font-weight: 500; border-radius: var(--r-seg); }
+  :is(p, li, .notice, .help, .small, .muted) a:not(.btn, .back, .expander, .sort):hover { background: var(--hover); }
   a, button, summary, label, select { touch-action: manipulation; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 16px 96px; }   /* the page gutter is 16px at every width */
 
@@ -146,7 +152,7 @@
                    box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
   button.primary:hover:not(:disabled) { background: linear-gradient(180deg, color-mix(in srgb, var(--accent), var(--bg) 14%), color-mix(in srgb, var(--accent-end), var(--bg) 14%)); }
   button.danger { color: var(--rejected); }
-  button.quiet, button.hist-del { background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.07)); box-shadow: none; }
+  button.quiet, button.hist-del { background: linear-gradient(180deg, var(--hover), var(--fog)); box-shadow: none; }   /* tokens, so the fill shows in dark too */
   button:disabled { opacity: .5; cursor: not-allowed; }
   button[aria-busy="true"] { cursor: progress; }
   button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
@@ -223,6 +229,9 @@
             border-radius: var(--r); margin-bottom: var(--gap); }
   .notice::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 3px; background: currentColor;
     -webkit-mask: var(--ico-info) center / contain no-repeat; mask: var(--ico-info) center / contain no-repeat; }
+  .notice:focus { outline: none; }   /* a result notice takes focus, but it is not a control */
+  .notice > div > .line { margin: 0; }
+  .notice > div > .line + .line { margin-top: 4px; }
   .notice.err { border-color: var(--rejected); }
   .notice.err::before { color: var(--rejected); -webkit-mask-image: var(--ico-alert); mask-image: var(--ico-alert); }
   form.inline { display: inline; }
@@ -279,13 +288,14 @@
     .list-card table.list th a.sort { padding: 0 16px; border-radius: var(--r-pill); background: var(--fog); min-height: var(--tap); font-weight: 500; }
     /* The column the list is sorted by is the filled one. */
     .list-card table.list th[aria-sort="ascending"] a.sort, .list-card table.list th[aria-sort="descending"] a.sort { background: var(--accent); color: var(--accent-ink); }
-    .list-card table.list tr.app-row { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    .list-card table.list tr.app-row { display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; align-items: center; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
     .list-card table.list tr.app-row > td, .list-card table.list tr.app-row > td:first-child, .list-card table.list tr.app-row > td:last-child { display: block; padding: 0; border: 0; background: none; }
     .list-card tr.app-row:hover { background: var(--hover); }
     .list-card tr.app-row.is-open { background: var(--linen); }
-    .list-card td[data-col="company"] { grid-column: 1; }
-    .list-card td[data-col="stage"] { grid-column: 2; grid-row: 1; justify-self: end; }
-    .list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 1 / -1; padding-left: 28px; margin-top: 2px; }
+    /* Three columns: the checkbox (components/bulk/bulk.css places it), the company and the stage. The last activity sits under the company. */
+    .list-card td[data-col="company"] { grid-column: 2; grid-row: 1; }
+    .list-card td[data-col="stage"] { grid-column: 3; grid-row: 1; justify-self: end; }
+    .list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 2 / -1; padding-left: 28px; margin-top: 2px; }
     .list-card table.list tr.panel-row { display: block; }
     .list-card table.list tr.panel-row[hidden] { display: none; }
     .list-card table.list tr.panel-row > td { display: block; }
@@ -322,7 +332,7 @@
     .panel-split { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 32px 48px; align-items: start; }
     .panel-split .panel-history .panel-h-history { margin-top: 12px; }
   }
-  .panel-h { font: 500 1rem/1.375 var(--font-ui); margin: 12px 0 8px; }
+  .panel-h { font: 500 1rem/1.375 var(--font-ui); letter-spacing: inherit; margin: 12px 0 8px; }   /* an h2 under a list row, an h3 on the detail page */
   .panel-status { min-height: 1.2em; outline: none; }
   ol.hist { list-style: none; margin: 0; padding: 0; }
   ol.hist li { padding: 12px 0; border-top: 1px solid var(--line); }
@@ -344,7 +354,6 @@
   .person { padding: 14px 0; border-top: 1px solid var(--line); }
   ul.people > li:first-child .person { border-top: 0; padding-top: 4px; }
   .person-head { display: flex; gap: 6px 10px; align-items: baseline; flex-wrap: wrap; }
-  .person-name { font: 500 1rem/1.375 var(--font-ui); margin: 0; }
   .person-title { margin: 2px 0 6px; }
   .person-meta { margin: 0; color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
   ul.thread { list-style: none; padding: 0; margin: 6px 0 0; }
@@ -370,7 +379,7 @@
   details.action.primary > summary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
                                      box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
   details.action.primary > summary:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent), var(--bg) 14%), color-mix(in srgb, var(--accent-end), var(--bg) 14%)); }
-  details.action[open] > summary { background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.07)); color: var(--ink); box-shadow: none; }
+  details.action[open] > summary { background: linear-gradient(180deg, var(--hover), var(--fog)); color: var(--ink); box-shadow: none; }
   details.action > :not(summary) { margin-top: 12px; }
   .reply-form { margin-top: 12px; max-width: 68ch; }
   .reply-form textarea { width: 100%; box-sizing: border-box; }
@@ -378,8 +387,8 @@
   .tag.latest { background: var(--accent); color: var(--accent-ink); }
   a.btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-end)); color: var(--accent-ink);
                   box-shadow: inset 0 1px 0 var(--btn-hi), inset 0 -1px 0 var(--btn-lo), 0 4px 12px var(--btn-drop); }
-  button.hist-del { min-height: 34px; padding: 0 14px; font-size: 0.875rem; }
-  details.mail > summary { list-style: none; cursor: pointer; min-height: 34px; }
+  button.hist-del { min-height: var(--tap-sm); padding: 0 14px; font-size: 0.875rem; }
+  details.mail > summary { list-style: none; cursor: pointer; min-height: var(--tap-sm); }
   details.mail > summary::-webkit-details-marker { display: none; }
   details.mail[open] > summary .chev { transform: rotate(90deg); }
   details.mail > summary strong { font-weight: 700; }

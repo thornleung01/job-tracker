@@ -1,6 +1,8 @@
 // Reads a schema.org JobPosting out of JSON-LD in a page or in pasted HTML. Parsing is done on a detached document.
 import type { JobDraft } from "./types";
-import { MAX_COMPANY_CHARS, MAX_LOCATION_CHARS, MAX_ROLE_DISPLAY_CHARS, cleanJobUrl, sanitizeText } from "./url";
+import { isRecord } from "../db/isRecord";
+import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS } from "../db/limits";
+import { cleanJobUrl, sanitizeText } from "./url";
 
 const MAX_HTML_CHARS = 2_000_000;
 const MAX_NODES = 5000;
@@ -8,8 +10,6 @@ const MAX_DEPTH = 10;
 
 type Json = unknown;
 type Obj = Record<string, unknown>;
-
-const isObj = (v: Json): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
  * The first complete JSON value in the text, tolerating junk before and after it and raw line breaks inside strings.
@@ -65,7 +65,7 @@ export function findJobPosting(root: Json): Obj | null {
       }
       return null;
     }
-    if (!isObj(node)) return null;
+    if (!isRecord(node)) return null;
     if (typeIncludes(node, "JobPosting")) return node;
     for (const key of Object.keys(node)) {
       if (key === "@context") continue;
@@ -82,35 +82,35 @@ const text = (v: Json, limit: number) => sanitizeText(v, limit);
 
 function nameOf(v: Json, limit: number): string {
   if (typeof v === "string") return text(v, limit);
-  return isObj(v) ? text(v.name, limit) : "";
+  return isRecord(v) ? text(v.name, limit) : "";
 }
 
 function placeText(place: Json): string {
-  if (typeof place === "string") return text(place, MAX_LOCATION_CHARS);
-  if (!isObj(place)) return "";
+  if (typeof place === "string") return text(place, GUESS_LOCATION_CHARS);
+  if (!isRecord(place)) return "";
   const addr = place.address ?? place;
-  if (typeof addr === "string") return text(addr, MAX_LOCATION_CHARS);
-  if (!isObj(addr)) return nameOf(place, MAX_LOCATION_CHARS);
-  const parts = [addr.addressLocality, addr.addressRegion, isObj(addr.addressCountry) ? addr.addressCountry.name : addr.addressCountry]
-    .map((p) => text(p, MAX_LOCATION_CHARS))
+  if (typeof addr === "string") return text(addr, GUESS_LOCATION_CHARS);
+  if (!isRecord(addr)) return nameOf(place, GUESS_LOCATION_CHARS);
+  const parts = [addr.addressLocality, addr.addressRegion, isRecord(addr.addressCountry) ? addr.addressCountry.name : addr.addressCountry]
+    .map((p) => text(p, GUESS_LOCATION_CHARS))
     .filter(Boolean);
-  return parts.length ? [...new Set(parts)].join(", ") : text(place.name, MAX_LOCATION_CHARS);
+  return parts.length ? [...new Set(parts)].join(", ") : text(place.name, GUESS_LOCATION_CHARS);
 }
 
 function locationOf(job: Obj): string {
   const physical = asList(job.jobLocation).map(placeText).filter(Boolean);
-  const applicant = asList(job.applicantLocationRequirements).map((p) => nameOf(p, MAX_LOCATION_CHARS)).filter(Boolean);
+  const applicant = asList(job.applicantLocationRequirements).map((p) => nameOf(p, GUESS_LOCATION_CHARS)).filter(Boolean);
   const places = [...new Set(physical.length ? physical : applicant)].slice(0, 3);
   const remote = asList(job.jobLocationType).some((t) => typeof t === "string" && t.toUpperCase() === "TELECOMMUTE");
   const joined = places.join("; ");
-  if (remote) return text(joined ? `Remote (${joined})` : "Remote", MAX_LOCATION_CHARS);
-  return text(joined, MAX_LOCATION_CHARS);
+  if (remote) return text(joined ? `Remote (${joined})` : "Remote", GUESS_LOCATION_CHARS);
+  return text(joined, GUESS_LOCATION_CHARS);
 }
 
 /** A draft from a JobPosting object, or null when it names neither a title nor an employer. */
 export function draftFromJobPosting(job: Obj, source: JobDraft["source"], fallbackUrl = ""): JobDraft | null {
-  const role = text(job.title ?? job.name, MAX_ROLE_DISPLAY_CHARS);
-  const company = nameOf(job.hiringOrganization, MAX_COMPANY_CHARS);
+  const role = text(job.title ?? job.name, GUESS_ROLE_CHARS);
+  const company = nameOf(job.hiringOrganization, GUESS_COMPANY_CHARS);
   if (!role && !company) return null;
   const url = typeof job.url === "string" ? cleanJobUrl(job.url) : "";
   return {

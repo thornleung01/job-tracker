@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+from .. import db
 from ..providers.base import token_persistence
 from .text import looks_remote
 
@@ -79,4 +80,4 @@ def due(last_checked: str | None, now: datetime | None = None) -> bool:
     if not last_checked:
         return True
     now = now or datetime.now(timezone.utc)
-    return now - datetime.fromisoformat(last_checked.replace("Z", "+00:00")) >= MIN_INTERVAL
+    return now - db.parse_iso(last_checked) >= MIN_INTERVAL

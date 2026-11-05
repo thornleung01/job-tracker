@@ -6,6 +6,7 @@
 | Branch | `easy-connect` |
 | Commit reviewed | `1ccccec`, "Harden the one-click connect flow after review" |
 | Working tree | No modified tracked files before or after the review. The only untracked paths are `.claude/` and this `docs/` folder, which is not committed. |
+| Resolution | [RESOLUTION.md](RESOLUTION.md) records what was done about each group of findings, what was skipped and why, and what is left for the owner |
 | Raw evidence | [reports/](reports/) (12 reviewer reports) and [validation/](validation/) (4 skeptic reports) |
 
 ## 1. Review identity
@@ -804,6 +805,7 @@ Each has a recommendation. These are recommendations from the evidence in the re
 | Path | What it is |
 |---|---|
 | `README.md` | This document |
+| `RESOLUTION.md` | What was fixed, skipped or left to the owner after this review |
 | `reports/security-web.md` | Security and privacy, hosted edition (9 findings) |
 | `reports/security-python.md` | Security and privacy, local edition (10) |
 | `reports/bestpractices-web-logic.md` | Best practices, sync, db, providers, auth, pipeline (24) |

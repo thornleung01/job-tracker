@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GIS_SRC, POPUP_HINT, TOKENINFO_URL, createGisLoader, createGoogleAuth, type GisApi } from "../../src/auth/google";
+import { GIS_SRC, GMAIL_PROFILE_URL, GOOGLE_LOGIN_SCOPES, GOOGLE_UNREACHABLE, POPUP_HINT, TOKENINFO_URL, createGisLoader, createGoogleAuth, type GisApi } from "../../src/auth/google";
 import { NotConnected } from "../../src/types";
 import { CLIENT_ID, NOW } from "./helpers";
 
 const MAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
-const LOGIN_SCOPE = `openid email profile ${MAIL_SCOPE}`;
+const LOGIN_SCOPE = `openid email ${MAIL_SCOPE}`;
 
 type TokenConfig = Parameters<GisApi["accounts"]["oauth2"]["initTokenClient"]>[0];
 type Overrides = Parameters<ReturnType<GisApi["accounts"]["oauth2"]["initTokenClient"]>["requestAccessToken"]>[0];
@@ -14,7 +14,7 @@ function fakeGis() {
     tokenConfigs: [] as TokenConfig[],
     requests: [] as { cfg: TokenConfig; overrides: Overrides }[],
     revoked: [] as string[],
-    respond: ((cfg: TokenConfig) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: `openid email profile ${MAIL_SCOPE}` })) as (cfg: TokenConfig) => void,
+    respond: ((cfg: TokenConfig) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: `openid email ${MAIL_SCOPE}` })) as (cfg: TokenConfig) => void,
   };
   const api: GisApi = {
     accounts: {
@@ -57,6 +57,13 @@ function setup(over: Partial<Parameters<typeof createGoogleAuth>[0]> = {}, info:
 
 const rejection = async (p: Promise<unknown>) => (await p.then(() => null, (e: unknown) => e)) as Error;
 
+describe("google login scopes", () => {
+  it("asks for openid and email only: the app reads the account id and address, never the profile", () => {
+    expect(GOOGLE_LOGIN_SCOPES).toBe("openid email");
+    expect(GOOGLE_LOGIN_SCOPES.split(" ")).not.toContain("profile");
+  });
+});
+
 describe("google signIn (token client)", () => {
   it("prepare() creates the token client once, with the login and mail scopes", async () => {
     const { s, auth } = setup();
@@ -64,7 +71,7 @@ describe("google signIn (token client)", () => {
     await auth.prepare();
     expect(s.tokenConfigs).toHaveLength(1);
     expect(s.tokenConfigs[0].client_id).toBe(CLIENT_ID);
-    expect(s.tokenConfigs[0].scope).toBe("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+    expect(s.tokenConfigs[0].scope).toBe("openid email https://www.googleapis.com/auth/gmail.readonly");
     expect(s.requests).toHaveLength(0);
   });
 
@@ -135,6 +142,23 @@ describe("google signIn (token client)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("never writes the access token to the console, whatever fails", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      const { auth, fetchMock } = setup();
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await auth.prepare();
+      await rejection(auth.signIn());
+      fetchMock.mockResolvedValueOnce(new Response("", { status: 405 }));
+      fetchMock.mockResolvedValueOnce(new Response("nope", { status: 400 }));
+      await rejection(auth.signIn());
+      const written = spies.flatMap((spy) => spy.mock.calls.map((args) => args.map(String).join(" ")));
+      expect(written.filter((line) => line.includes("ya29.token"))).toEqual([]);
+    } finally {
+      spies.forEach((spy) => spy.mockRestore());
+    }
+  });
+
   it("does not retry other error statuses as a GET", async () => {
     const { auth, fetchMock } = setup({}, () => jsonResponse({ error: "invalid_token" }, 400));
     await auth.prepare();
@@ -190,7 +214,7 @@ describe("google signIn (token client)", () => {
 
   it("logs in without mail when the person unticks Gmail", async () => {
     const { s, auth } = setup();
-    s.respond = (cfg) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile" });
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: "openid https://www.googleapis.com/auth/userinfo.email" });
     await auth.prepare();
     await expect(auth.signIn()).resolves.toEqual({
       user: { iss: "https://accounts.google.com", sub: "1098765432", provider: "google", email: "ada@example.com" },
@@ -202,7 +226,7 @@ describe("google signIn (token client)", () => {
     const { s, auth } = setup();
     await auth.prepare();
     const result = await auth.signIn({ mail: false });
-    expect(s.requests[0].overrides).toEqual({ prompt: "", scope: "openid email profile" });
+    expect(s.requests[0].overrides).toEqual({ prompt: "", scope: "openid email" });
     expect(result.mail).toBeNull();
     expect(result.user.sub).toBe("1098765432");
   });
@@ -220,7 +244,7 @@ describe("google signIn (token client)", () => {
     await auth.prepare();
     await auth.signIn();
     expect(s.revoked).toEqual([]);
-    s.respond = (cfg) => cfg.callback({ access_token: "ya29.login-only", expires_in: 3600, scope: "openid email profile" });
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.login-only", expires_in: 3600, scope: "openid email" });
     await auth.signIn({ mail: false });
     await auth.signIn();
     expect(s.revoked).toEqual([]);
@@ -282,6 +306,34 @@ describe("google mail token (token client)", () => {
     await expect(auth.requestMailToken()).rejects.toBeInstanceOf(NotConnected);
   });
 
+  it.each(["consent_required", "login_required", "invalid_grant", "access_denied"])("throws NotConnected when Google answers %s: the person has to act", async (error) => {
+    const { s, auth } = setup();
+    s.respond = (cfg) => cfg.callback({ error });
+    await expect(auth.requestMailToken()).rejects.toBeInstanceOf(NotConnected);
+  });
+
+  it.each(["server_error", "temporarily_unavailable", "network_error"])("throws a plain retryable error, not NotConnected, when Google answers %s", async (error) => {
+    const { s, auth } = setup();
+    s.respond = (cfg) => cfg.callback({ error });
+    const err = await rejection(auth.requestMailToken());
+    expect(err).not.toBeInstanceOf(NotConnected);
+    expect(err.message).toBe(GOOGLE_UNREACHABLE);
+  });
+
+  it("treats an answer with neither a token nor an error code as transient", async () => {
+    const { s, auth } = setup();
+    s.respond = (cfg) => cfg.callback({});
+    expect(await rejection(auth.requestMailToken())).not.toBeInstanceOf(NotConnected);
+  });
+
+  it("treats an unknown window failure as transient, but a blocked or closed window as NotConnected", async () => {
+    const { s, auth } = setup();
+    s.respond = (cfg) => cfg.error_callback?.({ type: "unknown" });
+    const err = await rejection(auth.requestMailToken());
+    expect(err).not.toBeInstanceOf(NotConnected);
+    expect(err.message).toBe(GOOGLE_UNREACHABLE);
+  });
+
   it("throws NotConnected when the popup is blocked or closed", async () => {
     const { s, auth } = setup();
     s.respond = (cfg) => cfg.error_callback?.({ type: "popup_failed_to_open" });
@@ -313,6 +365,58 @@ describe("google mail token (token client)", () => {
   });
 });
 
+describe("google mailboxAddress", () => {
+  it("reads the Gmail profile with the token as a bearer", async () => {
+    const { auth, fetchMock } = setup({}, () => jsonResponse({ emailAddress: "Ada@Gmail.com" }));
+    await expect(auth.mailboxAddress("ya29.mail")).resolves.toBe("Ada@Gmail.com");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(GMAIL_PROFILE_URL);
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer ya29.mail");
+  });
+
+  it("fails plainly when Google answers with an error or no address", async () => {
+    await expect(setup({}, () => jsonResponse({}, 401)).auth.mailboxAddress("t")).rejects.toThrow(/didn't share/);
+    await expect(setup({}, () => jsonResponse({})).auth.mailboxAddress("t")).rejects.toThrow(/didn't share/);
+  });
+
+  it("says Google can't be reached when the request fails to send, with a plain Error", async () => {
+    const { auth, fetchMock } = setup();
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const err = await rejection(auth.mailboxAddress("t"));
+    expect(err).not.toBeInstanceOf(NotConnected);
+    expect(err.message).toBe(GOOGLE_UNREACHABLE);
+  });
+
+  it("reports an abort as an AbortError", async () => {
+    const { auth, fetchMock } = setup();
+    const ac = new AbortController();
+    fetchMock.mockImplementationOnce(async () => {
+      ac.abort();
+      throw new TypeError("aborted");
+    });
+    await expect(auth.mailboxAddress("t", ac.signal)).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("google signIn when the window can't open", () => {
+  it("turns an exception from requestAccessToken into a rejection, and leaves nothing pending", async () => {
+    const { s, auth } = setup();
+    s.respond = () => { throw new Error("popup blocked by the browser"); };
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow("popup blocked by the browser");
+    // The next try works: the failed one didn't leave a pending request that would be rejected as cancelled.
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: LOGIN_SCOPE });
+    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+  });
+
+  it("wraps something thrown that isn't an Error", async () => {
+    const { s, auth } = setup();
+    s.respond = () => { throw "nope"; };
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow("nope");
+  });
+});
+
 describe("createGisLoader", () => {
   afterEach(() => {
     delete (window as unknown as { google?: unknown }).google;
@@ -333,6 +437,18 @@ describe("createGisLoader", () => {
     await expect(b).resolves.toBe(api);
     await expect(load()).resolves.toBe(api);
     expect(scripts()).toHaveLength(1);
+  });
+
+  it("says so when the script loads but Google's login isn't there (a content blocker can do this), and can retry", async () => {
+    const load = createGisLoader(document, window);
+    const first = load();
+    scripts()[0].onload?.(new Event("load"));
+    await expect(first).rejects.toThrow("Google login didn't load. Reload the page and try again.");
+    const second = load();
+    const { api } = fakeGis();
+    (window as unknown as { google: GisApi }).google = api;
+    scripts()[1].onload?.(new Event("load"));
+    await expect(second).resolves.toBe(api);
   });
 
   it("can retry after a failed load", async () => {

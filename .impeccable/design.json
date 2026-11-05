@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-03T00:00:00Z",
+  "generatedAt": "2026-11-05T00:00:00Z",
   "title": "Design System: Job Tracker",
   "extensions": {
     "colorMeta": {
@@ -283,7 +283,7 @@
       "coarsePointer": "tap is 44px in every density"
     },
     "corners": {
-      "round": {
+      "soft": {
         "pill": "999px",
         "card": "20px",
         "sm": "12px",
@@ -295,7 +295,7 @@
       "theme: system | light | dark",
       "accent: graphite | bronze | forest | clay",
       "density: comfortable | compact",
-      "corners: round | sharp",
+      "corners: soft | sharp",
       "list columns (Company and Stage fixed)"
     ],
     "flowChart": {
@@ -330,6 +330,18 @@
       "neutral": [
         "#8c8c8c",
         "#8a8a8a"
+      ]
+    },
+    "hostedPatterns": {
+      "note": "The hosted edition (web/) follows the same system. DESIGN.md, Hosted-edition patterns, has the full list; these are the ones that differ from the local edition's templates.",
+      "items": [
+        "Demo banner: one quiet status row (\"Demo mode: not logged in, data stays in this browser.\") with text actions, never a primary button.",
+        "Removals ask in place with the shared InlineConfirm, not a browser dialog: focus starts on Cancel, Escape closes it and returns focus to the control that opened it. Merge asks in place with its own small form.",
+        "Links in running text are ink at weight 500 with no underline and a tonal hover.",
+        "Settings is split into one card per section, with section links at the top that jump to each card.",
+        "Every dated row in History ends at the same edge.",
+        "The header has no Jobs link (the Jobs tab is local-only).",
+        "Log in page: two equal Continue with buttons; the setup guide at #/setup is numbered steps in cards."
       ]
     }
   },
@@ -401,7 +413,7 @@
   ],
   "narrative": {
     "northStar": "The Quiet Ledger",
-    "overview": "Job Tracker follows the Wealthsimple prototype styling reference (a hand-distilled approximation, not the real design system). It speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairlines inside cards, and nothing that shouts.\n\nDepth comes from raised surfaces: a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass. Color is rationed to six stage-badge tones, the Sankey data-viz colors, and one user-selectable accent (black by default). The user owns the finish via theme, accent, density and corners settings.",
+    "overview": "Job Tracker follows the Wealthsimple prototype styling reference (a hand-distilled approximation, not the real design system). It speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairlines inside cards, and nothing that shouts.\n\nDepth comes from raised surfaces: a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass. Color is rationed to the one stage colour map (six stage dots and words, also used by the Sankey), and one user-selectable accent (black by default). The user owns the finish via theme, accent, density and corners settings.",
     "keyCharacteristics": [
       "Light grey ground, near-white raised surfaces, true black text; dark theme is pure black with #171717 surfaces.",
       "One sans typeface (Wealthsimple Sans Display when installed, Figtree otherwise); weights 400, 500, 700.",
@@ -461,7 +473,7 @@
       "Don't hand-author icon paths, or use emoji or unicode glyphs as icons.",
       "Don't uppercase text, underline links, or use tabular numbers.",
       "Don't use a weight outside 400, 500 and 700.",
-      "Don't introduce a new accent color outside the four choices, or color a badge beyond the six stage tones.",
+      "Don't introduce a new accent color outside the four choices, or color a stage beyond its entry in the one stage map.",
       "Don't scale list rows, tabs or other items that share edges with siblings on press.",
       "Don't hard-code px radii, #000/#fff in component rules, or hairline-colored borders on inputs.",
       "Don't use Wealthsimple's name, logo, wordmark or font files in the shipped app."

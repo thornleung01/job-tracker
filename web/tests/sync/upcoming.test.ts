@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dayText } from "../../src/components/TimeText";
-import { comingUp, dayLabel, daysBetween, dayWhen, nextInterviewDay, shortDay } from "../../src/sync/upcoming";
+import { daysBetween } from "../../src/db/time";
+import { comingUp, dayWhen, nextInterviewDay, shortDay } from "../../src/sync/upcoming";
 
 let n = 0;
 const mail = (o: { thread?: string | null; at: string; subject?: string; body?: string; event?: "interview" | "applied" | "rejected" }) => ({
@@ -92,12 +93,6 @@ describe("day wording", () => {
     expect(dayWhen("2026-10-13", TODAY)).toEqual({ when: "tomorrow", text: "Tomorrow" });
     expect(dayWhen("2026-10-15", TODAY)).toEqual({ when: "later", text: "Thu, Oct 15" });
     expect(dayWhen("2026-11-30", TODAY).when).toBe("later");
-  });
-
-  it("says Today and Tomorrow", () => {
-    expect(dayLabel("2026-10-12", TODAY)).toBe("Today");
-    expect(dayLabel("2026-10-13", TODAY)).toBe("Tomorrow");
-    expect(dayLabel("2026-10-15", TODAY)).toBe("Thu, Oct 15");
   });
 });
 

@@ -65,7 +65,7 @@ class FakeProvider:
 
 
 def test_one_failing_account_does_not_stop_the_other():
-    from tests.test_pipeline import mk
+    from tests.helpers import mk
 
     conn = db.connect(":memory:")
     db.upsert_account(conn, "gmail", "a@gmail.com")

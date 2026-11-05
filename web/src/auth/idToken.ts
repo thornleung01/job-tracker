@@ -3,9 +3,10 @@
 // LIMITATION: this does not verify the JWT signature. Nothing server-side trusts these tokens; the claims
 // only pick a local IndexedDB namespace and a display name, and the token reaches us straight from the
 // provider over TLS. Anyone who can tamper with it already controls this browser tab.
-// TODO(signature): verify RS256 against the provider JWKS with WebCrypto. Microsoft's keys
-// (login.microsoftonline.com/common/discovery/v2.0/keys) are already allowed by the CSP.
-// Google sign-in no longer uses ID tokens: it identifies the person through Google's tokeninfo endpoint.
+// NOT DONE, and not needed for the threat model above: the RS256 signature is not verified. Doing it means fetching
+// Microsoft's keys (login.microsoftonline.com/common/discovery/v2.0/keys, already allowed by the CSP connect-src), picking
+// the key by the header's `kid`, and calling crypto.subtle.verify. Only the Microsoft login uses this file: Google
+// identifies the person through its tokeninfo endpoint instead (auth/google.ts).
 
 export type IdTokenErrorCode =
   | "malformed"

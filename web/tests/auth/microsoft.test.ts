@@ -178,6 +178,31 @@ describe("microsoft mail token", () => {
     await expect(auth.requestMailToken({ interactive: true })).rejects.toBeInstanceOf(NotConnected);
   });
 
+  const msalError = (errorCode: string) => Object.assign(new Error(errorCode), { name: "AuthError", errorCode });
+
+  it.each(["interaction_required", "consent_required", "login_required", "no_account_error", "invalid_grant"])(
+    "treats errorCode %s as needing the person, even on a plain MSAL error",
+    async (code) => {
+      const { auth, fake } = setup({ acquireTokenSilent: vi.fn(async () => Promise.reject(msalError(code))) });
+      await auth.signIn();
+      await expect(auth.requestMailToken({ interactive: false })).rejects.toBeInstanceOf(NotConnected);
+      await auth.requestMailToken({ interactive: true });
+      expect(fake.acquireTokenPopup).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["network_error", "no_network_connectivity", "timed_out", "get_request_failed", "endpoints_resolution_error"])(
+    "an offline silent refresh (%s) is a retryable error, not NotConnected, and opens no popup",
+    async (code) => {
+      const failure = msalError(code);
+      const { auth, fake } = setup({ acquireTokenSilent: vi.fn(async () => Promise.reject(failure)) });
+      await auth.signIn();
+      await expect(auth.requestMailToken({ interactive: false })).rejects.toBe(failure);
+      await expect(auth.requestMailToken({ interactive: true })).rejects.toBe(failure);
+      expect(fake.acquireTokenPopup).not.toHaveBeenCalled();
+    },
+  );
+
   it("lets non-auth failures such as network errors through", async () => {
     const { auth } = setup({ acquireTokenSilent: vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))) });
     await auth.signIn();

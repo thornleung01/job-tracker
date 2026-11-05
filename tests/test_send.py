@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from jobtracker import config, db, reply
+from jobtracker import config, db, links, reply
 from jobtracker.providers import gmail, outlook
 from jobtracker.providers.base import NotAllowed, NotConnected
 from jobtracker.web import create_app
@@ -114,7 +114,7 @@ def test_senders_that_take_no_replies_and_unknown_emails_are_refused(env):
         send(env, env.bot)
     with pytest.raises(reply.ReplyError, match="can't be found"):
         send(env, 999)
-    ordinary = env.conn.execute("UPDATE emails SET related = 0 WHERE id = ?", (env.pat,))
+    env.conn.execute("UPDATE emails SET related = 0 WHERE id = ?", (env.pat,))
     env.conn.commit()
     with pytest.raises(reply.ReplyError, match="can't be found"):
         send(env)
@@ -154,8 +154,8 @@ def test_there_is_a_cap_per_day(env):
 
 
 def test_re_is_added_once():
-    assert reply.subject_for("Hello") == "Re: Hello" and reply.subject_for("RE: Hello") == "RE: Hello" and reply.subject_for(None) == "Re:"
-    assert reply.subject_for("Hi\r\nBcc: evil@x.com") == "Re: Hi Bcc: evil@x.com"          # no line breaks to smuggle a header in
+    assert links.reply_subject("Hello") == "Re: Hello" and links.reply_subject("RE: Hello") == "RE: Hello" and links.reply_subject(None) == "Re:"
+    assert links.reply_subject("Hi\r\nBcc: evil@x.com") == "Re: Hi Bcc: evil@x.com"          # no line breaks to smuggle a header in
 
 
 # --- the providers' send calls ---------------------------------------------------------------------
@@ -214,7 +214,9 @@ def test_outlook_replies_use_graphs_reply_call_with_the_stored_message_id(monkey
     p = outlook.OutlookProvider("me@outlook.com")
     monkeypatch.setattr(p, "_token", lambda scopes=None: calls.setdefault("scopes", scopes) and "TOKEN")
     p.send_reply(thread_id="c", message_id="AAMk=/id+1", to="pat@acme.com", subject="Re: Hi", body="Thanks!")
-    assert calls["url"] == "https://graph.microsoft.com/v1.0/me/messages/AAMk%3D%2Fid%2B1/reply" and calls["json"] == {"comment": "Thanks!"}
+    assert calls["url"] == "https://graph.microsoft.com/v1.0/me/messages/AAMk%3D%2Fid%2B1/reply" and calls["json"]["comment"] == "Thanks!"
+    # the recipient is the address that was confirmed, not whatever Reply-To the sender set
+    assert calls["json"]["message"] == {"toRecipients": [{"emailAddress": {"address": "pat@acme.com"}}]}
     assert calls["scopes"] == ["Mail.Send"] and calls["headers"]["Authorization"] == "Bearer TOKEN" and "ImmutableId" in calls["headers"]["Prefer"]
 
 
@@ -326,3 +328,8 @@ def test_the_new_routes_are_protected_and_reject_bad_input(env):
     assert env.client.post(f"/settings/reply-access/{env.acct}", data={"mode": "maybe"}).status_code == 404
     assert env.client.post("/settings/reply-access/999", data={"mode": "on"}).status_code == 404
     assert env.provider.sent == [] and env.provider.connected_with_send == []
+
+
+@pytest.mark.parametrize("sender", ["Pat <pat@acme.com>", "pat@acme.com", "Acme <no-reply@acme.com>", "Pat <not an address>", "Pat <a b@c.com>", "", None])
+def test_the_reply_link_and_the_send_button_agree_on_who_takes_replies(sender):
+    assert (links.reply_link("gmail", "me@gmail.com", sender, "Hi") is None) == (links.recipient(sender) is None)

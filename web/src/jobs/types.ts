@@ -1,6 +1,5 @@
-// Shared contract for "paste a job link". The parsing library (web/src/jobs/*), the bookmarklet
-// (web/src/jobs/bookmarklet/*), storage (db, sync/actions, portability) and the add form (pages/applications)
-// are built separately against these shapes.
+// The shapes shared by everything that fills the Add application form from a job link: the link reader (url.ts), the job
+// boards' public APIs (enrich.ts), the page's own data (jsonld.ts), pasted text (paste.ts) and the bookmarklet.
 
 /** What we could work out about a job posting. Everything here is a SUGGESTION: the user confirms before anything is saved. */
 export interface JobDraft {
@@ -30,15 +29,3 @@ export interface EnrichOptions {
   /** Default 6000. */
   timeoutMs?: number;
 }
-
-/**
- * Library API (implemented in web/src/jobs/index.ts):
- *   parseJobUrl(rawUrl): JobDraft | null            instant and offline; null if it is not an http(s) URL
- *   enrichJobDraft(draft, opts?): Promise<JobDraft> asks the job board's public API (only for known boards); never throws,
- *                                                    returns the input draft unchanged on any failure
- *   parsePastedText(text, url?): JobDraft | null    from text the user copied off the posting page
- *   extractJobPostingFromJsonLd(documentOrHtml): JobDraft | null
- * Bookmarklet API (implemented in web/src/jobs/bookmarklet/index.ts):
- *   buildBookmarkletSource(appUrl): string          the `javascript:` source to drag to the bookmarks bar
- *   draftFromHash(query: URLSearchParams): JobDraft | null   validates and caps what a bookmarklet sent; null if absent/invalid
- */

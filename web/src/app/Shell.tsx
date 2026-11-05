@@ -2,7 +2,7 @@ import { Settings } from "lucide-react";
 import type { RefObject } from "react";
 import type { JobTrackerDB } from "../db/schema";
 import { reviewCount } from "../sync/queries";
-import { ROUTES } from "./pageProps";
+import { ROUTES } from "./routes";
 import type { PageName } from "./router";
 import { useQuery } from "./useQuery";
 
@@ -27,9 +27,11 @@ function ReviewCount({ db }: { db: JobTrackerDB }) {
   const n = useQuery(() => reviewCount(db), [db]);
   if (!n) return null;
   return (
-    <span className="count" aria-label={`${n} ${n === 1 ? "email needs" : "emails need"} review`}>
-      {n}
-    </span>
+    <>
+      <span className="count" aria-hidden="true">{n}</span>
+      {/* aria-label on a plain span is not read by most screen readers, so the count has real text beside it. */}
+      <span className="sr">, {n} {n === 1 ? "email" : "emails"}</span>
+    </>
   );
 }
 

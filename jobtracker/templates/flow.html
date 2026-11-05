@@ -87,7 +87,7 @@
 </div>
 
 {% if data.total %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const data = JSON.parse(document.getElementById('flow-data').textContent);
   const svg = document.getElementById('sankey');

@@ -16,20 +16,6 @@ export function makeJwt(claims: Record<string, unknown>, header: Record<string, 
   return `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}.${b64url("sig")}`;
 }
 
-export function googleClaims(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    iss: "https://accounts.google.com",
-    sub: "1098765432",
-    aud: CLIENT_ID,
-    exp: NOW_SEC + 3600,
-    iat: NOW_SEC,
-    nonce: "n-1",
-    email: "ada@example.com",
-    name: "Ada Lovelace",
-    ...over,
-  };
-}
-
 export function msClaims(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     iss: `https://login.microsoftonline.com/${MS_TENANT}/v2.0`,

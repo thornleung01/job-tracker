@@ -1,16 +1,19 @@
-import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { $, addApp, button, cleanup, click, freshDb, mountPage, submitForm, text, type, waitFor } from "./harness";
+import { $, addApp, button, cleanup, click, freshDb, mountPage, settle, submitForm, text, type, waitFor } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 import { DUPLICATES_DEBOUNCE_MS } from "../../../src/components/duplicates/useDuplicates";
 import type { JobTrackerDB } from "../../../src/db/schema";
-import { sleep } from "../../support/helpers";
+import { advance, fakeTimeouts } from "../../support/timers";
 
-/** Lets the debounce run out inside act, so the notice (or its absence) is what the page settles on. */
-const pause = () => act(async () => { await sleep(DUPLICATES_DEBOUNCE_MS + 150); });
+/** Runs the debounce out on the fake clock, then lets the lookup it started finish on the real one, so the notice (or its absence) is what the page settles on. */
+async function debounceRunsOut() {
+  await advance(DUPLICATES_DEBOUNCE_MS);
+  vi.useRealTimers();
+  await settle();
+}
 
 afterEach(async () => {
-  vi.restoreAllMocks();
+  vi.useRealTimers();
   await cleanup();
 });
 
@@ -44,9 +47,10 @@ describe("the duplicate notice in the add form", () => {
     const db = freshDb();
     await addApp(db, "Acme", { role: "Analyst" });
     const c = await openForm(db);
+    fakeTimeouts();
     await type($(c, "#add-company"), "Acme");
     await type($(c, "#add-role"), "Designer");
-    await pause();
+    await debounceRunsOut();
     expect(note(c)).toBeNull();
     await type($(c, "#add-role"), "Analyst");
     await noteShown(c);
@@ -84,9 +88,15 @@ describe("the duplicate notice in the add form", () => {
       lookups.push(args[0]);
       return real(...args);
     }) as never);
-    for (const word of ["A", "Ac", "Acm", "Acme"]) await type($(c, "#add-company"), word);
+    fakeTimeouts();
+    for (const word of ["A", "Ac", "Acm", "Acme"]) {
+      await type($(c, "#add-company"), word);
+      await advance(DUPLICATES_DEBOUNCE_MS - 1);
+    }
     expect(lookups).toEqual([]);
     expect(note(c)).toBeNull();
+    await advance(1);
+    vi.useRealTimers();
     await noteShown(c);
     expect(lookups.filter((k) => k === "companyKey")).toHaveLength(1);
   });
@@ -95,7 +105,8 @@ describe("the duplicate notice in the add form", () => {
     const db = freshDb();
     await addApp(db, "Acme");
     const c = await openForm(db);
-    await pause();
+    fakeTimeouts();
+    await debounceRunsOut();
     expect(note(c)).toBeNull();
     await type($(c, "#add-company"), "Acme");
     await noteShown(c);

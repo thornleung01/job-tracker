@@ -7,7 +7,7 @@ from jobtracker import activity, db, stats
 from jobtracker.activity import ActivityError
 from jobtracker.sync import process_messages
 from jobtracker.web import create_app
-from tests.test_pipeline import mk
+from tests.helpers import mk
 
 NOW = lambda: datetime.now(timezone.utc)  # noqa: E731
 
@@ -321,7 +321,7 @@ def test_open_param_renders_rows_expanded_and_closes_on_second_click(env):
     assert 'aria-expanded="true"' in html and f'id="panel-{a}" hidden' not in html and f'id="panel-{b}" hidden' in html
     assert "Log a step" in html
     assert f'href="/?open={a}%2C{b}"' in html or f'href="/?open={a},{b}"' in html  # opens the other too
-    assert f'class="expander" href="/"' in html  # the open row's link closes it
+    assert 'class="expander" href="/"' in html  # the open row's link closes it
     assert client.get("/?open=abc,,999").status_code == 200  # junk is ignored
 
 

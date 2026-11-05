@@ -477,10 +477,14 @@ describe("enrichJobDraft, request rules", () => {
   });
 
   it("clears its timer when the request finishes", async () => {
-    const spy = vi.spyOn(globalThis, "clearTimeout");
-    const { fn } = fakeFetch({ [LEVER_JOB]: () => json({ text: "Designer" }) });
-    await enrichJobDraft(draftOf(`https://jobs.lever.co/acme/${UUID}`), { fetch: fn });
-    expect(spy).toHaveBeenCalled();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { fn } = fakeFetch({ [LEVER_JOB]: () => json({ text: "Designer" }) });
+      await enrichJobDraft(draftOf(`https://jobs.lever.co/acme/${UUID}`), { fetch: fn });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

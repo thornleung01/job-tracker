@@ -6,7 +6,7 @@ import { JobLinkField } from "../../../src/components/joblink/JobLinkField";
 import { PASTE_DEBOUNCE_MS, useJobLink, type JobLinkFill } from "../../../src/components/joblink/useJobLink";
 import type { JobLinkDeps } from "../../../src/components/joblink/deps";
 import { EMPTY_DRAFT, type JobDraft } from "../../../src/jobs/types";
-import { sleep } from "../../support/helpers";
+import { advance, fakeTimeouts } from "../../support/timers";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -50,6 +50,7 @@ describe("describeDraft", () => {
 let root: Root | null = null;
 let box: HTMLElement | null = null;
 afterEach(async () => {
+  vi.useRealTimers();
   if (root) await act(async () => root!.unmount());
   box?.remove();
   root = box = null;
@@ -93,10 +94,10 @@ describe("JobLinkField", () => {
     expect(link.fillFromLink).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the checking line as busy only while checking, and the result as text", async () => {
+  it("shows the checking line only while checking (never aria-busy, which would keep it from being announced), and the result as text", async () => {
     const el = await mount(stub({ checking: true, result: "<b>Hi</b>" }));
     const checking = el.querySelector("#add-link-checking")!;
-    expect([checking.getAttribute("aria-busy"), checking.textContent]).toEqual(["true", "Checking the job board"]);
+    expect([checking.hasAttribute("aria-busy"), checking.textContent]).toEqual([false, "Checking the job board"]);
     expect(el.querySelector("#add-link-result")?.textContent).toBe("<b>Hi</b>");
     expect(el.querySelector("#add-link-result b")).toBeNull();
   });
@@ -152,11 +153,12 @@ describe("useJobLink", () => {
   it("does not read the link until the debounce after a paste has passed", async () => {
     const parseJobUrl = vi.fn(() => GUESS);
     await setup({ parseJobUrl, enrichJobDraft: async (d) => d });
+    fakeTimeouts();
     await act(async () => link.onLinkChange("https://jobs.example.com/1"));
     await act(async () => link.onLinkPaste());
-    await act(async () => sleep(PASTE_DEBOUNCE_MS / 3));
+    await advance(PASTE_DEBOUNCE_MS - 1);
     expect(parseJobUrl).not.toHaveBeenCalled();
-    await act(async () => sleep(PASTE_DEBOUNCE_MS));
+    await advance(1);
     expect(parseJobUrl).toHaveBeenCalledTimes(1);
     expect(values).toEqual({ company: "Stripe", role: "Engineer", url: "https://jobs.example.com/1" });
   });
@@ -164,10 +166,11 @@ describe("useJobLink", () => {
   it("drops a pending paste read when the form is reset", async () => {
     const parseJobUrl = vi.fn(() => GUESS);
     await setup({ parseJobUrl });
+    fakeTimeouts();
     await act(async () => link.onLinkChange("https://jobs.example.com/1"));
     await act(async () => link.onLinkPaste());
     await act(async () => link.reset());
-    await act(async () => sleep(PASTE_DEBOUNCE_MS + 100));
+    await advance(PASTE_DEBOUNCE_MS * 2);
     expect(parseJobUrl).not.toHaveBeenCalled();
   });
 
@@ -175,7 +178,6 @@ describe("useJobLink", () => {
     await setup({ parseJobUrl: () => GUESS, enrichJobDraft: () => Promise.reject(new Error("offline")) });
     await act(async () => link.onLinkChange("https://jobs.example.com/1"));
     await act(async () => link.fillFromLink());
-    await act(async () => sleep(10));
     expect(link.checking).toBe(false);
     expect(values.company).toBe("Stripe");
     expect(link.result).toBe("Guessed from the link. Check the company and role.");

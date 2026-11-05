@@ -1,6 +1,6 @@
 .rounds { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .rounds b { font-weight: 700; }
-.rounds-edit { min-height: 32px; padding: 0 14px; }
+.rounds-edit { min-height: var(--tap-sm); padding: 0 14px; }
 .rounds-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.rounds-form input { width: 96px; min-height: 36px; }
+.rounds-form input { width: 96px; min-height: var(--tap-sm); }
 .rounds-error { flex-basis: 100%; color: var(--rejected); }

@@ -58,7 +58,7 @@ export function OfferDetails({ db, app }: { db: JobTrackerDB; app: OfferFields }
         </div>
         <div className="row offer-actions">
           <button type="submit" {...act.button("offer")}>Save offer details</button>
-          {hasSavedOffer(app) ? <button type="button" onClick={clear} {...act.button("offer-clear")}>Clear</button> : null}
+          {hasSavedOffer(app) ? <button type="button" onClick={clear} {...act.button("offer-clear")}>Clear offer details</button> : null}
         </div>
       </form>
       {act.error ? <p className="small offer-error" role="alert">{act.error}</p> : null}

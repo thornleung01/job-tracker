@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { $, $$, button, cleanup, click, freshDb, mountPage, settle, text, type, waitFor } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 
+// A performance guard, not a behaviour test: it depends on how React renders and memoises, so a React upgrade can move the numbers without a bug.
+// Run in a shared process (--no-isolate) it counts renders from other tests too, so it only holds with the default one file per context.
 // Count how many times a row's role cell renders: it renders once per row render, so it shows how much of the table redraws.
 const renders = vi.hoisted(() => ({ n: 0 }));
 vi.mock("../../../src/components/quickedit/QuickRole", async (original) => {
