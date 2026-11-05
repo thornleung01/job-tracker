@@ -70,6 +70,7 @@ export const config: AppConfig = loadConfig(import.meta.env as Env, window.locat
  * True when this build has no OAuth client IDs at all. The app then opens without sign-in against one local
  * database (LOCAL_DB_NAME) in this browser, with no mailbox connection. Builds with IDs always require sign-in.
  */
+// "Local mode" is a hosted build with no OAuth client IDs (people see it as the demo). It is not the local edition, the Python app.
 export function isLocalMode(c: AppConfig = config): boolean {
   return c.googleClientId === "" && c.msClientId === "";
 }

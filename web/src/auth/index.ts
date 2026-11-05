@@ -1,7 +1,7 @@
 // Auth entry point. Access tokens live only in this module's memory: never in localStorage, sessionStorage,
 // cookies or the URL. The single persisted item is a non-secret "last used provider" hint (see session.ts).
 import { config } from "../config";
-import { NotConnected, type ProviderName, type TokenSource } from "../types";
+import { NotConnected, PROVIDER_LABEL, type ProviderName, type TokenSource } from "../types";
 import { createGisLoader, createGoogleAuth, type GoogleAuth } from "./google";
 import { createMicrosoftAuth, type MicrosoftAuth } from "./microsoft";
 import { readLastProvider, SessionStore, writeLastProvider, type Listener, type Session } from "./session";
@@ -13,7 +13,7 @@ export type { Session } from "./session";
 
 const EXPIRY_MARGIN_MS = 60_000;
 const REVOKE_TIMEOUT_MS = 3_000;
-const MAIL_LABEL: Record<ProviderName, string> = { gmail: "Gmail", outlook: "Outlook" };
+const WRONG_ACCOUNT = "That's a different Google account from the one you connected. Reconnect Gmail with the right account.";
 
 export type MailTarget = ProviderName | IdentityProvider;
 
@@ -47,7 +47,6 @@ export interface Auth {
   tokenSource: TokenSource;
   getSession(): Session;
   subscribe(listener: Listener): () => void;
-  currentUser(): AuthUser | null;
 }
 
 interface StoredToken {
@@ -90,17 +89,25 @@ export function createAuth(deps: AuthDeps): Auth {
   const store = new SessionStore(readLastProvider(deps.hintStorage));
   const tokens = new Map<ProviderName, StoredToken>();
   const inflight = new Map<ProviderName, Promise<string>>();
+  /**
+   * The Gmail address (lowercase) the connected Google token belongs to, in memory only like the tokens. A silent refresh
+   * can hand back another Google account's token (the hinted session is gone and the person picks another one in the chooser),
+   * so every refreshed token is checked against this before it is used.
+   */
+  const mailboxes = new Map<ProviderName, string>();
   /** Bumped on every sign-out so a request that was in flight cannot revive tokens afterwards. */
   let generation = 0;
 
-  function completeSignIn(user: AuthUser, mail: { token: string; expiresAt: number } | null, mailRequested: boolean): void {
+  function completeSignIn(user: AuthUser, mail: { token: string; expiresAt: number } | null, mailRequested: boolean, address: string | null): void {
     tokens.clear();
     inflight.clear();
+    mailboxes.clear();
     writeLastProvider(user.provider, deps.hintStorage);
     const mailbox = toMailProvider(user.provider);
     const connected: Record<ProviderName, boolean> = { gmail: false, outlook: false };
     if (mail) {
       tokens.set(mailbox, { token: mail.token, expiresAt: mail.expiresAt });
+      if (address) mailboxes.set(mailbox, address);
       connected[mailbox] = true;
     }
     store.update({
@@ -135,11 +142,21 @@ export function createAuth(deps: AuthDeps): Auth {
     const googleToken = tokens.get("gmail")?.token;
     tokens.clear();
     inflight.clear();
+    mailboxes.clear();
     store.reset();
     await Promise.allSettled([
       googleToken ? withTimeout(google.revoke(googleToken), REVOKE_TIMEOUT_MS) : Promise.resolve(),
       microsoft.clear(),
     ]);
+  }
+
+  /** Which Gmail address a token belongs to, or null when Google can't say right now (a retry will look again). */
+  async function lookUpAddress(token: string): Promise<string | null> {
+    try {
+      return (await google.mailboxAddress(token)).toLowerCase();
+    } catch {
+      return null;
+    }
   }
 
   function takePendingSync(): ProviderName | null {
@@ -162,11 +179,12 @@ export function createAuth(deps: AuthDeps): Auth {
     store.update({ status: "signing-in", error: null });
     try {
       const { user, mail } = await (provider === "google" ? google.signIn(opts) : microsoft.signIn(opts));
+      const address = mail && provider === "google" ? await lookUpAddress(mail.token) : null;
       if (gen !== generation) {
         if (mail && provider === "google") discardGoogleToken(mail.token);
         throw new Error("Login was cancelled.");
       }
-      completeSignIn(user, mail, opts.mail !== false);
+      completeSignIn(user, mail, opts.mail !== false, address);
       return user;
     } catch (e) {
       if (gen === generation) store.update({ status: "signed-out", error: message(e) });
@@ -188,12 +206,30 @@ export function createAuth(deps: AuthDeps): Auth {
     const gen = generation;
     try {
       const t = await acquire(provider, true);
+      // A deliberate connect may pick a different Google account than before: that account becomes the one that is checked from now on.
+      const address = provider === "gmail" ? await lookUpAddress(t.token) : null;
       if (gen !== generation) throw new NotConnected("You were logged out. Log in and try again.");
       tokens.set(provider, t);
+      if (address) mailboxes.set(provider, address);
+      else mailboxes.delete(provider);
       store.update({ mail: { ...store.getSnapshot().mail, [provider]: true }, mailDeclined: null, error: null });
     } catch (e) {
       if (gen === generation && e instanceof NotConnected) store.update({ error: e.message });
       throw e;
+    }
+  }
+
+  /** A token that comes back from a silent refresh must belong to the mailbox that was connected. Throws a plain Error when that can't be checked now. */
+  async function checkMailbox(provider: ProviderName, t: StoredToken, gen: number): Promise<void> {
+    if (provider !== "gmail") return; // MSAL refreshes against the remembered account and never switches it silently
+    const address = (await google.mailboxAddress(t.token)).toLowerCase();
+    if (gen !== generation) return; // logged out meanwhile: the caller drops the token
+    const known = mailboxes.get(provider);
+    if (known === undefined) {
+      mailboxes.set(provider, address); // the connect-time lookup failed: trust the first one that works
+    } else if (known !== address) {
+      discardGoogleToken(t.token);
+      throw new NotConnected(WRONG_ACCOUNT);
     }
   }
 
@@ -204,7 +240,7 @@ export function createAuth(deps: AuthDeps): Auth {
     if (session.status !== "signed-in") throw new NotConnected("Log in first, then try again.");
     const cached = tokens.get(provider);
     if (cached && cached.expiresAt - now() > EXPIRY_MARGIN_MS) return cached.token;
-    if (!session.mail[provider]) throw new NotConnected(`${MAIL_LABEL[provider]} isn't connected. Reconnect it and try again.`);
+    if (!session.mail[provider]) throw new NotConnected(`${PROVIDER_LABEL[provider]} isn't connected. Reconnect it and try again.`);
 
     let pending = inflight.get(provider);
     if (!pending) {
@@ -212,6 +248,7 @@ export function createAuth(deps: AuthDeps): Auth {
       pending = (async () => {
         try {
           const t = await acquire(provider, false);
+          await checkMailbox(provider, t, gen);
           if (gen !== generation) throw new NotConnected("Logged out");
           tokens.set(provider, t);
           return t.token;
@@ -240,7 +277,6 @@ export function createAuth(deps: AuthDeps): Auth {
     tokenSource,
     getSession: store.getSnapshot,
     subscribe: store.subscribe,
-    currentUser: () => store.getSnapshot().user,
   };
 }
 
@@ -270,7 +306,6 @@ export const connectMail = (provider: MailTarget) => auth().connectMail(provider
 export const tokenSource: TokenSource = (provider, signal) => auth().tokenSource(provider, signal);
 export const getSession = (): Session => auth().getSession();
 export const subscribe = (listener: Listener): (() => void) => auth().subscribe(listener);
-export const currentUser = (): AuthUser | null => auth().currentUser();
 
 /**
  * True inside the Microsoft sign-in popup after it lands back on the app with the response in the URL.

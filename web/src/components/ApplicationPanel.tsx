@@ -1,11 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { JobTrackerDB } from "../db/schema";
+import { MAX_NOTE_CHARS } from "../db/limits";
 import { localToday } from "../db/time";
 import { useQuery } from "../app/useQuery";
 import { STEP_GROUPS, addStep, deleteEntry, history, type HistoryItem } from "../sync/activity";
 import { deleteApplication, learnedNotice, notAnApplication } from "../sync/actions";
 import { titles as contactTitles } from "../sync/contacts";
 import { EmailText } from "./EmailText";
+import { InlineConfirm } from "./InlineConfirm";
 import { MailActions } from "./MailActions";
 import { MailMeta } from "./MailMeta";
 import { Notice } from "./Notice";
@@ -34,8 +36,11 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
   const data = useQuery(async () => ({
     ...(await history(db, appId, limit, includeEmails)),
     titles: includeEmails ? await contactTitles(db, appId) : {},
-  }), [db, appId, includeEmails, limit]);
+  }), [db, appId, includeEmails, limit], { keepPrevious: true });   // "show more" raises `limit`: keep the list while it loads
   const act = useAction();
+  // The one question open at a time, and the button that asked it (focus goes back there on cancel).
+  const [ask, setAsk] = useState<{ kind: "entry"; item: HistoryItem; opener: HTMLElement } | { kind: "delete" | "not"; opener: HTMLElement } | null>(null);
+  const statusBox = useRef<HTMLDivElement>(null);
   const today = localToday();
   const [label, setLabel] = useState("");
   const [day, setDay] = useState(today);
@@ -51,18 +56,23 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
     });
   };
   const removeEntry = (item: HistoryItem) => {
-    if (!window.confirm(`Delete this ${item.kind}? A stage change it made stays.`)) return;
-    void act.run(`entry-${item.id}`, async () => ((await deleteEntry(db, appId, item.id)) ? "Entry deleted." : "That entry was already gone."));
+    void act
+      .run(`entry-${item.id}`, async () => {
+        const gone = await deleteEntry(db, appId, item.id);
+        setAsk(null);
+        return gone ? "Entry deleted." : "That entry was already gone.";
+      })
+      // The Delete button that was pressed is gone, so the result takes focus.
+      .then((ok) => ok && statusBox.current?.focus());
   };
   const remove = () => {
-    if (!window.confirm("Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox isn't touched.")) return;
     void act.run("delete", async () => {
       await deleteApplication(db, appId, "clear");
+      setAsk(null);
       onRemoved?.();
     });
   };
   const notApplication = () => {
-    if (!window.confirm("Remove this and teach the app it wasn't a job application? Emails like it will be ignored from now on.")) return;
     void act.run("not", async () => {
       const done = await notAnApplication(db, appId);
       setFlash(learnedNotice(done.rules, done.cleared, `Removed ${done.company}.`));
@@ -70,19 +80,21 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
     });
   };
 
+  // Under a list row the panel sits right below the page heading, so its headings are level 2. On the detail page they sit under "Notes and steps".
+  const Heading = includeEmails ? "h2" : "h3";
   const items = data?.items ?? [];
   const latestEmail = items.find((i) => i.kind === "email")?.id;
   const stepId = `step-label-${appId}`;
 
   return (
     <div className="panel-inner" data-app={appId}>
-      <div className="panel-status small muted" role="status" tabIndex={-1}>{act.status ?? ""}</div>
+      <div className="panel-status small muted" role="status" tabIndex={-1} ref={statusBox}>{act.status ?? ""}</div>
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
 
       <div className="panel-split">
       <div className="panel-forms">
         <form onSubmit={logStep}>
-          <h3 className="panel-h">Log a step</h3>
+          <Heading className="panel-h">Log a step</Heading>
           <div className="row row-end">
             <div className="f-grow step-field">
               <label className="field small" htmlFor={stepId}>Step</label>
@@ -101,13 +113,13 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
             </div>
           </div>
           <label className="field small stack-top-sm" htmlFor={`step-body-${appId}`}>Note (optional)</label>
-          <textarea id={`step-body-${appId}`} name="body" rows={2} maxLength={2000} className="step-note" value={body} onChange={(e) => setBody(e.target.value)} />
+          <textarea id={`step-body-${appId}`} name="body" rows={2} maxLength={MAX_NOTE_CHARS} className="step-note" value={body} onChange={(e) => setBody(e.target.value)} />
           <button type="submit" className="primary" {...act.button("step")}>Log step</button>
         </form>
       </div>
 
       <div className="panel-history">
-      <h3 className="panel-h panel-h-history">History</h3>
+      <Heading className="panel-h panel-h-history">History</Heading>
       {data && !items.length ? <p className="muted small">Nothing logged yet. Log a step above, with a note if you like.</p> : null}
       {items.length ? (
         <>
@@ -123,9 +135,21 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
                       {i.kind === "note" ? <span className="hist-text">{i.body}</span> : <strong>{i.title}</strong>}
                       <span className="small muted hist-date">{dayText(i.when, "short")}</span>
                       <button type="button" className="danger small hist-del" aria-label={`Delete ${i.kind} from ${dayText(i.when)}`}
-                              onClick={() => removeEntry(i)} {...act.button(`entry-${i.id}`)}>Delete</button>
+                              onClick={(e) => setAsk({ kind: "entry", item: i, opener: e.currentTarget })} {...act.button(`entry-${i.id}`)}>Delete</button>
                     </div>
                     {i.kind === "step" && i.body ? <div className="hist-body">{i.body}</div> : null}
+                    {ask?.kind === "entry" && ask.item.id === i.id && ask.item.kind === i.kind ? (
+                      <InlineConfirm
+                        title={`Delete this ${i.kind}?`}
+                        help="A stage change it made stays."
+                        confirmLabel={`Delete ${i.kind}`}
+                        onConfirm={() => removeEntry(i)}
+                        onCancel={() => setAsk(null)}
+                        act={act}
+                        actionKey={`entry-${i.id}`}
+                        opener={ask.opener}
+                      />
+                    ) : null}
                   </>
                 )}
               </li>
@@ -149,10 +173,34 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
               <path d="M7 7h10v10" /><path d="M7 17 17 7" />
             </svg>
           </a>
-          <button type="button" className="danger small" onClick={remove} {...act.button("delete")}>Delete application</button>
-          <button type="button" className="danger small" title="Removes it and learns to ignore emails like the ones that made it."
-                  onClick={notApplication} {...act.button("not")}>Not an application</button>
+          <button type="button" className="danger small" aria-label={company ? `Delete application ${company}` : undefined} onClick={(e) => setAsk({ kind: "delete", opener: e.currentTarget })} {...act.button("delete")}>Delete application</button>
+          <button type="button" className="danger small" aria-label={company ? `Not an application: ${company}` : undefined} title="Removes it and learns to ignore emails like the ones that made it."
+                  onClick={(e) => setAsk({ kind: "not", opener: e.currentTarget })} {...act.button("not")}>Not an application</button>
         </div>
+      ) : null}
+      {ask?.kind === "delete" ? (
+        <InlineConfirm
+          title="Delete this application?"
+          help="Its notes, steps and saved emails are removed from the app. Your mailbox isn't touched."
+          confirmLabel="Delete the application and its emails"
+          onConfirm={remove}
+          onCancel={() => setAsk(null)}
+          act={act}
+          actionKey="delete"
+          opener={ask.opener}
+        />
+      ) : null}
+      {ask?.kind === "not" ? (
+        <InlineConfirm
+          title="Remove this and teach the app it wasn't a job application?"
+          help="Emails like it will be ignored from now on."
+          confirmLabel="Remove and ignore emails like it"
+          onConfirm={notApplication}
+          onCancel={() => setAsk(null)}
+          act={act}
+          actionKey="not"
+          opener={ask.opener}
+        />
       ) : null}
     </div>
   );

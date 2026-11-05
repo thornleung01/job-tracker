@@ -1,7 +1,9 @@
 // Confirms a link-derived draft with the job board's public API. Only four boards, only fixed hosts, never throws.
 // Ashby is asked through its hosted page's tiny GraphQL endpoint first; the REST listing (large) is the fallback.
 import type { EnrichOptions, JobDraft } from "./types";
-import { MAX_COMPANY_CHARS, MAX_LOCATION_CHARS, MAX_ROLE_DISPLAY_CHARS, detectBoard, isSafeId, isSafeSlug, sanitizeText, slugToName } from "./url";
+import { isRecord } from "../db/isRecord";
+import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS } from "../db/limits";
+import { detectBoard, isSafeId, isSafeSlug, sanitizeText, slugToName } from "./url";
 import type { BoardRef } from "./url";
 
 export const DEFAULT_TIMEOUT_MS = 6000;
@@ -47,10 +49,6 @@ const urls = {
   ashby: (r: BoardRef) => `https://api.ashbyhq.com/posting-api/job-board/${enc(r.slug)}`,
   smartrecruiters: (r: BoardRef) => `https://api.smartrecruiters.com/v1/companies/${enc(r.slug)}/postings/${enc(r.id)}`,
 };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 async function readCapped(res: Response, maxBytes: number): Promise<string | null> {
   const declared = Number(res.headers?.get?.("content-length"));
@@ -136,9 +134,9 @@ async function getJson(fetchFn: FetchFn, url: string, opts: EnrichOptions, spec:
   }
 }
 
-const title = (v: unknown) => sanitizeText(v, MAX_ROLE_DISPLAY_CHARS);
-const org = (v: unknown) => sanitizeText(v, MAX_COMPANY_CHARS);
-const place = (v: unknown) => sanitizeText(v, MAX_LOCATION_CHARS);
+const title = (v: unknown) => sanitizeText(v, GUESS_ROLE_CHARS);
+const org = (v: unknown) => sanitizeText(v, GUESS_COMPANY_CHARS);
+const place = (v: unknown) => sanitizeText(v, GUESS_LOCATION_CHARS);
 
 async function fromGreenhouse(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
   const job = await getJson(f, urls.greenhouseJob(ref), opts);
@@ -216,7 +214,7 @@ async function fromAshby(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promis
 function cleanPlaceParts(raw: unknown, isCountry = false): string[] {
   if (typeof raw !== "string") return [];
   // In free text only a lowercase pair is a code ("CA" in "San Francisco, CA" is a state); the country field is always one.
-  return raw.split(",").map((p) => countryName(sanitizeText(p, MAX_LOCATION_CHARS), isCountry)).filter(Boolean);
+  return raw.split(",").map((p) => countryName(sanitizeText(p, GUESS_LOCATION_CHARS), isCountry)).filter(Boolean);
 }
 
 /** A lone two-letter country code ("in") becomes the country's name, or the upper-cased code when the name is unknown. */

@@ -1,12 +1,14 @@
 """Windows notifications for new matching jobs. One summary per run, never repeats a job."""
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
-from datetime import datetime, timezone
 
 from .. import db
 from .store import load_profile
+
+log = logging.getLogger(__name__)
 
 
 def jobs_url(profile: str | None = None) -> str:
@@ -23,7 +25,8 @@ def show_toast(title: str, body: str, url: str) -> bool:
         toast.launch_action = url
         WindowsToaster("Job Tracker").show_toast(toast)
         return True
-    except Exception:
+    except Exception as exc:
+        log.warning("Couldn't show a notification (%s). Usually: not on Windows, or windows-toasts isn't installed.", type(exc).__name__)
         return False
 
 
@@ -47,7 +50,7 @@ def notify_new(conn: sqlite3.Connection, toast=show_toast, profile: str | None =
     ids = [r["id"] for r in rows]
     with conn:          # recorded first, so a crash after the pop-up can't make it fire again
         conn.execute("INSERT INTO notifications (created_at, text, posting_ids) VALUES (?, ?, ?)",
-                     (db.iso(datetime.now(timezone.utc)), f"{title}. {body}", ",".join(map(str, ids))))
+                     (db.now_iso(), f"{title}. {body}", ",".join(map(str, ids))))
         conn.execute(f"UPDATE job_postings SET notified = 1 WHERE id IN ({','.join('?' for _ in ids)})", ids)
     toast(f"{who}: {title}" if who else title, body, jobs_url(profile))
     return len(rows)

@@ -457,14 +457,14 @@ describe("your data", () => {
     await setup({ db });
 
     await chooseFile("backup.json", file);
-    const dialog = await waitFor(() => q(".confirm"));
+    const dialog = await waitFor(() => q(".inline-confirm"));
     expect(dialog.textContent).toContain("Replace everything in this browser with backup.json?");
     expect(await db.applications.count()).toBe(1); // nothing yet
     await click(byText("Replace my data")!);
     await waitFor(() => noticeText().startsWith("Imported"));
     expect(noticeText()).toBe("Imported 3 applications and 0 emails.");
     expect(await db.applications.count()).toBe(3);
-    expect(q(".confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
   });
 
   it("leaves everything alone when you cancel an import", async () => {
@@ -475,7 +475,7 @@ describe("your data", () => {
     await setup({ db });
     await chooseFile("backup.json", await exportAllAsJson(source));
     await click(await waitFor(() => byText("Cancel")));
-    expect(q(".confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
     expect(await db.applications.count()).toBe(1);
   });
 
@@ -483,7 +483,7 @@ describe("your data", () => {
     const db = freshDb();
     await setup({ db });
     await chooseFile("python.json", JSON.stringify(fixture));
-    const dialog = await waitFor(() => q(".confirm"));
+    const dialog = await waitFor(() => q(".inline-confirm"));
     expect(dialog.textContent).toContain("(from the local edition)");
     await click(byText("Replace my data")!);
     await waitFor(() => noticeText().startsWith("Imported"));
@@ -499,13 +499,13 @@ describe("your data", () => {
     await waitFor(() => q(".notice.err"));
     expect(noticeText()).toContain("This file can't be imported.");
     expect(noticeText()).toContain("The file isn't valid JSON.");
-    expect(q(".confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
 
     await chooseFile("wrong.json", JSON.stringify({ format: "jobtracker-export", version: 1, data: { applications: "nope" } }));
     await click(await waitFor(() => byText("Replace my data")));
     await waitFor(() => q(".notice.err .line + .line"));
     expect(document.querySelectorAll(".notice .line").length).toBeGreaterThan(1);
-    expect(q(".confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
     expect(await db.applications.count()).toBe(1);
   });
 
@@ -517,11 +517,11 @@ describe("your data", () => {
     await setup({ db });
 
     await click(byText("Delete all my data")!);
-    const dialog = await waitFor(() => q(".confirm"));
+    const dialog = await waitFor(() => q(".inline-confirm"));
     expect(document.activeElement).toBe(byText("Cancel"));
     await click(byText("Cancel")!);
     expect(await db.applications.count()).toBe(2);
-    expect(q(".confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
 
     await click(byText("Delete all my data")!);
     await click(await waitFor(() => byText("Delete everything")));
@@ -540,6 +540,119 @@ describe("account", () => {
     expect(q("#account")!.textContent).toContain("Logged in as Ada Lovelace (ada@example.com) with Google.");
     await click(byText("Log out")!);
     expect(deps.auth.signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("section links", () => {
+  const yourDataLink = () => byText("Your data", "nav a")!;
+
+  it("move focus to the card's heading", async () => {
+    await setup();
+    Element.prototype.scrollIntoView = vi.fn();
+    await click(yourDataLink());
+    expect(document.activeElement).toBe(q("#h-data"));
+  });
+
+  it("scroll without animation when the person prefers reduced motion", async () => {
+    await setup();
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: query.includes("reduce"), media: query })) as typeof window.matchMedia;
+    try {
+      await click(yourDataLink());
+      expect(scroll).toHaveBeenLastCalledWith({ behavior: "auto" });
+    } finally {
+      window.matchMedia = original;
+    }
+    await click(yourDataLink());
+    expect(scroll).toHaveBeenLastCalledWith({ behavior: "smooth" });
+  });
+});
+
+describe("appearance saving", () => {
+  it("keeps both changes when two columns are ticked before the page has caught up", async () => {
+    const { db } = await setup();
+    const box = (label: string) => byText(label, ".checks label")!.querySelector<HTMLInputElement>("input")!;
+    await act(async () => {
+      box("Emails").click();
+      box("Role").click(); // starts from the saved columns, which do not have Emails yet
+      await sleep(60);
+    });
+    await waitFor(async () => (await loadSettings(db)).appearance.columns.includes("emails"));
+    expect((await loadSettings(db)).appearance.columns).toEqual(["company", "stage", "applied", "lastActivity", "emails"]);
+  });
+
+  it("says so when a change cannot be saved", async () => {
+    const { db } = await setup();
+    db.close();
+    await click(q("input[name=theme][value=dark]")!);
+    await waitFor(() => q(".notice.err"));
+    expect(noticeText()).toBe("Couldn't save your appearance settings. Try again.");
+  });
+
+  it("confirms a save to screen readers in a status region that was already on the page", async () => {
+    await setup();
+    const region = q("p.sr[role=status]")!;
+    expect(region.textContent).toBe("");
+    await click(q("input[name=theme][value=dark]")!);
+    await waitFor(() => region.textContent === "Appearance saved");
+    expect(q("p.sr[role=status]")).toBe(region);
+  });
+});
+
+describe("confirmations", () => {
+  it("Escape cancels a delete and puts focus back on the button that opened it", async () => {
+    const db = freshDb();
+    await withApplications(db, 2);
+    await setup({ db });
+    const opener = byText("Delete all my data")!;
+    opener.focus();
+    await click(opener);
+    await waitFor(() => q(".inline-confirm"));
+    expect(document.activeElement).toBe(byText("Cancel"));
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await sleep(20);
+    });
+    expect(q(".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(await db.applications.count()).toBe(2);
+  });
+
+  it("Escape cancels an import and leaves the data alone", async () => {
+    const source = freshDb();
+    await withApplications(source, 3);
+    const db = freshDb();
+    await withApplications(db, 1);
+    await setup({ db });
+    await chooseFile("backup.json", await exportAllAsJson(source));
+    await waitFor(() => q(".inline-confirm"));
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await sleep(20);
+    });
+    expect(q(".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(q("input[type=file]"));
+    expect(await db.applications.count()).toBe(1);
+  });
+
+  it("names the question for assistive technology", async () => {
+    await setup();
+    await click(byText("Delete all my data")!);
+    const group = await waitFor(() => q("#data .inline-confirm"));
+    expect(group.getAttribute("role")).toBe("group");
+    expect(document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent).toBe("Delete your applications, emails and settings from this device?");
+  });
+});
+
+describe("account rows", () => {
+  it("name the account in each button, so repeated buttons are told apart", async () => {
+    const db = freshDb();
+    await upsertAccount(db, "gmail", "me@gmail.com");
+    await setup({ db });
+    expect(byText("Disconnect account")!.getAttribute("aria-label")).toBe("Disconnect account Gmail me@gmail.com");
+    expect(byText("Reconnect account")!.getAttribute("aria-label")).toBe("Reconnect account Gmail me@gmail.com");
   });
 });
 

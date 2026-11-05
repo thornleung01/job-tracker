@@ -5,7 +5,7 @@ export function mk(
   subject: string,
   body = "",
   sender = "Acme Careers <jobs@acme.com>",
-  opts: { id?: string; thread?: string; day?: number; bulk?: boolean; html?: string } = {},
+  opts: { id?: string; thread?: string; day?: number; bulk?: boolean } = {},
 ): Message {
   const lt = sender.indexOf("<");
   const name = lt < 0 ? sender : sender.slice(0, lt);
@@ -19,7 +19,6 @@ export function mk(
     receivedAt: `2026-10-${String(opts.day ?? 1).padStart(2, "0")}T12:00:00.000Z`,
     body,
     bulk: opts.bulk ?? false,
-    html: opts.html ?? "",
   };
 }
 

@@ -1,11 +1,12 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  allApplicationsFor, applyEvent, clearEmail, createApplication, emailSeen, listAccounts, openApplications, recordFeedback, senderAddress,
+  allApplicationsFor, applyEvent, clearEmail, createApplication, emailSeen, listAccounts, recordFeedback, senderAddress,
   threadApplication, upsertAccount,
 } from "../../src/db/repo";
-import { deleteDatabase, openDatabase, userDbName } from "../../src/db/schema";
-import { daysSince, isDayString, iso, localToday, roundHalfEven } from "../../src/db/time";
+import { dbNameFor } from "../../src/auth/user";
+import { deleteDatabase, openDatabase } from "../../src/db/schema";
+import { idleDaysSince, isDayString, iso, localToday, roundHalfEven } from "../../src/db/time";
 import { exportAll } from "../../src/portability";
 import { closeAll, freshDb } from "../sync/helpers";
 
@@ -112,13 +113,12 @@ describe("applyEvent", () => {
     expect((await db.applications.get(a))!.appliedAt).toBe("2026-10-02T00:00:00Z");
   });
 
-  it("lists open applications without rejections, oldest first", async () => {
+  it("lists a company's applications, oldest first", async () => {
     const db = freshDb();
     const a = await newApp(db);
     const b = await newApp(db);
     await applyEvent(db, a, "rejected", "2026-10-03T00:00:00Z");
     expect((await allApplicationsFor(db, "acme")).map((x) => x.id)).toEqual([a, b]);
-    expect((await openApplications(db, "acme")).map((x) => x.id)).toEqual([b]);
   });
 });
 
@@ -137,11 +137,13 @@ describe("feedback and helpers", () => {
     expect(() => iso("nope")).toThrow();
   });
 
-  it("counts whole days since, rounding down", () => {
+  it("counts whole calendar days since, never below zero", () => {
     const now = new Date("2026-10-10T12:00:00Z");
-    expect(daysSince("2026-10-09T13:00:00Z", now)).toBe(0);
-    expect(daysSince("2026-10-08T12:00:00Z", now)).toBe(2);
-    expect(daysSince(null, now)).toBeNull();
+    expect(idleDaysSince("2026-10-10T08:00:00Z", now, "UTC")).toBe(0);
+    expect(idleDaysSince("2026-10-09T13:00:00Z", now, "UTC")).toBe(1);
+    expect(idleDaysSince("2026-10-08T12:00:00Z", now, "UTC")).toBe(2);
+    expect(idleDaysSince("2026-10-11T12:00:00Z", now, "UTC")).toBe(0);
+    expect(idleDaysSince(null, now)).toBeNull();
   });
 
   it("validates a day string and rounds half to even", () => {
@@ -154,8 +156,8 @@ describe("feedback and helpers", () => {
 
 describe("per-user databases", () => {
   it("never shows one database's rows to another", async () => {
-    const alice = openDatabase(userDbName("https://accounts.google.com", "alice"));
-    const bob = openDatabase(userDbName("https://accounts.google.com", "bob"));
+    const alice = openDatabase(dbNameFor({ iss: "https://accounts.google.com", sub: "alice" }));
+    const bob = openDatabase(dbNameFor({ iss: "https://accounts.google.com", sub: "bob" }));
     try {
       const acct = await upsertAccount(alice, "gmail", "alice@gmail.com");
       await createApplication(alice, { company: "Acme", companyKey: "acme", role: "R", roleKey: "r", stage: "Applied", when: "2026-10-01T00:00:00Z" });
@@ -169,17 +171,17 @@ describe("per-user databases", () => {
     } finally {
       alice.close();
       bob.close();
-      await deleteDatabase(userDbName("https://accounts.google.com", "alice"));
-      await deleteDatabase(userDbName("https://accounts.google.com", "bob"));
+      await deleteDatabase(dbNameFor({ iss: "https://accounts.google.com", sub: "alice" }));
+      await deleteDatabase(dbNameFor({ iss: "https://accounts.google.com", sub: "bob" }));
     }
   });
 
   it("names the database jobtracker:{iss}:{sub}", () => {
-    expect(userDbName("https://accounts.google.com", "123")).toBe("jobtracker:https://accounts.google.com:123");
+    expect(dbNameFor({ iss: "https://accounts.google.com", sub: "123" })).toBe("jobtracker:https://accounts.google.com:123");
   });
 
   it("is gone after deleteDatabase", async () => {
-    const name = userDbName("iss", "wipe");
+    const name = dbNameFor({ iss: "iss", sub: "wipe" });
     const db = openDatabase(name);
     await upsertAccount(db, "gmail", "x@y.co");
     db.close();

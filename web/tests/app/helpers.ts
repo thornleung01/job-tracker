@@ -6,7 +6,7 @@ import type { Session } from "../../src/auth/session";
 import type { AuthUser } from "../../src/auth/user";
 import type { ShellAuth } from "../../src/app/authApi";
 import type { ProviderName } from "../../src/types";
-import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
+import { createDbPool } from "../support/db";
 import { quiesce, sleep, WAIT_TIMEOUT_MS } from "../support/helpers";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -46,6 +46,14 @@ export { sleep };
 export async function settle(ms = 20): Promise<void> {
   await act(async () => {
     await quiesce(ms);
+  });
+}
+
+/** Moves to a route the way a link does (the address changes, the router re-renders) and lets the page behind it load. */
+export async function go(hash: string): Promise<void> {
+  await act(async () => {
+    window.location.hash = hash;
+    await quiesce(30);
   });
 }
 
@@ -125,14 +133,7 @@ export function fakeAuth(initial: Partial<Session> = {}) {
   return { auth, set, pending };
 }
 
-let counter = 0;
-const opened: JobTrackerDB[] = [];
-export const openTestDb = (name: string) => {
-  const db = openDatabase(`app-test-${Date.now()}-${counter++}-${name}`);
-  opened.push(db);
-  return db;
-};
+const pool = createDbPool("app-test");
+export const openTestDb = (name: string) => pool.open(name);
 export const freshDb = () => openTestDb("fresh");
-export function closeDbs(): void {
-  while (opened.length) opened.pop()!.close();
-}
+export const closeDbs = () => pool.closeAll();

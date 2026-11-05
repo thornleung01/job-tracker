@@ -1,4 +1,7 @@
 # Editable rules for the classifier. All patterns are case-insensitive regexes.
+#
+# The hosted edition (web/) reads a verbatim copy of this file. After editing, run `python scripts/build_rules_json.py`
+# and `python scripts/export_fixtures.py`, and commit the regenerated files with this one, or the hosted tests fail.
 
 # Hiring-system sender domains: mail from these is job-related by definition.
 ats_domains:

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { MAX_PASTE_CHARS } from "../../db/limits";
 import type { JobDraft } from "../../jobs/types";
 import { describeDraft, guessedHint, type Held } from "./describe";
 import { realJobLinkDeps, type JobLinkDeps } from "./deps";
@@ -7,8 +8,6 @@ export type FormField = "company" | "role" | "url";
 type Values = Record<FormField, string>;
 type Setters = Record<FormField, (value: string) => void>;
 
-/** The posting text a person may paste: 200 KB of characters is far more than any job ad. */
-export const MAX_PASTE_CHARS = 200_000;
 /** How long after a paste the link is read, so a paste that arrives in pieces is read once. */
 export const PASTE_DEBOUNCE_MS = 300;
 
@@ -47,12 +46,15 @@ export interface JobLinkFill {
 export function useJobLink(values: Values, set: Setters, deps: Partial<JobLinkDeps> = {}): JobLinkFill {
   const lib: JobLinkDeps = { ...realJobLinkDeps, ...deps };
   const libRef = useRef(lib);
-  libRef.current = lib;
   const setRef = useRef(set);
-  setRef.current = set;
   // What the fields hold right now, kept current when this hook sets one (a render may not have happened yet).
   const live = useRef<Values>(values);
-  live.current = values;
+  // The latest props, written after each commit rather than during render (a render React throws away must not leave its values behind).
+  useLayoutEffect(() => {
+    libRef.current = lib;
+    setRef.current = set;
+    live.current = values;
+  });
   // The value this hook last put in each field. A field that differs from it was typed by a person.
   const auto = useRef<Record<FormField, string | null>>({ company: null, role: null, url: null });
 

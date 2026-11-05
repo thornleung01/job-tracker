@@ -1,18 +1,24 @@
+// The fixtures python-export.json (a snapshot of scripts/seed_demo.py through scripts/export_json.py) and
+// python-export.golden.json (what the Python code computes from it) are described in scripts/export_fixtures.py, whose
+// --check fails when the golden stops matching the snapshot.
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   EXPORT_FORMAT, EXPORT_VERSION, ImportError, clearAll, convertPythonExport, exportAll, exportAllAsJson, importAll, importFromPythonExport,
 } from "../../src/portability";
-import { addNote, addStep } from "../../src/sync/activity";
+import { addStep } from "../../src/sync/activity";
 import { saveSettings, loadSettings } from "../../src/sync/settings";
 import { processMessages, processMessage } from "../../src/sync/sync";
 import { mergeApplications } from "../../src/sync/actions";
 import * as contacts from "../../src/sync/contacts";
 import { sankey } from "../../src/sync/stats";
-import { closeAll, dbWithAccount, freshDb, mk } from "../sync/helpers";
+import { closeAll, dbWithAccount, freshDb, mk, seedNote } from "../sync/helpers";
 import fixture from "../fixtures/python-export.json";
 import golden from "../fixtures/python-export.golden.json";
+import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS } from "../../src/db/limits";
+import { pinClock } from "../support/clock";
 
+pinClock();
 afterEach(closeAll);
 
 async function populated() {
@@ -24,7 +30,7 @@ async function populated() {
     mk("4", "Re: your application", "Quick question about your CV.", "Sam <sam@zzz.com>", undefined, 5),
     mk("5", "Your receipt", "thanks", "Shop <a@shop.com>", undefined, 6),
   ]);
-  await addNote(db, 1, "remember <b>this</b>");
+  await seedNote(db, 1, "remember <b>this</b>");
   await addStep(db, 1, "Phone screen", "2026-10-02", "30 min");
   await contacts.saveEdit(db, "1|sam@acme.com", "Sam Example", "Recruiter");
   await db.feedback.add({ createdAt: "2026-10-01T00:00:00Z", verdict: "not_job", senderEmail: "a@coachco.io", senderDomain: "coachco.io", subject: "s", reason: "body: x", applicationId: null });
@@ -85,7 +91,12 @@ describe("export and import", () => {
     const { db } = await populated();
     await mergeApplications(db, 1, 2);
     const copy = freshDb();
-    await expect(importAll(copy, await exportAll(db))).resolves.toBeDefined();
+    const summary = await importAll(copy, await exportAll(db));
+    expect([summary.applications, summary.emails]).toEqual([1, 5]);
+    const appIds = new Set((await copy.applications.toArray()).map((a) => a.id));
+    const pointers = [...(await copy.emails.toArray()), ...(await copy.activity.toArray())].map((r) => r.applicationId).filter((id) => id !== null);
+    expect(pointers.length).toBeGreaterThan(0);
+    expect(pointers.filter((id) => !appIds.has(id as number))).toEqual([]);
   });
 });
 
@@ -158,6 +169,68 @@ describe("validation", () => {
     await importAll(db, x);
     const s = await loadSettings(db);
     expect([s.appearance.theme, s.appearance.accent, s.appearance.columns]).toEqual(["system", "graphite", ["company", "role", "stage"]]);
+  });
+});
+
+describe("what an imported file may contain", () => {
+  async function valid() {
+    const { db } = await populated();
+    return JSON.parse(await exportAllAsJson(db));
+  }
+  const importedRow = async (x: any, table: "emails" | "ignoredMail") => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const db = freshDb();
+    await importAll(db, x);
+    return (await db[table].toArray())[0];
+  };
+
+  it("keeps an Open in Outlook link that points at Outlook, and drops any other", async () => {
+    const x = await valid();
+    const hosts: [string, boolean][] = [
+      ["https://outlook.office365.com/owa/?ItemID=abc", true], ["https://outlook.office.com/mail/id/abc", true], ["https://outlook.live.com/owa/?ItemID=abc", true],
+      ["https://evil.example/login", false], ["https://outlook.office365.com.evil.example/owa", false], ["http://outlook.live.com/owa", false],
+      ["https://user:pw@outlook.live.com/owa", false], ["javascript:alert(1)", false], ["https://mail.google.com/mail/u/0/#all/abc", false],
+    ];
+    for (const [link, kept] of hosts) {
+      x.data.emails[0].webLink = link;
+      x.data.ignoredMail[0].webLink = link;
+      expect((await importedRow(x, "emails")).webLink, link).toBe(kept ? link : null);
+      expect((await importedRow(x, "ignoredMail")).webLink, link).toBe(kept ? link : null);
+    }
+  });
+
+  it("cuts a company and a role to the lengths saving uses, so what imports can be saved again as it is", async () => {
+    const x = await valid();
+    x.data.applications[0].company = "C".repeat(150);
+    x.data.applications[0].companyKey = "c".repeat(150);
+    x.data.applications[0].role = "R".repeat(250);
+    x.data.applications[0].roleKey = "r".repeat(250);
+    const db = freshDb();
+    await importAll(db, x);
+    const app = (await db.applications.toArray()).find((a) => a.id === x.data.applications[0].id)!;
+    expect([app.company.length, app.companyKey.length, app.role.length, app.roleKey.length]).toEqual([MAX_COMPANY_CHARS, MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_ROLE_CHARS]);
+  });
+
+  it("refuses a person key the app could never reach", async () => {
+    for (const key of ["1|name:Sam Lee", "1|a b@c.co", "x|a@b.co", "1|", "1|name:"]) {
+      const x = await valid();
+      x.data.contactEdits[0].key = key;
+      await expect(importAll(freshDb(), x), key).rejects.toThrow(/not a person key/);
+    }
+    const ok = await valid();
+    ok.data.contactEdits[0].key = "1|name:samlee";
+    await expect(importAll(freshDb(), ok)).resolves.toBeDefined();
+  });
+
+  it("refuses a confidence or a rule kind that is not on the list, and a name like 'toString' for an event", async () => {
+    for (const [mutate, message] of [
+      [(x: any) => (x.data.emails[0].confidence = "certain"), /confidence must be/], // eslint-disable-line @typescript-eslint/no-explicit-any
+      [(x: any) => (x.data.learnedRules[0].kind = "block_everything"), /not a known rule kind/], // eslint-disable-line @typescript-eslint/no-explicit-any
+      [(x: any) => (x.data.emails[0].event = "toString"), /event is not a known event/], // eslint-disable-line @typescript-eslint/no-explicit-any
+    ] as const) {
+      const x = await valid();
+      mutate(x);
+      await expect(importAll(freshDb(), x)).rejects.toThrow(message);
+    }
   });
 });
 

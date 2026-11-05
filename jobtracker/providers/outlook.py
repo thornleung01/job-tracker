@@ -1,18 +1,20 @@
+"""Outlook and Microsoft 365: sign in with MSAL, read mail through Microsoft Graph, and send a reply when you turn that on.
+
+Reading asks only for Mail.Read. Mail.Send is asked for separately, per account, when you allow replying.
+"""
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Callable, Iterator
 
 import requests
 
-from ..config import OUTLOOK_AUTHORITY, OUTLOOK_SCOPES, OUTLOOK_SEND_SCOPE
+from ..config import OUTLOOK_AUTHORITY, OUTLOOK_SCOPES, OUTLOOK_SEND_SCOPE, SIGN_IN_TIMEOUT
 from ..models import Message
 from . import clients
-from .base import NotAllowed, NotConnected, html_to_text, token_persistence
+from .base import NotAllowed, NotConnected, html_to_text, is_bulk, token_persistence
 
-SIGN_IN_TIMEOUT = 300   # seconds to finish signing in before giving up
 GRAPH = "https://graph.microsoft.com/v1.0"
 log = logging.getLogger(__name__)
 SKIP_FOLDERS = ("junkemail", "sentitems", "drafts", "deleteditems")
@@ -59,7 +61,11 @@ class OutlookProvider:
                 app.remove_account(account)
 
     def send_reply(self, *, thread_id: str, message_id: str, to: str, subject: str, body: str) -> str:
-        """Reply to the stored message with `body`. Outlook addresses the reply to its sender and files it in the conversation."""
+        """Reply to the stored message with `body`, filed in the same conversation.
+
+        The recipient is set to `to` (the address the confirmation showed). Without it Outlook would use the message's
+        Reply-To header, which a sender can point anywhere.
+        """
         from urllib.parse import quote
 
         try:
@@ -69,7 +75,7 @@ class OutlookProvider:
         r = requests.post(
             f"{GRAPH}/me/messages/{quote(message_id, safe='')}/reply",
             headers={"Authorization": f"Bearer {token}", "Prefer": 'IdType="ImmutableId"'},
-            json={"comment": body}, timeout=30,
+            json={"comment": body, "message": {"toRecipients": [{"emailAddress": {"address": to}}]}}, timeout=30,
         )
         if r.status_code not in (200, 202):
             raise RuntimeError(f"Outlook didn't send the reply (error {r.status_code}).")
@@ -118,11 +124,6 @@ class OutlookProvider:
             url = data.get("@odata.nextLink")
 
 
-def _is_bulk(headers: dict) -> bool:
-    return bool(headers.get("list-unsubscribe") or headers.get("list-id")
-                or headers.get("precedence", "").strip().lower() in ("bulk", "list", "junk"))
-
-
 def parse_message(raw: dict) -> Message:
     sender = (raw.get("from") or {}).get("emailAddress") or {}
     body = raw.get("body") or {}
@@ -132,7 +133,7 @@ def parse_message(raw: dict) -> Message:
         html, text = text, html_to_text(text)
     headers = {h.get("name", "").lower(): h.get("value", "") for h in raw.get("internetMessageHeaders") or []}
     return Message(
-        bulk=_is_bulk(headers),
+        bulk=is_bulk(headers),
         id=raw["id"],
         thread_id=raw.get("conversationId") or raw["id"],
         sender_name=sender.get("name") or "",

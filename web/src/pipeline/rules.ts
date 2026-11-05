@@ -27,7 +27,8 @@ export interface Rules {
   weak: Readonly<Record<string, readonly RegExp[]>>;
 }
 
-const compile = (patterns: readonly string[] | undefined): RegExp[] => (patterns ?? []).map((p) => py(p, "i"));
+/** Every pattern in a rules list, compiled case-insensitively like the Python side. */
+const compile = (patterns: readonly string[] | undefined): RegExp[] => (patterns ?? []).map((source) => py(source, "i"));
 
 export function compileRules(data: RawRules): Rules {
   const strong: Record<string, RegExp[]> = {};

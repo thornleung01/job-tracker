@@ -82,7 +82,7 @@ def test_columns_setting_changes_list(env):
     acct = db.upsert_account(conn, "gmail", "me@gmail.com")
     process_message(conn, acct, mk("1", "Thank you for applying to Acme"))
     c = client()
-    header = lambda html, name: f'class="sort" href="' in html and f">{name}<span class=\"sort-ind\"" in html  # noqa: E731
+    header = lambda html, name: 'class="sort" href="' in html and f">{name}<span class=\"sort-ind\"" in html  # noqa: E731
     assert header(c.get("/").text, "Role")
     c.post("/settings/appearance", data={"columns": ["company", "stage"]})
     html = c.get("/").text

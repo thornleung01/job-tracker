@@ -5,9 +5,5 @@
 .sync-banner > div { flex: 1 1 auto; min-width: 0; }
 .sync-banner .line { margin: 0; }
 .sync-banner .line + .line { margin-top: 4px; }
-.sync-banner .bar { height: 10px; margin-top: 10px; border-radius: var(--r-pill); background: var(--fog); overflow: hidden; position: relative; }
-.sync-banner .bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .5s ease-out; }
-.sync-banner .bar.indet > i { position: absolute; width: 35%; animation: sync-banner-slide 1.4s ease-in-out infinite; }
+.sync-banner .bar { margin-top: 10px; }
 .sync-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-@keyframes sync-banner-slide { from { left: -35%; } to { left: 100%; } }
-@media (prefers-reduced-motion: reduce) { .sync-banner .bar > i { transition: none; } .sync-banner .bar.indet > i { animation: none; width: 100%; opacity: .35; } }

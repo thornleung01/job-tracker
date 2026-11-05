@@ -1,12 +1,20 @@
+"""The SQLite database: its schema, how a connection is opened, and the few queries many modules share.
+
+`SCHEMA` is the whole schema for a new database. `_ADDED_COLUMNS` upgrades a database made by an older version, once per
+column, and is safe to run again. Times are stored as UTC text (`iso` writes them, `parse_iso` reads them).
+"""
 from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 # JOBTRACKER_DB lets you point the app at another database, e.g. the demo one.
 DEFAULT_PATH = Path(os.environ.get("JOBTRACKER_DB") or Path(__file__).resolve().parent.parent / "data" / "tracker.db")
+
+TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -49,10 +57,15 @@ CREATE TABLE IF NOT EXISTS emails (
     application_id INTEGER REFERENCES applications (id),
     needs_review INTEGER NOT NULL DEFAULT 0,
     web_link TEXT,
+    bulk INTEGER NOT NULL DEFAULT 0,
+    hold INTEGER NOT NULL DEFAULT 0,
+    reason TEXT,
     UNIQUE (account_id, provider_msg_id)
 );
 CREATE INDEX IF NOT EXISTS idx_email_thread ON emails (account_id, thread_id);
 CREATE INDEX IF NOT EXISTS idx_email_app ON emails (application_id);
+-- Only the few emails waiting for a look: keeps the "needs review" count and its list from scanning every email.
+CREATE INDEX IF NOT EXISTS idx_email_review ON emails (received_at) WHERE needs_review = 1;
 -- Your own notes and logged steps. occurred_at is when it happened, created_at when you typed it.
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY,
@@ -129,6 +142,7 @@ CREATE TABLE IF NOT EXISTS ignored_mail (
     web_link TEXT,
     reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
+    bulk INTEGER NOT NULL DEFAULT 0,
     UNIQUE (account_id, provider_msg_id)
 );
 -- Replies sent from the app. Sent mail is never synced back, so this is also the record that shows them in the timeline.
@@ -143,6 +157,8 @@ CREATE TABLE IF NOT EXISTS sent_replies (
     body TEXT NOT NULL,
     token TEXT NOT NULL UNIQUE
 );
+-- Appearance, sync and job-search settings, one JSON section per key (see settings.py).
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- Your corrections to the people list (which is otherwise worked out from the emails each time).
 CREATE TABLE IF NOT EXISTS contact_edits (
     key TEXT PRIMARY KEY,
@@ -167,8 +183,6 @@ CREATE TABLE IF NOT EXISTS learned_rules (
 );
 """
 
-# Progression events only move an application forward. Terminal events can land
-# from any stage, but only if the email is newer than the current stage.
 STAGE_FOR_EVENT = {
     "applied": "Applied",
     "heard_back": "Heard back",
@@ -183,10 +197,45 @@ TERMINAL = {"Offer", "Rejected"}
 
 
 def iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return dt.astimezone(timezone.utc).strftime(TIME_FORMAT)
 
 
+def parse_iso(text: str) -> datetime:
+    """The timezone-aware UTC time that `iso` wrote. Other ISO 8601 forms (fractions, offsets) are read too; no zone means UTC."""
+    try:
+        return datetime.strptime(text, TIME_FORMAT).replace(tzinfo=timezone.utc)
+    except ValueError:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when.astimezone(timezone.utc)
+
+
+def now_iso() -> str:
+    return iso(datetime.now(timezone.utc))
+
+
+# Columns added after the first release. A database made by an older version gets them when it is opened.
+_ADDED_COLUMNS = [
+    ("emails", "web_link", "TEXT"),
+    ("emails", "bulk", "INTEGER NOT NULL DEFAULT 0"),
+    ("emails", "hold", "INTEGER NOT NULL DEFAULT 0"),
+    ("emails", "reason", "TEXT"),
+    ("ignored_mail", "bulk", "INTEGER NOT NULL DEFAULT 0"),
+    ("accounts", "active", "INTEGER NOT NULL DEFAULT 1"),
+    ("accounts", "can_reply", "INTEGER NOT NULL DEFAULT 0"),
+    ("applications", "url", "TEXT"),            # the link to the job posting, when known
+]
 _READY: set[str] = set()      # databases whose schema is already in place in this process
+_SETUP_LOCK = threading.Lock()   # the web server, the sync thread and the sign-in thread may all open a new database at once
+
+
+def _upgrade(conn: sqlite3.Connection) -> None:
+    """Make an existing database match SCHEMA. CREATE TABLE IF NOT EXISTS won't add columns to a table that already exists."""
+    have: dict[str, set[str]] = {}
+    for table, column, ddl in _ADDED_COLUMNS:
+        if table not in have:
+            have[table] = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in have[table]:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
@@ -194,35 +243,20 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
     if not memory:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     # A database file that is new (or was deleted and made again) always gets its schema; one seen before is not rebuilt on every request.
-    setup = memory or not Path(path).exists() or str(path) not in _READY
+    fresh = memory or not Path(path).exists()
     # FastAPI runs sync handlers in a threadpool, so a connection can hop threads.
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    if not setup:
-        return conn
-    if not memory:
-        conn.execute("PRAGMA journal_mode = WAL")
-    conn.executescript(SCHEMA)
-    # CREATE TABLE IF NOT EXISTS won't add columns to a table that already exists.
-    if "web_link" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
-        conn.execute("ALTER TABLE emails ADD COLUMN web_link TEXT")
-    if "bulk" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
-        conn.execute("ALTER TABLE emails ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0")
-    if "bulk" not in {r["name"] for r in conn.execute("PRAGMA table_info(ignored_mail)")}:
-        conn.execute("ALTER TABLE ignored_mail ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0")
-    if "hold" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
-        conn.execute("ALTER TABLE emails ADD COLUMN hold INTEGER NOT NULL DEFAULT 0")
-    if "reason" not in {r["name"] for r in conn.execute("PRAGMA table_info(emails)")}:
-        conn.execute("ALTER TABLE emails ADD COLUMN reason TEXT")
-    if "active" not in {r["name"] for r in conn.execute("PRAGMA table_info(accounts)")}:
-        conn.execute("ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
-    if "can_reply" not in {r["name"] for r in conn.execute("PRAGMA table_info(accounts)")}:
-        conn.execute("ALTER TABLE accounts ADD COLUMN can_reply INTEGER NOT NULL DEFAULT 0")
-    if "url" not in {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}:
-        conn.execute("ALTER TABLE applications ADD COLUMN url TEXT")      # the link to the job posting, when known
-    if not memory:
-        _READY.add(str(path))
+    with _SETUP_LOCK:
+        if not (fresh or str(path) not in _READY):
+            return conn
+        if not memory:
+            conn.execute("PRAGMA journal_mode = WAL")
+        conn.executescript(SCHEMA)
+        _upgrade(conn)
+        if not memory:
+            _READY.add(str(path))
     return conn
 
 
@@ -271,7 +305,11 @@ def create_application(
 
 
 def apply_event(conn: sqlite3.Connection, app_id: int, event: str, when: str) -> bool:
-    """Move an application to the stage for `event`. Returns True if the stage changed."""
+    """Move an application to the stage for `event`. Returns True if the stage changed.
+
+    Progression events only move an application forward. Terminal events can land from any stage, but only if the
+    email is newer than the current stage.
+    """
     app = conn.execute("SELECT * FROM applications WHERE id = ?", (app_id,)).fetchone()
     new = STAGE_FOR_EVENT[event]
     cur = app["stage"]
@@ -295,14 +333,6 @@ def apply_event(conn: sqlite3.Connection, app_id: int, event: str, when: str) ->
     sets = ", ".join(f"{k} = ?" for k in fields)
     conn.execute(f"UPDATE applications SET {sets} WHERE id = ?", (*fields.values(), app_id))
     return change
-
-
-def open_applications(conn: sqlite3.Connection, ckey: str) -> list[sqlite3.Row]:
-    """Applications at a company that haven't ended in a rejection."""
-    return conn.execute(
-        "SELECT * FROM applications WHERE company_key = ? AND stage != 'Rejected' ORDER BY id",
-        (ckey,),
-    ).fetchall()
 
 
 def all_applications_for(conn: sqlite3.Connection, ckey: str) -> list[sqlite3.Row]:

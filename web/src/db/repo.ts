@@ -1,10 +1,10 @@
 // Data helpers mirroring jobtracker/db.py. Every function takes the user's database as its first argument.
 import type { ProviderName } from "../types";
+import { MissingRecordError } from "./errors";
 import {
   tx,
   type AccountRow,
   type ApplicationRow,
-  type ContactEditRow,
   type EmailRow,
   type FeedbackRow,
   type JobTrackerDB,
@@ -54,15 +54,11 @@ export async function threadApplication(db: JobTrackerDB, accountId: number, thr
   return best ? best.applicationId : null;
 }
 
-export async function emailsForApplication(db: JobTrackerDB, appId: number): Promise<EmailRow[]> {
-  return db.emails.where("applicationId").equals(appId).toArray();
-}
-
-/** Turns a stored job email back into ordinary mail: only its id and date are kept, as when you dismiss it. */
+/** Turns a stored job email back into ordinary mail: only its id and date are kept (the same as rememberUnrelated), also when you dismiss it. */
 export async function clearEmail(db: JobTrackerDB, emailId: number): Promise<void> {
   await db.emails.update(emailId, {
     related: false, needsReview: false, event: null, confidence: null, subject: null, body: null, sender: null,
-    webLink: null, reason: null, applicationId: null, hold: false,
+    threadId: null, webLink: null, bulk: false, reason: null, applicationId: null, hold: false,
   });
 }
 
@@ -97,8 +93,11 @@ export async function createApplication(db: JobTrackerDB, a: NewApplication): Pr
   });
 }
 
-export async function getApplication(db: JobTrackerDB, appId: number): Promise<ApplicationRow | undefined> {
-  return db.applications.get(appId);
+/** The application, or MissingRecordError when it is gone. Call it inside the transaction that then writes to it. */
+export async function requireApplication(db: JobTrackerDB, appId: number): Promise<ApplicationRow> {
+  const app = await db.applications.get(appId);
+  if (!app) throw new MissingRecordError(`No application ${appId}`);
+  return app;
 }
 
 /** Moves an application to the stage for `event`. Returns true if the stage changed. */
@@ -124,11 +123,6 @@ export async function applyEvent(db: JobTrackerDB, appId: number, event: EventNa
   return change;
 }
 
-/** Applications at a company that haven't ended in a rejection. */
-export async function openApplications(db: JobTrackerDB, companyKey: string): Promise<ApplicationRow[]> {
-  return (await allApplicationsFor(db, companyKey)).filter((a) => a.stage !== "Rejected");
-}
-
 export async function allApplicationsFor(db: JobTrackerDB, companyKey: string): Promise<ApplicationRow[]> {
   const rows = await db.applications.where("companyKey").equals(companyKey).toArray();
   return rows.sort((a, b) => a.id - b.id);
@@ -150,10 +144,11 @@ export async function recordFeedback(
   verdict: FeedbackRow["verdict"],
   email: { sender: string | null; subject: string | null; reason?: string | null },
   applicationId: number | null = null,
+  now: Date = new Date(),
 ): Promise<void> {
   const address = senderAddress(email.sender ?? "");
   await db.feedback.add({
-    createdAt: iso(new Date()),
+    createdAt: iso(now),
     verdict,
     senderEmail: address,
     senderDomain: address.slice(address.lastIndexOf("@") + 1),
@@ -168,8 +163,4 @@ export function senderAddress(sender: string): string {
   const text = sender ?? "";
   const address = text.includes("<") ? text.slice(text.lastIndexOf("<") + 1).replace(/>+$/, "") : text;
   return address.trim().toLowerCase();
-}
-
-export async function getContactEdit(db: JobTrackerDB, key: string): Promise<ContactEditRow | undefined> {
-  return db.contactEdits.get(key);
 }

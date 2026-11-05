@@ -1,0 +1,994 @@
+{
+ "routes": [
+  [
+   "GET",
+   "/",
+   "index"
+  ],
+  [
+   "GET",
+   "/app/{app_id}",
+   "detail"
+  ],
+  [
+   "GET",
+   "/app/{app_id}/panel",
+   "panel"
+  ],
+  [
+   "GET",
+   "/contacts",
+   "contacts_page"
+  ],
+  [
+   "GET",
+   "/flow",
+   "flow"
+  ],
+  [
+   "GET",
+   "/jobs",
+   "jobs_page"
+  ],
+  [
+   "GET",
+   "/review",
+   "review"
+  ],
+  [
+   "GET",
+   "/settings",
+   "settings_page"
+  ],
+  [
+   "GET",
+   "/sync/status",
+   "sync_status"
+  ],
+  [
+   "MOUNT",
+   "/static",
+   "static"
+  ],
+  [
+   "POST",
+   "/app/add",
+   "add"
+  ],
+  [
+   "POST",
+   "/app/derive",
+   "derive_from_link"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/activity/{activity_id}/delete",
+   "delete_activity"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/delete",
+   "delete"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/edit",
+   "edit_application"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/merge",
+   "merge"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/not-application",
+   "not_an_application"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/stage",
+   "set_stage"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/step",
+   "add_step"
+  ],
+  [
+   "POST",
+   "/app/{app_id}/unlock",
+   "unlock"
+  ],
+  [
+   "POST",
+   "/contacts/edit",
+   "edit_contact"
+  ],
+  [
+   "POST",
+   "/contacts/hide",
+   "hide_contact"
+  ],
+  [
+   "POST",
+   "/email/{email_id}/reply",
+   "send_reply"
+  ],
+  [
+   "POST",
+   "/ignored/{ignored_id}/real",
+   "ignored_is_real"
+  ],
+  [
+   "POST",
+   "/jobs/notifications/read",
+   "read_all"
+  ],
+  [
+   "POST",
+   "/jobs/profile",
+   "save_profile"
+  ],
+  [
+   "POST",
+   "/jobs/profile/resume",
+   "upload_resume"
+  ],
+  [
+   "POST",
+   "/jobs/profile/resume/remove",
+   "remove_resume"
+  ],
+  [
+   "POST",
+   "/jobs/refresh",
+   "refresh"
+  ],
+  [
+   "POST",
+   "/jobs/sources/adzuna",
+   "save_adzuna"
+  ],
+  [
+   "POST",
+   "/jobs/sources/adzuna/remove",
+   "remove_adzuna"
+  ],
+  [
+   "POST",
+   "/jobs/sources/feed",
+   "add_feed"
+  ],
+  [
+   "POST",
+   "/jobs/sources/{source_id}/remove",
+   "remove_feed"
+  ],
+  [
+   "POST",
+   "/jobs/{posting_id}/applied",
+   "applied"
+  ],
+  [
+   "POST",
+   "/jobs/{posting_id}/status",
+   "set_status"
+  ],
+  [
+   "POST",
+   "/learned/{rule_id}/undo",
+   "undo_rule"
+  ],
+  [
+   "POST",
+   "/profiles",
+   "add_profile"
+  ],
+  [
+   "POST",
+   "/profiles/switch",
+   "switch_profile"
+  ],
+  [
+   "POST",
+   "/profiles/{profile_id}/delete",
+   "delete_profile"
+  ],
+  [
+   "POST",
+   "/profiles/{profile_id}/rename",
+   "rename_profile"
+  ],
+  [
+   "POST",
+   "/review/{email_id}",
+   "resolve"
+  ],
+  [
+   "POST",
+   "/settings/appearance",
+   "save_appearance"
+  ],
+  [
+   "POST",
+   "/settings/connect/{provider}",
+   "connect_account"
+  ],
+  [
+   "POST",
+   "/settings/credentials/gmail",
+   "save_gmail_credentials"
+  ],
+  [
+   "POST",
+   "/settings/credentials/outlook",
+   "save_outlook_credentials"
+  ],
+  [
+   "POST",
+   "/settings/disconnect/{account_id}",
+   "disconnect_account"
+  ],
+  [
+   "POST",
+   "/settings/recheck",
+   "recheck_saved"
+  ],
+  [
+   "POST",
+   "/settings/reply-access/{account_id}",
+   "reply_access"
+  ],
+  [
+   "POST",
+   "/settings/sync",
+   "save_sync"
+  ],
+  [
+   "POST",
+   "/sync",
+   "sync"
+  ]
+ ],
+ "smoke": {
+  "activity delete": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  },
+  "activity delete gone": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  },
+  "add": {
+   "location": "/app/3",
+   "status": 303,
+   "type": ""
+  },
+  "add bad date": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "add bad stage": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "add empty company": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "add future date": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "add no role": {
+   "location": "/app/3",
+   "status": 303,
+   "type": ""
+  },
+  "adzuna remove": {
+   "location": "/jobs?tab=sources&notice=Adzuna+removed.+Its+key+was+deleted+from+this+PC.",
+   "status": 303,
+   "type": ""
+  },
+  "adzuna save empty": {
+   "location": "/jobs?tab=sources&error=Enter+both+the+app+ID+and+the+app+key+from+your+Adzuna+account.",
+   "status": 303,
+   "type": ""
+  },
+  "appearance": {
+   "location": "/settings?saved=appearance",
+   "status": 303,
+   "type": ""
+  },
+  "appearance empty": {
+   "location": "/settings?saved=appearance",
+   "status": 303,
+   "type": ""
+  },
+  "connect gmail": {
+   "location": "/settings#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "connect outlook": {
+   "location": "/settings#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "connect unknown": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "contact edit": {
+   "location": "/app/1?notice=Saved.",
+   "status": 303,
+   "type": ""
+  },
+  "contact edit bad key": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "contact edit open redirect": {
+   "location": "/contacts?notice=Saved.",
+   "status": 303,
+   "type": ""
+  },
+  "contact hide": {
+   "location": "/contacts?notice=Removed+from+this+application.+It+isn%27t+a+person%2C+or+you+don%27t+want+it+here.",
+   "status": 303,
+   "type": ""
+  },
+  "contact hide bad key": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "contacts": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "contacts search": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "cross-site fetch": {
+   "status": 403,
+   "type": "text/html"
+  },
+  "delete": {
+   "location": "/",
+   "status": 303,
+   "type": ""
+  },
+  "delete bad mode": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "delete to review": {
+   "location": "/",
+   "status": 303,
+   "type": ""
+  },
+  "derive bad": {
+   "cache_control": "no-store",
+   "error_text": "That doesn't look like a web link. Paste the full address, starting with https://.",
+   "json_keys": [
+    "error"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "derive empty": {
+   "cache_control": "no-store",
+   "error_text": "That doesn't look like a web link. Paste the full address, starting with https://.",
+   "json_keys": [
+    "error"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "detail": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "detail bad id": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 422,
+   "type": "application/json"
+  },
+  "detail missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "disconnect": {
+   "location": "/settings?notice=Disconnected+me%40gmail.com.+Its+saved+emails+and+applications+are+kept.#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "disconnect missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "docs off": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "edit": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  },
+  "edit empty company": {
+   "location": "/app/1?error=The+company+can%27t+be+empty.",
+   "status": 303,
+   "type": ""
+  },
+  "edit missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "edit no form": {
+   "location": "/app/1?error=The+company+can%27t+be+empty.",
+   "status": 303,
+   "type": ""
+  },
+  "feed add bad": {
+   "location": "/jobs?tab=%2A&error=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "feed remove": {
+   "location": "/jobs?tab=sources&notice=Company+removed.+Jobs+already+found+stay+in+your+list.",
+   "status": 303,
+   "type": ""
+  },
+  "flow": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "flow days": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "foreign host": {
+   "status": 403,
+   "type": "text/html"
+  },
+  "foreign origin": {
+   "status": 403,
+   "type": "text/html"
+  },
+  "get on post route": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 405,
+   "type": "application/json"
+  },
+  "gmail credentials bad": {
+   "location": "/settings?error=%2A#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "gmail credentials none": {
+   "location": "/settings?error=Choose+the+Google+credentials+file+first.#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "home": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "home bad sort": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "home filtered": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "ignored real": {
+   "location": "/review?notice=Rule+undone%2C+but+this+email+doesn%27t+read+like+a+job+email%2C+so+it+stays+ignored.",
+   "status": 303,
+   "type": ""
+  },
+  "ignored real missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "job applied": {
+   "location": "/jobs?notice=Added+to+your+applications.+Open+Applications+to+follow+its+progress.",
+   "status": 303,
+   "type": ""
+  },
+  "job applied missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "job status": {
+   "location": "/jobs?tab=matches",
+   "status": 303,
+   "type": ""
+  },
+  "job status bad": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "job status open redirect": {
+   "location": "/jobs?tab=matches",
+   "status": 303,
+   "type": ""
+  },
+  "jobs": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "jobs notifications": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "jobs profile": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "jobs profile save": {
+   "location": "/jobs?tab=profile&saved=profile",
+   "status": 303,
+   "type": ""
+  },
+  "jobs read all": {
+   "location": "/jobs?tab=notifications",
+   "status": 303,
+   "type": ""
+  },
+  "jobs refresh": {
+   "location": "/jobs?tab=%2A&error=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "jobs sources": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "merge": {
+   "location": "/app/2",
+   "status": 303,
+   "type": ""
+  },
+  "merge itself": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "merge missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "not application": {
+   "location": "/review?notice=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "not application missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "openapi off": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "other port origin": {
+   "status": 403,
+   "type": "text/html"
+  },
+  "outlook credentials bad": {
+   "location": "/settings?error=%2A#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "panel": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "panel missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "profile add": {
+   "location": "/settings?notice=Profile+Work+created+and+opened.+Connect+its+email+below.#accounts",
+   "set_cookie": [
+    "HttpOnly",
+    "Max-Age=31536000",
+    "Path=/",
+    "SameSite=lax",
+    "jt_profile=work"
+   ],
+   "status": 303,
+   "type": ""
+  },
+  "profile add empty": {
+   "location": "/settings?error=%2A#profiles",
+   "status": 303,
+   "type": ""
+  },
+  "profile cookie stale": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "profile delete default": {
+   "location": "/settings?error=%2A#profiles",
+   "status": 303,
+   "type": ""
+  },
+  "profile delete unconfirmed": {
+   "location": "/settings?error=Tick+the+box+to+confirm.+Deleting+a+profile+removes+its+emails%2C+applications+and+logins+from+this+PC.#profiles",
+   "status": 303,
+   "type": ""
+  },
+  "profile link": {
+   "set_cookie": [
+    "HttpOnly",
+    "Max-Age=31536000",
+    "Path=/",
+    "SameSite=lax",
+    "jt_profile=default"
+   ],
+   "status": 200,
+   "type": "text/html"
+  },
+  "profile link unknown": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "profile rename": {
+   "location": "/settings?notice=Profile+renamed.#profiles",
+   "status": 303,
+   "type": ""
+  },
+  "profile rename unknown": {
+   "location": "/settings?error=%2A#profiles",
+   "status": 303,
+   "type": ""
+  },
+  "profile switch": {
+   "location": "/flow",
+   "set_cookie": [
+    "HttpOnly",
+    "Max-Age=31536000",
+    "Path=/",
+    "SameSite=lax",
+    "jt_profile=default"
+   ],
+   "status": 303,
+   "type": ""
+  },
+  "profile switch backslash": {
+   "location": "/",
+   "set_cookie": [
+    "HttpOnly",
+    "Max-Age=31536000",
+    "Path=/",
+    "SameSite=lax",
+    "jt_profile=default"
+   ],
+   "status": 303,
+   "type": ""
+  },
+  "profile switch open redirect": {
+   "location": "/",
+   "set_cookie": [
+    "HttpOnly",
+    "Max-Age=31536000",
+    "Path=/",
+    "SameSite=lax",
+    "jt_profile=default"
+   ],
+   "status": 303,
+   "type": ""
+  },
+  "profile switch unknown": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "recheck": {
+   "location": "/settings?notice=Checked+5+saved+job+emails+against+the+current+rules.+Nothing+needed+to+change.#sync",
+   "status": 303,
+   "type": ""
+  },
+  "reply": {
+   "location": "/review?notice=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "reply access bad": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "reply access missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "reply access off": {
+   "location": "/settings?notice=Replying+is+off+for+me%40gmail.com.+The+app+won%27t+send+anything.+Gmail+still+lists+the+permission+until+you+disconnect+and+connect+again%2C+or+remove+it+in+your+account%27s+security+settings.#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "reply access on": {
+   "location": "/settings#accounts",
+   "status": 303,
+   "type": ""
+  },
+  "reply empty": {
+   "location": "/review?error=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "reply missing": {
+   "location": "/review?error=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "resume bad": {
+   "location": "/jobs?tab=%2A&error=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "resume none": {
+   "location": "/jobs?tab=profile&error=Choose+a+PDF%2C+Word+%28.docx%29+or+text+file+first.",
+   "status": 303,
+   "type": ""
+  },
+  "resume remove": {
+   "location": "/jobs?tab=profile&notice=Resume+removed+from+this+app.+Your+skills+and+titles+are+still+saved.",
+   "status": 303,
+   "type": ""
+  },
+  "review": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "review assign": {
+   "location": "/review?notice=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "review bad action": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "review bad app": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "review bad stage": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "review dismiss": {
+   "location": "/review?notice=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "review missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "review new": {
+   "location": "/review?notice=%2A",
+   "status": 303,
+   "type": ""
+  },
+  "review new no company": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "same origin post": {
+   "location": "/settings#sync",
+   "status": 303,
+   "type": ""
+  },
+  "settings": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "settings notice": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "stage": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  },
+  "stage bad": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "static font": {
+   "status": 200,
+   "type": "font/woff2"
+  },
+  "static traversal": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "step": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  },
+  "step bad": {
+   "location": "/app/1?error=Choose+a+step+from+the+list.",
+   "status": 303,
+   "type": ""
+  },
+  "step bad in page": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "step in page": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "step missing app": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "sync": {
+   "location": "/settings#sync",
+   "status": 303,
+   "type": ""
+  },
+  "sync bad scan": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 400,
+   "type": "application/json"
+  },
+  "sync settings": {
+   "location": "/settings?saved=sync",
+   "status": 303,
+   "type": ""
+  },
+  "sync settings bad": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 422,
+   "type": "application/json"
+  },
+  "sync status": {
+   "cache_control": "no-store",
+   "json_keys": [
+    "eta",
+    "label",
+    "note",
+    "percent",
+    "running"
+   ],
+   "status": 200,
+   "type": "application/json"
+  },
+  "undo rule": {
+   "location": "/review?notice=Rule+removed.+New+emails+are+judged+without+it.+Emails+it+already+cleared+stay+cleared.#learned",
+   "status": 303,
+   "type": ""
+  },
+  "undo rule missing": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "unknown": {
+   "json_keys": [
+    "detail"
+   ],
+   "status": 404,
+   "type": "application/json"
+  },
+  "unlock": {
+   "location": "/app/1",
+   "status": 303,
+   "type": ""
+  }
+ }
+}

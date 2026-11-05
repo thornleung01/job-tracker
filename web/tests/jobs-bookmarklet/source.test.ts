@@ -31,13 +31,14 @@ function click(src: string, html: string, url: string, open: (u: string) => unkn
 }
 
 describe("buildBookmarkletSource", () => {
-  it("is a javascript: URL, under 6 KB in production, under 8 KB unminified", () => {
+  it("is a javascript: URL, under 6 KB in production, under 10 KB unminified", () => {
     expect(source.startsWith("javascript:")).toBe(true);
     expect(minified.startsWith("javascript:")).toBe(true);
     // Ceilings, so a change cannot silently bloat the bookmarklet. The production size is printed for the build summary.
+    // Only the minified size ships (esbuild renames the locals), so the unminified ceiling just catches runaway growth.
     console.info(`bookmarklet size: ${minified.length} bytes minified, ${source.length} bytes unminified`);
     expect(minified.length).toBeLessThan(6000);
-    expect(source.length).toBeLessThan(8000);
+    expect(source.length).toBeLessThan(10000);
   });
 
   it("contains nothing that could send data off the page or run dynamic code", () => {

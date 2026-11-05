@@ -9,7 +9,7 @@ from jobtracker.links import mailbox_link
 from jobtracker.providers import outlook
 from jobtracker.sync import process_message
 from jobtracker.web import create_app
-from tests.test_pipeline import mk
+from tests.helpers import mk
 
 
 # --- links -----------------------------------------------------------------------

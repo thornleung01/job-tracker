@@ -1,7 +1,7 @@
 // When an application is worth a nudge: nothing has moved, and it has gone quiet.
 import type { Stage } from "../db/stages";
 
-/** Days without activity before an application that hasn't moved needs a follow-up. */
+/** Idle days (calendar days since the last activity, see idleDaysSince) before an application that hasn't moved needs a follow-up. */
 export const FOLLOW_UP_DAYS = 7;
 
 /** Only these stages mean nothing has moved. Assessment, Interview, Offer and Rejected never need a nudge. */

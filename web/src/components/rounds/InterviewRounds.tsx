@@ -38,7 +38,7 @@ export function InterviewRounds({ db, appId, rounds }: Props) {
     e.preventDefault();
     void act.run("rounds", () => setInterviewRounds(db, appId, Number(value))).then((ok) => ok && close());
   };
-  const useEstimate = () => {
+  const switchToEstimate = () => {
     void act.run("rounds-auto", () => setInterviewRounds(db, appId, null)).then((ok) => ok && close());
   };
 
@@ -49,7 +49,7 @@ export function InterviewRounds({ db, appId, rounds }: Props) {
         <input id={`rounds-${appId}`} type="number" inputMode="numeric" min={0} max={MAX_ROUNDS} step={1} value={value} required autoFocus
                onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") close(); }} />
         <button type="submit" className="small primary" {...act.button("rounds")}>Save rounds</button>
-        {rounds?.source === "yours" ? <button type="button" className="small" onClick={useEstimate} {...act.button("rounds-auto")}>Use estimate</button> : null}
+        {rounds?.source === "yours" ? <button type="button" className="small" onClick={switchToEstimate} {...act.button("rounds-auto")}>Use estimate</button> : null}
         <button type="button" className="small" onClick={close}>Cancel</button>
         {act.error ? <span className="small rounds-error" role="alert">{act.error}</span> : null}
       </form>

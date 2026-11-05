@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { $, $$, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
+import { $, $$, button, cleanup, click, freshDb, mountPage, text, type } from "../applications/harness";
+import { GOOGLE_LOGIN_SCOPES } from "../../../src/auth/google";
 import { config, configJsonText } from "../../../src/config";
+import { advance, clickNow, fakeTimeouts } from "../../support/timers";
 import SetupGuide from "../../../src/pages/setup/SetupGuide";
 import Setup from "../../../src/pages/setup";
 import { editConfigUrl, actionsUrl, GITHUB_REPO } from "../../../src/site";
@@ -13,7 +15,7 @@ const siteUrl = () => window.location.origin + import.meta.env.BASE_URL;
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
+  vi.useRealTimers();
   await cleanup();
 });
 
@@ -34,8 +36,14 @@ describe("setupValues", () => {
     expect(v.origin).toBe("https://me.github.io");
     expect(v.redirectUri).toBe("https://me.github.io/job-tracker/");
     expect(v.privacyUrl).toBe("https://me.github.io/job-tracker/privacy.html");
-    expect(v.googleScopes).toBe("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+    expect(v.googleScopes).toBe("openid email https://www.googleapis.com/auth/gmail.readonly");
     expect(v.msScopes).toBe("openid profile email Mail.Read");
+  });
+
+  it("lists the Google scopes the app really asks for, so the guide cannot drift from the login code", () => {
+    const v = setupValues("https://me.github.io", "/job-tracker/");
+    expect(v.googleScopes).toBe(`${GOOGLE_LOGIN_SCOPES} ${config.googleMailScope}`);
+    expect(v.googleScopes.split(" ")).not.toContain("profile");
   });
 
   it("works for a site served from the root", () => {
@@ -239,19 +247,21 @@ describe("copying", () => {
     await click($(c, "button[aria-label='Copy Redirect URI']"));
     expect(writeText).toHaveBeenLastCalledWith(siteUrl());
     await click($(c, "button[aria-label='Copy Google scopes']"));
-    expect(writeText).toHaveBeenLastCalledWith("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+    expect(writeText).toHaveBeenLastCalledWith("openid email https://www.googleapis.com/auth/gmail.readonly");
   });
 
   it("clears the Copied note after two seconds", async () => {
     mockClipboard();
     const c = await mount();
     const origin = $(c, "button[aria-label='Copy Authorized JavaScript origin']");
-    await click(origin);
+    fakeTimeouts();
+    await clickNow(origin);
     const status = origin!.parentElement!.querySelector("[role=status]");
     expect(text(status)).toBe("Copied.");
-    await new Promise((r) => setTimeout(r, 1000));
+    await advance(1999);
     expect(text(status)).toBe("Copied.");
-    await waitFor(() => text(status) === "", "the note to clear", 3000);
+    await advance(1);
+    expect(text(status)).toBe("");
   });
 
   it("starts the two seconds again when copied twice", async () => {
@@ -259,12 +269,15 @@ describe("copying", () => {
     const c = await mount();
     const origin = $(c, "button[aria-label='Copy Authorized JavaScript origin']");
     const status = origin!.parentElement!.querySelector("[role=status]");
-    await click(origin);
-    await new Promise((r) => setTimeout(r, 1200));
-    await click(origin);
-    await new Promise((r) => setTimeout(r, 1200));
+    fakeTimeouts();
+    await clickNow(origin);
+    await advance(1200);
+    await clickNow(origin);
+    await advance(1200);
     // 2.4 seconds after the first copy but 1.2 after the second: still showing.
     expect(text(status)).toBe("Copied.");
+    await advance(800);
+    expect(text(status)).toBe("");
   });
 
   it("copies the generated JSON", async () => {

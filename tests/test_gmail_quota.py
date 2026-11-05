@@ -8,7 +8,7 @@ from googleapiclient.errors import HttpError
 from jobtracker import db
 from jobtracker.providers import gmail
 from jobtracker.sync import sync_account
-from tests.test_pipeline import mk
+from tests.helpers import mk
 
 
 class Resp(dict):
@@ -140,7 +140,7 @@ def test_a_sync_that_stops_part_way_keeps_its_progress_and_the_next_one_resumes(
 
     monkeypatch.setattr(sync_module, "BATCH", 5)
     conn = db.connect(":memory:")
-    acct = db.upsert_account(conn, "gmail", "me@gmail.com")
+    db.upsert_account(conn, "gmail", "me@gmail.com")
     conn.commit()
     with pytest.raises(RuntimeError, match="Quota exceeded"):
         sync_account(conn, conn.execute("SELECT * FROM accounts").fetchone(), get_provider=lambda n, a: Flaky(12, fail_after=8))

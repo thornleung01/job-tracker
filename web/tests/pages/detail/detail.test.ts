@@ -87,6 +87,27 @@ describe("stage and lock", () => {
     expect(text($(container, ".detail-facts"))).not.toContain("Stage set by you");
   });
 
+  it("keeps what you typed in Edit details when the stage changes", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    await type($(container, "#ed-company"), "Acme Corp (typing)");
+    await type($(container, "select[aria-label='Set stage']"), "Interview");
+    await waitFor(() => text($(container, ".card .badge")) === "Interview");
+    expect(($(container, "#ed-company") as HTMLInputElement).value).toBe("Acme Corp (typing)");
+  });
+
+  it("names the application in the tab title", async () => {
+    const { db, acme } = await setup();
+    await open(db, acme);
+    expect(document.title).toBe("Acme · Job Tracker");
+  });
+
+  it("keeps the panel headings at level 3 under its own level-2 section heading", async () => {
+    const { db, acme } = await setup();
+    const { container } = await open(db, acme);
+    expect($$($(container, "#h-notes")!.parentElement!, ".panel-h").map((h) => h.tagName)).toEqual(["H3", "H3"]);
+  });
+
   it("logs a step with a note in the panel and shows it in the history", async () => {
     const { db, acme } = await setup();
     const { container } = await open(db, acme);
@@ -179,7 +200,8 @@ describe("merge and delete", () => {
     const m = await open(db, acme);
     await openMenu(m.container);
     await click(item(m.container, "Delete application"));
-    const step = $(m.container, ".detail-step")!;
+    const step = $(m.container, ".inline-confirm")!;
+    expect(document.activeElement).toBe(button(step, "Cancel"));
     expect($$(step, "button").map(text)).toEqual(["Delete the application and its emails", "Delete the application, keep emails in Needs review", "Cancel"]);
     expect($$(step, "button.danger")).toHaveLength(2);
     expect(window.confirm).not.toHaveBeenCalled();
@@ -223,30 +245,49 @@ describe("merge and delete", () => {
     expect(await db.applications.get(acme)).toBeDefined();
     await openMenu(m.container);
     await click(item(m.container, "Delete application"));
-    await key($(m.container, ".detail-step")!.querySelector("button"), "Escape");
-    expect($(m.container, ".detail-step")).toBeNull();
+    await key($(m.container, ".inline-confirm")!.querySelector("button"), "Escape");
+    expect($(m.container, ".inline-confirm")).toBeNull();
     expect(document.activeElement).toBe(menu(m.container));
   });
 
-  it("removes it as not an application and carries the message to Needs review", async () => {
+  it("removes it as not an application, after an in-page question, and carries the message to Needs review", async () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
     await openMenu(m.container);
     await click(item(m.container, "Not an application"));
-    expect(window.confirm).toHaveBeenCalled();
+    const ask = $(m.container, ".inline-confirm[role=group]")!;
+    expect(text($(ask, ".inline-confirm-q"))).toBe("Remove this and teach the app it wasn't a job application?");
+    expect(ask.getAttribute("aria-labelledby")).toBe($(ask, ".inline-confirm-q")!.id);
+    expect(document.activeElement).toBe(button(ask, "Cancel"));   // the safe choice has focus
+    expect(await db.applications.get(acme)).toBeDefined();
+    await click(button(ask, "Remove and ignore emails like it"));
+    expect(window.confirm).not.toHaveBeenCalled();
     expect(m.visited.at(-1)).toBe("/review");
     expect(peekFlash()).toContain("Removed Acme.");
     expect(await db.applications.get(acme)).toBeUndefined();
   });
 
-  it("keeps the application when the not-an-application confirm is declined", async () => {
+  it("keeps the application when the not-an-application question is cancelled, and returns focus to More", async () => {
     const { db, acme } = await setup();
-    window.confirm = vi.fn(() => false);
     const m = await open(db, acme);
     await openMenu(m.container);
     await click(item(m.container, "Not an application"));
+    await click(button(m.container, "Cancel"));
+    expect($(m.container, ".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(menu(m.container));
     expect(m.visited).toEqual([]);
+    expect(await db.applications.get(acme)).toBeDefined();
+  });
+
+  it("closes the not-an-application question with Escape and returns focus to More", async () => {
+    const { db, acme } = await setup();
+    const m = await open(db, acme);
+    await openMenu(m.container);
+    await click(item(m.container, "Not an application"));
+    await key(button(m.container, "Cancel"), "Escape");
+    expect($(m.container, ".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(menu(m.container));
     expect(await db.applications.get(acme)).toBeDefined();
   });
 });
@@ -316,6 +357,7 @@ describe("people and emails", () => {
     expect($$(cards[0], ".mail-text a")).toHaveLength(0);
     expect(text($(cards[0], ".mail-meta .when"))).toMatch(/Latest .* · yesterday · Gmail me@gmail.com|Latest .* ago · Gmail me@gmail.com|Latest .*Gmail me@gmail.com/);
     expect(text($(cards[0], "a.btn:not(.primary)"))).toBe("Open in Gmail");
+    expect($(cards[0], "a.btn:not(.primary)")!.getAttribute("aria-label")).toBe("Open in Gmail (opens in a new tab)");
   });
 
   it("says when no emails are linked, and that it was added by hand", async () => {
@@ -370,6 +412,7 @@ describe("the posting link", () => {
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toBe("noopener noreferrer");
     expect(a.getAttribute("title")).toBe("boards.greenhouse.io");
+    expect(a.getAttribute("aria-label")).toBe("Open posting (opens in a new tab)");
     const icon = $(a, "svg")!;
     expect([icon.getAttribute("width"), icon.getAttribute("height"), icon.getAttribute("stroke-width")]).toEqual(["16", "16", "3"]);
     expect(a.classList.contains("primary")).toBe(false);

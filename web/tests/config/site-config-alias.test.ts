@@ -7,7 +7,6 @@ describe("the test build's site config", () => {
     // src/config.ts imports ../site-config.json, which vite.config.ts aliases to the fixture while testing.
     // If the alias broke, an ID committed to site-config.json would show up here as source "file".
     expect(fixture).toEqual({ googleClientId: "", msClientId: "" });
-    expect(config.source.google).not.toBe("file");
-    expect(config.source.microsoft).not.toBe("file");
+    expect(config.source).toEqual({ google: "none", microsoft: "none" });
   });
 });

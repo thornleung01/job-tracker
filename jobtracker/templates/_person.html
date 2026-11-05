@@ -20,11 +20,11 @@
     <details class="action"><summary>Edit</summary>
       <form method="post" action="/contacts/edit" class="row" style="align-items:flex-end">
         <input type="hidden" name="key" value="{{ c.key }}"><input type="hidden" name="next" value="{{ back }}">
-        <div class="fgroup"><label for="n-{{ c.key }}">Name</label><input id="n-{{ c.key }}" name="name" value="{{ c.name }}" maxlength="80" required></div>
-        <div class="fgroup" style="flex:1 1 220px"><label for="t-{{ c.key }}">Title for this role</label><input id="t-{{ c.key }}" name="title" value="{{ c.title }}" maxlength="100" placeholder="Hiring manager" style="width:100%"></div>
+        <div class="fgroup"><label for="n-{{ c.key }}">Name</label><input id="n-{{ c.key }}" name="name" value="{{ c.name }}" maxlength="{{ limits.name_chars }}" required></div>
+        <div class="fgroup" style="flex:1 1 220px"><label for="t-{{ c.key }}">Title for this role</label><input id="t-{{ c.key }}" name="title" value="{{ c.title }}" maxlength="{{ limits.title_chars }}" placeholder="Hiring manager" style="width:100%"></div>
         <button>Save</button>
       </form>
-      <form method="post" action="/contacts/hide" onsubmit="return confirm('Remove {{ c.name }} from this application?')" style="margin-top:8px">
+      <form method="post" action="/contacts/hide" data-confirm="Remove {{ c.name }} from this application?" style="margin-top:8px">
         <input type="hidden" name="key" value="{{ c.key }}"><input type="hidden" name="next" value="{{ back }}"><button class="danger">Not a person</button>
       </form>
     </details>

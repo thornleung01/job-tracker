@@ -13,7 +13,10 @@ client_secret*.json
 *.log
 .env
 *.token
+jobtracker-export*.json
+job-tracker-20*.json
 .DS_Store
+.claude/worktrees/
 
 # Hosted edition
 web/node_modules/

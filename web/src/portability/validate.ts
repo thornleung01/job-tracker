@@ -1,22 +1,38 @@
 // Checks an export before anything is written, so a bad or hostile file can never half-replace your data.
+// One small parser per table (each is a list of the fields it reads, in the order problems are reported), then checks across
+// tables: ids are unique, every reference points at a row that is there.
 import { BODY_LIMIT } from "../types";
-import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow, RuleKind } from "../db/schema";
+import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow } from "../db/schema";
+import { isRecord } from "../db/isRecord";
+import { isRuleKind } from "../db/schema";
+import { isContactKey } from "../db/contactKey";
+import { MAX_COMPANY_CHARS, MAX_NAME_CHARS, MAX_ROLE_CHARS, MAX_ROUNDS, MAX_TITLE_CHARS } from "../db/limits";
+import { safeWebLink } from "../db/mailLink";
 import { safeOfferDeadline, safeOfferSalary } from "../db/offer";
 import { safePostingUrl } from "../db/postingUrl";
-import { isEvent, isStage } from "../db/stages";
+import { isConfidence, isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
-import { MAX_ROUNDS } from "../sync/rounds";
 import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
 import { truncate } from "../sync/text";
 import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData } from "./format";
 
 type Rec = Record<string, unknown>;
 
+/** Most rows in one table. */
 const MAX_ROWS = 500_000;
-const CONFIDENCE = ["high", "medium", "low"];
-const RULE_KINDS: RuleKind[] = ["block_sender", "block_domain", "allow_sender", "distrust_pattern"];
-const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
 
+/**
+ * The longest text each field may hold. What you can type is capped at the same lengths as saving (db/limits.ts: company,
+ * role, person name and title); the rest are generous caps so a hostile file can't fill your storage. Longer text is cut,
+ * never an error.
+ */
+const MAX = {
+  company: MAX_COMPANY_CHARS, role: MAX_ROLE_CHARS, personName: MAX_NAME_CHARS, personTitle: MAX_TITLE_CHARS,
+  address: 320, providerMsgId: 500, threadId: 500, sender: 1000, subject: 2000, reason: 1000, lastError: 1000,
+  stepLabel: 200, stepBody: 10_000, ruleValue: 1000, personKey: 500, emailBody: 1_000_000,
+} as const;
+
+/** Collects what is wrong, each problem starting with where it is ("emails #3: "). */
 class Check {
   constructor(readonly problems: string[] = [], private readonly label = "") {}
   fail(message: string): void {
@@ -27,266 +43,283 @@ class Check {
   }
 }
 
-function rowsOf(raw: unknown, name: string, c: Check): Rec[] {
+function rowsOf(raw: unknown, name: string, check: Check): Rec[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
-    c.fail(`"${name}" must be a list.`);
+    check.fail(`"${name}" must be a list.`);
     return [];
   }
   if (raw.length > MAX_ROWS) {
-    c.fail(`"${name}" has too many rows.`);
+    check.fail(`"${name}" has too many rows.`);
     return [];
   }
   const out: Rec[] = [];
-  raw.forEach((r, i) => (isRec(r) ? out.push(r) : c.fail(`${name} #${i + 1} is not an object.`)));
+  raw.forEach((r, i) => (isRecord(r) ? out.push(r) : check.fail(`${name} #${i + 1} is not an object.`)));
   return out;
 }
 
-function str(r: Rec, key: string, c: Check, opts: { optional?: boolean; max?: number } = {}): string {
+function str(r: Rec, key: string, check: Check, opts: { optional?: boolean; max?: number } = {}): string {
   const v = r[key];
   if (v === undefined || v === null) {
-    if (!opts.optional) c.fail(`${key} is missing.`);
+    if (!opts.optional) check.fail(`${key} is missing.`);
     return "";
   }
   if (typeof v !== "string") {
-    c.fail(`${key} must be text.`);
+    check.fail(`${key} must be text.`);
     return "";
   }
   return opts.max ? v.slice(0, opts.max) : v;
 }
 
-function nullableStr(r: Rec, key: string, c: Check, max = 100_000): string | null {
+function nullableStr(r: Rec, key: string, check: Check, max = 100_000): string | null {
   const v = r[key];
   if (v === undefined || v === null) return null;
   if (typeof v !== "string") {
-    c.fail(`${key} must be text or empty.`);
+    check.fail(`${key} must be text or empty.`);
     return null;
   }
   return v.slice(0, max);
 }
 
-function time(r: Rec, key: string, c: Check, optional = false): string | null {
+function time(r: Rec, key: string, check: Check, optional = false): string | null {
   const v = r[key];
   if (v === undefined || v === null) {
-    if (!optional) c.fail(`${key} is missing.`);
+    if (!optional) check.fail(`${key} is missing.`);
     return null;
   }
   if (typeof v !== "string" || Number.isNaN(new Date(v).getTime())) {
-    c.fail(`${key} is not a date.`);
+    check.fail(`${key} is not a date.`);
     return null;
   }
   return iso(v);
 }
 
-function flag(r: Rec, key: string, c: Check): boolean {
+function flag(r: Rec, key: string, check: Check): boolean {
   const v = r[key];
   if (v === undefined || v === null) return false;
   if (typeof v !== "boolean") {
-    c.fail(`${key} must be true or false.`);
+    check.fail(`${key} must be true or false.`);
     return false;
   }
   return v;
 }
 
-function id(r: Rec, key: string, c: Check, optional = false): number | null {
+function readId(r: Rec, key: string, check: Check, optional = false): number | null {
   const v = r[key];
   if (v === undefined || v === null) {
-    if (!optional) c.fail(`${key} is missing.`);
+    if (!optional) check.fail(`${key} is missing.`);
     return null;
   }
   if (typeof v !== "number" || !Number.isSafeInteger(v) || v < 1) {
-    c.fail(`${key} must be a whole number.`);
+    check.fail(`${key} must be a whole number.`);
     return null;
   }
   return v;
 }
 
-function uniqueIds(rows: { id: number }[], name: string, c: Check): void {
+/** The ids other tables may point at. */
+interface Known {
+  accountIds: ReadonlySet<number>;
+  appIds: ReadonlySet<number>;
+}
+
+/** Reads one row. Returns null when the row can't be kept (the reason is already in `check`). */
+type RowParser<T> = (r: Rec, check: Check, known: Known) => T | null;
+
+function parseTable<T>(raw: unknown, name: string, check: Check, known: Known, parseRow: RowParser<T>): T[] {
+  const out: T[] = [];
+  rowsOf(raw, name, check).forEach((r, i) => {
+    const row = parseRow(r, check.at(`${name} #${i + 1}: `), known);
+    if (row) out.push(row);
+  });
+  return out;
+}
+
+/** An application id that must be there: a row pointing at a missing one is refused. */
+function mustPointAtApplication(applicationId: number | null, known: Known, check: Check): void {
+  if (applicationId && !known.appIds.has(applicationId)) check.fail(`applicationId ${applicationId} is not in applications.`);
+}
+
+function mustPointAtAccount(accountId: number | null, known: Known, check: Check): void {
+  if (accountId && !known.accountIds.has(accountId)) check.fail(`accountId ${accountId} is not in accounts.`);
+}
+
+const parseAccount: RowParser<AccountRow> = (r, k) => {
+  const provider = r.provider;
+  if (provider !== "gmail" && provider !== "outlook") k.fail("provider must be gmail or outlook.");
+  const id = readId(r, "id", k);
+  const address = str(r, "address", k, { max: MAX.address });
+  if (!id || (provider !== "gmail" && provider !== "outlook") || !address) return null;
+  return {
+    id, provider, address, lastSync: time(r, "lastSync", k, true), lastError: nullableStr(r, "lastError", k, MAX.lastError),
+    active: r.active === undefined ? true : flag(r, "active", k),
+  };
+};
+
+const parseApplication: RowParser<ApplicationRow> = (r, k) => {
+  const id = readId(r, "id", k);
+  const stage = r.stage;
+  if (!isStage(stage)) k.fail("stage is not one of the six stages.");
+  const company = str(r, "company", k, { max: MAX.company });
+  const postingUrl = safePostingUrl(r.postingUrl);
+  // A rounds count outside 0 to MAX_ROUNDS, or not a whole number, is dropped: the app then works the count out itself.
+  const rounds = typeof r.interviewRounds === "number" && Number.isInteger(r.interviewRounds) && r.interviewRounds >= 0 && r.interviewRounds <= MAX_ROUNDS ? r.interviewRounds : undefined;
+  // Offer details that aren't plain text of 60 characters or a real day are dropped, never an error.
+  const offerSalary = safeOfferSalary(r.offerSalary);
+  const offerDeadline = safeOfferDeadline(r.offerDeadline);
+  if (!id || !isStage(stage)) return null;
+  return {
+    id, company, companyKey: str(r, "companyKey", k, { max: MAX.company }), role: str(r, "role", k, { max: MAX.role }),
+    roleKey: str(r, "roleKey", k, { max: MAX.role }), stage, stageAt: time(r, "stageAt", k, true), appliedAt: time(r, "appliedAt", k, true),
+    lastActivity: time(r, "lastActivity", k, true), locked: flag(r, "locked", k), manual: flag(r, "manual", k),
+    // A link that is not a plain http(s) address is dropped, never an error and never kept.
+    ...(postingUrl ? { postingUrl } : {}),
+    ...(rounds !== undefined ? { interviewRounds: rounds } : {}),
+    ...(offerSalary ? { offerSalary } : {}),
+    ...(offerDeadline ? { offerDeadline } : {}),
+  };
+};
+
+const parseEmail: RowParser<EmailRow> = (r, k, known) => {
+  const id = readId(r, "id", k);
+  const accountId = readId(r, "accountId", k);
+  mustPointAtAccount(accountId, known, k);
+  const applicationId = readId(r, "applicationId", k, true);
+  mustPointAtApplication(applicationId, known, k);
+  const event = r.event ?? null;
+  if (event !== null && !isEvent(event)) k.fail("event is not a known event.");
+  const confidence = r.confidence ?? null;
+  if (confidence !== null && !isConfidence(confidence)) k.fail("confidence must be high, medium or low.");
+  const body = nullableStr(r, "body", k, MAX.emailBody);
+  if (!id || !accountId) return null;
+  return {
+    id, accountId, providerMsgId: str(r, "providerMsgId", k, { max: MAX.providerMsgId }), threadId: nullableStr(r, "threadId", k, MAX.threadId),
+    receivedAt: time(r, "receivedAt", k) ?? "", sender: nullableStr(r, "sender", k, MAX.sender), subject: nullableStr(r, "subject", k, MAX.subject),
+    body: body === null ? null : truncate(body, BODY_LIMIT), related: flag(r, "related", k),
+    // the checks above left only a known event and confidence, or a problem that refuses the whole file
+    event: isEvent(event) ? event : null, confidence: isConfidence(confidence) ? confidence : null, applicationId,
+    needsReview: flag(r, "needsReview", k),
+    // An "open in Outlook" link on any other host is dropped: the button says Outlook, so it must lead there.
+    webLink: safeWebLink(r.webLink), bulk: flag(r, "bulk", k), hold: flag(r, "hold", k),
+    reason: nullableStr(r, "reason", k, MAX.reason),
+  };
+};
+
+const parseActivity: RowParser<ActivityRow> = (r, k, known) => {
+  const id = readId(r, "id", k);
+  const applicationId = readId(r, "applicationId", k);
+  mustPointAtApplication(applicationId, known, k);
+  if (r.kind !== "note" && r.kind !== "step") k.fail("kind must be note or step.");
+  if (!id || !applicationId || (r.kind !== "note" && r.kind !== "step")) return null;
+  return {
+    id, applicationId, kind: r.kind, label: nullableStr(r, "label", k, MAX.stepLabel), body: str(r, "body", k, { optional: true, max: MAX.stepBody }),
+    occurredAt: time(r, "occurredAt", k) ?? "", createdAt: time(r, "createdAt", k) ?? "",
+  };
+};
+
+const parseFeedback: RowParser<FeedbackRow> = (r, k, known) => {
+  const id = readId(r, "id", k);
+  if (r.verdict !== "not_job" && r.verdict !== "job") k.fail("verdict must be not_job or job.");
+  const applicationId = readId(r, "applicationId", k, true);
+  if (!id || (r.verdict !== "not_job" && r.verdict !== "job")) return null;
+  return {
+    id, createdAt: time(r, "createdAt", k) ?? "", verdict: r.verdict, senderEmail: str(r, "senderEmail", k, { optional: true, max: MAX.address }),
+    senderDomain: str(r, "senderDomain", k, { optional: true, max: MAX.address }), subject: str(r, "subject", k, { optional: true, max: MAX.subject }),
+    reason: str(r, "reason", k, { optional: true, max: MAX.reason }),
+    // Feedback is kept for what it teaches (who sent it), even when its application is gone, so a missing one is cleared rather than refused.
+    applicationId: applicationId && known.appIds.has(applicationId) ? applicationId : null,
+  };
+};
+
+const parseIgnoredMail: RowParser<IgnoredMailRow> = (r, k, known) => {
+  const id = readId(r, "id", k);
+  const accountId = readId(r, "accountId", k);
+  mustPointAtAccount(accountId, known, k);
+  if (!id || !accountId) return null;
+  return {
+    id, accountId, providerMsgId: str(r, "providerMsgId", k, { max: MAX.providerMsgId }), threadId: nullableStr(r, "threadId", k, MAX.threadId),
+    receivedAt: time(r, "receivedAt", k) ?? "", sender: str(r, "sender", k, { optional: true, max: MAX.sender }),
+    subject: str(r, "subject", k, { optional: true, max: MAX.subject }), body: truncate(str(r, "body", k, { optional: true, max: MAX.emailBody }), BODY_LIMIT),
+    webLink: safeWebLink(r.webLink), reason: str(r, "reason", k, { optional: true, max: MAX.reason }),
+    createdAt: time(r, "createdAt", k) ?? "", bulk: flag(r, "bulk", k),
+  };
+};
+
+const parseLearnedRule: RowParser<LearnedRuleRow> = (r, k) => {
+  const id = readId(r, "id", k);
+  if (!isRuleKind(r.kind)) k.fail("kind is not a known rule kind.");
+  const evidence = r.evidence;
+  if (typeof evidence !== "number" || !Number.isInteger(evidence) || evidence < 0) k.fail("evidence must be a whole number.");
+  if (!id || !isRuleKind(r.kind) || typeof evidence !== "number") return null;
+  return {
+    id, kind: r.kind, value: str(r, "value", k, { max: MAX.ruleValue }), evidence, active: flag(r, "active", k), createdAt: time(r, "createdAt", k) ?? "",
+  };
+};
+
+const parseContactEdit: RowParser<ContactEditRow> = (r, k) => {
+  const key = str(r, "key", k, { max: MAX.personKey });
+  if (key && !isContactKey(key)) k.fail("key is not a person key.");
+  return { key, name: nullableStr(r, "name", k, MAX.personName), title: nullableStr(r, "title", k, MAX.personTitle), hidden: flag(r, "hidden", k) };
+};
+
+function checkIdsAreUnique(rows: { id: number }[], name: string, check: Check): void {
   const seen = new Set<number>();
   for (const r of rows) {
-    if (seen.has(r.id)) c.fail(`${name} has the id ${r.id} twice.`);
+    if (seen.has(r.id)) check.fail(`${name} has the id ${r.id} twice.`);
     seen.add(r.id);
+  }
+}
+
+/** Two rows that mean the same thing (a mailbox, a message, a rule) can't both be kept. */
+function checkNoDuplicates<T>(rows: T[], keyOf: (r: T) => string, name: string, check: Check): void {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (seen.has(k)) check.fail(`${name} has a duplicate entry (${k.replace(/\u0000/g, " / ")}).`);
+    seen.add(k);
   }
 }
 
 /** Turns an unknown value into export data, or throws an ImportError listing what is wrong. */
 export function parseExportData(raw: unknown): ExportData {
-  const c = new Check();
-  if (!isRec(raw)) throw new ImportError(["The file isn't a Job Tracker export."]);
+  const check = new Check();
+  if (!isRecord(raw)) throw new ImportError(["The file isn't a Job Tracker export."]);
   const d = raw;
 
-  const accounts: AccountRow[] = [];
-  rowsOf(d.accounts, "accounts", c).forEach((r, i) => {
-    const k = c.at(`accounts #${i + 1}: `);
-    const provider = r.provider;
-    if (provider !== "gmail" && provider !== "outlook") k.fail("provider must be gmail or outlook.");
-    const rowId = id(r, "id", k);
-    const address = str(r, "address", k, { max: 320 });
-    if (rowId && (provider === "gmail" || provider === "outlook") && address) {
-      accounts.push({ id: rowId, provider, address, lastSync: time(r, "lastSync", k, true), lastError: nullableStr(r, "lastError", k, 1000), active: r.active === undefined ? true : flag(r, "active", k) });
-    }
-  });
+  const accounts = parseTable(d.accounts, "accounts", check, { accountIds: new Set(), appIds: new Set() }, parseAccount);
+  const applications = parseTable(d.applications, "applications", check, { accountIds: new Set(), appIds: new Set() }, parseApplication);
+  const known: Known = { accountIds: new Set(accounts.map((a) => a.id)), appIds: new Set(applications.map((a) => a.id)) };
+  const emails = parseTable(d.emails, "emails", check, known, parseEmail);
+  const activity = parseTable(d.activity, "activity", check, known, parseActivity);
+  const feedback = parseTable(d.feedback, "feedback", check, known, parseFeedback);
+  const ignoredMail = parseTable(d.ignoredMail, "ignoredMail", check, known, parseIgnoredMail);
+  const learnedRules = parseTable(d.learnedRules, "learnedRules", check, known, parseLearnedRule);
+  const contactEdits = parseTable(d.contactEdits, "contactEdits", check, known, parseContactEdit);
 
-  const applications: ApplicationRow[] = [];
-  rowsOf(d.applications, "applications", c).forEach((r, i) => {
-    const k = c.at(`applications #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    const stage = r.stage;
-    if (!isStage(stage)) k.fail("stage is not one of the six stages.");
-    const company = str(r, "company", k, { max: 200 });
-    const postingUrl = safePostingUrl(r.postingUrl);
-    // A rounds count outside 0 to MAX_ROUNDS, or not a whole number, is dropped: the app then works the count out itself.
-    const rounds = typeof r.interviewRounds === "number" && Number.isInteger(r.interviewRounds) && r.interviewRounds >= 0 && r.interviewRounds <= MAX_ROUNDS ? r.interviewRounds : undefined;
-    // Offer details that aren't plain text of 60 characters or a real day are dropped, never an error.
-    const offerSalary = safeOfferSalary(r.offerSalary);
-    const offerDeadline = safeOfferDeadline(r.offerDeadline);
-    if (rowId && isStage(stage)) {
-      applications.push({
-        id: rowId, company, companyKey: str(r, "companyKey", k, { max: 200 }), role: str(r, "role", k, { max: 300 }),
-        roleKey: str(r, "roleKey", k, { max: 300 }), stage, stageAt: time(r, "stageAt", k, true), appliedAt: time(r, "appliedAt", k, true),
-        lastActivity: time(r, "lastActivity", k, true), locked: flag(r, "locked", k), manual: flag(r, "manual", k),
-        // A link that is not a plain http(s) address is dropped, never an error and never kept.
-        ...(postingUrl ? { postingUrl } : {}),
-        ...(rounds !== undefined ? { interviewRounds: rounds } : {}),
-        ...(offerSalary ? { offerSalary } : {}),
-        ...(offerDeadline ? { offerDeadline } : {}),
-      });
-    }
-  });
-
-  const accountIds = new Set(accounts.map((a) => a.id));
-  const appIds = new Set(applications.map((a) => a.id));
-
-  const emails: EmailRow[] = [];
-  rowsOf(d.emails, "emails", c).forEach((r, i) => {
-    const k = c.at(`emails #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    const accountId = id(r, "accountId", k);
-    if (accountId && !accountIds.has(accountId)) k.fail(`accountId ${accountId} is not in accounts.`);
-    const applicationId = id(r, "applicationId", k, true);
-    if (applicationId && !appIds.has(applicationId)) k.fail(`applicationId ${applicationId} is not in applications.`);
-    const event = r.event ?? null;
-    if (event !== null && !isEvent(event)) k.fail("event is not a known event.");
-    const confidence = r.confidence ?? null;
-    if (confidence !== null && !CONFIDENCE.includes(confidence as string)) k.fail("confidence must be high, medium or low.");
-    const body = nullableStr(r, "body", k, 1_000_000);
-    if (rowId && accountId) {
-      emails.push({
-        id: rowId, accountId, providerMsgId: str(r, "providerMsgId", k, { max: 500 }), threadId: nullableStr(r, "threadId", k, 500),
-        receivedAt: time(r, "receivedAt", k) ?? "", sender: nullableStr(r, "sender", k, 1000), subject: nullableStr(r, "subject", k, 2000),
-        body: body === null ? null : truncate(body, BODY_LIMIT), related: flag(r, "related", k),
-        event: (event as EmailRow["event"]) ?? null, confidence: (confidence as EmailRow["confidence"]) ?? null, applicationId,
-        needsReview: flag(r, "needsReview", k), webLink: nullableStr(r, "webLink", k, 2000), bulk: flag(r, "bulk", k), hold: flag(r, "hold", k),
-        reason: nullableStr(r, "reason", k, 1000),
-      });
-    }
-  });
-
-  const activity: ActivityRow[] = [];
-  rowsOf(d.activity, "activity", c).forEach((r, i) => {
-    const k = c.at(`activity #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    const applicationId = id(r, "applicationId", k);
-    if (applicationId && !appIds.has(applicationId)) k.fail(`applicationId ${applicationId} is not in applications.`);
-    if (r.kind !== "note" && r.kind !== "step") k.fail("kind must be note or step.");
-    if (rowId && applicationId && (r.kind === "note" || r.kind === "step")) {
-      activity.push({
-        id: rowId, applicationId, kind: r.kind, label: nullableStr(r, "label", k, 200), body: str(r, "body", k, { optional: true, max: 10_000 }),
-        occurredAt: time(r, "occurredAt", k) ?? "", createdAt: time(r, "createdAt", k) ?? "",
-      });
-    }
-  });
-
-  const feedback: FeedbackRow[] = [];
-  rowsOf(d.feedback, "feedback", c).forEach((r, i) => {
-    const k = c.at(`feedback #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    if (r.verdict !== "not_job" && r.verdict !== "job") k.fail("verdict must be not_job or job.");
-    const applicationId = id(r, "applicationId", k, true);
-    if (rowId && (r.verdict === "not_job" || r.verdict === "job")) {
-      feedback.push({
-        id: rowId, createdAt: time(r, "createdAt", k) ?? "", verdict: r.verdict, senderEmail: str(r, "senderEmail", k, { optional: true, max: 320 }),
-        senderDomain: str(r, "senderDomain", k, { optional: true, max: 320 }), subject: str(r, "subject", k, { optional: true, max: 2000 }),
-        reason: str(r, "reason", k, { optional: true, max: 1000 }), applicationId: applicationId && appIds.has(applicationId) ? applicationId : null,
-      });
-    }
-  });
-
-  const ignoredMail: IgnoredMailRow[] = [];
-  rowsOf(d.ignoredMail, "ignoredMail", c).forEach((r, i) => {
-    const k = c.at(`ignoredMail #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    const accountId = id(r, "accountId", k);
-    if (accountId && !accountIds.has(accountId)) k.fail(`accountId ${accountId} is not in accounts.`);
-    if (rowId && accountId) {
-      ignoredMail.push({
-        id: rowId, accountId, providerMsgId: str(r, "providerMsgId", k, { max: 500 }), threadId: nullableStr(r, "threadId", k, 500),
-        receivedAt: time(r, "receivedAt", k) ?? "", sender: str(r, "sender", k, { optional: true, max: 1000 }),
-        subject: str(r, "subject", k, { optional: true, max: 2000 }), body: truncate(str(r, "body", k, { optional: true, max: 1_000_000 }), BODY_LIMIT),
-        webLink: nullableStr(r, "webLink", k, 2000), reason: str(r, "reason", k, { optional: true, max: 1000 }),
-        createdAt: time(r, "createdAt", k) ?? "", bulk: flag(r, "bulk", k),
-      });
-    }
-  });
-
-  const learnedRules: LearnedRuleRow[] = [];
-  rowsOf(d.learnedRules, "learnedRules", c).forEach((r, i) => {
-    const k = c.at(`learnedRules #${i + 1}: `);
-    const rowId = id(r, "id", k);
-    if (!RULE_KINDS.includes(r.kind as RuleKind)) k.fail("kind is not a known rule kind.");
-    const evidence = r.evidence;
-    if (typeof evidence !== "number" || !Number.isInteger(evidence) || evidence < 0) k.fail("evidence must be a whole number.");
-    if (rowId && RULE_KINDS.includes(r.kind as RuleKind) && typeof evidence === "number") {
-      learnedRules.push({
-        id: rowId, kind: r.kind as RuleKind, value: str(r, "value", k, { max: 1000 }), evidence, active: flag(r, "active", k),
-        createdAt: time(r, "createdAt", k) ?? "",
-      });
-    }
-  });
-
-  const contactEdits: ContactEditRow[] = [];
-  rowsOf(d.contactEdits, "contactEdits", c).forEach((r, i) => {
-    const k = c.at(`contactEdits #${i + 1}: `);
-    const key = str(r, "key", k, { max: 500 });
-    if (key && !/^\d+\|\S+$/.test(key)) k.fail("key is not a person key.");
-    contactEdits.push({ key, name: nullableStr(r, "name", k, 80), title: nullableStr(r, "title", k, 100), hidden: flag(r, "hidden", k) });
-  });
-
-  uniqueIds(accounts, "accounts", c);
-  uniqueIds(applications, "applications", c);
-  uniqueIds(emails, "emails", c);
-  uniqueIds(activity, "activity", c);
-  uniqueIds(feedback, "feedback", c);
-  uniqueIds(ignoredMail, "ignoredMail", c);
-  uniqueIds(learnedRules, "learnedRules", c);
-  const unique = <T>(rows: T[], keyOf: (r: T) => string, name: string) => {
-    const seen = new Set<string>();
-    for (const r of rows) {
-      const k = keyOf(r);
-      if (seen.has(k)) c.fail(`${name} has a duplicate entry (${k.replace(/\u0000/g, " / ")}).`);
-      seen.add(k);
-    }
-  };
-  unique(accounts, (a) => `${a.provider}\u0000${a.address}`, "accounts");
-  unique(emails, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "emails");
-  unique(ignoredMail, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "ignoredMail");
-  unique(learnedRules, (r) => `${r.kind}\u0000${r.value}`, "learnedRules");
-  unique(contactEdits, (e) => e.key, "contactEdits");
+  for (const [name, rows] of [
+    ["accounts", accounts], ["applications", applications], ["emails", emails], ["activity", activity], ["feedback", feedback],
+    ["ignoredMail", ignoredMail], ["learnedRules", learnedRules],
+  ] as const) checkIdsAreUnique(rows, name, check);
+  checkNoDuplicates(accounts, (a) => `${a.provider}\u0000${a.address}`, "accounts", check);
+  checkNoDuplicates(emails, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "emails", check);
+  checkNoDuplicates(ignoredMail, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "ignoredMail", check);
+  checkNoDuplicates(learnedRules, (r) => `${r.kind}\u0000${r.value}`, "learnedRules", check);
+  checkNoDuplicates(contactEdits, (e) => e.key, "contactEdits", check);
 
   const settings: Record<string, unknown> = {};
-  if (d.settings !== undefined && !isRec(d.settings)) c.fail('"settings" must be an object.');
-  else if (isRec(d.settings)) {
-    if (isRec(d.settings.appearance)) settings.appearance = sanitizeAppearance(d.settings.appearance);
-    if (isRec(d.settings.sync)) settings.sync = sanitizeSync(d.settings.sync);
+  if (d.settings !== undefined && !isRecord(d.settings)) check.fail('"settings" must be an object.');
+  else if (isRecord(d.settings)) {
+    if (isRecord(d.settings.appearance)) settings.appearance = sanitizeAppearance(d.settings.appearance);
+    if (isRecord(d.settings.sync)) settings.sync = sanitizeSync(d.settings.sync);
   }
 
-  if (c.problems.length) throw new ImportError(c.problems);
+  if (check.problems.length) throw new ImportError(check.problems);
   return { accounts, applications, emails, activity, feedback, ignoredMail, learnedRules, contactEdits, settings };
 }
 
 /** Checks the envelope (format and version) and the data inside it. */
 export function parseEnvelope(raw: unknown): { exportedAt: string; source: string; data: ExportData } {
-  if (!isRec(raw) || raw.format !== EXPORT_FORMAT) throw new ImportError(["The file isn't a Job Tracker export."]);
+  if (!isRecord(raw) || raw.format !== EXPORT_FORMAT) throw new ImportError(["The file isn't a Job Tracker export."]);
   if (typeof raw.version !== "number" || raw.version > EXPORT_VERSION || raw.version < 1) {
     throw new ImportError([`The file is version ${String(raw.version)}, and this app reads version ${EXPORT_VERSION}. Update the app, or export again.`]);
   }

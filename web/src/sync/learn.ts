@@ -8,13 +8,10 @@ import { iso } from "../db/time";
 import { tx, type JobTrackerDB, type LearnedRuleRow, type RuleKind } from "../db/schema";
 import type { LearnedView } from "./pipelineTypes";
 import { pipeline } from "./pipeline";
+import { plural } from "./text";
 
-export { recordFeedback as record, senderAddress } from "../db/repo";
-
-export const PERSONAL_DOMAINS: ReadonlySet<string> = new Set([
-  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com",
-  "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com",
-]);
+/** Addresses at these never block a whole domain. The free-mail list the extractor uses, plus MSN (as in learn.py). */
+export const PERSONAL_DOMAINS: ReadonlySet<string> = new Set([...pipeline().FREE_MAIL, "msn.com"]);
 export const DISTRUST_MIN_FLAGS = 3;
 export const DISTRUST_MIN_SHARE = 0.75;
 export const DOMAIN_MIN_ADDRESSES = 2;
@@ -30,14 +27,9 @@ export class Learned implements LearnedView {
   ) {}
 
   blocks(sender: string, domain: string): boolean {
-    if (this.allowSenders.has(sender)) return false;
-    if (this.blockSenders.has(sender)) return true;
-    for (const d of this.blockDomains) if (domain === d || domain.endsWith("." + d)) return true;
-    return false;
+    return pipeline().isBlocked(this, sender, domain);
   }
 }
-
-export const EMPTY = new Learned();
 
 export async function loadLearned(db: JobTrackerDB): Promise<Learned> {
   const byKind = new Map<RuleKind, Set<string>>();
@@ -50,7 +42,7 @@ export async function loadLearned(db: JobTrackerDB): Promise<Learned> {
 }
 
 export function describe(kind: RuleKind, value: string, evidence: number): string {
-  const times = `${evidence} time${evidence !== 1 ? "s" : ""}`;
+  const times = plural(evidence, "time");
   switch (kind) {
     case "block_sender":
       return `Ignoring emails from ${value} (you flagged it ${times})`;

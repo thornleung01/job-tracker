@@ -1,17 +1,19 @@
 // Port of tests/test_activity.py (the non-web parts).
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
-import { ActivityError, MissingRecordError, STEP_GROUPS, addNote, addStep, deleteEntry, history } from "../../src/sync/activity";
+import { ActionError, MissingRecordError } from "../../src/db/errors";
+import { STEP_GROUPS, addStep, deleteEntry, history } from "../../src/sync/activity";
 import { applyEvent, createApplication, upsertAccount } from "../../src/db/repo";
 import { STAGES } from "../../src/db/stages";
 import { iso, localToday } from "../../src/db/time";
 import { processMessages } from "../../src/sync/sync";
 import { mergeApplications, deleteApplication } from "../../src/sync/actions";
-import { closeAll, dbWithAccount, freshDb, mk } from "./helpers";
+import { closeAll, dbWithAccount, freshDb, mk, seedNote } from "./helpers";
+import { daysAgo, pinClock } from "../support/clock";
 
+pinClock();
 afterEach(closeAll);
 
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 function day(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -27,22 +29,9 @@ async function makeApp(db: ReturnType<typeof freshDb>, o: { stage?: "Applied" | 
   return id;
 }
 
-describe("notes", () => {
-  it("validates and trims", async () => {
+describe("missing application", () => {
+  it("throws MissingRecordError", async () => {
     const db = freshDb();
-    const a = await makeApp(db);
-    for (const bad of ["", "   \n ", null]) await expect(addNote(db, a, bad)).rejects.toThrow(/Write a note/);
-    await expect(addNote(db, a, "x".repeat(2001))).rejects.toThrow(/2000/);
-    const before = (await db.applications.get(a))!.lastActivity!;
-    await addNote(db, a, "  Spoke to Sam, send CV Friday  ");
-    const row = (await db.activity.toArray())[0];
-    expect([row.kind, row.body]).toEqual(["note", "Spoke to Sam, send CV Friday"]);
-    expect((await db.applications.get(a))!.lastActivity! > before).toBe(true);
-  });
-
-  it("throws MissingRecordError for a missing application", async () => {
-    const db = freshDb();
-    await expect(addNote(db, 999, "hi")).rejects.toBeInstanceOf(MissingRecordError);
     await expect(addStep(db, 999, "Interview")).rejects.toBeInstanceOf(MissingRecordError);
   });
 });
@@ -56,7 +45,7 @@ describe("steps", () => {
     }
     await expect(addStep(db, a, "Phone screen", "21/10/2026")).rejects.toThrow(/year-month-day/);
     await expect(addStep(db, a, "Phone screen", day(-1))).rejects.toThrow(/future/);
-    await expect(addStep(db, a, "Phone screen", "2026-02-30")).rejects.toBeInstanceOf(ActivityError);
+    await expect(addStep(db, a, "Phone screen", "2026-02-30")).rejects.toBeInstanceOf(ActionError);
     expect(await db.activity.count()).toBe(0);
   });
 
@@ -133,7 +122,7 @@ describe("deleting and history", () => {
     expect((await db.applications.get(a))!.stage).toBe("Interview");
     expect(await deleteEntry(db, a, stepId)).toBe(false);
     const other = await makeApp(db, { company: "Initech" });
-    await addNote(db, other, "mine");
+    await seedNote(db, other, "mine");
     expect(await deleteEntry(db, a, (await db.activity.toArray())[0].id)).toBe(false);
   });
 
@@ -141,14 +130,14 @@ describe("deleting and history", () => {
     const { db, acct } = await dbWithAccount();
     await processMessages(db, acct, [mk("e1", "Thank you for applying to Acme", "", undefined, undefined, 1)]);
     const a = (await db.applications.toArray())[0].id;
-    await addNote(db, a, "latest note");
+    await seedNote(db, a, "latest note", iso(new Date()));
     let h = await history(db, a);
     expect(h.items.map((e) => e.kind)).toEqual(["note", "email"]);
     expect(h.total).toBe(2);
     expect([h.items[1].title, h.items[1].detail]).toEqual(["Thank you for applying to Acme", "applied"]);
     h = await history(db, a, 20, false);
     expect(h.items.map((e) => e.kind)).toEqual(["note"]);
-    for (let i = 0; i < 5; i++) await addNote(db, a, `n${i}`);
+    for (let i = 0; i < 5; i++) await seedNote(db, a, `n${i}`);
     h = await history(db, a, 3);
     expect([h.items.length, h.total]).toEqual([3, 7]);
   });
@@ -157,8 +146,8 @@ describe("deleting and history", () => {
     const db = freshDb();
     const a = await makeApp(db);
     const b = await makeApp(db, { company: "Acme Inc" });
-    await addNote(db, a, "on a");
-    await addNote(db, b, "on b");
+    await seedNote(db, a, "on a");
+    await seedNote(db, b, "on b");
     await mergeApplications(db, a, b);
     expect(new Set((await db.activity.where("applicationId").equals(b).toArray()).map((r) => r.body))).toEqual(new Set(["on a", "on b"]));
     await deleteApplication(db, b);

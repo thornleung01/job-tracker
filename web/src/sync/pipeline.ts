@@ -1,5 +1,5 @@
-// THE ADAPTER: the one file in web/src/sync that imports the classifier (web/src/pipeline). If a name over there
-// changes, fix it here and nowhere else. setPipeline() lets a test swap in a stand-in.
+// THE ADAPTER: the only file in web/src/sync that imports the classifier (web/src/pipeline), so a rename over there is
+// a fix here. (Components import a few pure text helpers from the pipeline directly.)
 import * as real from "../pipeline";
 import type { MailLink, Pipeline } from "./pipelineTypes";
 
@@ -19,6 +19,9 @@ const realPipeline: Pipeline = {
   splitSender: real.splitSender,
   mailParts: real.parts,
   sameRole: real.sameRole,
+  findApplication: real.findApplication,
+  isBlocked: real.isBlocked,
+  FREE_MAIL: real.FREE_MAIL,
   recipient,
   mailboxLink: (provider, address, threadId, webLink) => asLink(real.mailboxLink(provider, address, threadId, webLink)),
   replyLink: (provider, account, sender, subject, webLink = null) => asLink(real.replyLink(provider, account, sender, subject, webLink)),
@@ -26,12 +29,6 @@ const realPipeline: Pipeline = {
   UNKNOWN_ROLE: real.UNKNOWN_ROLE,
 };
 
-let current: Pipeline = realPipeline;
-
-export function setPipeline(p: Pipeline | null): void {
-  current = p ?? realPipeline;
-}
-
 export function pipeline(): Pipeline {
-  return current;
+  return realPipeline;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGraphProvider, getGraphAddress, parseGraphMessage } from "../../src/providers/graph";
+import { ProviderHttpError } from "../../src/providers/backoff";
+import { createGraphProvider, getGraphAddress, parseGraphMessage, SKIP_FOLDERS } from "../../src/providers/graph";
 import { NotConnected } from "../../src/types";
 import { collect, fakeSleep, json, scriptedFetch, token } from "./helpers";
 
@@ -18,10 +19,11 @@ const msg = (id: string, folder = "inbox", extra: object = {}) => ({
 const FOLDERS: Record<string, string> = { junkemail: "F-junk", sentitems: "F-sent", drafts: "F-drafts", deleteditems: "F-deleted" };
 
 /** A fake Graph: folder lookups, then message pages linked by @odata.nextLink. */
-function graph(pages: object[][], opts: { missingFolders?: string[] } = {}) {
+function graph(pages: object[][], opts: { missingFolders?: string[]; folderStatus?: Record<string, number> } = {}) {
   return scriptedFetch(({ url }) => {
     if (url.pathname.includes("/me/mailFolders/")) {
       const name = url.pathname.split("/").pop()!;
+      if (opts.folderStatus?.[name]) return json({ error: { code: "x" } }, opts.folderStatus[name]);
       return opts.missingFolders?.includes(name) ? json({}, 404) : json({ id: FOLDERS[name] });
     }
     if (url.pathname.endsWith("/me/messages")) {
@@ -35,7 +37,7 @@ function graph(pages: object[][], opts: { missingFolders?: string[] } = {}) {
 const since = new Date("2026-09-01T00:00:00Z");
 
 describe("parseGraphMessage", () => {
-  it("turns an HTML body into text, keeps the HTML, and normalises the time to UTC", () => {
+  it("turns an HTML body into text and normalises the time to UTC", () => {
     const m = parseGraphMessage({
       id: "o1",
       conversationId: "c1",
@@ -48,15 +50,19 @@ describe("parseGraphMessage", () => {
     expect(m.receivedAt).toBe("2026-10-05T14:30:00.000Z");
     expect(m.body).toContain("pick");
     expect(m.body).not.toContain("<");
-    expect(m.html).toBe("<div>Please <b>pick</b> a time</div>");
+    expect("html" in m).toBe(false); // nothing reads the HTML, so a mailbox of it is not kept in memory
     expect(m.webLink).toBeNull();
   });
 
-  it("keeps a plain-text body as is, with no html", () => {
+  it("keeps a plain-text body as is", () => {
     const m = parseGraphMessage(msg("t") as never);
     expect(m.body).toBe("body t");
-    expect(m.html).toBe("");
     expect(m.webLink).toBe("https://outlook.office.com/mail/t");
+  });
+
+  it("drops an \"open in Outlook\" link that doesn't lead to Microsoft's own web mail", () => {
+    expect(parseGraphMessage(msg("e", "inbox", { webLink: "https://evil.example/owa" }) as never).webLink).toBeNull();
+    expect(parseGraphMessage(msg("j", "inbox", { webLink: "javascript:alert(1)" }) as never).webLink).toBeNull();
   });
 
   it("decodes non-ASCII HTML entities and text", () => {
@@ -105,16 +111,53 @@ describe("graph provider fetch", () => {
     expect(got.map((m) => m.id)).toEqual(["keep"]);
   });
 
-  it("carries on when a folder lookup fails", async () => {
+  it("carries on when the account has no such folder (404)", async () => {
     const g = graph([[msg("a"), msg("sent", "F-sent")]], { missingFolders: ["junkemail", "drafts"] });
     const got = await collect(createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false));
     expect(got.map((m) => m.id)).toEqual(["a"]);
   });
 
+  it.each([403, 429, 503])("fails the sync when a folder lookup answers %s, instead of reading Junk and Sent as job mail", async (status) => {
+    const g = graph([[msg("a"), msg("junk", "F-junk")]], { folderStatus: { junkemail: status } });
+    const { sleep } = fakeSleep();
+    const err = await collect(createGraphProvider(token, { fetch: g.fetch, sleep }).fetch(since, () => false)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ProviderHttpError);
+    expect((err as ProviderHttpError).status).toBe(status);
+    expect(g.calls.some((c) => c.url.pathname.endsWith("/me/messages"))).toBe(false); // no mail was read at all
+  });
+
+  it("fails when a later folder lookup fails too, not only the first", async () => {
+    const g = graph([[msg("a")]], { folderStatus: { [SKIP_FOLDERS[3]]: 403 } });
+    await expect(collect(createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("hands out messages page by page: the first one arrives before the next page is requested", async () => {
+    const g = graph([[msg("a"), msg("b")], [msg("c"), msg("d")], [msg("e")]]);
+    const gen = createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false);
+    const pageRequests = () => g.calls.filter((c) => c.url.pathname.endsWith("/me/messages")).length;
+    expect((await gen.next()).value).toMatchObject({ id: "a" });
+    expect(pageRequests()).toBe(1);
+    await gen.next();
+    expect(pageRequests()).toBe(1);
+    expect((await gen.next()).value).toMatchObject({ id: "c" });
+    expect(pageRequests()).toBe(2);
+    await gen.return(undefined);
+    expect(pageRequests()).toBe(2); // the rest of the mailbox was never fetched
+  });
+
+  it("orders newest first by default and oldest first on request, and asks for the body as it is (no Prefer: text)", async () => {
+    const g = graph([[msg("a")]]);
+    await collect(createGraphProvider(token, { fetch: g.fetch }).fetch(since, () => false));
+    await collect(createGraphProvider(token, { fetch: g.fetch, oldestFirst: true }).fetch(since, () => false));
+    const lists = g.calls.filter((c) => c.url.pathname.endsWith("/me/messages"));
+    expect(lists.map((c) => c.url.searchParams.get("$orderby"))).toEqual(["receivedDateTime desc", "receivedDateTime asc"]);
+    for (const c of lists) expect(c.headers.get("prefer")).toBe('IdType="ImmutableId"');
+  });
+
   it("backs off on 429 using Retry-After", async () => {
     let throttled = false;
     const inner = graph([[msg("a")]]);
-    const wrapped = scriptedFetch((call, n) => {
+    const wrapped = scriptedFetch((call) => {
       if (call.url.pathname.endsWith("/me/messages") && !throttled) {
         throttled = true;
         return json({}, 429, { "Retry-After": "9" });

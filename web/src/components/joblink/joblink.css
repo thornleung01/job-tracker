@@ -9,7 +9,7 @@
 .joblink-toggle:hover { color: var(--ink); }
 .joblink-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .joblink-toggle:hover:not(:disabled) { background: none; color: var(--ink); }
-.joblink #add-paste-box { width: 100%; }
-.joblink #add-paste-box[hidden] { display: none; }
-.joblink #add-paste-box .row { margin-top: 8px; }
+.joblink .paste-box { width: 100%; }
+.joblink .paste-box[hidden] { display: none; }
+.joblink .paste-box .row { margin-top: 8px; }
 .field-hint { margin: 2px 0 0 4px; font-size: 0.8125rem; color: var(--muted); }

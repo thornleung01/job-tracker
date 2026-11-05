@@ -6,9 +6,8 @@
 .detail-edit form { margin-top: 8px; }
 .detail-controls { margin-top: 14px; }
 .detail-controls .more-menu { margin-left: auto; }
-.detail-step { margin-top: 14px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.detail-step { margin-top: 14px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }   /* the merge step; removals use InlineConfirm */
 .detail-step form { margin: 0; }
-.detail-step-q { margin: 0 0 4px; font-weight: 500; }
 .detail-step .help { margin-bottom: 12px; }
 .detail-missing { margin-top: 12px; }
 

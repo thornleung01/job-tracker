@@ -96,7 +96,9 @@ def parse(msg: Message) -> list[dict]:
             jk = (parse_qs(parsed.query).get("jk") or [""])[0]
             if not re.fullmatch(r"[0-9a-f]{8,}", jk):
                 continue
-            job_id, url = jk, f"{parsed.scheme or 'https'}://{parsed.netloc}/viewjob?jk={jk}"
+            # The sender of an alert is only a claim, so the link's host is used only when it really is Indeed's.
+            host = (parsed.hostname or "").lower()
+            job_id, url = jk, f"https://{host if _is_domain(host, 'indeed.com') else 'www.indeed.com'}/viewjob?jk={jk}"
         title = _clean(a.get_text(" "))
         if len(title) < 4 or NOISE.match(title) or title.lower() in {"view job", "apply"}:
             continue                       # the same job often has a second link, such as a button

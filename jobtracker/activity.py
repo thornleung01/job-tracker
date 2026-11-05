@@ -1,13 +1,13 @@
 """Notes and dated steps you add to an application, shown alongside its emails."""
 from __future__ import annotations
 
-import re
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 from . import db
 from .links import mailbox_link, reply_link
 from .models import BODY_LIMIT
+from .textutil import collapse_spaces
 
 NOTE_MAX = 2000
 # What you can log as a step. The six stages move the application; the others are history only.
@@ -30,7 +30,7 @@ def _require_application(conn: sqlite3.Connection, app_id: int) -> sqlite3.Row:
     return app
 
 
-def _touch(conn: sqlite3.Connection, app_id: int, when: str) -> None:
+def touch(conn: sqlite3.Connection, app_id: int, when: str) -> None:
     conn.execute(
         "UPDATE applications SET last_activity = MAX(COALESCE(last_activity, ''), ?) WHERE id = ?",
         (when, app_id),
@@ -44,7 +44,7 @@ def today() -> date:
 def _when_for(day: str | None) -> str:
     """Timestamp for a chosen day. Today means right now; earlier days count as midday UTC."""
     if not day or not day.strip():
-        return db.iso(datetime.now(timezone.utc))
+        return db.now_iso()
     try:
         chosen = date.fromisoformat(day.strip())
     except ValueError:
@@ -52,7 +52,7 @@ def _when_for(day: str | None) -> str:
     if chosen > today():
         raise ActivityError("The date can't be in the future.")
     if chosen == today():
-        return db.iso(datetime.now(timezone.utc))
+        return db.now_iso()
     return f"{chosen.isoformat()}T12:00:00Z"
 
 
@@ -64,18 +64,18 @@ def add_note(conn: sqlite3.Connection, app_id: int, body: str) -> None:
         raise ActivityError(f"Notes can be up to {NOTE_MAX} characters. This one is {len(body)}.")
     with conn:
         _require_application(conn, app_id)
-        now = db.iso(datetime.now(timezone.utc))
+        now = db.now_iso()
         conn.execute(
             "INSERT INTO activity (application_id, kind, body, occurred_at, created_at) VALUES (?, 'note', ?, ?, ?)",
             (app_id, body, now, now),
         )
-        _touch(conn, app_id, now)
+        touch(conn, app_id, now)
 
 
 def add_step(conn: sqlite3.Connection, app_id: int, label: str, day: str | None = None, body: str = "") -> bool:
     """Log a step from the preset list. If it is one of the stages, the application moves to it
     (when the date isn't older than the current stage). Returns True if the stage changed."""
-    label = re.sub(r"\s+", " ", label or "").strip()
+    label = collapse_spaces(label)
     body = (body or "").strip()
     step = _ALLOWED_STEPS.get(label.casefold())
     if not step:
@@ -84,7 +84,7 @@ def add_step(conn: sqlite3.Connection, app_id: int, label: str, day: str | None 
         raise ActivityError(f"Notes can be up to {NOTE_MAX} characters.")
     when = _when_for(day)
     stage = step if step in db.STAGES else None
-    created = db.iso(datetime.now(timezone.utc))
+    created = db.now_iso()
 
     with conn:
         app = _require_application(conn, app_id)
@@ -93,7 +93,7 @@ def add_step(conn: sqlite3.Connection, app_id: int, label: str, day: str | None 
             "VALUES (?, 'step', ?, ?, ?, ?)",
             (app_id, step, body, when, created),
         )
-        _touch(conn, app_id, when)
+        touch(conn, app_id, when)
         if not stage:
             return False
         if stage == "Applied" and (not app["applied_at"] or when < app["applied_at"]):

@@ -314,3 +314,43 @@ def test_the_resume_text_is_never_put_in_a_page_for_other_tabs_or_the_nav(env):
     upload(env, "jordan.docx", make_docx(RESUME_LINES))
     for path in ("/", "/jobs", "/flow", "/settings", "/jobs?tab=sources"):
         assert "Globex Inc, 2022 to present" not in env.c.get(path).text
+
+
+# --- review fixes -----------------------------------------------------------------
+
+def test_a_company_feed_whose_saved_settings_are_corrupt_does_not_take_the_page_down(env):
+    env.conn.execute("INSERT INTO job_sources (kind, name, config) VALUES ('feed', 'greenhouse:acme', '{not json')")
+    env.conn.commit()
+    page = env.c.get("/jobs?tab=sources")
+    assert page.status_code == 200 and "greenhouse:acme" in page.text           # still listed, so it can be removed
+
+
+def test_adding_a_company_checks_only_that_company(env):
+    profile(env)
+    env.responses["boards-api.greenhouse.io/v1/boards/other"] = FakeResponse(200, GREENHOUSE)
+    env.responses["boards-api.greenhouse.io/v1/boards/acme"] = FakeResponse(200, GREENHOUSE)
+    follow(env, env.c.post("/jobs/sources/feed", data={"url": "greenhouse:other"}))
+    env.requests.clear()
+    follow(env, env.c.post("/jobs/sources/feed", data={"url": "greenhouse:acme"}))
+    boards = [u for u in env.requests if "/boards/" in u]
+    assert boards and all("/boards/acme" in u for u in boards)                  # the first company is not fetched again
+
+
+def test_saving_the_profile_and_reading_a_resume_run_off_the_event_loop(env, monkeypatch):
+    import asyncio
+    from jobtracker import jobs_web
+
+    where = {}
+
+    def on_loop() -> bool:
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+    real_save, real_resume = jobs_web._save_profile_form, jobs_web._save_resume
+    monkeypatch.setattr(jobs_web, "_save_profile_form", lambda *a: where.update(profile=on_loop()) or real_save(*a))
+    monkeypatch.setattr(jobs_web, "_save_resume", lambda *a: where.update(resume=on_loop()) or real_resume(*a))
+    env.c.post("/jobs/profile", data={"titles": "Analyst"})
+    env.c.post("/jobs/profile/resume", files={"file": ("r.txt", b"Jordan Lee\nData Analyst with SQL and Python for five years of reporting work.", "text/plain")})
+    assert where == {"profile": False, "resume": False}

@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 from dataclasses import dataclass, field
 
 from .text import find_skills
+
+log = logging.getLogger(__name__)
 
 MAX_UPLOAD = 5 * 1024 * 1024
 ALLOWED = (".pdf", ".docx", ".txt")
@@ -56,6 +59,7 @@ def extract_text(filename: str, data: bytes) -> str:
     except ResumeError:
         raise
     except Exception:
+        log.warning("Couldn't read an uploaded resume", exc_info=True)       # the file name and its text stay out of the log
         raise ResumeError("Couldn't read that file. Try exporting it again, or paste the text instead.") from None
     text = re.sub(r"[ \t]+", " ", text).strip()
     if len(text) < 40:

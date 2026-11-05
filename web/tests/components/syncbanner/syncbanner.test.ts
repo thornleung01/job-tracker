@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { act, createElement as h } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_USER } from "../../../src/app/localUser";
 import { POPUP_HINT } from "../../../src/auth/google";
 import { SyncBanner, type SyncBannerDeps } from "../../../src/components/SyncBanner";
 import { deactivateAccount, listAccounts, upsertAccount } from "../../../src/db/repo";
@@ -61,9 +62,9 @@ async function setup(opts: Opts = {}) {
     createProvider: createProvider as unknown as SyncBannerDeps["createProvider"],
     getAddress: vi.fn(async (p: ProviderName) => (opts.addressFails ? Promise.reject(new Error("offline")) : p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
   };
-  const view = await render(h(SyncBanner, { db, user: ada, deps, local: opts.local ?? false, autoStart: opts.autoStart, quiet: opts.quiet }));
+  const view = await render(h(SyncBanner, { db, user: opts.local ? LOCAL_USER : ada, deps, autoStart: opts.autoStart, quiet: opts.quiet }));
   await settle(40);
-  const rerender = (autoStart: boolean, quiet = opts.quiet) => view.rerender(h(SyncBanner, { db, user: ada, deps, local: opts.local ?? false, autoStart, quiet }));
+  const rerender = (autoStart: boolean, quiet = opts.quiet) => view.rerender(h(SyncBanner, { db, user: opts.local ? LOCAL_USER : ada, deps, autoStart, quiet }));
   return { db, deps, connectMail, createProvider, fake, rerender, view };
 }
 
@@ -84,6 +85,7 @@ describe("SyncBanner", () => {
   it("shows nothing when the only account is switched off", async () => {
     const { db } = await setup();
     const [a] = await listAccounts(db);
+    expect(banner()).not.toBeNull();      // it shows while the account is on, so the check below is about switching it off
     await act(async () => {
       await deactivateAccount(db, a.id);
     });

@@ -1,0 +1,34 @@
+{# Pieces the pages share. Use with: {% from "_macros.html" import flash, utc %} #}
+
+{# A message at the top of a page. Errors are announced at once; the rest politely. base.html moves focus to it. #}
+{% macro flash(text, err=False) -%}
+{% if text %}<div class="notice{{ ' err' if err }}" role="{{ 'alert' if err else 'status' }}" tabindex="-1" data-focus>{{ text }}</div>{% endif %}
+{%- endmacro %}
+
+{# A stored UTC time. base.html's script shows it in the viewer's time zone. Pass rel=True to add "3 hours ago", short=True for "Oct 5, 2:30 pm". #}
+{% macro utc(iso, rel=False, short=False) -%}
+<time class="local" datetime="{{ iso }}"{% if short %} data-fmt="short"{% endif %}{% if rel %} data-rel{% endif %}>{{ iso[:16].replace('T', ' ') }} UTC</time>
+{%- endmacro %}
+
+{# The buttons that remove an application, written once for the full page and the list's panel. `small` is the compact size. #}
+{% macro not_application_form(aid, small=False, style='') -%}
+<form method="post" action="/app/{{ aid }}/not-application" class="inline" style="{{ style }}"
+      data-confirm="Remove this and teach the app it wasn't a job application? Emails like it will be ignored from now on.">
+  <button class="danger{{ ' small' if small }}" title="Removes it and learns to ignore emails like the ones that made it.">Not an application</button>
+</form>
+{%- endmacro %}
+
+{% macro delete_form(aid, small=False, style='') -%}
+<form method="post" action="/app/{{ aid }}/delete" class="inline" style="{{ style }}"
+      data-confirm="Delete this application? Its notes, steps and saved emails are removed from the app. Your mailbox isn't touched.">
+  <input type="hidden" name="emails" value="clear"><button class="danger{{ ' small' if small }}">Delete application</button>
+</form>
+{%- endmacro %}
+
+{# Only the full page offers this one. #}
+{% macro delete_keep_emails_form(aid) -%}
+<form method="post" action="/app/{{ aid }}/delete" class="inline"
+      data-confirm="Delete this application and send its emails to Needs review so you can place them yourself?">
+  <input type="hidden" name="emails" value="review"><button class="danger" title="Use this when the emails belong to a different application.">Delete, keep emails for review</button>
+</form>
+{%- endmacro %}

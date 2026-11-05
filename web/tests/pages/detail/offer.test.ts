@@ -7,7 +7,9 @@ import { setOfferDetails } from "../../../src/sync/actions";
 import { createElement } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { pinClock } from "../../support/clock";
 
+pinClock();      // "this year" below is the pinned year, even on 31 December
 afterEach(cleanup);
 const open = (db: ReturnType<typeof freshDb>, id: number) => mountPage(DetailPage, db, `/app/${id}`, { id: String(id) });
 
@@ -22,7 +24,7 @@ describe("the offer section on the application page", () => {
     expect(text($(container, `label[for="offer-${id}-deadline"]`))).toBe("Decision deadline");
     expect(($(container, ".offer input[name=salary]") as HTMLInputElement).maxLength).toBe(60);
     expect(button($(container, ".offer")!, "Save offer details")).not.toBeNull();
-    expect(button($(container, ".offer")!, "Clear")).toBeNull();      // nothing saved yet
+    expect(button($(container, ".offer")!, "Clear offer details")).toBeNull();      // nothing saved yet
     expect($(container, ".offer p.help")).toBeNull();
   });
 
@@ -54,14 +56,14 @@ describe("the offer section on the application page", () => {
     await waitFor(() => text($(container, ".offer-status")) === "Offer details saved.");
     expect(await db.applications.get(id)).toMatchObject({ offerSalary: "$120,000 + equity", offerDeadline: "2026-10-15" });
 
-    await waitFor(() => button($(container, ".offer")!, "Clear") !== null);
-    await click(button($(container, ".offer")!, "Clear"));
+    await waitFor(() => button($(container, ".offer")!, "Clear offer details") !== null);
+    await click(button($(container, ".offer")!, "Clear offer details"));
     await waitFor(() => text($(container, ".offer-status")) === "Offer details cleared.");
     const app = await db.applications.get(id);
     expect(app?.offerSalary).toBeUndefined();
     expect(app?.offerDeadline).toBeUndefined();
     expect(($(container, ".offer input[name=salary]") as HTMLInputElement).value).toBe("");
-    expect(button($(container, ".offer")!, "Clear")).toBeNull();
+    expect(button($(container, ".offer")!, "Clear offer details")).toBeNull();
   });
 
   it("shows what was refused and saves nothing", async () => {
@@ -89,11 +91,11 @@ describe("the offer form as you use it", () => {
     const id = await addApp(db, "Acme", { stage: "Offer" });
     await setOfferDetails(db, id, { salary: "$90k", deadline: "2026-10-15" });
     const { container } = await open(db, id);
-    await waitFor(() => button($(container, ".offer")!, "Clear") !== null);
-    const clear = button($(container, ".offer")!, "Clear")!;
+    await waitFor(() => button($(container, ".offer")!, "Clear offer details") !== null);
+    const clear = button($(container, ".offer")!, "Clear offer details")!;
     (clear as HTMLElement).focus();
     await click(clear);
-    await waitFor(() => button($(container, ".offer")!, "Clear") === null);
+    await waitFor(() => button($(container, ".offer")!, "Clear offer details") === null);
     expect(document.activeElement).toBe(salaryBox(container));
     expect(salaryBox(container).value).toBe("");
     expect(deadlineBox(container).value).toBe("");
@@ -124,7 +126,7 @@ describe("the offer form as you use it", () => {
     await waitFor(() => text($(container, ".offer-status")) === "Offer details saved.");
     const app = await db.applications.get(id);
     expect("offerSalary" in app!).toBe(false);
-    await waitFor(() => salaryBox(container).value === "" && button($(container, ".offer")!, "Clear") === null);
+    await waitFor(() => salaryBox(container).value === "" && button($(container, ".offer")!, "Clear offer details") === null);
   });
 
   it("shows new values when the application changes under the form", async () => {

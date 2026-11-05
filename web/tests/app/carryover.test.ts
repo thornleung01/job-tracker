@@ -8,7 +8,6 @@ import { bringOverLocalData, DONE_KEY, localApplicationCount, NothingToBringOver
 import { DISMISS_KEY, LocalDataOffer } from "../../src/app/LocalDataOffer";
 import { importAll } from "../../src/portability";
 import { upsertAccount } from "../../src/db/repo";
-import { addNote } from "../../src/sync/activity";
 import { addApp, addMail } from "../pages/applications/harness";
 import { byText, cleanupRendered, click, closeDbs, freshDb, q, render, settle, waitFor } from "./helpers";
 
@@ -20,7 +19,7 @@ async function seedLocal(): Promise<void> {
     const acme = await addApp(local, "Acme");
     await addApp(local, "Globex", { stage: "Interview" });
     await addMail(local, account, acme);
-    await addNote(local, acme, "Referred by Sam");
+    await local.activity.add({ applicationId: acme, kind: "note", label: null, body: "Referred by Sam", occurredAt: "2026-10-05T12:00:00Z", createdAt: "2026-10-05T12:00:00Z" });
   } finally {
     local.close();
   }

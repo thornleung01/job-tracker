@@ -4,9 +4,13 @@ import { $, $$, addApp, addMail, button, cleanup, click, freshDb, key, mountPage
 import ApplicationsPage from "../../../src/pages/applications";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
-import * as bulk from "../../../src/sync/bulk";
+
+// Undo stays on screen for 8 s. The test that waits for it to go shortens it, and the others keep the real length.
+const undo = vi.hoisted(() => ({ ms: 8000 }));
+vi.mock("../../../src/components/undo", () => ({ get UNDO_MS() { return undo.ms; } }));
 
 afterEach(async () => {
+  undo.ms = 8000;
   vi.useRealTimers();
   vi.restoreAllMocks();
   await cleanup();
@@ -133,18 +137,18 @@ describe("the bulk bar", () => {
     await click(box(container, "Acme"));
     await click(box(container, "Beta"));
     await click(button(container, "Delete"));
-    const ask = $(container, ".bulk-confirm[role=group]")!;
-    expect(text($(ask, "#h-bulk-delete"))).toBe("Delete 2 applications?");
+    const ask = $(container, ".inline-confirm[role=group]")!;
+    expect(text($(ask, ".inline-confirm-q"))).toBe("Delete 2 applications?");
     expect(button(container, "Delete")?.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement).toBe(button(ask, "Cancel"));
     expect(button(container, "Delete")?.getAttribute("aria-controls")).toBe(ask.id);
     expect(await db.applications.count()).toBe(3);
     await click(button(ask, "Cancel"));
-    expect($(container, ".bulk-confirm")).toBeNull();
+    expect($(container, ".inline-confirm")).toBeNull();
     expect(document.activeElement).toBe(button(container, "Delete"));
     await click(button(container, "Delete"));
-    await key($(container, ".bulk-confirm button"), "Escape");
-    expect($(container, ".bulk-confirm")).toBeNull();
+    await key($(container, ".inline-confirm button"), "Escape");
+    expect($(container, ".inline-confirm")).toBeNull();
     expect(await db.applications.count()).toBe(3);
     expect(confirm).not.toHaveBeenCalled();
   });
@@ -174,12 +178,12 @@ describe("the bulk bar", () => {
     await click(box(container, "Acme"));
     await click(button(container, "Delete"));
     await click(box(container, "Beta"));
-    expect(text($(container, "#h-bulk-delete"))).toBe("Delete 2 applications?");
+    expect(text($(container, ".inline-confirm-q"))).toBe("Delete 2 applications?");
     await click(box(container, "Acme"));
     await click(box(container, "Beta"));
-    expect($(container, ".bulk-confirm")).toBeNull();
+    expect($(container, ".inline-confirm")).toBeNull();
     await click(box(container, "Acme"));
-    expect($(container, ".bulk-confirm")).toBeNull();
+    expect($(container, ".inline-confirm")).toBeNull();
   });
 });
 
@@ -302,33 +306,37 @@ describe("the delete question", () => {
   it("ignores Escape while a delete is running, then lets the result through", async () => {
     const db = freshDb();
     await seed(db);
-    let release: (n: number) => void = () => {};
-    vi.spyOn(bulk, "bulkDelete").mockImplementation(() => new Promise<number>((resolve) => { release = resolve; }));
+    // The database holds the delete back until we let go, then does it for real.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const realTransaction = db.transaction.bind(db) as (...args: unknown[]) => Promise<unknown>;
+    vi.spyOn(db, "transaction").mockImplementation(((...args: unknown[]) => held.then(() => realTransaction(...args))) as never);
     const { container } = await mountPage(ApplicationsPage, db);
     await click(box(container, "Acme"));
     await click(button(container, "Delete"));
     await click(button(container, "Delete 1 application and their emails"));
     expect((button(container, "Cancel") as HTMLButtonElement).disabled).toBe(true);
-    await key($(container, ".bulk-confirm button"), "Escape");
-    expect($(container, ".bulk-confirm")).not.toBeNull();
-    await act(async () => release(1));
+    await key($(container, ".inline-confirm button"), "Escape");
+    expect($(container, ".inline-confirm")).not.toBeNull();
+    await act(async () => release());
     await waitFor(() => bar(container) === null, "the bar to go");
     expect(text($(container, ".notice"))).toBe("Deleted 1 application.");
+    expect(await db.applications.count()).toBe(2);
   });
 
   it("puts focus back on the Delete button after a failed delete", async () => {
     const db = freshDb();
     await seed(db);
-    vi.spyOn(bulk, "bulkDelete").mockRejectedValue(new Error("disk full"));
+    vi.spyOn(db, "transaction").mockRejectedValue(new Error("disk full"));
     const { container } = await mountPage(ApplicationsPage, db);
     await click(box(container, "Acme"));
     await click(button(container, "Delete"));
     const confirmDelete = button(container, "Delete 1 application and their emails")!;
     await click(confirmDelete);
     await waitFor(() => $(container, ".bulk-bar .notice.err") !== null, "the error");
-    expect(text($(container, ".bulk-bar .notice.err"))).toBe("Couldn't save that. Try again.");
+    expect(text($(container, ".bulk-bar .notice.err"))).toBe("Couldn't finish that. Try again.");
     expect(document.activeElement).toBe(confirmDelete);
-    expect($(container, ".bulk-confirm")).not.toBeNull();
+    expect($(container, ".inline-confirm")).not.toBeNull();
   });
 
   it("puts focus back on Set stage after a failed change", async () => {
@@ -376,15 +384,12 @@ describe("Undo after a bulk stage change", () => {
     expect(button(container, "Undo")).toBeNull();
   });
 
-  it("goes away after eight seconds, leaving the result line", async () => {
+  it("goes away when its time is up, leaving the result line", async () => {
     const db = freshDb();
     await seed(db);
-    const timers = vi.spyOn(globalThis, "setTimeout");
+    undo.ms = 150;
     const container = await setAcmeAndBeta(db);
-    const undoTimer = timers.mock.calls.find((c) => c[1] === 8000);
-    expect(undoTimer).toBeDefined();
-    await act(async () => (undoTimer![0] as () => void)());
-    expect(button(container, "Undo")).toBeNull();
+    await waitFor(() => button(container, "Undo") === null, "Undo to go");
     expect(text($(container, ".notice"))).toBe("2 applications set to Interview.");
   });
 

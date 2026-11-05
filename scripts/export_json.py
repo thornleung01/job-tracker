@@ -1,14 +1,16 @@
 """Export a profile's SQLite database to JSON that the hosted edition (web/) can import.
 
-    .venv\\Scripts\\python.exe scripts\\export_json.py                      # data\\tracker.db, written to jobtracker-export.json
+    .venv\\Scripts\\python.exe scripts\\export_json.py                      # data\\tracker.db, written to data\\jobtracker-export.json
     .venv\\Scripts\\python.exe scripts\\export_json.py data\\other.db out.json
 
-Then sign in to the hosted app and choose Settings > Import from the local edition. The file holds your applications,
-saved emails, notes, learned rules and appearance settings. It does not hold sign-in tokens, client files, your resume or
-job-search profile, or Jobs-tab data (those stay on this PC). The database is opened read-only.
+Then log in to the hosted app and choose Settings, Your data, Import data (it asks you to confirm before it replaces what is there). The file holds your applications,
+saved emails, notes, learned rules and appearance settings. It does not hold login tokens, client files, your resume or
+job-search profile, or Jobs-tab data (those stay on this PC). The database is opened read-only. The default output is
+in data\\, which git ignores, because the file holds your email text and contact details.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
 import sys
@@ -32,7 +34,7 @@ def _exists(conn: sqlite3.Connection, table: str) -> bool:
 
 
 def export(path: Path | str) -> dict:
-    uri = f"file:{Path(path).resolve().as_posix()}?mode=ro"
+    uri = Path(path).resolve().as_uri() + "?mode=ro"      # as_uri percent-encodes ? # % in the path
     conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
     try:
@@ -62,18 +64,21 @@ def export(path: Path | str) -> dict:
     }
 
 
-def main(argv: list[str]) -> int:
-    source = Path(argv[1]) if len(argv) > 1 else ROOT / "data" / "tracker.db"
-    target = Path(argv[2]) if len(argv) > 2 else Path("jobtracker-export.json")
-    if not source.exists():
-        print(f"No database at {source}", file=sys.stderr)
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Export a profile's database to JSON for the hosted edition's import.")
+    ap.add_argument("source", nargs="?", type=Path, default=ROOT / "data" / "tracker.db", help="the database (default data/tracker.db)")
+    ap.add_argument("target", nargs="?", type=Path, default=ROOT / "data" / "jobtracker-export.json", help="the JSON file to write")
+    args = ap.parse_args(argv)
+    if not args.source.exists():
+        print(f"No database at {args.source}", file=sys.stderr)
         return 1
-    data = export(source)
-    target.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    data = export(args.source)
+    args.target.parent.mkdir(parents=True, exist_ok=True)
+    args.target.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     counts = ", ".join(f"{len(rows)} {name.replace('_', ' ')}" for name, rows in data["tables"].items() if rows)
-    print(f"Wrote {target}: {counts or 'nothing'}")
+    print(f"Wrote {args.target}: {counts or 'nothing'}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

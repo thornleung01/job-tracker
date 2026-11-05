@@ -1,7 +1,7 @@
 import { NotConnected, type ProviderName, type TokenSource } from "../types";
 
 /** Seconds to wait after each rate-limit answer before asking again (same schedule as gmail.py). */
-export const RETRY_WAITS = [5, 15, 30, 60, 60];
+export const RETRY_WAITS: readonly number[] = [5, 15, 30, 60, 60];
 const MAX_RETRY_AFTER_MS = 300_000;
 
 export type Sleep = (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -32,6 +32,17 @@ export function ensureNotAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError(signal);
 }
 
+/** Settles like `p`, or rejects with the abort error as soon as `signal` aborts. */
+function raceAbort(p: Promise<void>, signal?: AbortSignal): Promise<void> {
+  if (!signal) return p;
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => reject(abortError(signal));
+    if (signal.aborted) return onAbort();
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 export const defaultSleep: Sleep = (ms, signal) =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(abortError(signal));
@@ -55,7 +66,10 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
   return Number.isNaN(when) ? null : Math.max(0, when - now);
 }
 
-/** Google's "slow down" answers (also Graph's throttling): too many requests, or a hiccup on their side. */
+/**
+ * Google's "slow down" answers (also Graph's throttling): too many requests, or a hiccup on their side.
+ * Google reports a quota hit as 403 with a body reason of rateLimitExceeded or userRateLimitExceeded; any other 403 is a real refusal.
+ */
 export function isRetryable(status: number, body: string): boolean {
   return [429, 500, 502, 503, 504].includes(status) || (status === 403 && body.includes("ateLimitExceeded"));
 }
@@ -78,6 +92,7 @@ export interface Http {
    * GET with a bearer token. 401: asks the token source again and retries once, then NotConnected.
    * Rate limits and 5xx: waits (Retry-After, else the schedule) and retries. Anything else, including a
    * rate limit that outlasts the schedule, comes back as the Response for the caller to judge.
+   * One rate limit answers for the whole mailbox, so while a request waits, every other request on this client waits too.
    */
   get(url: string, init?: { headers?: Record<string, string>; signal?: AbortSignal }): Promise<Response>;
 }
@@ -86,6 +101,8 @@ export function createHttp(provider: ProviderName, tokenSource: TokenSource, opt
   const sleep = opts.sleep ?? defaultSleep;
   const waits = opts.retryWaits ?? RETRY_WAITS;
   const now = opts.now ?? Date.now;
+  /** Settles when the rate-limit wait in progress ends; null when nobody is waiting. Never rejects. */
+  let cooling: Promise<void> | null = null;
   return {
     async get(url, init = {}) {
       const { signal } = init;
@@ -93,6 +110,7 @@ export function createHttp(provider: ProviderName, tokenSource: TokenSource, opt
       let refreshed = false;
       for (;;) {
         ensureNotAborted(signal);
+        while (cooling) await raceAbort(cooling, signal);
         const token = await tokenSource(provider, signal);
         const doFetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
         const res = await doFetch(url, { method: "GET", headers: { ...baseHeaders, ...init.headers, Authorization: `Bearer ${token}` }, signal });
@@ -107,7 +125,14 @@ export function createHttp(provider: ProviderName, tokenSource: TokenSource, opt
         const ms = Math.min(parseRetryAfter(res.headers.get("retry-after"), now()) ?? waits[retries] * 1000, MAX_RETRY_AFTER_MS);
         retries++;
         opts.onWait?.(ms / 1000);
-        await sleep(ms, signal);
+        const wait = sleep(ms, signal);
+        const mine = wait.then(() => undefined, () => undefined);
+        const shared: Promise<void> = cooling ? Promise.all([cooling, mine]).then(() => undefined) : mine;
+        cooling = shared;
+        void shared.then(() => {
+          if (cooling === shared) cooling = null;
+        });
+        await wait;
       }
     },
   };

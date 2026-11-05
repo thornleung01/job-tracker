@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import type { JobTrackerDB } from "../db/schema";
+import { MAX_NAME_CHARS, MAX_TITLE_CHARS } from "../db/limits";
 import { KIND_LABEL, hide, saveEdit, type Contact } from "../sync/contacts";
+import { InlineConfirm } from "./InlineConfirm";
 import { Notice } from "./Notice";
 import { TimeText } from "./TimeText";
 import { useAction } from "./useAction";
@@ -11,8 +13,8 @@ const providerOf = (label: string) => label.replace("Reply in ", "");
 interface PersonCardProps {
   db: JobTrackerDB;
   contact: Contact;
-  /** told after a save or a removal, so the page can say so even when this card goes away */
-  onNotice?(message: string): void;
+  /** told after a save or a removal, so the page can say so even when this card goes away; `removed` is true when the card is gone, so the page can move focus to the message */
+  onNotice?(message: string, removed?: boolean): void;
 }
 
 /**
@@ -22,6 +24,9 @@ interface PersonCardProps {
  */
 export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
   const act = useAction();
+  const fieldId = useId();
+  // The "Not a person" button that asked the question, so focus goes back to it on cancel.
+  const [opener, setOpener] = useState<HTMLElement | null>(null);
   const [name, setName] = useState(c.name);
   const [title, setTitle] = useState(c.title);
   const first = c.name.split(/\s+/)[0];
@@ -34,10 +39,9 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
     });
   };
   const remove = () => {
-    if (!window.confirm(`Remove ${c.name} from this application?`)) return;
     void act.run("hide", async () => {
       await hide(db, c.key);
-      onNotice?.("Removed from this application.");
+      onNotice?.("Removed from this application.", true);
     });
   };
 
@@ -54,7 +58,7 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
       </p>
       <div className="mail-actions">
         {c.compose && c.compose.url.startsWith("https://") ? (
-          <a className="btn primary" href={c.compose.url} target="_blank" rel="noopener noreferrer"
+          <a className="btn primary" href={c.compose.url} target="_blank" rel="noopener noreferrer" aria-label={`Email ${first} in ${providerOf(c.compose.label)} (opens in a new tab)`}
              title={`Opens a new message to ${c.email} in ${providerOf(c.compose.label)}`}>Email {first}</a>
         ) : null}
         {c.mailCount ? (
@@ -76,18 +80,29 @@ export function PersonCard({ db, contact: c, onNotice }: PersonCardProps) {
           <summary>Edit person</summary>
           <form className="row row-end" onSubmit={save}>
             <div className="fgroup">
-              <label htmlFor={`n-${c.key}`}>Name</label>
-              <input id={`n-${c.key}`} name="name" value={name} maxLength={80} required onChange={(e) => setName(e.target.value)} />
+              <label htmlFor={`${fieldId}-name`}>Name</label>
+              <input id={`${fieldId}-name`} name="name" value={name} maxLength={MAX_NAME_CHARS} required onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="fgroup f-grow">
-              <label htmlFor={`t-${c.key}`}>Title for this role</label>
-              <input id={`t-${c.key}`} name="title" value={title} maxLength={100} placeholder="For example, hiring manager" onChange={(e) => setTitle(e.target.value)} />
+              <label htmlFor={`${fieldId}-title`}>Title for this role</label>
+              <input id={`${fieldId}-title`} name="title" value={title} maxLength={MAX_TITLE_CHARS} placeholder="For example, hiring manager" onChange={(e) => setTitle(e.target.value)} />
             </div>
             <button type="submit" {...act.button("save")}>Save changes</button>
           </form>
           <div className="stack-top-sm">
-            <button type="button" className="danger" onClick={remove} {...act.button("hide")}>Not a person</button>
+            <button type="button" className="danger" onClick={(e) => setOpener(e.currentTarget)} {...act.button("hide")}>Not a person</button>
           </div>
+          {opener ? (
+            <InlineConfirm
+              title={`Remove ${c.name} from this application?`}
+              confirmLabel="Remove from this application"
+              onConfirm={remove}
+              onCancel={() => setOpener(null)}
+              act={act}
+              actionKey="hide"
+              opener={opener}
+            />
+          ) : null}
           {act.error ? <Notice tone="err" className="stack-top">{act.error}</Notice> : null}
         </details>
       </div>

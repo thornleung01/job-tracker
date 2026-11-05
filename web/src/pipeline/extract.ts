@@ -118,9 +118,6 @@ export function extractCompanyRole(msg: Message): [string, string] {
   return [company || UNKNOWN_COMPANY, role || UNKNOWN_ROLE];
 }
 
-export const extractCompany = (msg: Message): string => extractCompanyRole(msg)[0];
-export const extractRole = (msg: Message): string => extractCompanyRole(msg)[1];
-
 export function senderCompany(msg: Message): string {
   const rawName = msg.senderName || "";
   let name = cleanValue(sub(NOISE_WORDS_G, " ", rawName));

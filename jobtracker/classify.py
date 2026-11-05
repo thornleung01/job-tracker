@@ -1,3 +1,12 @@
+"""Decide whether an email is about a job application, and which stage it reports. Plain rules, no AI.
+
+The wording lives in rules.yaml; what you taught the app lives in learn.py and may tighten the result (a learned block
+ignores a sender, a distrusted wording goes to Needs review). Every answer carries a short reason that the pages show.
+
+The hosted edition in web/ has a TypeScript port of this module (web/src/pipeline/classify.ts). A change here, or to
+rules.yaml, changes what that port must return: run `python scripts/build_rules_json.py` and `python scripts/export_fixtures.py`,
+then commit the regenerated files with the change. See web/src/pipeline/PARITY_NOTES.md.
+"""
 from __future__ import annotations
 
 import re
@@ -91,6 +100,15 @@ def classify(msg: Message, learned=None) -> Classification:
     return result
 
 
+def _strong_event_in(subject: str, rules: Rules) -> str | None:
+    """The first event (in PRIORITY order) whose strong wording is in this subject. A negated offer doesn't count as an offer."""
+    for event in PRIORITY:
+        text = strip_negated_offers(subject, rules) if event == "offer" else subject
+        if any(p.search(text) for p in rules.strong[event]):
+            return event
+    return None
+
+
 _QUOTES = str.maketrans({"\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"', "\u00a0": " "})
 
 
@@ -108,10 +126,9 @@ def _classify(msg: Message, learned=None) -> Classification:
     if learned and learned.blocks(sender, msg.sender_domain.lower()):
         # A learned block is built from a few clicks, so it must never hide mail that says, in its subject, that it is
         # about an application. That goes to Needs review instead, where you decide.
-        for event in PRIORITY:
-            text = strip_negated_offers(msg.subject, rules) if event == "offer" else msg.subject
-            if any(p.search(text) for p in rules.strong[event]):
-                return Classification(True, event, "low", f"learned block overridden by the subject: {event}")
+        event = _strong_event_in(msg.subject, rules)
+        if event:
+            return Classification(True, event, "low", f"learned block overridden by the subject: {event}")
         return Classification(False, None, "high", f"learned: ignoring {sender}")
 
     # A sender you confirmed is treated like a hiring system: its mail is job mail by definition.
@@ -121,10 +138,9 @@ def _classify(msg: Message, learned=None) -> Classification:
 
     if not ats and (msg.bulk or rules.bulk.search(msg.body)):
         # A newsletter or marketing mail. Only its subject can say it is about your application.
-        for event in PRIORITY:
-            text = strip_negated_offers(subject, rules) if event == "offer" else subject
-            if any(p.search(text) for p in rules.strong[event]):
-                return Classification(True, event, "medium", f"subject of a bulk mail: {event}")
+        event = _strong_event_in(subject, rules)
+        if event:
+            return Classification(True, event, "medium", f"subject of a bulk mail: {event}")
         return Classification(False, None, "high", "newsletter or marketing mail")
 
     if not ats and not rules.job_context.search(f"{subject}\n{body}"):

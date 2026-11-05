@@ -42,10 +42,6 @@ def sync_in(e, *messages):
     return [process_message(e.conn, e.acct, m) for m in messages]
 
 
-def only_app(e):
-    return e.conn.execute("SELECT id FROM applications").fetchone()[0]
-
-
 # --- the whole loop ---------------------------------------------------------------------------
 
 def test_flagging_an_application_removes_it_learns_the_sender_and_blocks_the_next_one(env):

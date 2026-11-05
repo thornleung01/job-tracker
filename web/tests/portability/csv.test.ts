@@ -9,7 +9,7 @@ import { addApp, addMail, cleanup, freshDb } from "../pages/applications/harness
 afterEach(cleanup);
 
 const row = (over: Partial<CsvRow> = {}): CsvRow => ({
-  company: "Acme", role: "Analyst", stage: "Applied", appliedAt: "2026-10-01T12:00:00Z", lastActivity: "2026-10-05T09:30:00Z",
+  company: "Acme", role: "Analyst", stage: "Applied", appliedAt: "2026-10-01T12:00:00Z", lastActivity: "2026-10-05T12:00:00Z",      // noon UTC is a picked day, so it reads as the same date in every time zone
   nEmails: 3, rounds: null, ...over,
 });
 const lines = (csv: string) => csv.replace(/^﻿/, "").split("\r\n");
@@ -137,7 +137,8 @@ describe("exportApplicationsCsv", () => {
 
 describe("csvFilename", () => {
   it("is job-tracker-applications-YYYY-MM-DD.csv", () => {
-    expect(csvFilename(new Date("2026-11-05T15:00:00Z"))).toBe("job-tracker-applications-2026-11-05.csv");
+    // Local noon: the name carries the viewer's own calendar day, in any time zone.
+    expect(csvFilename(new Date(2026, 10, 5, 12, 0))).toBe("job-tracker-applications-2026-11-05.csv");
   });
 });
 

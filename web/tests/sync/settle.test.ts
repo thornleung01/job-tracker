@@ -1,18 +1,19 @@
 // Ports of tests/test_settle.py and tests/test_delete.py, plus the application actions from web.py.
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ActionError, addApplication, deleteApplication, editApplication, mergeApplications, resolveReview, setStage, unlockStage,
 } from "../../src/sync/actions";
 import { fillMissingRoles, recheck, settleReview } from "../../src/sync/recheck";
 import { processMessage, processMessages } from "../../src/sync/sync";
-import { addNote } from "../../src/sync/activity";
 import { createApplication, upsertAccount } from "../../src/db/repo";
 import { sameRole } from "../../src/sync/match";
 import { localToday } from "../../src/db/time";
 import { classify, extractCompanyRole } from "../../src/pipeline";
-import { closeAll, dbWithAccount, freshDb, mail } from "./helpers";
+import { closeAll, dbWithAccount, freshDb, mail, seedNote } from "./helpers";
+import { pinClock } from "../support/clock";
 
+pinClock();
 afterEach(closeAll);
 
 const reviewCount = async (db: ReturnType<typeof freshDb>) => (await db.emails.toArray()).filter((e) => e.needsReview).length;
@@ -82,6 +83,16 @@ describe("weak mail and settling", () => {
     expect(await reviewCount(db)).toBe(before);
   });
 
+  it("does not write a waiting email again when nothing about it changed", async () => {
+    const { db, acct } = await dbWithAccount();
+    const weak = mail("Update", "Hi Jordan, I have an update on the interview process for the role. Do you have a few minutes to chat?", "Sam Lee <sam@unknown-co.com>");
+    expect(await processMessage(db, acct, weak)).toBe("review");
+    const write = vi.spyOn(db.emails, "update");
+    expect(await settleReview(db)).toBe(0);
+    expect(write).not.toHaveBeenCalled();
+    write.mockRestore();
+  });
+
   it("fills a missing role from the saved emails", async () => {
     const { db, acct } = await dbWithAccount();
     const app = await createApplication(db, { company: "Acme", companyKey: "acme", role: "Unknown role", roleKey: "", stage: "Applied", when: "2026-10-01T09:00:00Z" });
@@ -140,7 +151,7 @@ describe("deleting an application", () => {
   it("deletes a hand-made application with notes, and its people corrections", async () => {
     const { db } = await deleteEnv();
     const app = await addApplication(db, { company: "Mine", role: "R" });
-    await addNote(db, app, "x");
+    await seedNote(db, app, "x");
     await db.contactEdits.put({ key: `${app}|a@b.co`, name: "A", title: "T", hidden: false });
     await deleteApplication(db, app);
     expect(await db.applications.get(app)).toBeUndefined();

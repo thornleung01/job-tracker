@@ -13,10 +13,12 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections import Counter
+from functools import lru_cache
 
-from .links import reply_link
+from .config import NAME_MAX, TITLE_MAX
+from .links import recipient, reply_link
 from .mailtext import parts, split_sender
-from .reply import recipient
+from .textutil import collapse_spaces
 
 # Words that make a phrase a job title. A title is the capitalised words after a name, up to the last of these.
 _KEYS = {
@@ -26,6 +28,7 @@ _KEYS = {
     "scientist", "designer", "developer", "advisor", "adviser", "administrator", "assistant", "supervisor",
     "gm", "chief", "svp", "evp", "controller", "treasurer", "strategist", "architect",
 }
+TITLE_MAX_WORDS = 9       # a job title is never longer than this many words after the name
 _SMALL = {"&", "of", "and", "for", "the", "-", "/", ","}
 _STOP_TOKEN = re.compile(r"^(?:[|·•@]|[-–—])$|@|^\d|^https?:", re.I)
 _TEAM_WORDS = {"team", "hiring", "recruiting", "careers", "career", "support", "noreply", "no-reply", "hr", "people", "talent", "notifications",
@@ -75,7 +78,7 @@ def _is_key(token: str) -> bool:
 def _title_after(tokens: list[str], start: int) -> str:
     """The job title that follows a name in a run of words, or ''."""
     take: list[str] = []
-    for tok in tokens[start:start + 9]:
+    for tok in tokens[start:start + TITLE_MAX_WORDS]:
         if _STOP_TOKEN.search(tok):
             break
         take.append(tok)
@@ -97,8 +100,9 @@ def title_in_signature(text: str, names: list[str]) -> str:
         want = [w.lower() for w in name.split()]
         if not want:
             continue
+        first = want[0]
         for i in range(len(tokens) - len(want)):
-            if low[i:i + len(want)] == want:
+            if low[i] == first and low[i:i + len(want)] == want:
                 title = _title_after(tokens, i + len(want))
                 if title:
                     return title
@@ -121,36 +125,40 @@ def _flat(body: str | None) -> str:
     return re.sub(r"\s+", " ", " ".join(main + thread + footer))
 
 
+@lru_cache(maxsize=6000)
+def _read(body: str | None) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """(the body flattened to one line, the people named with a title in it). Both depend on the body alone, and reading them
+    is most of the cost of listing everyone (about 0.6 ms an email), so a body is read once per run of the app."""
+    text = _flat(body)
+    return text, tuple(titles_in_mentions(text))
+
+
 MAX_MAILS = 25
 
 
-def derive(conn: sqlite3.Connection, app_id: int | None = None) -> list[dict]:
-    """The people on each application, worked out from that application's own emails, newest contact first.
+def _new_person(name: str, email: str, sender: bool) -> dict:
+    return {"name": name, "email": email, "titles": Counter(), "emails": 0, "last": "", "sender": sender, "mails": {}}
 
-    A person is listed once per application, with the title that application's mail gives them: the same recruiter can hold
-    one role in one search and another in a different one, so nothing is carried between applications. Each person also carries
-    the emails connected to them (what they sent, and invites that name them) and a link to write to them.
-    """
-    mine = {r["address"].lower() for r in conn.execute("SELECT address FROM accounts")}
-    apps = {r["id"]: (r["company"], r["role"]) for r in conn.execute("SELECT id, company, role FROM applications")}
-    sql = ("SELECT e.id, e.sender, e.subject, e.body, e.application_id, e.received_at, e.thread_id, e.web_link, a.provider, a.address, a.can_reply "
-           "FROM emails e JOIN accounts a ON a.id = e.account_id WHERE e.related = 1 AND e.needs_review = 0 AND e.application_id IS NOT NULL")
-    args: tuple = ()
-    if app_id is not None:
-        sql, args = sql + " AND e.application_id = ?", (app_id,)
+
+def _mail_ref(e: sqlite3.Row, how: str) -> dict:
+    return {"id": e["id"], "subject": e["subject"] or "(no subject)", "when": e["received_at"], "how": how}
+
+
+def _people_from_senders(rows, mine: set[str]) -> tuple[dict, list]:
+    """First pass: everyone who sent one of these emails, with the title their signature gives them, plus every
+    "Name (Title)" mention found along the way (merged in the second pass, once all the senders are known)."""
     people: dict[tuple[int, str], dict] = {}               # (application, normalised name): a sender and a mention of them are one person
     mentions: list[tuple[int, str, str, sqlite3.Row]] = []
-
-    for e in conn.execute(sql + " ORDER BY e.received_at", args):
+    for e in rows:
         aid = e["application_id"]
         name, address = split_sender(e["sender"] or "")
         address = address.lower()
-        text = _flat(e["body"])
+        text, named = _read(e["body"])
         if address and address not in mine and recipient(e["sender"] or "") and looks_like_a_person(name, address):
-            p = people.setdefault((aid, _norm(name)), {"name": name, "email": address, "titles": Counter(), "emails": 0, "last": "", "sender": True, "mails": {}})
+            p = people.setdefault((aid, _norm(name)), _new_person(name, address, True))
             p["emails"] += 1
             p["last"] = max(p["last"], e["received_at"])
-            p["mails"][e["id"]] = {"id": e["id"], "subject": e["subject"] or "(no subject)", "when": e["received_at"], "how": "from"}
+            p["mails"][e["id"]] = _mail_ref(e, "from")
             p["last_from"] = e                                     # the newest email they sent, which a new message will answer
             local_first = re.split(r"[._-]", address.split("@")[0])[0]
             guess = title_in_signature(text, [name, name.split()[0], local_first.capitalize()])
@@ -160,20 +168,26 @@ def derive(conn: sqlite3.Connection, app_id: int | None = None) -> list[dict]:
                     guess = m.group("t")
             if guess:
                 p["titles"][guess] += 1
-        for n, t in titles_in_mentions(text):
+        for n, t in named:
             mentions.append((aid, n, t, e))
+    return people, mentions
 
+
+def _merge_mentions(people: dict, mentions: list) -> None:
+    """Second pass: people named in an invite join the sender they are (same name) or are listed on their own."""
     first_names = {(aid, p["name"].split()[0].lower()) for (aid, _), p in people.items() if p["sender"]}
     for aid, n, t, e in mentions:
         words = n.split()
         if len(words) >= 3 and (aid, words[0].lower()) in first_names and words[0].lower() not in _NAME_PARTICLE:
             n = " ".join(words[1:])         # "Jocelyn Katie Ellison (Director)": the first word is the line above (a sender's name)
-        p = people.setdefault((aid, _norm(n)), {"name": n, "email": "", "titles": Counter(), "emails": 0, "last": "", "sender": False, "mails": {}})
+        p = people.setdefault((aid, _norm(n)), _new_person(n, "", False))
         p["titles"][t] += 1
         p["last"] = max(p["last"], e["received_at"])
-        p["mails"].setdefault(e["id"], {"id": e["id"], "subject": e["subject"] or "(no subject)", "when": e["received_at"], "how": "mentions"})
+        p["mails"].setdefault(e["id"], _mail_ref(e, "mentions"))
 
-    edits = {r["key"]: r for r in conn.execute("SELECT * FROM contact_edits")}
+
+def _apply_edits(people: dict, edits: dict, apps: dict) -> list[dict]:
+    """Third pass: your corrections win over what the mail says, hidden people drop out, and each person becomes a finished row."""
     out = []
     for (aid, norm), p in people.items():
         key = f"{aid}|{p['email'] or 'name:' + norm}"
@@ -197,6 +211,26 @@ def derive(conn: sqlite3.Connection, app_id: int | None = None) -> list[dict]:
     return out
 
 
+def derive(conn: sqlite3.Connection, app_id: int | None = None) -> list[dict]:
+    """The people on each application, worked out from that application's own emails, newest contact first.
+
+    A person is listed once per application, with the title that application's mail gives them: the same recruiter can hold
+    one role in one search and another in a different one, so nothing is carried between applications. Each person also carries
+    the emails connected to them (what they sent, and invites that name them) and a link to write to them.
+    """
+    mine = {r["address"].lower() for r in conn.execute("SELECT address FROM accounts")}
+    apps = {r["id"]: (r["company"], r["role"]) for r in conn.execute("SELECT id, company, role FROM applications")}
+    sql = ("SELECT e.id, e.sender, e.subject, e.body, e.application_id, e.received_at, e.thread_id, e.web_link, a.provider, a.address, a.can_reply "
+           "FROM emails e JOIN accounts a ON a.id = e.account_id WHERE e.related = 1 AND e.needs_review = 0 AND e.application_id IS NOT NULL")
+    args: tuple = ()
+    if app_id is not None:
+        sql, args = sql + " AND e.application_id = ?", (app_id,)
+    people, mentions = _people_from_senders(conn.execute(sql + " ORDER BY e.received_at", args), mine)
+    _merge_mentions(people, mentions)
+    edits = {r["key"]: r for r in conn.execute("SELECT * FROM contact_edits")}
+    return _apply_edits(people, edits, apps)
+
+
 def for_application(conn: sqlite3.Connection, app_id: int) -> list[dict]:
     return derive(conn, app_id)
 
@@ -212,7 +246,7 @@ def titles(conn: sqlite3.Connection, app_id: int) -> dict[str, str]:
 
 
 def save_edit(conn: sqlite3.Connection, key: str, name: str, title: str) -> None:
-    name, title = re.sub(r"\s+", " ", name or "").strip()[:80], re.sub(r"\s+", " ", title or "").strip()[:100]
+    name, title = collapse_spaces(name, NAME_MAX), collapse_spaces(title, TITLE_MAX)
     with conn:
         conn.execute("INSERT INTO contact_edits (key, name, title, hidden) VALUES (?, ?, ?, 0) "
                      "ON CONFLICT (key) DO UPDATE SET name = excluded.name, title = excluded.title, hidden = 0", (key, name or None, title))

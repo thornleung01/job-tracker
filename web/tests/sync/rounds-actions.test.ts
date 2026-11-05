@@ -45,5 +45,17 @@ describe("lowerMeridiem", () => {
     ["10:05 a.m.", "10:05 am"],
     ["Oct 21, 11:05 p.m. EDT", "Oct 21, 11:05 pm EDT"],
     ["TEAM meeting", "TEAM meeting"],
+    ["10:05\u202fPM", "10:05 pm"],            // Intl's narrow no-break space
+    ["10:05PM", "10:05 pm"],
+    ["9 a.m. and 5 p.m.", "9 am and 5 pm"],     // two in one line, each keeps its own digit
+    ["Oct 21, 9:05 AM – 10:05 AM", "Oct 21, 9:05 am – 10:05 am"],
+    ["AM or PM", "AM or PM"],                   // no digit before it: left alone
+    ["5 amazing days", "5 amazing days"],
+    ["at 9 AMs", "at 9 AMs"],
   ])("%s", (input, expected) => expect(lowerMeridiem(input)).toBe(expected));
+
+  // Older Safari (before 16.4) throws a SyntaxError on a lookbehind and the whole bundle fails to run.
+  it("is written without a regular-expression lookbehind", () => {
+    expect(lowerMeridiem.toString()).not.toMatch(/\(\?<[=!]/);
+  });
 });

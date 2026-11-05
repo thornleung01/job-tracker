@@ -15,8 +15,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from . import activity, db
-from .links import _ADDRESS, _NO_REPLY
-from .mailtext import split_sender
+from .links import recipient, reply_subject
 from .providers.base import NotAllowed
 
 log = logging.getLogger(__name__)
@@ -28,17 +27,6 @@ _TOKEN = re.compile(r"[0-9a-f]{8,64}")
 
 class ReplyError(ValueError):
     """A message that is safe to show: what went wrong and what to do about it."""
-
-
-def recipient(sender: str) -> str | None:
-    """Where a reply to this sender would go, or None when they don't take replies."""
-    to = split_sender(sender)[1]
-    return to if _ADDRESS.fullmatch(to or "") and not _NO_REPLY.search(to.split("@")[0]) else None
-
-
-def subject_for(subject: str | None) -> str:
-    subject = " ".join((subject or "").split())
-    return subject if re.match(r"re:", subject, re.I) else f"Re: {subject}".strip()
 
 
 def target_for(conn: sqlite3.Connection, email_id: int) -> str:
@@ -76,7 +64,7 @@ def send(conn: sqlite3.Connection, get_provider, email_id: int, body: str, token
         if n >= cap:
             raise ReplyError(f"You've already sent {n} replies in the last {words}. This limit protects your mailbox. Try again later.")
 
-    subject = subject_for(row["subject"])
+    subject = reply_subject(row["subject"])
     created = db.iso(now)
     try:        # recorded first, so a second press of the same form cannot send it again; undone if sending fails
         with conn:
@@ -96,7 +84,7 @@ def send(conn: sqlite3.Connection, get_provider, email_id: int, body: str, token
         raise ReplyError(f"The reply wasn't sent: {exc}") from None
     if row["application_id"]:
         with conn:
-            activity._touch(conn, row["application_id"], created)
+            activity.touch(conn, row["application_id"], created)
     return {"to": to, "duplicate": False}
 
 

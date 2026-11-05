@@ -1,16 +1,21 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
 import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
-import { daysSince, localToday } from "../db/time";
+import { idleDaysSince, localToday } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
 import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
+import { byDesc } from "./compare";
 import { groupBy } from "./groupBy";
 import { roundsLookup } from "./roundsLookup";
 import { nextInterviewDay } from "./upcoming";
+
+/** How many companies and roles the search box suggests, and how many ignored emails are listed. */
+const SUGGESTION_LIMIT = 300;
+const IGNORED_LIST_LIMIT = 50;
 
 export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds";
 export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails", "rounds"];
@@ -32,7 +37,7 @@ export interface ListQuery {
 
 export interface ApplicationListRow extends ApplicationRow {
   nEmails: number;
-  /** whole days since the last activity, or null when unknown */
+  /** whole calendar days (your time zone) since the last activity, never negative; null when unknown. Follow-ups count these days. */
   idleDays: number | null;
   /** still Applied or Heard back, and quiet for a week or more */
   followUp: boolean;
@@ -51,8 +56,9 @@ type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "rounds">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
-const text = (a: string, b: string) => (a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0);
-// SQLite puts NULL before everything when ascending (and so last when descending).
+/** Case-insensitive text order. */
+const compareText = (a: string, b: string) => (a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0);
+// Null sorts before everything when ascending (and so last when descending), as in the local edition, where SQLite does it.
 const nullable = (a: string | null, b: string | null) => (a === b ? 0 : a === null ? -1 : b === null ? 1 : a < b ? -1 : 1);
 
 export async function listApplications(db: JobTrackerDB, query: ListQuery = {}): Promise<ApplicationListRow[]> {
@@ -72,7 +78,7 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   const interviews = groupBy(emails.filter(isInterviewMail), (e) => e.applicationId);
   const needle = (query.q ?? "").trim().toLowerCase();
   let early: EarlyRow[] = (await db.applications.toArray()).map((a) => {
-    const idleDays = daysSince(a.lastActivity, now);
+    const idleDays = idleDaysSince(a.lastActivity, now);
     return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
   });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) early = early.filter((a) => a.stage === query.stage);
@@ -89,8 +95,8 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   });
 
   const by: Record<SortColumn, Cmp> = {
-    company: (a, b) => sign * text(a.company, b.company),
-    role: (a, b) => sign * text(a.role, b.role),
+    company: (a, b) => sign * compareText(a.company, b.company),
+    role: (a, b) => sign * compareText(a.role, b.role),
     stage: (a, b) => sign * (STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage)),
     // an unknown applied date always goes last
     applied: (a, b) => (a.appliedAt === null || b.appliedAt === null ? (a.appliedAt === null ? 1 : 0) - (b.appliedAt === null ? 1 : 0) : sign * nullable(a.appliedAt, b.appliedAt)),
@@ -132,7 +138,7 @@ export async function suggestions(db: JobTrackerDB): Promise<Suggestion[]> {
         if (latest > g.latest) g.latest = latest;
       }
     }
-    [...groups.values()].sort((a, b) => (a.latest < b.latest ? 1 : a.latest > b.latest ? -1 : 0)).slice(0, 300)
+    [...groups.values()].sort(byDesc((g) => g.latest)).slice(0, SUGGESTION_LIMIT)
       .forEach((g) => out.push({ kind, text: g.text, n: g.n }));
   }
   return out;
@@ -158,10 +164,11 @@ export async function reviewPage(db: JobTrackerDB, now: Date = new Date()): Prom
   const p = pipeline();
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
   const waiting = (await db.emails.toArray()).filter((e) => e.needsReview && accounts.has(e.accountId))
-    .sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : b.id - a.id));
+    .sort((a, b) => byDesc<EmailRow>((e) => e.receivedAt)(a, b) || b.id - a.id);
   const emails: ReviewItem[] = waiting.map((e) => {
     const [company, role] = p.extractCompanyRole({
       id: e.providerMsgId, threadId: e.threadId ?? "", senderName: "", senderEmail: (e.sender ?? "").split("<").pop()!.replace(/>+$/, ""),
+      // receivedAt is not read when guessing a company and role from the text; it is only here to make a whole Message
       subject: e.subject ?? "", receivedAt: now.toISOString(), body: e.body ?? "",
     });
     const account = accounts.get(e.accountId)!;
@@ -171,9 +178,8 @@ export async function reviewPage(db: JobTrackerDB, now: Date = new Date()): Prom
     };
   });
   const apps = (await db.applications.toArray()).map(({ id, company, role }) => ({ id, company, role }))
-    .sort((a, b) => text(a.company, b.company));
-  const ignored = (await db.ignoredMail.toArray())
-    .sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : 0)).slice(0, 50);
+    .sort((a, b) => compareText(a.company, b.company));
+  const ignored = (await db.ignoredMail.toArray()).sort(byDesc((m) => m.receivedAt)).slice(0, IGNORED_LIST_LIMIT);
   return { emails, apps, learned: await learn.activeRules(db), ignored };
 }
 
@@ -203,15 +209,15 @@ export async function applicationDetail(db: JobTrackerDB, appId: number, now: Da
   if (!application) return null;
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
   const rows = (await db.emails.where("applicationId").equals(appId).toArray())
-    .sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : b.id - a.id));
+    .sort((a, b) => byDesc<EmailRow>((e) => e.receivedAt)(a, b) || b.id - a.id);
   const emails = rows.filter((e) => accounts.has(e.accountId)).map((e) => ({ ...e, provider: accounts.get(e.accountId)!.provider, address: accounts.get(e.accountId)!.address }));
-  const { items, total } = await activity.history(db, appId, 20, false);
-  const people = await contacts.forApplication(db, appId);
+  const { items, total } = await activity.history(db, appId, undefined, false);
+  const people = await contacts.derive(db, appId);
   const others = (await db.applications.toArray()).filter((a) => a.id !== appId).map(({ id, company, role }) => ({ id, company, role }))
-    .sort((a, b) => text(a.company, b.company));
+    .sort((a, b) => compareText(a.company, b.company));
   return {
-    application, idleDays: daysSince(application.lastActivity, now), nEmails: rows.length, emails, notes: items, notesTotal: total, others, people,
-    titles: contacts.titlesFrom(people),
+    application, idleDays: idleDaysSince(application.lastActivity, now), nEmails: rows.length, emails, notes: items, notesTotal: total, others, people,
+    titles: contacts.titleByAddress(people),
     rounds: deriveRounds(rows, await db.activity.where("applicationId").equals(appId).toArray(), application.interviewRounds),
   };
 }

@@ -2,7 +2,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as contacts from "../../src/sync/contacts";
-import { ContactKeyError } from "../../src/sync/contacts";
+import { ActionError } from "../../src/db/errors";
 import { createApplication, upsertAccount } from "../../src/db/repo";
 import { closeAll, freshDb } from "./helpers";
 
@@ -144,8 +144,8 @@ describe("corrections", () => {
   });
 
   it.each(["", "not a key", "dw@deel.com", "name:abc", "x|dw@deel.com", "1|a b@c.d", "1|name:UPPER", "1|name:", "1|x@y@z"])("refuse the key %j", async (key) => {
-    await expect(contacts.saveEdit(db, key, "x", "x")).rejects.toBeInstanceOf(ContactKeyError);
-    await expect(contacts.hide(db, key)).rejects.toBeInstanceOf(ContactKeyError);
+    await expect(contacts.saveEdit(db, key, "x", "x")).rejects.toBeInstanceOf(ActionError);
+    await expect(contacts.hide(db, key)).rejects.toBeInstanceOf(ActionError);
     expect(await db.contactEdits.count()).toBe(0);
   });
 });
@@ -178,5 +178,37 @@ describe("the emails connected to each person", () => {
     }
     const [pat] = await contacts.derive(db);
     expect([pat.mails.length, pat.mailCount]).toEqual([contacts.MAX_MAILS, contacts.MAX_MAILS + 5]);
+  });
+});
+
+describe("the per-email cache", () => {
+  it("gives the same people on a second run, and still applies a correction made in between", async () => {
+    await add("Sofia Hart <sofia.hart@doordash.com>", "Thanks!\nSofia Hart\nSales Sourcer\nDoorDash\n", app1);
+    const first = await contacts.derive(db);
+    expect(await contacts.derive(db)).toEqual(first);
+    await contacts.saveEdit(db, first[0].key, "Sofia H.", "Lead sourcer");
+    const [edited] = await contacts.derive(db);
+    expect([edited.name, edited.title]).toEqual(["Sofia H.", "Lead sourcer"]);
+    await contacts.hide(db, first[0].key);
+    expect(await contacts.derive(db)).toEqual([]);
+  });
+
+  it("never carries a title from one database to another that has the same email ids", async () => {
+    const body = "Thanks!\nSofia Hart\nSales Sourcer\nDoorDash\n";
+    await db.emails.add({
+      accountId: acct, providerMsgId: "same", threadId: "t", receivedAt: "2026-10-05T10:00:00Z", sender: "Sofia Hart <sofia.hart@doordash.com>", subject: "Hello",
+      body, related: true, event: "interview", confidence: "high", applicationId: app1, needsReview: false, webLink: null, bulk: false, hold: false, reason: null,
+    });
+    expect((await contacts.derive(db))[0].title).toBe("Sales Sourcer");
+    // a second database whose first email has the same id, sender and body length, but says something else
+    const other = freshDb();
+    const acct2 = await upsertAccount(other, "gmail", "me@gmail.com");
+    const app = await createApplication(other, { company: "DoorDash", companyKey: "doordash", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-10-01T09:00:00Z" });
+    await other.emails.add({
+      accountId: acct2, providerMsgId: "same", threadId: "t", receivedAt: "2026-10-05T10:00:00Z", sender: "Sofia Hart <sofia.hart@doordash.com>", subject: "Hello",
+      body: "Thanks!\nSofia Hart\nHead of People\nDoorDash\n".padEnd(body.length, " ").slice(0, body.length), related: true, event: "interview", confidence: "high",
+      applicationId: app, needsReview: false, webLink: null, bulk: false, hold: false, reason: null,
+    });
+    expect((await contacts.derive(other))[0].title).toBe("Head of People");
   });
 });

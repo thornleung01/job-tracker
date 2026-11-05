@@ -37,13 +37,18 @@ export function Combobox({ id, value, onChange, onChoose, suggestions, placehold
   useEffect(() => () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
+  // The suggestions can shrink under an open list (a sync or a delete), so the highlighted row can no longer exist.
+  useEffect(() => {
+    if (active >= items.length) setActive(-1);
+  }, [active, items.length]);
 
   const close = () => {
     setOpen(false);
     setActive(-1);
   };
   const choose = (i: number) => {
-    onChoose(items[i].text);
+    const item = items[i];
+    if (item) onChoose(item.text);
     close();
   };
   const move = (step: number) => {

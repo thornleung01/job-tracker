@@ -1,28 +1,26 @@
 import "fake-indexeddb/auto";
 import type { Message } from "../../src/types";
-import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
+import type { JobTrackerDB } from "../../src/db/schema";
+import { createDbPool } from "../support/db";
 import { upsertAccount } from "../../src/db/repo";
 
-let counter = 0;
-const opened: JobTrackerDB[] = [];
+const pool = createDbPool("test");
 
 /** A fresh, empty database with a unique name. */
-export function freshDb(prefix = "test"): JobTrackerDB {
-  const db = openDatabase(`${prefix}-${Date.now()}-${counter++}`);
-  opened.push(db);
-  return db;
-}
+export const freshDb = (): JobTrackerDB => pool.open();
 
 export async function closeAll(): Promise<void> {
-  while (opened.length) {
-    const db = opened.pop()!;
-    db.close();
-  }
+  pool.closeAll();
 }
 
 export async function dbWithAccount(): Promise<{ db: JobTrackerDB; acct: number }> {
   const db = freshDb();
   return { db, acct: await upsertAccount(db, "gmail", "me@gmail.com") };
+}
+
+/** A note on an application. The app can't write one any more, but imported data holds them, so tests seed the row directly. */
+export async function seedNote(db: JobTrackerDB, applicationId: number, body: string, at = "2026-10-05T12:00:00Z"): Promise<void> {
+  await db.activity.add({ applicationId, kind: "note", label: null, body, occurredAt: at, createdAt: at });
 }
 
 /** Like mk() in tests/test_pipeline.py: October 2026 at 09:00 UTC on `day`. */

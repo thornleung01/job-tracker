@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JobTrackerDB } from "../../db/schema";
-import { localToday } from "../../db/time";
+import { dayOf, localToday } from "../../db/time";
 import { ActionError, setAppliedOn } from "../../sync/actions";
 import { dayText } from "../TimeText";
 import { useAction } from "../useAction";
@@ -25,8 +25,9 @@ export function QuickDate({ db, appId, company, appliedAt }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const done = useRef(false);
   const back = useReturnFocus<HTMLButtonElement>(editing);
-  const current = (appliedAt ?? "").slice(0, 10);
-  // The list shows the stored day. A day stamped late in the evening can be tomorrow in UTC, so the field never starts past today.
+  // The field opens on the same day the label shows (dayOf: a picked day by its date, a mail time by the viewer's calendar day).
+  // A day that is somehow ahead of the clock is held at today, because the field's max is today.
+  const current = dayOf(appliedAt);
   const today = localToday();
   const initial = current > today ? today : current;
   const shown = dayText(appliedAt, "short");

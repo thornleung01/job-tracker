@@ -1,13 +1,11 @@
 // Offline reading of a job link: clean the URL, then work out company and role from the host and path.
 // Everything derived from a slug or a domain is a guess, so the draft marks it as one.
+import { GUESS_COMPANY_CHARS, GUESS_ROLE_CHARS } from "../db/limits";
 import { MAX_ROLE_CHARS, MAX_ROLE_WORDS, cleanRole, cleanValue } from "../pipeline/extract";
 import type { JobDraft } from "./types";
 
-export const MAX_COMPANY_CHARS = 60;
-export const MAX_ROLE_DISPLAY_CHARS = 90;
-export const MAX_LOCATION_CHARS = 80;
-
-const MAX_URL_CHARS = 8000;
+/** The longest pasted link read at all (a posting link is only saved up to MAX_URL_CHARS in db/limits). */
+const MAX_LINK_INPUT_CHARS = 8000;
 
 /** Strips markup and control characters from text that came from outside, then trims and caps it. */
 export function sanitizeText(value: unknown, limit: number): string {
@@ -35,7 +33,7 @@ const ROLE_ACRONYMS: Record<string, string> = {
 };
 
 /** Percent-decodes text from a URL. Never throws; control characters and path separators become spaces and invisible or direction-changing characters are dropped. */
-function safeDecode(s: string): string {
+function decodeSegment(s: string): string {
   let out: string;
   try {
     out = decodeURIComponent(s);
@@ -53,7 +51,7 @@ function safeDecode(s: string): string {
 }
 
 function deslug(slug: string): string[] {
-  return safeDecode(slug)
+  return decodeSegment(slug)
     .replace(/\.(?:html?|php|aspx?|jsp)$/i, "")
     .replace(/\+/g, " ")
     .split(/[-_\s]+/)
@@ -74,9 +72,12 @@ export function slugToName(slug: string, kind: "company" | "role" = "company"): 
     if (i > 0 && SMALL_WORDS.has(t)) return t;
     return t.charAt(0).toUpperCase() + t.slice(1);
   });
-  return cleanValue(words.join(" "), kind === "company" ? MAX_COMPANY_CHARS : MAX_ROLE_DISPLAY_CHARS);
+  return cleanValue(words.join(" "), kind === "company" ? GUESS_COMPANY_CHARS : GUESS_ROLE_CHARS);
 }
 
+// What an id looks like at the end (or start) of a title slug, so "senior-analyst-4829301" reads as "Senior Analyst":
+// a UUID; or a separator then an optional "req"/"jr"/"job" prefix then 3+ digits, or 8+ hex characters that contain a digit
+// (the lookahead is what stops a plain word such as "decade" from being taken for an id).
 const UUID_TAIL = /[-_]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID_TAIL = /[-_](?:(?:req|jr|r|id|job)[-_]?)?(?:\d{3,}|(?=[a-z]*\d)[0-9a-f]{8,})$/i;
 const ID_HEAD = /^(?:\d{3,}|(?=[a-z]*\d)[0-9a-f]{8,})[-_]/i;
@@ -89,7 +90,7 @@ const GENERIC_WORDS = new Set([
 
 /** A display title from a path segment, or "" when the segment does not read like a job title. */
 export function roleFromSlug(slug: string): string {
-  let s = safeDecode(slug).replace(/\.(?:html?|php|aspx?|jsp)$/i, "");
+  let s = decodeSegment(slug).replace(/\.(?:html?|php|aspx?|jsp)$/i, "");
   for (let i = 0; i < 4; i++) {
     const next = s.replace(UUID_TAIL, "").replace(ID_TAIL, "").replace(ID_HEAD, "");
     if (next === s) break;
@@ -140,6 +141,7 @@ const SECOND_LEVEL = new Set(["co", "com", "org", "net", "gov", "edu", "ac", "or
 export function registrable(host: string): { label: string; depth: number } {
   const labels = host.split(".");
   const n = labels.length;
+  // a two-letter country code after a generic second level ("co.uk", "com.au") makes the registrable domain three labels long
   if (n >= 3 && labels[n - 1].length === 2 && SECOND_LEVEL.has(labels[n - 2])) return { label: labels[n - 3], depth: 3 };
   if (n >= 2) return { label: labels[n - 2], depth: 2 };
   return { label: labels[0] ?? "", depth: 1 };
@@ -149,10 +151,10 @@ export function registrable(host: string): { label: string; depth: number } {
 export function normalizeUrl(raw: unknown): URL | null {
   if (typeof raw !== "string") return null;
   let s = raw.trim().replace(/^[<"'`]+|[>"'`]+$/g, "");
-  if (!s || s.length > MAX_URL_CHARS || /[\s\u0000-\u001f\u007f]/.test(s)) return null;
+  if (!s || s.length > MAX_LINK_INPUT_CHARS || /[\s\u0000-\u001f\u007f]/.test(s)) return null;
   if (s.startsWith("//")) s = "https:" + s;
   else if (!/^https?:\/\//i.test(s)) {
-    // "acme.com:8080/jobs" has a colon but is a host; "javascript:..." and "file:..." are not.
+    // "acme.com:8080/jobs" has a colon but is a host; "javascript:..." and "file:..." are not. (A scheme, then no host:port, is refused.)
     if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^[^/?#:]+:\d+(?:[/?#]|$)/.test(s)) return null;
     s = "https://" + s;
   }
@@ -165,6 +167,7 @@ export function normalizeUrl(raw: unknown): URL | null {
   if (u.protocol !== "http:" && u.protocol !== "https:") return null;
   if (u.username || u.password) return null;
   const host = u.hostname;
+  // a real name: a dot in it, no IPv6 or raw IPv4 address, and a top-level domain of letters (or a punycode one)
   if (!host.includes(".") || host.includes(":") || /^\d+(?:\.\d+){3}$/.test(host)) return null;
   if (!/^(?:[a-z]{2,}|xn--[a-z0-9-]+)$/.test(host.split(".").pop() ?? "")) return null;
   return u;
@@ -190,7 +193,7 @@ function buildUrl(u: URL): string {
   const kept = u.search
     .slice(1)
     .split("&")
-    .filter((pair) => pair && keepParam(safeDecode(pair.split("=")[0]), brand));
+    .filter((pair) => pair && keepParam(decodeSegment(pair.split("=")[0]), brand));
   return `${u.protocol}//${u.host}${pathOf(u, brand)}${kept.length ? "?" + kept.join("&") : ""}`;
 }
 
@@ -281,12 +284,17 @@ function tenant(c: Ctx): string {
   return first && !["www", "careers", "jobs", "apply", "ats"].includes(first) ? name(first) : "";
 }
 
+// -- brand handlers: one per job site whose links carry the title or the employer. Each returns only what the link itself
+// says (a path segment or a query value), and nothing at all when the host is not that site's real posting host.
+
+/** LinkedIn: /jobs/view/<title>-at-<company>-<id>, or /company/<company>. */
 function linkedin(c: Ctx): Derived {
   const i = c.segs.findIndex((s, k) => s === "view" && /^jobs2?$/.test(c.segs[k - 1] ?? ""));
   if (i < 0) return c.segs[0] === "company" && c.segs[1] ? { company: name(c.segs[1]) } : {};
   const m = /^(.+)-(\d{6,})$/.exec(c.segs[i + 1] ?? "");
   if (!m) return {};
   const base = m[1];
+  // the LAST "-at-" splits title from company: a title can say "at" itself ("analyst-at-large-at-acme")
   const at = base.toLowerCase().lastIndexOf("-at-");
   if (at > 0 && at + 4 < base.length) return { role: roleFromSlugLoose(base.slice(0, at)), company: name(base.slice(at + 4)) };
   return { role: roleFromSlugLoose(base) };
@@ -334,7 +342,7 @@ function workday(c: Ctx): Derived {
   const after = j >= 0 ? c.segs.slice(j + 1) : [];
   const title = after.find((s) => s.includes("_"));
   if (!title) return { company };
-  return { company, role: roleFromSlugLoose(safeDecode(title).slice(0, safeDecode(title).lastIndexOf("_"))) };
+  return { company, role: roleFromSlugLoose(decodeSegment(title).slice(0, decodeSegment(title).lastIndexOf("_"))) };
 }
 
 const BRANDS: Record<string, (c: Ctx) => Derived> = {
@@ -398,7 +406,7 @@ function guessRoleFromPath(segs: string[]): string {
 function derive(u: URL): Derived {
   const host = u.hostname.toLowerCase();
   const { label, depth } = registrable(host);
-  const ctx: Ctx = { host, segs: rawSegments(u).map(safeDecode), params: u.searchParams, depth };
+  const ctx: Ctx = { host, segs: rawSegments(u).map(decodeSegment), params: u.searchParams, depth };
   const handler = Object.prototype.hasOwnProperty.call(BRANDS, label) ? BRANDS[label] : undefined;
   if (handler) return handler(ctx);
   return { company: guessCompanyFromHost(host), role: guessRoleFromPath(ctx.segs) };
@@ -412,7 +420,7 @@ export function parseJobUrl(rawUrl: string): JobDraft | null {
   const u = normalizeUrl(rawUrl);
   if (!u) return null;
   const d = derive(u);
-  const company = cleanValue(d.company ?? "", MAX_COMPANY_CHARS);
+  const company = cleanValue(d.company ?? "", GUESS_COMPANY_CHARS);
   const role = d.role ?? "";
   return {
     company,

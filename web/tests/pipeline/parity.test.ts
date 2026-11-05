@@ -13,6 +13,7 @@ import { words } from "../../src/pipeline/match";
 import { py, pyFull, match, search, sub } from "../../src/pipeline/pyre";
 import { capitalize, casefold, cpHead, cpLen, escapeHtml, fold, quote, splitWords, strip } from "../../src/pipeline/pystr";
 import { UrlValueError, urlHostname } from "../../src/pipeline/url";
+import { decodeMimeWords, parseAddress } from "../../src/providers/headers";
 
 interface Case {
   input: any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -119,6 +120,11 @@ describe("golden parity with the Python pipeline", () => {
       const direct = toResult(matchApplication(thread, apps, i.ckey, i.rkey, i.event, i.role));
       return deepEqual(viaStore, direct) ? direct : { mismatch: [viaStore, direct] };
     });
+  });
+
+  describe("email.utils.parseaddr and email.header.decode_header", () => {
+    parity("parseAddress", (s) => parseAddress(s));
+    parity("decodeMimeWords", (s) => decodeMimeWords(s));
   });
 
   describe("links.py", () => {

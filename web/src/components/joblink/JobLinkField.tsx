@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
-import { MAX_PASTE_CHARS, type JobLinkFill } from "./useJobLink";
+import { MAX_PASTE_CHARS } from "../../db/limits";
+import type { JobLinkFill } from "./useJobLink";
 import "./joblink.css";
 
 /**
@@ -27,7 +28,7 @@ export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(t
       </div>
       {/* Both lines are live regions that exist before they have words, so a screen reader announces them when they fill. */}
       <p className="joblink-line small" id="add-link-result" role="status">{link.result}</p>
-      <p className="joblink-line small muted" id="add-link-checking" role="status" aria-busy={link.checking}>{link.checking ? "Checking the job board" : ""}</p>
+      <p className="joblink-line small muted" id="add-link-checking" role="status">{link.checking ? "Checking the job board" : ""}</p>
       {link.unreadable ? (
         <p className="joblink-line small muted">
           LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in{" "}
@@ -42,7 +43,7 @@ export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(t
         <span className="chev" aria-hidden="true"></span>
         Or paste the job text instead
       </button>
-      <div id="add-paste-box" hidden={!link.pasteOpen}>
+      <div id="add-paste-box" className="paste-box" hidden={!link.pasteOpen}>
         {link.pasteOpen ? (
           <div className="fgroup">
             <label htmlFor="add-paste">Paste the job posting text</label>

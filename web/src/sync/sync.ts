@@ -1,20 +1,23 @@
 // Reading mail into applications (jobtracker/sync.py): classify, match, create, and keep unrelated mail out of storage.
-import type { MailProvider, Message } from "../types";
+import type { MailProvider, Message, ProviderName } from "../types";
 import { BODY_LIMIT, NotConnected } from "../types";
 import Dexie from "dexie";
 import type { AccountRow, JobTrackerDB } from "../db/schema";
 import { tx } from "../db/schema";
 import { ProviderHttpError } from "../providers/backoff";
-import { emailSeen, listAccounts } from "../db/repo";
+import { safeWebLink } from "../db/mailLink";
+import { emailSeen } from "../db/repo";
 import { addDays, iso } from "../db/time";
 import { decide, rememberIgnored, rememberUnrelated } from "./decide";
+import { PROVIDER_LABEL } from "./accountLabel";
 import { alertSite } from "./alerts";
+import { byAsc } from "./compare";
 import { loadLearned } from "./learn";
 import type { LearnedView } from "./pipelineTypes";
 import { pipeline } from "./pipeline";
 import { settleReview } from "./recheck";
 import { loadSettings } from "./settings";
-import { truncate } from "./text";
+import { plural, truncate } from "./text";
 
 /** The next scan starts this long before the last one ended, so nothing slips between two syncs. */
 export const OVERLAP_DAYS = 1;
@@ -40,6 +43,8 @@ export async function processMessage(db: JobTrackerDB, accountId: number, msg: M
   const cls = pipeline().classify(msg, learned ?? (await loadLearned(db)));
 
   return tx(db, async (): Promise<Outcome> => {
+    // Looked at again inside the transaction: a second tab can have saved this email since the check above.
+    if (await emailSeen(db, accountId, msg.id)) return "duplicate";
     if (!cls.related) {
       await rememberUnrelated(db, accountId, msg.id, when);
       if (cls.reason.startsWith("learned:")) await rememberIgnored(db, accountId, msg, when, cls.reason, now);
@@ -59,7 +64,7 @@ export async function processMessage(db: JobTrackerDB, accountId: number, msg: M
       confidence: cls.confidence,
       applicationId: appId,
       needsReview,
-      webLink: msg.webLink ?? null,
+      webLink: safeWebLink(msg.webLink),
       bulk: Boolean(msg.bulk),
       hold: false,
       reason: cls.reason,
@@ -80,7 +85,7 @@ export async function processMessages(db: JobTrackerDB, accountId: number, messa
   const learned = await loadLearned(db);
   const ordered = messages
     .map((msg) => ({ msg, when: iso(msg.receivedAt) }))
-    .sort((a, b) => (a.when < b.when ? -1 : a.when > b.when ? 1 : 0));
+    .sort(byAsc((m) => m.when));
   for (const { msg } of ordered) {
     let result: Outcome | "error" | "retry";
     try {
@@ -117,22 +122,22 @@ export interface SyncOptions {
   /** How many bodies the provider will download, once it knows (for the progress bar). */
   total?: () => number | null;
   /**
-   * Save as you go. Set this only when the provider yields oldest first (createGmailProvider with `oldestFirst: true`):
-   * a sync that stops part-way then keeps what it read. Otherwise everything is collected and processed together,
-   * so stages still progress in date order.
+   * Save as you go. Set this only when the provider yields oldest first (`oldestFirst: true` for Gmail and Outlook): a sync
+   * that stops part-way then keeps what it read, and memory stays flat. Otherwise everything is collected and processed
+   * together, so stages still progress in date order. lastSync moves only when the whole run finishes cleanly, either way.
    */
   incremental?: boolean;
   signal?: AbortSignal;
   now?: Date;
 }
 
-const PROVIDER_NAME = { gmail: "Gmail", outlook: "Outlook" } as const;
+const isAbort = (err: unknown): boolean => err instanceof DOMException && err.name === "AbortError";
 
 /** What to tell the person when an account's sync failed: a plain sentence with what to do next, never a status code or class name. */
-export function syncFailureText(err: unknown, provider: keyof typeof PROVIDER_NAME): string {
-  const name = PROVIDER_NAME[provider];
+export function syncFailureText(err: unknown, provider: ProviderName): string {
+  const name = PROVIDER_LABEL[provider];
   if (err instanceof NotConnected) return err.message;
-  if (err instanceof DOMException && err.name === "AbortError") return "Sync stopped.";
+  if (isAbort(err)) return "Sync stopped.";
   if (err instanceof ProviderHttpError) {
     if (err.status === 401 || err.status === 403) return `${name} refused access to your mailbox. Reconnect and try again.`;
     if (err.status === 429 || err.status >= 500) return `${name} is busy right now. Try again in a few minutes.`;
@@ -205,38 +210,27 @@ export async function syncAccount(
       add(counts, await processMessages(db, row.id, all, now));
     }
   } catch (err) {
-    // one broken account must not stop the others. The person sees a plain sentence, so the real error goes to the console.
-    console.error(err);
-    await db.accounts.update(row.id, { lastError: syncFailureText(err, row.provider) });
+    // One broken account must not stop the others. The person sees a plain sentence, so the real error goes to the console.
+    // Pressing Stop is not a failure: nothing is logged and no error is left on the account.
+    if (!isAbort(err)) {
+      console.error(err);
+      try {
+        await db.accounts.update(row.id, { lastError: syncFailureText(err, row.provider) });
+      } catch {
+        // the database is closing (signing out): the provider's error below is the one worth reporting
+      }
+    }
     throw err;
   }
 
   await settleReview(db); // new mail may be what an older, unsure email was waiting for
   const skipped = counts.error ?? 0;
-  const note = skipped ? `Skipped ${skipped} unreadable email${skipped !== 1 ? "s" : ""}.` : null;
+  const note = skipped ? `Skipped ${plural(skipped, "unreadable email")}.` : null;
   if (counts.retry) {
     // Keep the old window start so the emails that hit a database error are fetched again next time.
-    await db.accounts.update(row.id, { lastError: `${counts.retry} ${counts.retry === 1 ? "email" : "emails"} couldn't be saved. The next sync will try again.` });
+    await db.accounts.update(row.id, { lastError: `${plural(counts.retry, "email")} couldn't be saved. The next sync will try again.` });
     return counts;
   }
   await db.accounts.update(row.id, { lastSync: iso(now), lastError: note });
   return counts;
-}
-
-/** Syncs every active account. `providerFor` builds the provider for one account (the app knows how to get tokens). */
-export async function syncAll(
-  db: JobTrackerDB, providerFor: (account: AccountRow) => MailProvider | Promise<MailProvider>,
-  opts: SyncOptions & { onAccount?: (label: string) => void } = {},
-): Promise<Record<string, Counts | string>> {
-  const results: Record<string, Counts | string> = {};
-  for (const account of await listAccounts(db, { activeOnly: true })) {
-    const label = `${account.provider}:${account.address}`;
-    opts.onAccount?.(`${account.provider[0].toUpperCase()}${account.provider.slice(1)} ${account.address}`);
-    try {
-      results[label] = await syncAccount(db, account, await providerFor(account), opts);
-    } catch (err) {
-      results[label] = `error: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-  return results;
 }

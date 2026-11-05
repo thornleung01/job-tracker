@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { JobTrackerDB } from "../../db/schema";
+import { MAX_ROLE_CHARS } from "../../db/limits";
 import { editApplication } from "../../sync/actions";
 import { useAction } from "../useAction";
 import { useReturnFocus } from "./useReturnFocus";
@@ -65,7 +66,7 @@ export function QuickRole({ db, appId, company, role }: Props) {
   }
   return (
     <>
-      <input ref={input} className="quick-input" value={draft} maxLength={100} aria-label={`Role for ${company}`} aria-invalid={act.error ? true : undefined}
+      <input ref={input} className="quick-input" value={draft} maxLength={MAX_ROLE_CHARS} aria-label={`Role for ${company}`} aria-invalid={act.error ? true : undefined}
              onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} onBlur={() => finish(true)} disabled={act.busy !== null} />
       {act.error ? <span className="quick-error small" role="alert">{act.error}</span> : null}
     </>

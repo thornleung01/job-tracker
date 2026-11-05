@@ -1,11 +1,11 @@
 /* Edit in place on the applications list: plain text until you choose it, then the field. */
 .quick-text { display: inline; min-height: 0; padding: 2px 8px; margin: -2px -8px; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; border-radius: var(--r-pill); cursor: text; }
 .quick-text:hover { background: var(--hover); }
-.quick-input { min-height: 36px; width: 100%; max-width: 260px; padding: 0 14px; }
+.quick-input { min-height: var(--tap-sm); width: 100%; max-width: 260px; padding: 0 14px; }
 input[type="date"].quick-input { width: auto; }
 .quick-error { display: block; margin-top: 4px; color: var(--rejected); }
 /* The stage dropdown keeps the stage badge look: colour dot and word, with the picker arrow. */
 .quick-stage { padding: 0 8px 0 12px; }
-.quick-stage select { min-height: 30px; padding: 0; border: 0; background: none; color: inherit; font: inherit; gap: 8px; cursor: pointer; }
+.quick-stage select { min-height: var(--tap-sm); padding: 0; border: 0; background: none; color: inherit; font: inherit; gap: 8px; cursor: pointer; }
 .quick-stage select:focus-visible { outline-offset: 4px; }
-.quick-undo { min-height: 28px; padding: 0 12px; margin-left: 4px; }
+.quick-undo { min-height: var(--tap-sm); padding: 0 12px; margin-left: 4px; }

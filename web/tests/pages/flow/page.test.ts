@@ -281,7 +281,7 @@ describe("flow page: share", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     await render(await seed());
     await act(async () => { q<HTMLButtonElement>("#share-save")!.click(); });
-    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    for (let i = 0; i < 100 && !q("#share-status")?.textContent; i++) await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
     expect(q("#share-status")!.textContent).toBe("Couldn't make the image. Try again.");
     expect(q<HTMLButtonElement>("#share-save")!.disabled).toBe(false);
   });

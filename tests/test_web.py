@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from jobtracker import db
 from jobtracker.sync import process_message, process_messages
 from jobtracker.web import create_app
-from tests.test_pipeline import mk
+from tests.helpers import mk
 
 
 @pytest.fixture
@@ -105,3 +105,60 @@ def test_bad_input_is_rejected(env):
     _, _, client = env
     assert client.post("/app/add", data={"company": "X", "stage": "Bogus"}).status_code == 400
     assert client.get("/app/999").status_code == 404
+
+
+def test_a_page_opens_one_database_connection(env, monkeypatch):
+    """The page chrome (appearance, Jobs count) reuses the route's connection instead of opening a second one."""
+    _, _, client = env
+    opened = []
+    real = db.connect
+    monkeypatch.setattr(db, "connect", lambda *a, **k: opened.append(a) or real(*a, **k))
+    for path in ("/", "/settings", "/flow", "/review", "/contacts", "/jobs"):
+        opened.clear()
+        assert client.get(path).status_code == 200
+        assert len(opened) == 1, path
+
+
+class Clock:
+    now = 100.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_sync_progress_text_and_time_left(monkeypatch):
+    from jobtracker.routes import runs
+
+    clock = Clock()
+    monkeypatch.setattr(runs.time, "monotonic", clock)
+    syncs = runs.SyncRuns()
+    assert syncs.start("p") and not syncs.start("p")            # one sync at a time per profile
+    assert syncs.view("p")["label"] == "Finding your emails…"
+    syncs.report("p", account="Gmail me@x.com", phase="reading", done=0, total=10)
+    assert syncs.view("p") == {"running": True, "label": "Gmail me@x.com · Reading emails: 0 of 10", "percent": 0,
+                               "eta": "Estimating time left…", "note": ""}
+    clock.now = 110.0
+    syncs.report("p", done=5)
+    view = syncs.view("p")
+    assert (view["percent"], view["eta"]) == (50, "Less than a minute left")       # 5 emails in 10 s, 5 to go
+    clock.now = 1100.0
+    assert syncs.view("p")["eta"] == "About 17 minutes left"
+    syncs.report("p", account="Outlook me@x.com")                                   # a new account starts its own clock
+    assert syncs.view("p")["eta"] == "Estimating time left…"
+    syncs.report("p", phase="jobs", done=0, total=None)
+    assert syncs.view("p")["label"] == "Looking for new jobs…"
+
+
+def test_a_finished_sync_is_reported_once_and_only_to_a_page_with_room_for_it():
+    from jobtracker.routes import runs
+
+    syncs = runs.SyncRuns()
+    syncs.start("p")
+    assert syncs.progress_or_result("p", flash_shown=False)[0]["running"] is True
+    syncs.finish("p", "Checked 2 new emails for me@x.com.", failed=False)
+    assert syncs.progress_or_result("p", flash_shown=True) == (None, None, None)       # kept for a page with no message of its own
+    assert syncs.progress_or_result("p", flash_shown=False) == (None, "Checked 2 new emails for me@x.com.", None)
+    assert syncs.progress_or_result("p", flash_shown=False) == (None, None, None)      # and then gone
+    assert syncs.start("p")                                                             # a new one may start
+    syncs.finish("p", "Sync failed. boom", failed=True)
+    assert syncs.progress_or_result("p", flash_shown=False) == (None, None, "Sync failed. boom")

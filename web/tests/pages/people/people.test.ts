@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { $, $$, addApp, addMail, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
+import { $, $$, addApp, addMail, button, cleanup, click, freshDb, key, mountPage, text, type, waitFor } from "../applications/harness";
 import PeoplePage from "../../../src/pages/people";
 import { upsertAccount } from "../../../src/db/repo";
 
@@ -100,6 +100,7 @@ describe("the People page", () => {
     const email = $(person, "a.btn.primary")!;
     expect(text(email)).toBe("Email Jocelyn");
     expect([email.getAttribute("target"), email.getAttribute("rel")]).toEqual(["_blank", "noopener noreferrer"]);
+    expect(email.getAttribute("aria-label")).toBe("Email Jocelyn in Gmail (opens in a new tab)");
     expect(email.getAttribute("href")).toContain("to=jocelyn.ford%40doordash.com");
     const emails = $(person, "details.action")!;
     expect(text($(emails, "summary"))).toBe("1 email");
@@ -118,17 +119,39 @@ describe("the People page", () => {
     expect(text($(container, ".person-title"))).toBe("Hiring manager");
     expect($$(container, ".person .tag").map(text)).toEqual(["Hiring side", "Edited by you"]);
     expect(text($(container, ".notice"))).toBe("Saved.");
+    expect(document.activeElement).not.toBe($(container, ".notice"));   // a save keeps focus on the form
     expect((await db.contactEdits.toArray())[0]).toMatchObject({ name: "Jo Ford", title: "Hiring manager", hidden: false });
   });
 
-  it("removes someone who is not a person, after you confirm", async () => {
+  it("removes someone who is not a person, after you confirm in the page", async () => {
     const { db } = await setup();
     const { container } = await mountPage(PeoplePage, db, "/people?q=jocelyn");
     await click(button($(container, ".person")!, "Not a person"));
-    expect(window.confirm).toHaveBeenCalledWith("Remove Jocelyn Ford from this application?");
+    const ask = $(container, ".person .inline-confirm")!;
+    expect(text($(ask, ".inline-confirm-q"))).toBe("Remove Jocelyn Ford from this application?");
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect((await db.contactEdits.toArray()).length).toBe(0);   // asked, not yet removed
+    await click(button(ask, "Remove from this application"));
     await waitFor(() => !$(container, ".person"));
     expect(text($(container, ".notice"))).toContain("Removed from this application.");
+    expect(document.activeElement).toBe($(container, ".notice"));   // the card and its button are gone, so the message has focus
     expect((await db.contactEdits.toArray())[0].hidden).toBe(true);
+  });
+
+  it("returns focus to Not a person when Cancel or Escape closes the question", async () => {
+    const { db } = await setup();
+    const { container } = await mountPage(PeoplePage, db, "/people?q=jocelyn");
+    const opener = () => button($(container, ".person")!, "Not a person")!;
+    await click(opener());
+    expect(document.activeElement).toBe(button($(container, ".inline-confirm")!, "Cancel"));
+    await click(button($(container, ".inline-confirm")!, "Cancel"));
+    expect($(container, ".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(opener());
+    await click(opener());
+    await key(button($(container, ".inline-confirm")!, "Cancel"), "Escape");
+    expect($(container, ".inline-confirm")).toBeNull();
+    expect(document.activeElement).toBe(opener());
+    expect((await db.contactEdits.toArray()).length).toBe(0);
   });
 
   it("draws a hostile name and title as text", async () => {

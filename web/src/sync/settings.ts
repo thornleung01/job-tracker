@@ -17,8 +17,6 @@ export const COLUMNS = {
   rounds: "Rounds",
 } as const;
 export type ColumnId = keyof typeof COLUMNS;
-/** 0 means all time */
-export const FLOW_PERIODS = [0, 30, 90, 180] as const;
 export const LOOKBACKS = [30, 60, 90, 180, 365] as const;
 /** Labelled periods for the Flow page and Settings. */
 export const PERIODS: readonly { days: number; label: string }[] = [
@@ -27,6 +25,8 @@ export const PERIODS: readonly { days: number; label: string }[] = [
   { days: 90, label: "Last 90 days" },
   { days: 180, label: "Last 180 days" },
 ];
+/** The flow period days (0 means all time), from the list above. */
+export const FLOW_PERIODS: readonly number[] = PERIODS.map((p) => p.days);
 /** What a sync reads: new mail only, or the last 30/90/180 days. */
 export const SCAN_CHOICES: readonly { days: number; label: string }[] = [
   { days: 0, label: "New emails since last sync" },
@@ -101,8 +101,10 @@ export function sanitizeSync(values: Raw): SyncSettings {
   return { lookbackDays: choiceInt(values.lookbackDays, LOOKBACKS, DEFAULTS.sync.lookbackDays) };
 }
 
+/** The one place that picks the sanitiser for a section. An unknown section is refused, never saved under that name. */
 export function sanitize(section: "appearance", values: Raw): AppearanceSettings;
 export function sanitize(section: "sync", values: Raw): SyncSettings;
+export function sanitize(section: Section, values: Raw): AppearanceSettings | SyncSettings;
 export function sanitize(section: Section, values: Raw): AppearanceSettings | SyncSettings {
   if (section === "appearance") return sanitizeAppearance(values);
   if (section === "sync") return sanitizeSync(values);
@@ -124,7 +126,7 @@ export async function loadSettings(db: JobTrackerDB): Promise<Settings> {
 export async function saveSettings(db: JobTrackerDB, section: "appearance", values: Raw): Promise<AppearanceSettings>;
 export async function saveSettings(db: JobTrackerDB, section: "sync", values: Raw): Promise<SyncSettings>;
 export async function saveSettings(db: JobTrackerDB, section: Section, values: Raw): Promise<AppearanceSettings | SyncSettings> {
-  const clean = section === "appearance" ? sanitizeAppearance(values) : sanitizeSync(values);
+  const clean = sanitize(section, values);
   await setSetting(db, section, clean);
   return clean;
 }

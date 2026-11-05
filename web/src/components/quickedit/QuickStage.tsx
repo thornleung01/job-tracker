@@ -3,6 +3,7 @@ import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { restoreStage, setStage } from "../../sync/actions";
 import { stageClass } from "../StageBadge";
+import { UNDO_MS } from "../undo";
 import { useAction } from "../useAction";
 import "./quickedit.css";
 
@@ -20,9 +21,6 @@ interface Before {
   stageAt: string | null;
   locked: boolean;
 }
-
-/** How long Undo stays on screen after a change. */
-const UNDO_MS = 8000;
 
 /**
  * The stage in the list, as a dropdown. Choosing one sets it by hand and locks it, so mail stops moving it. A scroll or a stray

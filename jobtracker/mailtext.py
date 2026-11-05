@@ -5,6 +5,9 @@ sentences, non-breaking spaces, invisible padding characters, whole reply chains
 repairs the line breaks, folds the reply chain and the footer under a toggle, and shows each link as its domain.
 Everything is escaped, and links are shown but never made clickable: a link inside an email is not something to
 follow from here ("Open in Gmail" is the way to the real message).
+
+The hosted edition has a TypeScript port of this module (web/src/pipeline/mailtext.ts). A change here changes what it must
+return, so regenerate the golden fixtures (`python scripts/export_fixtures.py`) and commit them with the change.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from urllib.parse import urlparse
 
 from markupsafe import Markup, escape
 
-_INVISIBLE = re.compile("[͏​-‏⁠﻿­]")
+INVISIBLE = re.compile("[\u034f\u200b-\u200f\u2060\ufeff\u00ad]")      # zero-width and soft-hyphen padding that marketing mail adds
 _URL = re.compile(r"""https?://[^\s<>"')\]]+""", re.I)
 _BRACKETED_URL = re.compile(r"""[(\[]\s*(https?://[^\s<>"')\]]+)\s*[)\]]""", re.I)
 
@@ -38,6 +41,9 @@ _FOOTER = re.compile(
 FOOTER_MIN_BEFORE = 150          # characters of real content that must come first, or a "view online" line at the top is not a footer
 
 
+_CLOSERS = ":,;).?"       # a line that starts with one of these continues the line before it
+
+
 def split_sender(sender: str | None) -> tuple[str, str]:
     """'Pat Lee <pat@acme.com>' -> ('Pat Lee', 'pat@acme.com'). A bare address has no name."""
     sender = (sender or "").strip()
@@ -49,7 +55,7 @@ def split_sender(sender: str | None) -> tuple[str, str]:
 
 def _joins(a: str, b: str) -> bool:
     """Is line b the continuation of line a? HTML turned every inline tag into a line break, so most are."""
-    if b[0] in ":,;)." or b[0] == "?":
+    if b[0] in _CLOSERS:
         return True
     if re.fullmatch(r"[-•*–]", a):
         return True                        # a bullet on its own line belongs to the next one
@@ -69,7 +75,7 @@ def _joins(a: str, b: str) -> bool:
 
 
 def _blocks(text: str) -> list[str]:
-    text = _INVISIBLE.sub("", text or "").replace("\xa0", " ").replace(" ", " ").replace("\r\n", "\n")
+    text = INVISIBLE.sub("", text or "").replace("\xa0", " ").replace("\u202f", " ").replace("\r\n", "\n")
     out: list[str] = []
     for chunk in re.split(r"\n\s*\n", text):
         cur = ""
@@ -80,7 +86,7 @@ def _blocks(text: str) -> list[str]:
             if not cur:
                 cur = line
             elif _joins(cur, line):
-                cur += ("" if line[0] in ":,;)." or line[0] == "?" else " ") + line
+                cur += ("" if line[0] in _CLOSERS else " ") + line
             else:
                 out.append(cur)
                 cur = line

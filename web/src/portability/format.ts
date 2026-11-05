@@ -29,11 +29,6 @@ export interface ExportEnvelope {
   data: ExportData;
 }
 
-export type TableName = Exclude<keyof ExportData, "settings">;
-export const TABLE_NAMES: readonly TableName[] = [
-  "accounts", "applications", "emails", "activity", "feedback", "ignoredMail", "learnedRules", "contactEdits",
-];
-
 /** The file written by scripts/export_json.py: column names and 0/1 flags exactly as SQLite has them. */
 export const PYTHON_FORMAT = "jobtracker-python-export";
 export const PYTHON_VERSION = 1;

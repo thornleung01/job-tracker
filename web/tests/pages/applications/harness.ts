@@ -7,32 +7,28 @@ import type { AuthUser } from "../../../src/auth/user";
 import { createApplication, upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { iso } from "../../../src/db/time";
-import { openDatabase } from "../../../src/db/schema";
+import { daysAgo } from "../../support/clock";
+import { createDbPool } from "../../support/db";
 import { quiesce, sleep, WAIT_TIMEOUT_MS } from "../../support/helpers";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const user: AuthUser = { iss: "https://accounts.google.com", sub: "1", provider: "google", email: "me@example.com" };
-const opened: JobTrackerDB[] = [];
+const pool = createDbPool("page");
 const roots: { root: Root; container: HTMLElement }[] = [];
-let counter = 0;
 
-export function freshDb(): JobTrackerDB {
-  const db = openDatabase(`page-${Date.now()}-${counter++}`);
-  opened.push(db);
-  return db;
-}
+export const freshDb = (): JobTrackerDB => pool.open();
 
 export async function cleanup(): Promise<void> {
   for (const { root, container } of roots.splice(0)) {
     await act(async () => root.unmount());
     container.remove();
   }
-  while (opened.length) opened.pop()!.close();
+  pool.closeAll();
   document.body.innerHTML = "";
 }
 
-export const daysAgo = (n: number): Date => new Date(Date.now() - n * 86_400_000);
+export { daysAgo };
 
 export interface Mounted {
   container: HTMLElement;

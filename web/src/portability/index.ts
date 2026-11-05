@@ -1,15 +1,12 @@
 // Export, import and "delete all my data" for the user's database.
 import { tx, type JobTrackerDB } from "../db/schema";
 import { iso } from "../db/time";
-import {
-  EXPORT_FORMAT, EXPORT_VERSION, ImportError, TABLE_NAMES, type ExportData, type ExportEnvelope, type ImportSummary,
-} from "./format";
+import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData, type ExportEnvelope, type ImportSummary } from "./format";
 import { convertPythonExport } from "./python";
 import { parseEnvelope } from "./validate";
 
 export * from "./format";
 export { convertPythonExport } from "./python";
-export { parseEnvelope, parseExportData } from "./validate";
 
 /** Everything in the database as one versioned JSON-ready object. */
 export async function exportAll(db: JobTrackerDB, now: Date = new Date()): Promise<ExportEnvelope> {
@@ -38,7 +35,10 @@ export async function exportAllAsJson(db: JobTrackerDB, now: Date = new Date()):
 }
 
 function summary(data: ExportData): ImportSummary {
-  return Object.fromEntries(TABLE_NAMES.map((t) => [t, data[t].length])) as unknown as ImportSummary;
+  return {
+    accounts: data.accounts.length, applications: data.applications.length, emails: data.emails.length, activity: data.activity.length,
+    feedback: data.feedback.length, ignoredMail: data.ignoredMail.length, learnedRules: data.learnedRules.length, contactEdits: data.contactEdits.length,
+  };
 }
 
 /** Clears every table and writes `data`. Call it inside a read-write transaction over db.tables. */

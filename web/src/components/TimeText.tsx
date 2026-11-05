@@ -1,4 +1,8 @@
 // Times are stored in UTC. Show them in the viewer's own time zone, with how long ago.
+import { dayOf } from "../db/time";
+import { dayText } from "../db/dayText";
+
+export { dayText };
 
 /** "5 minutes ago", "3 hours ago", "yesterday", "9 days ago"; "" when the time is in the future. */
 export function relativeTime(then: Date, now: Date = new Date()): string {
@@ -28,8 +32,9 @@ const FORMATS = {
   medium: { dateStyle: "medium", timeStyle: "short" },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>;
 
-/** Wealthsimple writes times as "9:05 am": lowercase, with a space. Intl gives "9:05 AM", "9:05 a.m." in en-CA, sometimes with a narrow no-break space. */
-export const lowerMeridiem = (text: string): string => text.replace(/(?<=\d)[\s\u202f]*([ap])\.?m\.?(?![a-z])/gi, (_, ap: string) => ` ${ap.toLowerCase()}m`);
+/** Wealthsimple writes times as "9:05 am": lowercase, with a space. Intl gives "9:05 AM", "9:05 a.m." in en-CA, sometimes with a narrow no-break space.
+ *  The digit is matched and written back (no lookbehind: older Safari can't parse one, and the whole page would fail to load). */
+export const lowerMeridiem = (text: string): string => text.replace(/(\d)[\s\u202f]*([ap])\.?m\.?(?![a-z])/gi, (_, digit: string, ap: string) => `${digit} ${ap.toLowerCase()}m`);
 
 interface TimeTextProps {
   /** an ISO-8601 time, usually UTC */
@@ -54,28 +59,11 @@ export function TimeText({ iso, format = "medium", relative = false, now }: Time
   );
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/**
- * A calendar day from an ISO date or time (its first ten characters), written for people: "October 21, 2026" when there is
- * room ("long"), "Oct 21" when it is tight ("short", with the year added when it is not this year), and "Oct 21" always, never
- * with a year, when the reader knows the year already ("plain"). "Unknown" when missing.
- */
-export function dayText(value: string | null | undefined, style: "long" | "short" | "plain" = "long", now: Date = new Date()): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
-  if (!m) return "Unknown";
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const name = MONTHS[month - 1];
-  if (!name || day < 1 || day > 31) return "Unknown";
-  if (style === "long") return `${name} ${day}, ${year}`;
-  return `${name.slice(0, 3)} ${day}${style === "plain" || year === now.getFullYear() ? "" : `, ${year}`}`;
-}
-
 /** The list's last-activity cell: the days, with the exact date in the title. */
 export function LastActivity({ iso, idleDays }: { iso: string | null; idleDays: number | null }) {
   if (idleDays === null || !iso) return <>Unknown</>;
   return (
-    <time dateTime={iso.slice(0, 10)} title={dayText(iso)}>
+    <time dateTime={dayOf(iso)} title={dayText(iso)}>
       {daysAgoText(idleDays)}
     </time>
   );

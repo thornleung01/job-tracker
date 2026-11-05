@@ -109,17 +109,10 @@ def test_unsafe_addresses_are_refused_without_connecting(url):
     "//example.com/x", "example.com/job", "", "   ", "https://", "http://user:pw@example.com/", "http://user@example.com/",
     "https://example.com@evil.example/", "http://example.com\\@127.0.0.1/", "https://exa mple.com/", "https://example.com/\"><script>",
     "https://example.com/" + "a" * 2000,
+    # only ports 80 and 443 are allowed
+    "http://example.com:22/", "https://example.com:8765/", "http://example.com:8080/", "https://example.com:0/", "https://example.com:99999/",
 ])
-def test_bad_schemes_credentials_and_junk_are_refused(url):
-    net = Net()
-    with pytest.raises(joblink.JobLinkError):
-        net.derive(url)
-    assert net.connected == []
-
-
-@pytest.mark.parametrize("url", ["http://example.com:22/", "https://example.com:8765/", "http://example.com:8080/", "https://example.com:0/",
-                                 "https://example.com:99999/"])
-def test_only_ports_80_and_443(url):
+def test_bad_schemes_credentials_ports_and_junk_are_refused(url):
     net = Net()
     with pytest.raises(joblink.JobLinkError):
         net.derive(url)

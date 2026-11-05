@@ -9,7 +9,7 @@ import { deleteDatabase, openDatabase, type JobTrackerDB } from "../../src/db/sc
 import { hasData, loadDemoData } from "../../src/demo/loadDemo";
 import { SettingsView } from "../../src/pages/settings/SettingsPage";
 import type { ShellAuth } from "../../src/app/authApi";
-import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, freshDb, q, render, settle, waitFor } from "../app/helpers";
+import { ada, byText, click, cleanupRendered, closeDbs, go, fakeAuth, freshDb, q, render, settle, waitFor } from "../app/helpers";
 
 /** An auth stand-in that fails the test the moment anything touches it. */
 function untouchableAuth(): ShellAuth {
@@ -29,13 +29,6 @@ const openDb = (name: string) => {
   return db;
 };
 const currentDb = () => dbs[dbs.length - 1];
-
-const go = async (hash: string) => {
-  await act(async () => {
-    window.location.hash = hash;
-    await new Promise((r) => setTimeout(r, 30));
-  });
-};
 
 const scripts = () => Array.from(document.querySelectorAll("script")).map((s) => s.src);
 
@@ -118,7 +111,7 @@ describe("local mode (no client IDs)", () => {
     await waitFor(() => q("h1")?.textContent === "Flow");
     expect(await hasData(currentDb())).toBe(false);
     await click(byText("Load demo data")!);
-    expect(q("[role=alertdialog]")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
     await waitFor(() => q("h1")?.textContent === "Applications");
     expect(window.location.hash).toBe("#/");
     await waitFor(() => q("tr.app-row"));
@@ -131,7 +124,7 @@ describe("local mode (no client IDs)", () => {
     await click(byText("Load demo data", "button", q(".local-banner")!)!);
     await waitFor(async () => (await currentDb().applications.count()) === 39);
     await waitFor(() => byText("Load demo data", "button", q(".local-banner")!) === null);
-    expect(q("[role=alertdialog]")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
     expect(byText("Replace with demo data")).toBeNull();
     expect(await currentDb().applications.count()).toBe(39);
   });
@@ -217,10 +210,10 @@ describe("local mode (no client IDs)", () => {
     await click(byText("Load demo data", "button", q("#data")!)!);
     await waitFor(() => q("#data .notice, .notice")?.textContent?.startsWith("Imported"));
     await click(byText("Load demo data", "button", q("#data")!)!);
-    const confirm = await waitFor(() => q("#data [role=alertdialog]"));
+    const confirm = await waitFor(() => q("#data .inline-confirm"));
     expect(confirm.textContent).toContain("Replace everything in this browser with the demo data?");
     await click(byText("Cancel", "button", confirm)!);
-    expect(q("#data [role=alertdialog]")).toBeNull();
+    expect(q("#data .inline-confirm")).toBeNull();
   });
 
   it("settings in local mode never reads the auth module", async () => {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAuth, type Auth } from "../../src/auth";
-import type { GoogleAccessToken, GoogleAuth, GoogleSignInResult } from "../../src/auth/google";
+import { createMicrosoftAuth, type MsalAccount, type MsalLike } from "../../src/auth/microsoft";
+import { createGoogleAuth, type GisApi, type GoogleAccessToken, type GoogleAuth, type GoogleSignInResult } from "../../src/auth/google";
 import type { MicrosoftAccessToken, MicrosoftAuth, MicrosoftSignInResult } from "../../src/auth/microsoft";
 import type { AuthUser } from "../../src/auth/user";
 import { NotConnected } from "../../src/types";
@@ -18,6 +19,7 @@ function fakes() {
     prepare: vi.fn(async () => {}),
     signIn: vi.fn(async (_opts?: { mail?: boolean }): Promise<GoogleSignInResult> => ({ user: ada, mail: null })),
     requestMailToken: vi.fn(async (): Promise<GoogleAccessToken> => ({ token: SECRET_G, expiresAt: clock.now + 3600_000 })),
+    mailboxAddress: vi.fn(async (_token: string, _signal?: AbortSignal) => "ada@gmail.com"),
     revoke: vi.fn(async () => {}),
   } satisfies GoogleAuth;
   const microsoft = {
@@ -48,7 +50,6 @@ describe("session", () => {
   it("starts signed out and tokenSource throws NotConnected", async () => {
     const { auth } = fakes();
     expect(auth.getSession()).toMatchObject({ status: "signed-out", user: null, mail: { gmail: false, outlook: false } });
-    expect(auth.currentUser()).toBeNull();
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
     await expect(auth.tokenSource("outlook")).rejects.toBeInstanceOf(NotConnected);
   });
@@ -57,13 +58,12 @@ describe("session", () => {
     const { auth } = fakes();
     await expect(auth.signIn("google")).resolves.toEqual(ada);
     expect(auth.getSession()).toMatchObject({ status: "signed-in", user: ada, lastProvider: "google", error: null });
-    expect(auth.currentUser()).toEqual(ada);
   });
 
   it("signs in with Microsoft", async () => {
     const { auth } = fakes();
     await auth.signIn("microsoft");
-    expect(auth.currentUser()).toEqual(grace);
+    expect(auth.getSession().user).toEqual(grace);
   });
 
   it("shows signing-in while waiting, and the error after a failure", async () => {
@@ -379,6 +379,156 @@ describe("connectMail and tokenSource", () => {
   });
 });
 
+describe("a silent refresh must belong to the mailbox that was connected", () => {
+  const otherToken = (clock: { now: number }): GoogleAccessToken => ({ token: "ya29.OTHER-MAILBOX", expiresAt: clock.now + 3600_000 });
+  const addressByToken = (map: Record<string, string>) => async (token: string) => map[token] ?? "ada@gmail.com";
+
+  async function connected() {
+    const f = fakes();
+    f.google.signIn.mockResolvedValueOnce({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
+    await f.auth.signIn("google");
+    return f;
+  }
+
+  it("refuses a refreshed token that belongs to another Google account, and revokes it", async () => {
+    const { auth, google, clock } = await connected();
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce(otherToken(clock));
+    google.mailboxAddress.mockImplementation(addressByToken({ "ya29.OTHER-MAILBOX": "someone-else@gmail.com" }));
+    const err = await auth.tokenSource("gmail").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotConnected);
+    expect((err as Error).message).toMatch(/different Google account/);
+    expect(google.revoke).toHaveBeenCalledWith("ya29.OTHER-MAILBOX");
+    expect(auth.getSession().mail.gmail).toBe(false);
+    expect(auth.getSession().error).toMatch(/different Google account/);
+    await expect(auth.tokenSource("gmail")).rejects.toThrow(/isn't connected/); // the foreign token was never kept
+  });
+
+  it("accepts a refreshed token for the same mailbox, however the address is capitalised", async () => {
+    const { auth, google, clock } = await connected();
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce({ token: "fresh", expiresAt: clock.now + 3600_000 });
+    google.mailboxAddress.mockResolvedValue("Ada@Gmail.com");
+    await expect(auth.tokenSource("gmail")).resolves.toBe("fresh");
+    expect(auth.getSession().mail.gmail).toBe(true);
+  });
+
+  it("does not use the token or disconnect when the address can't be checked right now", async () => {
+    const { auth, google, clock } = await connected();
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce({ token: "unchecked", expiresAt: clock.now + 3600_000 });
+    google.mailboxAddress.mockRejectedValueOnce(new Error("Couldn't reach Google. Check your connection and try again."));
+    const err = await auth.tokenSource("gmail").catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mail.gmail).toBe(true);
+    google.requestMailToken.mockResolvedValueOnce({ token: "retry", expiresAt: clock.now + 3600_000 });
+    await expect(auth.tokenSource("gmail")).resolves.toBe("retry");
+  });
+
+  it("a deliberate connect can pick another account, and that account is the one checked afterwards", async () => {
+    const { auth, google, clock } = await connected();
+    google.requestMailToken.mockResolvedValueOnce(otherToken(clock));
+    google.mailboxAddress.mockImplementation(addressByToken({ "ya29.OTHER-MAILBOX": "bob@gmail.com" }));
+    await auth.connectMail("gmail");
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce({ token: "bob-fresh", expiresAt: clock.now + 3600_000 });
+    google.mailboxAddress.mockResolvedValue("bob@gmail.com");
+    await expect(auth.tokenSource("gmail")).resolves.toBe("bob-fresh");
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce({ token: "ada-again", expiresAt: clock.now + 3600_000 });
+    google.mailboxAddress.mockResolvedValue("ada@gmail.com");
+    await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
+  });
+
+  it("checks Gmail only: an Outlook refresh needs no lookup", async () => {
+    const { auth, google, clock } = fakes();
+    await auth.signIn("microsoft");
+    await auth.connectMail("outlook");
+    clock.now += 3600_000;
+    await auth.tokenSource("outlook");
+    expect(google.mailboxAddress).not.toHaveBeenCalled();
+  });
+
+  it("forgets the connected mailbox on sign-out, so the next person's connect is not compared with it", async () => {
+    const { auth, google, clock } = await connected();
+    await auth.signOut();
+    await auth.signIn("microsoft");
+    google.requestMailToken.mockResolvedValueOnce(otherToken(clock));
+    google.mailboxAddress.mockImplementation(addressByToken({ "ya29.OTHER-MAILBOX": "someone-else@gmail.com" }));
+    await auth.connectMail("gmail");
+    clock.now += 3600_000;
+    google.requestMailToken.mockResolvedValueOnce({ token: "fresh", expiresAt: clock.now + 3600_000 });
+    google.mailboxAddress.mockResolvedValue("someone-else@gmail.com");
+    await expect(auth.tokenSource("gmail")).resolves.toBe("fresh");
+  });
+
+  it("with the real Google module: another account's token from the chooser never reaches a sync", async () => {
+    // The hinted Google session is gone, so the silent request ends in the account chooser and the person picks someone else.
+    const owner: Record<string, string> = { "ya29.ADA": "ada@gmail.com", "ya29.OTHER": "someone-else@gmail.com" };
+    let pick = "ya29.ADA";
+    const gis: GisApi = {
+      accounts: {
+        oauth2: {
+          initTokenClient: (cfg) => ({
+            requestAccessToken: () => cfg.callback({ access_token: pick, expires_in: 3600, scope: "https://www.googleapis.com/auth/gmail.readonly" }),
+          }),
+          revoke: (_t, done) => done?.(),
+        },
+      },
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const bearer = (init?.headers as Record<string, string>).Authorization.replace("Bearer ", "");
+      return new Response(JSON.stringify({ emailAddress: owner[bearer] }), { status: 200 });
+    });
+    const clock = { now: NOW };
+    const realGoogle = createGoogleAuth({ clientId: "client", mailScope: "https://www.googleapis.com/auth/gmail.readonly", loadGis: async () => gis, now: () => clock.now, fetch: fetchMock as unknown as typeof fetch });
+    const auth = createAuth({ google: realGoogle, microsoft: fakes().microsoft, now: () => clock.now, hintStorage: { getItem: () => null, setItem: () => {} } });
+    // the login window is not under test: stub it to end signed in with Ada's Gmail token
+    vi.spyOn(realGoogle, "signIn").mockResolvedValue({ user: ada, mail: { token: "ya29.ADA", expiresAt: NOW + 3600_000 } });
+    await auth.signIn("google");
+    await expect(auth.tokenSource("gmail")).resolves.toBe("ya29.ADA");
+    clock.now += 3600_000;
+    pick = "ya29.OTHER";
+    await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mail.gmail).toBe(false);
+  });
+});
+
+describe("an offline Outlook refresh", () => {
+  it("keeps Outlook connected and lets the next sync try again", async () => {
+    const account = { homeAccountId: "h", username: "grace@outlook.com" } as MsalAccount;
+    let offline = false;
+    const fake: MsalLike = {
+      loginPopup: vi.fn(async () => ({ idToken: "", accessToken: "", expiresOn: null, account })),
+      acquireTokenSilent: vi.fn(async () => {
+        if (offline) throw Object.assign(new Error("offline"), { name: "BrowserAuthError", errorCode: "no_network_connectivity" });
+        return { idToken: "", accessToken: SECRET_M, expiresOn: new Date(NOW + 3600_000), account };
+      }),
+      acquireTokenPopup: vi.fn(async () => ({ idToken: "", accessToken: SECRET_M, expiresOn: new Date(NOW + 3600_000), account })),
+      clearCache: vi.fn(async () => {}),
+    };
+    const clock = { now: NOW };
+    const realMicrosoft = createMicrosoftAuth({
+      settings: { clientId: "c", authority: "a", redirectUri: "r" },
+      loginScopes: ["openid"],
+      mailScopes: ["Mail.Read"],
+      createClient: async () => fake,
+      now: () => clock.now,
+    });
+    const auth = createAuth({ google: fakes().google, microsoft: realMicrosoft, now: () => clock.now, hintStorage: { getItem: () => null, setItem: () => {} } });
+    vi.spyOn(realMicrosoft, "signIn").mockResolvedValue({ user: grace, mail: null });
+    await auth.signIn("microsoft");
+    await auth.connectMail("outlook");
+    clock.now += 3600_000;
+    offline = true;
+    const err = await auth.tokenSource("outlook").catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mail.outlook).toBe(true);
+    offline = false;
+    await expect(auth.tokenSource("outlook")).resolves.toBe(SECRET_M);
+  });
+});
+
 describe("signOut", () => {
   it("wipes tokens, resets the session, revokes Google and clears MSAL", async () => {
     const { auth, google, microsoft } = fakes();
@@ -447,7 +597,7 @@ describe("signOut", () => {
     await auth.signIn("google");
     await auth.connectMail("gmail");
     await auth.signIn("microsoft");
-    expect(auth.currentUser()).toEqual(grace);
+    expect(auth.getSession().user).toEqual(grace);
     expect(auth.getSession().mail).toEqual({ gmail: false, outlook: false });
     expect(microsoft.clear).toHaveBeenCalled();
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
@@ -474,6 +624,7 @@ describe("token storage", () => {
         prepare: async () => {},
         signIn: async () => ({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } }),
         requestMailToken: async () => ({ token: SECRET_G, expiresAt: NOW + 3600_000 }),
+        mailboxAddress: async () => "ada@gmail.com",
         revoke: async () => {},
       },
       microsoft: {
