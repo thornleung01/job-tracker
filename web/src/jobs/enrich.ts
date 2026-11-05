@@ -1,10 +1,13 @@
 // Confirms a link-derived draft with the job board's public API. Only four boards, only fixed hosts, never throws.
+// Ashby is asked through its hosted page's tiny GraphQL endpoint first; the REST listing (large) is the fallback.
 import type { EnrichOptions, JobDraft } from "./types";
 import { MAX_COMPANY_CHARS, MAX_LOCATION_CHARS, MAX_ROLE_DISPLAY_CHARS, detectBoard, isSafeId, isSafeSlug, sanitizeText, slugToName } from "./url";
 import type { BoardRef } from "./url";
 
 export const DEFAULT_TIMEOUT_MS = 6000;
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
+/** Ashby's REST board listing carries every job with its description, so big boards are several MB. */
+export const MAX_ASHBY_LISTING_BYTES = 4 * 1024 * 1024;
 
 /** The only hosts a request may go to. */
 export const API_HOSTS: readonly string[] = [
@@ -12,6 +15,7 @@ export const API_HOSTS: readonly string[] = [
   "api.lever.co",
   "api.eu.lever.co",
   "api.ashbyhq.com",
+  "jobs.ashbyhq.com",
   "api.smartrecruiters.com",
 ];
 
@@ -26,6 +30,15 @@ type FetchFn = typeof fetch;
 
 const enc = encodeURIComponent;
 
+// Ashby's own hosted pages call this endpoint. URL and query text are constants; the slug and id go in as JSON variables only.
+const ASHBY_GRAPHQL = "https://jobs.ashbyhq.com/api/non-user-graphql";
+const ASHBY_JOB_OP = "ApiJobPosting";
+const ASHBY_JOB_QUERY =
+  "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id title locationName workplaceType employmentType } }";
+const ASHBY_ORG_OP = "ApiOrganizationFromHostedJobsPageName";
+const ASHBY_ORG_QUERY =
+  "query ApiOrganizationFromHostedJobsPageName($organizationHostedJobsPageName: String!, $searchContext: OrganizationSearchContext) { organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $organizationHostedJobsPageName, searchContext: $searchContext) { name } }";
+
 // Host and path template are constants; only slug and id (validated again here) are interpolated.
 const urls = {
   greenhouseJob: (r: BoardRef) => `https://boards-api.greenhouse.io/v1/boards/${enc(r.slug)}/jobs/${enc(r.id)}`,
@@ -39,13 +52,13 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-async function readCapped(res: Response): Promise<string | null> {
+async function readCapped(res: Response, maxBytes: number): Promise<string | null> {
   const declared = Number(res.headers?.get?.("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) return null;
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
   const reader = res.body?.getReader?.();
   if (!reader) {
     const text = await res.text();
-    return text.length > MAX_RESPONSE_BYTES ? null : text;
+    return text.length > maxBytes ? null : text;
   }
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -53,7 +66,7 @@ async function readCapped(res: Response): Promise<string | null> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_RESPONSE_BYTES) {
+    if (total > maxBytes) {
       void reader.cancel().catch(() => undefined);
       return null;
     }
@@ -68,15 +81,23 @@ async function readCapped(res: Response): Promise<string | null> {
   return new TextDecoder().decode(all);
 }
 
-/** One GET to a fixed API host. Returns parsed JSON, or undefined on any problem. */
-async function getJson(fetchFn: FetchFn, url: string, opts: EnrichOptions): Promise<unknown> {
+interface RequestSpec {
+  /** A JSON body makes the request a POST. */
+  body?: unknown;
+  /** The one query string this request may carry (a fixed constant). */
+  search?: string;
+  maxBytes?: number;
+}
+
+/** One request to a fixed API host. Returns parsed JSON, or undefined on any problem. */
+async function getJson(fetchFn: FetchFn, url: string, opts: EnrichOptions, spec: RequestSpec = {}): Promise<unknown> {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return undefined;
   }
-  if (parsed.protocol !== "https:" || !API_HOSTS.includes(parsed.host) || parsed.search || parsed.hash) return undefined;
+  if (parsed.protocol !== "https:" || !API_HOSTS.includes(parsed.host) || parsed.search !== (spec.search ?? "") || parsed.hash) return undefined;
   if (opts.signal?.aborted) return undefined;
 
   const ctl = new AbortController();
@@ -90,8 +111,10 @@ async function getJson(fetchFn: FetchFn, url: string, opts: EnrichOptions): Prom
   stopped.catch(() => undefined);
   try {
     const work = (async () => {
+      const post = spec.body !== undefined;
       const res = await fetchFn(url, {
-        method: "GET",
+        method: post ? "POST" : "GET",
+        ...(post ? { headers: { "content-type": "application/json" }, body: JSON.stringify(spec.body) } : {}),
         credentials: "omit",
         referrerPolicy: "no-referrer",
         mode: "cors",
@@ -100,7 +123,7 @@ async function getJson(fetchFn: FetchFn, url: string, opts: EnrichOptions): Prom
       });
       if (!res || !res.ok) return undefined;
       if (res.url && new URL(res.url).host !== parsed.host) return undefined;
-      const text = await readCapped(res);
+      const text = await readCapped(res, spec.maxBytes ?? MAX_RESPONSE_BYTES);
       return text === null ? undefined : (JSON.parse(text) as unknown);
     })();
     work.catch(() => undefined);
@@ -133,26 +156,88 @@ async function fromGreenhouse(f: FetchFn, ref: BoardRef, opts: EnrichOptions): P
   return { role, company, location: loc };
 }
 
+/** "Remote" or "Hybrid" from a board's workplace field, only when the location text does not already say so. */
+function withWorkplace(location: string, workplace: unknown): string {
+  const w = typeof workplace === "string" ? workplace.toLowerCase().replace(/[^a-z]/g, "") : "";
+  const label = w === "remote" ? "Remote" : w === "hybrid" ? "Hybrid" : "";
+  if (!label || location.toLowerCase().includes(label.toLowerCase())) return location;
+  return place(location ? `${location} (${label})` : label);
+}
+
 async function fromLever(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
   const job = await getJson(f, urls.lever(ref), opts);
   if (!isRecord(job)) return null;
   const role = title(job.text);
   if (!role) return null;
   const cats = isRecord(job.categories) ? job.categories : {};
-  const all = Array.isArray(job.allLocations) ? job.allLocations[0] : undefined;
-  return { role, company: "", location: place(cats.location) || place(all) };
+  const extra = Array.isArray(cats.allLocations) ? cats.allLocations : Array.isArray(job.allLocations) ? job.allLocations : [];
+  const many = extra.map(place).filter(Boolean).slice(0, 2).join(", ");
+  return { role, company: "", location: withWorkplace(place(cats.location) || place(many), job.workplaceType) };
 }
 
-async function fromAshby(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
-  const board = await getJson(f, urls.ashby(ref), opts);
+async function ashbyGraphql(f: FetchFn, op: string, query: string, variables: Record<string, string>, opts: EnrichOptions): Promise<Record<string, unknown> | null> {
+  const res = await getJson(f, `${ASHBY_GRAPHQL}?op=${op}`, opts, { body: { operationName: op, variables, query }, search: `?op=${op}` });
+  return isRecord(res) && isRecord(res.data) ? res.data : null;
+}
+
+/** Ashby's hosted-page GraphQL: a small job lookup and a company-name lookup, in parallel. */
+async function fromAshbyGraphql(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<{ found: Found | null; company: string }> {
+  const [jobData, orgData] = await Promise.all([
+    ashbyGraphql(f, ASHBY_JOB_OP, ASHBY_JOB_QUERY, { organizationHostedJobsPageName: ref.slug, jobPostingId: ref.id }, opts),
+    ashbyGraphql(f, ASHBY_ORG_OP, ASHBY_ORG_QUERY, { organizationHostedJobsPageName: ref.slug, searchContext: "JobBoard" }, opts),
+  ]);
+  const company = isRecord(orgData?.organization) ? org(orgData.organization.name) : "";
+  const job = jobData?.jobPosting;
+  if (!isRecord(job) || (typeof job.id === "string" && job.id.toLowerCase() !== ref.id.toLowerCase())) return { found: null, company };
+  const role = title(job.title);
+  if (!role) return { found: null, company };
+  return { found: { role, company, location: withWorkplace(place(job.locationName), job.workplaceType) }, company };
+}
+
+/** The REST board listing: every job with its description, so it is large. Used only when the GraphQL answer is missing. */
+async function fromAshbyListing(f: FetchFn, ref: BoardRef, opts: EnrichOptions, knownCompany: string): Promise<Found | null> {
+  const board = await getJson(f, urls.ashby(ref), opts, { maxBytes: MAX_ASHBY_LISTING_BYTES });
   if (!isRecord(board) || !Array.isArray(board.jobs)) return null;
   const want = ref.id.toLowerCase();
   const job = board.jobs.find((j): j is Record<string, unknown> => isRecord(j) && typeof j.id === "string" && j.id.toLowerCase() === want);
   if (!job) return null;
   const role = title(job.title);
   if (!role) return null;
-  const orgName = org(board.organizationName) || (isRecord(board.organization) ? org(board.organization.name) : "");
+  const orgName = org(board.organizationName) || (isRecord(board.organization) ? org(board.organization.name) : "") || knownCompany;
   return { role, company: orgName, location: place(job.location) };
+}
+
+async function fromAshby(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
+  const { found, company } = await fromAshbyGraphql(f, ref, opts);
+  return found ?? (await fromAshbyListing(f, ref, opts, company));
+}
+
+/** "Hyderabad, , India" becomes "Hyderabad, India": empty parts dropped, spaces collapsed, a bare country code spelled out. */
+function cleanPlaceParts(raw: unknown, isCountry = false): string[] {
+  if (typeof raw !== "string") return [];
+  // In free text only a lowercase pair is a code ("CA" in "San Francisco, CA" is a state); the country field is always one.
+  return raw.split(",").map((p) => countryName(sanitizeText(p, MAX_LOCATION_CHARS), isCountry)).filter(Boolean);
+}
+
+/** A lone two-letter country code ("in") becomes the country's name, or the upper-cased code when the name is unknown. */
+function countryName(part: string, anyCase: boolean): string {
+  if (!(anyCase ? /^[A-Za-z]{2}$/ : /^[a-z]{2}$/).test(part)) return part;
+  const code = part.toUpperCase();
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "region" }).of(code);
+    return name && name !== code && !/^unknown/i.test(name) ? name : code;
+  } catch {
+    return code;
+  }
+}
+
+function smartRecruitersLocation(l: Record<string, unknown>): string {
+  const city = cleanPlaceParts(l.city).join(" ");
+  if (l.remote === true) return place(city ? `Remote (${city})` : "Remote");
+  // Never the street address or postal code.
+  const full = cleanPlaceParts(l.fullLocation);
+  if (full.length > 0) return place(full.join(", "));
+  return place([city, ...cleanPlaceParts(l.country, true)].filter(Boolean).join(", "));
 }
 
 async function fromSmartRecruiters(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
@@ -161,14 +246,7 @@ async function fromSmartRecruiters(f: FetchFn, ref: BoardRef, opts: EnrichOption
   const role = title(job.name);
   if (!role) return null;
   const company = isRecord(job.company) ? org(job.company.name) : "";
-  let location = "";
-  if (isRecord(job.location)) {
-    const l = job.location;
-    const country = typeof l.country === "string" && l.country.length === 2 ? l.country.toUpperCase() : l.country;
-    location = place(l.fullLocation) || [place(l.city), place(country)].filter(Boolean).join(", ");
-    if (!location && l.remote === true) location = "Remote";
-  }
-  return { role, company, location };
+  return { role, company, location: isRecord(job.location) ? smartRecruitersLocation(job.location) : "" };
 }
 
 const LOOKUPS: Record<BoardRef["board"], (f: FetchFn, ref: BoardRef, opts: EnrichOptions) => Promise<Found | null>> = {

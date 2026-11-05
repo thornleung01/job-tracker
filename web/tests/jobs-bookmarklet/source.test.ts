@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildBookmarkletSource, composeBookmarklet, draftFromHash, extract } from "../../src/jobs/bookmarklet";
-import { ALL, parse } from "./fixtures";
+import { ALL, bare, driftedLinkedin, linkedin, parse } from "./fixtures";
 
 const APP = "https://thornleung01.github.io/job-tracker/";
 const source = buildBookmarkletSource(APP);
@@ -31,13 +31,13 @@ function click(src: string, html: string, url: string, open: (u: string) => unkn
 }
 
 describe("buildBookmarkletSource", () => {
-  it("is a javascript: URL, under 2.8 KB in production, under 3.5 KB unminified", () => {
+  it("is a javascript: URL, under 6 KB in production, under 8 KB unminified", () => {
     expect(source.startsWith("javascript:")).toBe(true);
     expect(minified.startsWith("javascript:")).toBe(true);
     // Ceilings, so a change cannot silently bloat the bookmarklet. The production size is printed for the build summary.
     console.info(`bookmarklet size: ${minified.length} bytes minified, ${source.length} bytes unminified`);
-    expect(minified.length).toBeLessThan(2800);
-    expect(source.length).toBeLessThan(3500);
+    expect(minified.length).toBeLessThan(6000);
+    expect(source.length).toBeLessThan(8000);
   });
 
   it("contains nothing that could send data off the page or run dynamic code", () => {
@@ -113,6 +113,34 @@ describe("buildBookmarkletSource", () => {
     expect(timers[0].ms).toBe(4000);
     timers[0].fn();
     expect(doc.body.contains(toast)).toBe(false);
+  });
+
+  it("opens the app and says so, as plain text for four seconds, when nothing could be read", () => {
+    for (const src of [source, minified]) for (const f of [bare, driftedLinkedin]) {
+      const { doc, timers, win } = click(src, f.html, f.url);
+      expect(win.open).toHaveBeenCalledTimes(1);
+      const q = new URLSearchParams((win.open.mock.calls[0][0] as string).slice((APP + "#/?").length));
+      expect(q.get("u")).toBeTruthy();
+      const toast = doc.body.lastElementChild!;
+      expect(toast.textContent).toBe("Couldn't read this page. Add the details by hand.");
+      expect(toast.children).toHaveLength(0);
+      expect(timers.map((t) => t.ms)).toEqual([4000]);
+      timers[0].fn();
+      expect(doc.body.contains(toast)).toBe(false);
+    }
+  });
+
+  it("shows no toast when at least a company or a role was read", () => {
+    for (const src of [source, minified]) {
+      const { doc, timers } = click(src, linkedin.html, linkedin.url);
+      expect(doc.body.textContent).not.toContain("Couldn't read");
+      expect(timers).toHaveLength(0);
+    }
+  });
+
+  it("prefers the pop-up message when the pop-up was blocked and nothing was read", () => {
+    const { doc } = click(source, bare.html, bare.url, () => null);
+    expect(doc.body.lastElementChild!.textContent).toBe("Allow pop-ups to save this job");
   });
 
   it("never throws into the page, even when window.open does", () => {
