@@ -4,6 +4,7 @@ import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
 import { daysSince } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
+import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
@@ -21,6 +22,8 @@ export interface ListQuery {
   account?: number;
   sort?: string;
   dir?: string;
+  /** keep only applications that need a follow-up */
+  followUp?: boolean;
   now?: Date;
 }
 
@@ -28,6 +31,8 @@ export interface ApplicationListRow extends ApplicationRow {
   nEmails: number;
   /** whole days since the last activity, or null when unknown */
   idleDays: number | null;
+  /** still Applied or Heard back, and quiet for a week or more */
+  followUp: boolean;
 }
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
@@ -51,12 +56,14 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
   }
   const needle = (query.q ?? "").trim().toLowerCase();
-  let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => ({
-    ...a, nEmails: counts.get(a.id) ?? 0, idleDays: daysSince(a.lastActivity, now),
-  }));
+  let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => {
+    const idleDays = daysSince(a.lastActivity, now);
+    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
+  });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) rows = rows.filter((a) => a.stage === query.stage);
   if (needle) rows = rows.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
   if (query.account) rows = rows.filter((a) => inAccount.has(a.id));
+  if (query.followUp) rows = rows.filter((a) => a.followUp);
 
   const by: Record<SortColumn, Cmp> = {
     company: (a, b) => sign * text(a.company, b.company),

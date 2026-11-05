@@ -1,0 +1,5 @@
+/* Follow-up nudges on the applications list: a muted pill in the row, a checkbox in the filter card. */
+.followup-tag { display: inline-block; margin-left: 4px; padding: 1px 10px; background: var(--fog); color: var(--muted); border-radius: var(--r-pill); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
+/* Sits level with the inputs beside it, and the whole label is the tap target. */
+.followup-field { justify-content: center; min-height: var(--tap); }
+.fgroup > label.followup-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; color: var(--ink); font-size: 1rem; font-weight: 500; cursor: pointer; }
