@@ -1,13 +1,14 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
 import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
-import { daysSince } from "../db/time";
+import { daysSince, localToday } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
 import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
+import { nextInterviewDay } from "./upcoming";
 
 export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails";
 export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails"];
@@ -33,6 +34,8 @@ export interface ApplicationListRow extends ApplicationRow {
   idleDays: number | null;
   /** still Applied or Heard back, and quiet for a week or more */
   followUp: boolean;
+  /** the next day an interview email says a meeting is on (YYYY-MM-DD, today or later), or null */
+  nextInterview: string | null;
 }
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
@@ -50,15 +53,20 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   const emails = await db.emails.toArray();
   const counts = new Map<number, number>();
   const inAccount = new Set<number>();
+  const interviews = new Map<number, EmailRow[]>();
   for (const e of emails) {
     if (e.applicationId == null) continue;
+    if (e.event === "interview") interviews.set(e.applicationId, [...(interviews.get(e.applicationId) ?? []), e]);
     counts.set(e.applicationId, (counts.get(e.applicationId) ?? 0) + 1);
     if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
   }
   const needle = (query.q ?? "").trim().toLowerCase();
   let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => {
     const idleDays = daysSince(a.lastActivity, now);
-    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
+    return {
+      ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays),
+      nextInterview: nextInterviewDay(interviews.get(a.id) ?? [], localToday(now)),
+    };
   });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) rows = rows.filter((a) => a.stage === query.stage);
   if (needle) rows = rows.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
