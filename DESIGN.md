@@ -320,6 +320,8 @@ Filter tabs (Matches, Notifications, Your profile, Sources) sit above a second r
 - **Demo banner.** A quiet one-line status row ("Demo mode: not signed in, data stays in this browser.") with text actions. It never carries a primary button, and "Load demo data" shows only while the database is empty.
 - **Detail actions.** One stage select that applies on change, plus a "More" menu (merge, not an application, delete). Merge and delete confirm in place, not in a browser dialog.
 - **Paste a job link.** The link field sits at the top of the add form with a quiet "Fill in" button. Anything derived is a suggestion: guessed fields carry a muted "Guessed from the link" hint that clears when you edit, and nothing is saved until Save is pressed. Untrusted text from links, APIs and the bookmarklet is only ever rendered as text.
+- **Quick edits.** In the applications list, role and applied date read as plain text and become a field when chosen: Enter or leaving the field saves, Escape restores, and focus goes back to the text. The stage is a coloured pill that is a real dropdown, with a quiet Undo for a few seconds after a change. Nothing shows an edit icon.
+- **Interview rounds.** One line under the facts on the application page: "Interview rounds 3 · estimated from your emails", with a quiet "Edit rounds" button. The source note says whether the number is estimated, from logged steps, or set by you. A typed number always wins and is never rewritten by a sync.
 - **Lists are lists.** People is one hairline-divided list on the page background, not a card per company. Cards are for grouping a form or a self-contained object such as an email.
 
 ### Disclosures
@@ -332,7 +334,7 @@ Emails are read, not dumped. The subject is a 500 heading, the sender a bold nam
 Each company on the People tab is a dropdown (`details.company`): a card whose summary row is the chevron, the company name, its role, and a people count. It opens by itself when there is only one or after a search, and Expand all / Collapse all sit above. One shared person component on the People tab and inside each application: bold name, a tag for the kind (Recruiter, Hiring side, People Ops), the title as plain text, then a muted address and last contact. One action row holds Email (primary), Reply here, the emails list and Edit. People are grouped under their application and hairline-divided, never boxed.
 
 ### Status and progress
-Account status is a large emoji with the provider's name (the user asked for it; it is the one place emoji appear, and the reference's "never an emoji" applies to row leading visuals). A running sync is an unboxed block with a 10px pill progress bar in the accent on Inactive bg, an indeterminate slide when the total is unknown, and a sentence for the time left.
+Account status is the provider's name in a heading, with the address or the error under it, and no emoji. A running sync is an unboxed block with a 10px pill progress bar in the accent on Inactive bg, an indeterminate slide when the total is unknown, and a sentence for the time left.
 
 ### Motion
 Background, border and color transitions at 0.16s ease-out, the 0.12s press scale, and the chevron rotation, all gated behind `prefers-reduced-motion: no-preference`.

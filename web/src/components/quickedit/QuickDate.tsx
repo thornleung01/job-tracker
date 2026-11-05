@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { JobTrackerDB } from "../../db/schema";
 import { localToday } from "../../db/time";
-import { setAppliedOn } from "../../sync/actions";
+import { ActionError, setAppliedOn } from "../../sync/actions";
 import { dayText } from "../TimeText";
 import { useAction } from "../useAction";
 import { useReturnFocus } from "./useReturnFocus";
@@ -26,11 +26,18 @@ export function QuickDate({ db, appId, company, appliedAt }: Props) {
   const done = useRef(false);
   const back = useReturnFocus<HTMLButtonElement>(editing);
   const current = (appliedAt ?? "").slice(0, 10);
+  // The list shows the stored day. A day stamped late in the evening can be tomorrow in UTC, so the field never starts past today.
+  const today = localToday();
+  const initial = current > today ? today : current;
   const shown = dayText(appliedAt, "short");
 
   useEffect(() => {
     if (editing) input.current?.focus();
   }, [editing]);
+  // A failed save leaves the field open and disabled for a moment: put the cursor back so you can fix it.
+  useEffect(() => {
+    if (editing && act.error) input.current?.focus();
+  }, [editing, act.error]);
 
   const begin = () => {
     done.current = false;
@@ -42,11 +49,15 @@ export function QuickDate({ db, appId, company, appliedAt }: Props) {
     done.current = true;
     if (fromKeyboard) back.request();
     const day = input.current?.value ?? "";
-    if (!save || !day || day === current) {
+    if (!save || (day && day === initial)) {
       setEditing(false);
       return;
     }
-    void act.run("applied", () => setAppliedOn(db, appId, day)).then((ok) => {
+    // An empty field is not "no date": say so instead of closing as if it saved.
+    void act.run("applied", async () => {
+      if (!day) throw new ActionError("Pick a date, or press Escape to keep the old one.");
+      await setAppliedOn(db, appId, day);
+    }).then((ok) => {
       if (ok) setEditing(false);
       else done.current = false;      // stay open on a problem, so what you typed isn't lost
     });
@@ -62,7 +73,7 @@ export function QuickDate({ db, appId, company, appliedAt }: Props) {
   }
   return (
     <>
-      <input ref={input} type="date" className="quick-input" defaultValue={current} max={localToday()} aria-label={`Applied date for ${company}`}
+      <input ref={input} type="date" className="quick-input" defaultValue={initial} max={today} aria-label={`Applied date for ${company}`}
              aria-invalid={act.error ? true : undefined} disabled={act.busy !== null}
              onBlur={() => finish(true)}
              onKeyDown={(e) => {

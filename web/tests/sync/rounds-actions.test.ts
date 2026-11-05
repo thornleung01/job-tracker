@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { addApp, cleanup, freshDb } from "../pages/applications/harness";
-import { mergeApplications, setAppliedOn, setInterviewRounds } from "../../src/sync/actions";
+import { addApplication, mergeApplications, setAppliedOn, setInterviewRounds } from "../../src/sync/actions";
 import { lowerMeridiem } from "../../src/components/TimeText";
 
 afterEach(cleanup);
@@ -12,6 +12,16 @@ describe("setAppliedOn", () => {
     await expect(setAppliedOn(db, id, "1985-05-05")).rejects.toThrow(/1990/);
     await expect(setAppliedOn(db, id, "2999-01-01")).rejects.toThrow(/future/);
     await expect(setAppliedOn(db, id, "next week")).rejects.toThrow(/year-month-day/);
+  });
+});
+
+describe("addApplication dates", () => {
+  it("shares the day rules with setAppliedOn", async () => {
+    const db = freshDb();
+    await expect(addApplication(db, { company: "Acme", appliedOn: "1985-05-05" })).rejects.toThrow(/1990/);
+    await expect(addApplication(db, { company: "Acme", appliedOn: "2999-01-01" })).rejects.toThrow(/future/);
+    const id = await addApplication(db, { company: "Acme", appliedOn: "2026-01-15" });
+    expect((await db.applications.get(id))?.appliedAt).toBe("2026-01-15T12:00:00Z");
   });
 });
 

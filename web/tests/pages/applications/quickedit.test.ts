@@ -102,6 +102,21 @@ describe("quick edits in the list", () => {
     expect(document.activeElement).toBe(select);
   });
 
+  it("says so when the date is cleared, and keeps the field open with the old date saved", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme", { applied: 20 });
+    const before = (await db.applications.get(id))?.appliedAt;
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click($(row(container, "Acme"), "button[aria-label$='edit applied date for Acme']"));
+    const field = $(row(container, "Acme"), "input[aria-label='Applied date for Acme']") as HTMLInputElement;
+    await type(field, "");
+    await key(field, "Enter");
+    await waitFor(() => $(row(container, "Acme"), "[role=alert]") !== null);
+    expect(text($(row(container, "Acme"), "[role=alert]"))).toContain("Pick a date");
+    expect($(row(container, "Acme"), "input[type=date]")).not.toBeNull();
+    expect((await db.applications.get(id))?.appliedAt).toBe(before);
+  });
+
   it("opening the row is still possible from empty space, and editing does not toggle it", async () => {
     const db = freshDb();
     await addApp(db, "Acme", { role: "Analyst" });

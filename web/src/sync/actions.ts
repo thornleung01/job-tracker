@@ -44,6 +44,18 @@ export interface AddApplicationInput {
   url?: string;
 }
 
+/**
+ * The timestamp for "I applied on this day" (YYYY-MM-DD). Days are compared as calendar days in the viewer's own timezone, so
+ * today is never "in the future" whatever the hour in UTC. Today is stamped with the current time, any other day with noon.
+ */
+function appliedStamp(day: string, now: Date): string {
+  if (!isDayString(day)) throw new ActionError("Enter the date as year-month-day, for example 2026-10-21.");
+  if (day > localToday(now)) throw new ActionError("The date can't be in the future.");
+  if (day < "1990-01-01") throw new ActionError("Enter a date from 1990 onward.");
+  const noon = new Date(`${day}T12:00:00Z`);
+  return iso(noon > now ? now : noon);       // never a time still ahead
+}
+
 /** Logs an application by hand. It is yours: its stage is locked and rechecks never rewrite it. */
 export async function addApplication(db: JobTrackerDB, input: AddApplicationInput, now: Date = new Date()): Promise<number> {
   const p = pipeline();
@@ -52,16 +64,9 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   const stage = input.stage ?? "Applied";
   if (!company || !isStage(stage)) throw new ActionError("Enter a company name.");
   const postingUrl = cleanPostingUrl(input.url ?? "");
-  let when = iso(now);
+  // the day you applied, so logging something from last week lands in the right place
   const day = (input.appliedOn ?? "").trim();
-  if (day) {
-    // the day you applied, so logging something from last week lands in the right place
-    if (!isDayString(day)) throw new ActionError("Enter the date as year-month-day, for example 2026-10-21.");
-    // Compare calendar days in the viewer's own timezone: today is never "in the future", whatever the hour in UTC.
-    if (day > localToday(now)) throw new ActionError("The date can't be in the future.");
-    const noon = new Date(`${day}T12:00:00Z`);
-    when = iso(noon > now ? now : noon);       // today is stamped with the current time, never a time still ahead
-  }
+  const when = day ? appliedStamp(day, now) : iso(now);
   return tx(db, () =>
     createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl }),
   );
@@ -100,13 +105,9 @@ export async function restoreStage(db: JobTrackerDB, appId: number, before: { st
 
 /** Changes the day you applied. Today is stamped with the current time and any other day with noon, as when adding by hand. */
 export async function setAppliedOn(db: JobTrackerDB, appId: number, day: string, now: Date = new Date()): Promise<void> {
-  const value = day.trim();
-  if (!isDayString(value)) throw new ActionError("Enter the date as year-month-day, for example 2026-10-21.");
-  if (value > localToday(now)) throw new ActionError("The date can't be in the future.");
-  if (value < "1990-01-01") throw new ActionError("Enter a date from 1990 onward.");
+  const appliedAt = appliedStamp(day.trim(), now);
   if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
-  const noon = new Date(`${value}T12:00:00Z`);
-  await db.applications.update(appId, { appliedAt: iso(noon > now ? now : noon), manual: true });
+  await db.applications.update(appId, { appliedAt, manual: true });
 }
 
 /** Sets the number of interview rounds by hand. `null` goes back to working it out from the emails and your steps. */
