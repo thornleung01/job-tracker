@@ -4,7 +4,8 @@ import type {
 } from "../db/schema";
 
 export const EXPORT_FORMAT = "jobtracker-export";
-export const EXPORT_VERSION = 1;
+/** 2 added the posting link on applications. Version 1 files are still read. */
+export const EXPORT_VERSION = 2;
 
 export interface ExportData {
   accounts: AccountRow[];

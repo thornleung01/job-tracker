@@ -1,4 +1,6 @@
 // What you can do to applications and to Needs review, from the routes in jobtracker/web.py. Each action is one transaction.
+import { ActionError } from "../db/errors";
+import { cleanPostingUrl } from "../db/postingUrl";
 import { EVENT_FOR_STAGE, isStage, type Stage } from "../db/stages";
 import { applyEvent, clearEmail, createApplication, recordFeedback } from "../db/repo";
 import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
@@ -11,13 +13,7 @@ import { recheck, removeApplicationRow } from "./recheck";
 import { processMessage } from "./sync";
 import { squeeze } from "./text";
 
-/** A request the app refuses, with a sentence that is safe to show. */
-export class ActionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
-}
+export { ActionError };
 
 const short = (text: string, limit = 400) => (text.length <= limit ? text : text.slice(0, limit - 1) + "…");
 
@@ -43,6 +39,8 @@ export interface AddApplicationInput {
   stage?: Stage;
   /** the day you applied, YYYY-MM-DD; empty for now */
   appliedOn?: string;
+  /** the job posting's web address; optional, checked by cleanPostingUrl (throws ActionError) */
+  url?: string;
 }
 
 /** Logs an application by hand. It is yours: its stage is locked and rechecks never rewrite it. */
@@ -52,6 +50,7 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   const role = squeeze(input.role).slice(0, 100) || p.UNKNOWN_ROLE;
   const stage = input.stage ?? "Applied";
   if (!company || !isStage(stage)) throw new ActionError("A company is required.");
+  const postingUrl = cleanPostingUrl(input.url ?? "");
   let when = iso(now);
   const day = (input.appliedOn ?? "").trim();
   if (day) {
@@ -63,19 +62,24 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
     when = iso(noon > now ? now : noon);       // today is stamped with the current time, never a time still ahead
   }
   return tx(db, () =>
-    createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true }),
+    createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl }),
   );
 }
 
-/** Fix the company or role by hand. An edited application is yours: re-checks and syncs won't rewrite it. */
-export async function editApplication(db: JobTrackerDB, appId: number, company: string, role: string): Promise<void> {
+/**
+ * Fix the company, role or posting link by hand. An edited application is yours: re-checks and syncs won't rewrite it.
+ * `url` left out keeps the current link; an empty string clears it; anything else must pass cleanPostingUrl.
+ */
+export async function editApplication(db: JobTrackerDB, appId: number, company: string, role: string, url?: string): Promise<void> {
   const p = pipeline();
   if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
   const cleanCompany = squeeze(company).slice(0, 80);
   const cleanRole = squeeze(role).slice(0, 100) || p.UNKNOWN_ROLE;
   if (!cleanCompany) throw new ActionError("The company cannot be empty.");
+  const postingUrl = url === undefined ? undefined : cleanPostingUrl(url);
   await db.applications.update(appId, {
     company: cleanCompany, companyKey: p.companyKey(cleanCompany), role: cleanRole, roleKey: p.roleKey(cleanRole), manual: true,
+    ...(postingUrl === undefined ? {} : { postingUrl: postingUrl || undefined }),
   });
 }
 
@@ -118,6 +122,8 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
   if (!dst.locked && (src.locked || (src.stageAt ?? "") > (dst.stageAt ?? ""))) {
     Object.assign(fields, { stage: src.stage, stageAt: src.stageAt, locked: src.locked });
   }
+  // keep the target's posting link, otherwise take the source's
+  if (!dst.postingUrl && src.postingUrl) fields.postingUrl = src.postingUrl;
   await tx(db, async () => {
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });

@@ -1,11 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { act, createElement } from "react";
 import { $, $$, addApp, addMail, button, cleanup, click, freshDb, key, mountPage, seedThree, settle, submitForm, text, type, waitFor } from "./harness";
 import ApplicationsPage from "../../../src/pages/applications";
 import { importFromPythonExport } from "../../../src/portability";
 import { saveSettings } from "../../../src/sync/settings";
 import { upsertAccount } from "../../../src/db/repo";
 import fixture from "../../fixtures/python-export.json";
+import { EMPTY_DRAFT, type JobDraft } from "../../../src/jobs/types";
+import type { PageProps } from "../../../src/app/pageProps";
+import type { JobLinkDeps } from "../../../src/components/joblink/deps";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -588,5 +591,442 @@ describe("a database imported from the local edition", () => {
     expect(companies(container)).toContain("Hand Made Co");
     expect(text($$(container, "tr.app-row").find((r) => text(r).includes("Hand Made Co"))!)).toContain("set by you");
     await settle();
+  });
+});
+
+// -- paste a job link ----------------------------------------------------------------------------------------------
+
+const draft = (o: Omit<Partial<JobDraft>, "guessed"> & { guessed?: Partial<JobDraft["guessed"]> } = {}): JobDraft => ({
+  ...EMPTY_DRAFT, ...o, guessed: { company: false, role: false, ...o.guessed },
+});
+const GUESS = draft({ company: "Stripe", role: "Software Engineer", url: "https://jobs.example.com/p/1", guessed: { company: true, role: true } });
+
+/** The page with the job-link library replaced by fakes. Every fake can be overridden per test. */
+interface Fakes {
+  parseJobUrl: Mock<JobLinkDeps["parseJobUrl"]>;
+  enrichJobDraft: Mock<JobLinkDeps["enrichJobDraft"]>;
+  parsePastedText: Mock<JobLinkDeps["parsePastedText"]>;
+  draftFromHash: Mock<JobLinkDeps["draftFromHash"]>;
+}
+function withFakes(over: Partial<Fakes> = {}) {
+  const deps: Fakes = {
+    parseJobUrl: vi.fn((_raw: string): JobDraft | null => GUESS),
+    enrichJobDraft: vi.fn(async (d: JobDraft) => d),
+    parsePastedText: vi.fn((_t: string, _u?: string): JobDraft | null => null),
+    draftFromHash: vi.fn((_q: URLSearchParams): JobDraft | null => null),
+    ...over,
+  };
+  const Page = (props: PageProps) => createElement(ApplicationsPage, { ...props, deps });
+  return { deps, Page };
+}
+
+const field = (c: HTMLElement, id: string) => $(c, `#${id}`) as HTMLInputElement;
+const result = (c: HTMLElement) => text($(c, "#add-link-result"));
+const paste = async (c: HTMLElement, value: string) => {
+  const input = field(c, "add-link");
+  await act(async () => {
+    input.dispatchEvent(new Event("paste", { bubbles: true }));
+  });
+  await type(input, value);
+};
+const openForm = async (c: HTMLElement) => click(button(c, "Add application"));
+const deferred = <T,>() => {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+};
+
+describe("paste a job link", () => {
+  it("shows the field, its help and a quiet Fill in button, and the form still works with no link", async () => {
+    const db = freshDb();
+    const { Page, deps } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    const slot = $(container, "#add-link-slot")!;
+    expect(text($(slot, "label[for=add-link]"))).toBe("Paste a job link");
+    const input = field(container, "add-link");
+    expect([input.type, input.getAttribute("inputmode")]).toEqual(["text", "url"]);
+    expect(text(slot)).toContain("We read the link and fill in what we can. You can change anything before saving.");
+    const fill = button(slot, "Fill in")!;
+    expect(fill.classList.contains("primary")).toBe(false);
+    expect($$(container, "#add-application button.primary")).toHaveLength(1);
+    await type($(container, "#add-company"), "Plain Co");
+    await click(button(container, "Save application"));
+    await waitFor(() => !$(container, "#add-application"));
+    expect((await db.applications.toArray()).map((a) => a.company)).toEqual(["Plain Co"]);
+    expect(deps.parseJobUrl).not.toHaveBeenCalled();
+  });
+
+  it("fills company, role and the posting link a moment after a paste, not on every keystroke", async () => {
+    const db = freshDb();
+    const { Page, deps } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await settle(0);
+    expect(deps.parseJobUrl).not.toHaveBeenCalled();
+    expect(field(container, "add-company").value).toBe("");
+    await paste(container, "https://jobs.example.com/p/1");
+    expect(deps.parseJobUrl).not.toHaveBeenCalled();
+    await waitFor(() => field(container, "add-company").value === "Stripe");
+    expect(deps.parseJobUrl).toHaveBeenCalledTimes(1);
+    expect(deps.parseJobUrl).toHaveBeenCalledWith("https://jobs.example.com/p/1");
+    expect(field(container, "add-role").value).toBe("Software Engineer");
+    expect(field(container, "add-url").value).toBe("https://jobs.example.com/p/1");
+    expect(result(container)).toBe("Guessed from the link: check the company and role.");
+  });
+
+  it("fills on the Fill in button and on Enter, and Enter does not submit the form", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await click(button(container, "Fill in"));
+    expect(field(container, "add-company").value).toBe("Stripe");
+    await type(field(container, "add-company"), "");
+    await type(field(container, "add-role"), "");
+    await key(field(container, "add-link"), "Enter");
+    expect(field(container, "add-company").value).toBe("Stripe");
+    expect($(container, "#add-application")).not.toBeNull();
+    expect(await db.applications.count()).toBe(0);
+  });
+
+  it("never overwrites text you typed, and says so", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-company"), "My own company");
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await click(button(container, "Fill in"));
+    expect(field(container, "add-company").value).toBe("My own company");
+    expect(field(container, "add-role").value).toBe("Software Engineer");
+    expect($(container, "#add-company-hint")).toBeNull();
+    await type(field(container, "add-role"), "Staff designer");
+    await click(button(container, "Fill in"));
+    expect(field(container, "add-role").value).toBe("Staff designer");
+    expect(result(container)).toBe("Kept what you typed. Check the company and role.");
+  });
+
+  it("replaces a value it filled earlier when you press Fill in with a different link", async () => {
+    const db = freshDb();
+    const next = draft({ company: "Notion", role: "Designer", url: "https://jobs.example.com/p/2" });
+    const { Page, deps } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await click(button(container, "Fill in"));
+    deps.parseJobUrl.mockReturnValueOnce(next);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/2");
+    await click(button(container, "Fill in"));
+    expect([field(container, "add-company").value, field(container, "add-role").value, field(container, "add-url").value]).toEqual(["Notion", "Designer", "https://jobs.example.com/p/2"]);
+    expect($(container, "#add-company-hint")).toBeNull();
+    expect(result(container)).toBe("Filled in from the link: Notion, Designer.");
+  });
+
+  it("marks guessed fields, ties the hint to the field, and clears it when you edit that field", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await click(button(container, "Fill in"));
+    const hint = $(container, "#add-company-hint")!;
+    expect(text(hint)).toBe("Guessed from the link");
+    expect(field(container, "add-company").getAttribute("aria-describedby")).toBe("add-company-hint");
+    expect(text($(container, "#add-role-hint"))).toBe("Guessed from the link");
+    await type(field(container, "add-company"), "Stripe Inc");
+    expect($(container, "#add-company-hint")).toBeNull();
+    expect(field(container, "add-company").getAttribute("aria-describedby")).toBeNull();
+    expect($(container, "#add-role-hint")).not.toBeNull();
+  });
+
+  it("asks the job board in the background, then updates what is still auto-filled but not what you edited", async () => {
+    const db = freshDb();
+    const gate = deferred<JobDraft>();
+    const { Page, deps } = withFakes({ enrichJobDraft: vi.fn((_d: JobDraft, _o?: { signal?: AbortSignal }) => gate.promise) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
+    await click(button(container, "Fill in"));
+    const checking = $(container, "#add-link-checking")!;
+    expect(checking.getAttribute("role")).toBe("status");
+    expect(checking.getAttribute("aria-busy")).toBe("true");
+    expect(text(checking)).toBe("Checking the job board");
+    expect(deps.enrichJobDraft.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    // The form stays usable meanwhile.
+    expect(button(container, "Save application")!.hasAttribute("disabled")).toBe(false);
+    await type(field(container, "add-role"), "My title");
+    const enriched = draft({ company: "Stripe, Inc.", role: "Software Engineer, Payments", url: "https://boards.greenhouse.io/stripe/jobs/1", source: "api" });
+    await act(async () => gate.resolve(enriched));
+    await settle();
+    expect(field(container, "add-company").value).toBe("Stripe, Inc.");
+    expect(field(container, "add-role").value).toBe("My title");
+    expect($(container, "#add-company-hint")).toBeNull();
+    expect(checking.getAttribute("aria-busy")).toBe("false");
+    expect(text(checking)).toBe("");
+    expect(result(container)).toBe("Filled in from Greenhouse: Stripe, Inc.");
+  });
+
+  it("aborts the check when the form is closed, and a late answer changes nothing", async () => {
+    const db = freshDb();
+    const gate = deferred<JobDraft>();
+    const { Page, deps } = withFakes({ enrichJobDraft: vi.fn((_d: JobDraft, _o?: { signal?: AbortSignal }) => gate.promise) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
+    await click(button(container, "Fill in"));
+    const signal = deps.enrichJobDraft.mock.calls[0][1]!.signal!;
+    expect(signal.aborted).toBe(false);
+    await click(button(container, "Cancel"));
+    expect(signal.aborted).toBe(true);
+    await act(async () => gate.resolve(draft({ company: "Late Co", role: "Late role", source: "api" })));
+    await openForm(container);
+    expect(field(container, "add-company").value).toBe("Stripe");
+    expect(field(container, "add-link").value).toBe("");
+    expect(result(container)).toBe("");
+  });
+
+  it("aborts the check when the link changes and when the page goes away", async () => {
+    const db = freshDb();
+    const gate = deferred<JobDraft>();
+    const { Page, deps } = withFakes({ enrichJobDraft: vi.fn((_d: JobDraft, _o?: { signal?: AbortSignal }) => gate.promise) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/1");
+    await click(button(container, "Fill in"));
+    const first = deps.enrichJobDraft.mock.calls[0][1]!.signal!;
+    await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/12");
+    expect(first.aborted).toBe(true);
+    expect($(container, "#add-link-checking")!.getAttribute("aria-busy")).toBe("false");
+    await click(button(container, "Fill in"));
+    const second = deps.enrichJobDraft.mock.calls[1][1]!.signal!;
+    expect(second.aborted).toBe(false);
+    await cleanup();
+    expect(second.aborted).toBe(true);
+  });
+
+  it("says plainly when nothing could be read, and points at the bookmarklet in Settings", async () => {
+    const db = freshDb();
+    const { Page } = withFakes({ parseJobUrl: vi.fn((_raw: string) => draft({ url: "https://www.linkedin.com/jobs/view/1" })) });
+    const { container, visited } = await mountPage(Page, db);
+    await openForm(container);
+    expect(text($(container, "#add-link-slot"))).not.toContain("bookmarklet");
+    await type(field(container, "add-link"), "https://www.linkedin.com/jobs/view/1");
+    await click(button(container, "Fill in"));
+    expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
+    expect(field(container, "add-company").value).toBe("");
+    const slot = $(container, "#add-link-slot")!;
+    expect(text(slot)).toContain("LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in Settings.");
+    await click($(slot, "a[href='#/settings']"));
+    expect(visited.at(-1)).toBe("/settings");
+  });
+
+  it("says so when the text is not a web address at all", async () => {
+    const db = freshDb();
+    const { Page } = withFakes({ parseJobUrl: vi.fn((_raw: string) => null) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "not a link");
+    await click(button(container, "Fill in"));
+    expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
+    await type(field(container, "add-link"), "");
+    await click(button(container, "Fill in"));
+    expect(result(container)).toBe("Paste a link first.");
+  });
+
+  it("reads pasted job text from a collapsed box, with the link as context", async () => {
+    const db = freshDb();
+    const fromText = draft({ company: "Shopify", role: "Data Scientist", source: "paste", guessed: { company: true, role: true } });
+    const { Page, deps } = withFakes({ parsePastedText: vi.fn((_t: string, _u?: string) => fromText) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    const toggle = button(container, "Or paste the job text instead")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect($(container, "#add-paste")).toBeNull();
+    await click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(text($(container, "label[for=add-paste]"))).toBe("Paste the job posting text");
+    const box = $(container, "#add-paste") as HTMLTextAreaElement;
+    expect(box.maxLength).toBe(200_000);
+    expect(button(container, "Read the text")!.classList.contains("primary")).toBe(false);
+    await type(box, "Shopify is hiring a Data Scientist");
+    await click(button(container, "Read the text"));
+    expect(deps.parsePastedText).toHaveBeenCalledWith("Shopify is hiring a Data Scientist", undefined);
+    expect([field(container, "add-company").value, field(container, "add-role").value]).toEqual(["Shopify", "Data Scientist"]);
+    expect(text($(container, "#add-company-hint"))).toBe("Guessed from the text");
+    expect(result(container)).toBe("Guessed from the text: check the company and role.");
+    await type(box, "nothing here");
+    deps.parsePastedText.mockReturnValueOnce(null);
+    await click(button(container, "Read the text"));
+    expect(result(container)).toBe("We couldn't read details from that text. Add them below.");
+  });
+
+  it("shows hostile values as plain text", async () => {
+    const db = freshDb();
+    const evil = draft({ company: "<img src=x onerror=alert(1)>", role: "<b>Boss</b>", location: "<script>x</script>", url: "https://e.example/p", source: "paste", guessed: { company: true } });
+    const { Page } = withFakes({ parseJobUrl: vi.fn((_raw: string) => evil) });
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://e.example/p");
+    await click(button(container, "Fill in"));
+    expect(field(container, "add-company").value).toBe("<img src=x onerror=alert(1)>");
+    expect($(container, "#add-application img, #add-application script, #add-application b")).toBeNull();
+    expect(result(container)).toContain("<script>x</script>");
+  });
+
+  it("saves the link with the application, and clears the link field, hints and result afterwards", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://jobs.example.com/p/1");
+    await click(button(container, "Fill in"));
+    await click(button(container, "Save application"));
+    await waitFor(() => !$(container, "#add-application"));
+    const saved = (await db.applications.toArray()).find((a) => a.company === "Stripe")!;
+    expect(saved.postingUrl).toBe("https://jobs.example.com/p/1");
+    await openForm(container);
+    expect(field(container, "add-link").value).toBe("");
+    expect(field(container, "add-url").value).toBe("");
+    expect($(container, "#add-company-hint")).toBeNull();
+    expect(result(container)).toBe("");
+  });
+
+  it("shows a bad posting link in the form's alert and keeps what you typed", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container } = await mountPage(Page, db);
+    await openForm(container);
+    await type(field(container, "add-company"), "Acme");
+    await type(field(container, "add-url"), "javascript:alert(1)");
+    await submitForm($(container, "#add-application form"));
+    const alert = $(container, "#add-application .notice.err")!;
+    expect(alert.getAttribute("role")).toBe("alert");
+    expect(text(alert)).toBe("That link does not look right. Use a web address that starts with https://.");
+    expect(field(container, "add-company").value).toBe("Acme");
+    expect(await db.applications.count()).toBe(0);
+  });
+});
+
+describe("arriving from the Save to Job Tracker bookmarklet", () => {
+  const arrival = draft({ company: "Acme", role: "Engineer", location: "Toronto", url: "https://jobs.acme.example/1", source: "bookmarklet", guessed: { role: true } });
+  const to = "/?add=1&c=Acme&r=Engineer&l=Toronto&u=https%3A%2F%2Fjobs.acme.example%2F1&s=bm&g=2&stage=Applied";
+
+  it("opens the filled form, focuses Save, never saves, and takes the parameters out of the address", async () => {
+    const db = freshDb();
+    await seedThree(db);
+    const { Page, deps } = withFakes({ draftFromHash: vi.fn((_q: URLSearchParams) => arrival) });
+    const { container, visited, location } = await mountPage(Page, db, to);
+    await waitFor(() => $(container, "#add-application") !== null);
+    expect(deps.draftFromHash).toHaveBeenCalledTimes(1);
+    expect(deps.draftFromHash.mock.calls[0][0].get("add")).toBe("1");
+    expect([field(container, "add-company").value, field(container, "add-role").value, field(container, "add-url").value]).toEqual(["Acme", "Engineer", "https://jobs.acme.example/1"]);
+    expect(text($(container, "#add-role-hint"))).toBe("Guessed from the page");
+    expect($(container, "#add-company-hint")).toBeNull();
+    expect(result(container)).toBe("Filled in from the page you were viewing. Check it, then save. Location: Toronto.");
+    expect(button(container, "Add application")!.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(button(container, "Save application"));
+    expect(location()).toBe("/?stage=Applied");
+    expect(visited).toEqual(["/?stage=Applied"]);
+    await settle();
+    expect(await db.applications.count()).toBe(3);
+  });
+
+  it("focuses Company when the page gave no role", async () => {
+    const db = freshDb();
+    const { Page } = withFakes({ draftFromHash: vi.fn((_q: URLSearchParams) => draft({ ...arrival, role: "", guessed: { company: false, role: false } })) });
+    const { container } = await mountPage(Page, db, to);
+    await waitFor(() => $(container, "#add-application") !== null);
+    expect(document.activeElement).toBe(field(container, "add-company"));
+  });
+
+  it("saves only when you press Save, with the link", async () => {
+    const db = freshDb();
+    const { Page } = withFakes({ draftFromHash: vi.fn((_q: URLSearchParams) => arrival) });
+    const { container } = await mountPage(Page, db, to);
+    await waitFor(() => $(container, "#add-application") !== null);
+    expect(await db.applications.count()).toBe(0);
+    await click(button(container, "Save application"));
+    await waitFor(() => !$(container, "#add-application"));
+    const [saved] = await db.applications.toArray();
+    expect([saved.company, saved.role, saved.postingUrl]).toEqual(["Acme", "Engineer", "https://jobs.acme.example/1"]);
+  });
+
+  it("shows hostile bookmarklet values as plain text", async () => {
+    const db = freshDb();
+    const evil = draft({ ...arrival, company: "<img src=x onerror=alert(1)>", location: "<b>x</b>" });
+    const { Page } = withFakes({ draftFromHash: vi.fn((_q: URLSearchParams) => evil) });
+    const { container } = await mountPage(Page, db, to);
+    await waitFor(() => $(container, "#add-application") !== null);
+    expect(field(container, "add-company").value).toBe("<img src=x onerror=alert(1)>");
+    expect($(container, "#add-application img, #add-application b")).toBeNull();
+    expect(result(container)).toContain("<b>x</b>");
+  });
+
+  it("opens nothing for an invalid hash, but still clears the parameters", async () => {
+    const db = freshDb();
+    const { Page } = withFakes();
+    const { container, location } = await mountPage(Page, db, "/?add=1&c=&stage=Applied");
+    await settle();
+    expect($(container, "#add-application")).toBeNull();
+    expect(location()).toBe("/?stage=Applied");
+  });
+});
+
+describe("with the real job-link library", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads a Greenhouse link offline, keeps it when the board cannot be reached, and saves with the link", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+    const db = freshDb();
+    const { container } = await mountPage(ApplicationsPage, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://boards.greenhouse.io/stripe/jobs/12345?gh_src=abc");
+    await click(button(container, "Fill in"));
+    await waitFor(() => field(container, "add-company").value !== "");
+    await waitFor(() => $(container, "#add-link-checking")?.getAttribute("aria-busy") === "false");
+    expect(field(container, "add-company").value.toLowerCase()).toContain("stripe");
+    expect(field(container, "add-url").value).toMatch(/^https:\/\/boards\.greenhouse\.io\/stripe\/jobs\/12345/);
+    expect(field(container, "add-url").value).not.toContain("gh_src");
+    expect(result(container)).not.toBe("");
+    await click(button(container, "Save application"));
+    await waitFor(() => !$(container, "#add-application"));
+    const [saved] = await db.applications.toArray();
+    expect(saved.postingUrl).toMatch(/^https:\/\/boards\.greenhouse\.io\/stripe\/jobs\/12345/);
+  });
+
+  it("says it could not read a LinkedIn link and leaves the form empty", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+    const db = freshDb();
+    const { container } = await mountPage(ApplicationsPage, db);
+    await openForm(container);
+    await type(field(container, "add-link"), "https://www.linkedin.com/jobs/view/3912345678/");
+    await click(button(container, "Fill in"));
+    expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
+    expect(field(container, "add-company").value).toBe("");
+  });
+
+  it("opens a filled form from a real bookmarklet hash and never saves", async () => {
+    const db = freshDb();
+    const { container, location } = await mountPage(ApplicationsPage, db, "/?add=1&c=Acme&r=Engineer&l=Toronto&u=https%3A%2F%2Fjobs.acme.example%2F1&s=bm&g=2");
+    await waitFor(() => $(container, "#add-application") !== null);
+    expect([field(container, "add-company").value, field(container, "add-role").value, field(container, "add-url").value]).toEqual(["Acme", "Engineer", "https://jobs.acme.example/1"]);
+    expect(text($(container, "#add-role-hint"))).toBe("Guessed from the page");
+    expect(result(container)).toBe("Filled in from the page you were viewing. Check it, then save. Location: Toronto.");
+    expect(location()).toBe("/");
+    expect(await db.applications.count()).toBe(0);
+  });
+
+  it("reads pasted text with the real parser", async () => {
+    const db = freshDb();
+    const { container } = await mountPage(ApplicationsPage, db);
+    await openForm(container);
+    await click(button(container, "Or paste the job text instead"));
+    await type($(container, "#add-paste"), "Senior Data Analyst\nNorthwind Traders\nToronto, ON\nWe are hiring a Senior Data Analyst to join our team.");
+    await click(button(container, "Read the text"));
+    expect(result(container)).not.toBe("");
+    expect(result(container)).not.toContain("Paste the posting text first");
   });
 });

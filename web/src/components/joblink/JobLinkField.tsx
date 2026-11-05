@@ -1,0 +1,59 @@
+import type { KeyboardEvent } from "react";
+import { MAX_PASTE_CHARS, type JobLinkFill } from "./useJobLink";
+import "./joblink.css";
+
+/**
+ * "Paste a job link" for the add form: a link field with a quiet Fill in button, a collapsed "paste the text instead",
+ * and one plain line saying what happened. It owns no form state: `link` comes from useJobLink. Everything the library
+ * returns reaches the page as React text, never HTML.
+ */
+export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(to: string): void }) {
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    // Enter here reads the link. It must not submit the form: the person has not finished.
+    e.preventDefault();
+    link.fillFromLink();
+  };
+  return (
+    <div className="joblink">
+      <div className="fgroup">
+        <label htmlFor="add-link">Paste a job link</label>
+        <div className="joblink-row">
+          <input id="add-link" name="job_link" type="text" inputMode="url" autoComplete="off" autoCapitalize="off" spellCheck={false}
+                 value={link.linkText} aria-describedby="add-link-help add-link-result add-link-checking"
+                 onChange={(e) => link.onLinkChange(e.target.value)} onPaste={link.onLinkPaste} onKeyDown={onKey} />
+          <button type="button" className="quiet" onClick={link.fillFromLink}>Fill in</button>
+        </div>
+        <p className="help flush" id="add-link-help">We read the link and fill in what we can. You can change anything before saving.</p>
+      </div>
+      {/* Both lines are live regions that exist before they have words, so a screen reader announces them when they fill. */}
+      <p className="joblink-line small" id="add-link-result" role="status">{link.result}</p>
+      <p className="joblink-line small muted" id="add-link-checking" role="status" aria-busy={link.checking}>{link.checking ? "Checking the job board" : ""}</p>
+      {link.unreadable ? (
+        <p className="joblink-line small muted">
+          LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in{" "}
+          <a href="#/settings" onClick={(e) => {
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            navigate("/settings");
+          }}>Settings</a>.
+        </p>
+      ) : null}
+      <button type="button" className="joblink-toggle" aria-expanded={link.pasteOpen} aria-controls="add-paste-box" onClick={() => link.setPasteOpen(!link.pasteOpen)}>
+        <span className="chev" aria-hidden="true"></span>
+        Or paste the job text instead
+      </button>
+      <div id="add-paste-box" hidden={!link.pasteOpen}>
+        {link.pasteOpen ? (
+          <div className="fgroup">
+            <label htmlFor="add-paste">Paste the job posting text</label>
+            <textarea id="add-paste" name="job_text" rows={6} maxLength={MAX_PASTE_CHARS} value={link.pasteText} onChange={(e) => link.setPasteText(e.target.value)} />
+            <div className="row">
+              <button type="button" className="quiet" onClick={link.readPastedText}>Read the text</button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

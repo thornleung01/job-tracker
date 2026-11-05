@@ -16,7 +16,7 @@ import requests
 
 import secrets
 
-from . import activity, contacts as contactsmod, db, learn, links, mailtext, reply as replymod, settings, stats
+from . import activity, contacts as contactsmod, db, joblink, learn, links, mailtext, reply as replymod, settings, stats
 from .extract import UNKNOWN_ROLE, company_key, role_key
 from .jobs import notify as jobnotify
 from .jobs import store as jobstore
@@ -175,6 +175,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
     templates.env.globals["mailbox_link"] = links.mailbox_link
     templates.env.globals["reply_link"] = links.reply_link
     templates.env.globals["new_token"] = lambda: secrets.token_hex(8)       # one per reply form, so pressing Send twice sends once
+    templates.env.filters["posting_url"] = joblink.stored_url     # re-checked at render: only a plain http(s) address becomes a link
     templates.env.filters["mailtext"] = mailtext.render
     templates.env.filters["sender_name"] = lambda s: mailtext.split_sender(s)[0]
     templates.env.filters["sender_addr"] = lambda s: mailtext.split_sender(s)[1]
@@ -313,7 +314,8 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         return f"?notice={quote(_short(text, 600))}"
 
     @app.post("/app/{app_id}/edit")
-    def edit_application(app_id: int, company: str = Form(""), role: str = Form(""), conn=Depends(get_conn)):
+    def edit_application(app_id: int, company: str = Form(""), role: str = Form(""), url: str | None = Form(None),
+                         conn=Depends(get_conn)):
         """Fix the company or role by hand. An edited application is yours: re-checks and syncs won't rewrite it."""
         if not conn.execute("SELECT 1 FROM applications WHERE id = ?", (app_id,)).fetchone():
             raise HTTPException(404)
@@ -324,6 +326,10 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         with conn:
             conn.execute("UPDATE applications SET company = ?, company_key = ?, role = ?, role_key = ?, manual = 1 WHERE id = ?",
                          (company, company_key(company), role, role_key(role), app_id))
+            if url is not None:         # the field was on the form: blank clears the link, a bad link is quietly ignored
+                posting = joblink.stored_url(url)
+                if posting or not url.strip():
+                    conn.execute("UPDATE applications SET url = ? WHERE id = ?", (posting, app_id))
         return back(f"/app/{app_id}")
 
     @app.post("/app/{app_id}/not-application")
@@ -725,9 +731,20 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             view = sync_view(state) if state else {"running": False, "label": "", "percent": None, "eta": "", "note": ""}
         return JSONResponse(view, headers={"Cache-Control": "no-store"})
 
+    @app.post("/app/derive")
+    def derive_from_link(url: str = Form("")):
+        """Read a job posting's address and say what company, role and place it is for. Goes through `local_only` like every
+        other route, so it has the same host and cross-site checks. Only fixed messages ever leave: never the page, never an exception."""
+        try:
+            return JSONResponse(joblink.derive(url), headers={"Cache-Control": "no-store"})
+        except joblink.JobLinkError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400, headers={"Cache-Control": "no-store"})
+        except Exception:
+            return JSONResponse({"error": joblink.MSG_NOTHING}, status_code=400, headers={"Cache-Control": "no-store"})
+
     @app.post("/app/add")
     def add(company: str = Form(...), role: str = Form(""), stage: str = Form("Applied"), applied_on: str = Form(""),
-            conn=Depends(get_conn)):
+            url: str = Form(""), conn=Depends(get_conn)):
         company, role = re.sub(r"\s+", " ", company).strip()[:80], re.sub(r"\s+", " ", role).strip()[:100] or UNKNOWN_ROLE
         if not company or stage not in STAGES:
             raise HTTPException(400)
@@ -742,7 +759,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
             when = db.iso(day)
         with conn:
             app_id = db.create_application(conn, company, company_key(company), role, role_key(role),
-                                           stage, when, manual=True)
+                                           stage, when, manual=True, url=joblink.stored_url(url))
             conn.execute("UPDATE applications SET locked = 1 WHERE id = ?", (app_id,))
         return back(f"/app/{app_id}")
 

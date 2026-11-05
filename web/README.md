@@ -48,6 +48,17 @@ python scripts/export_json.py data/tracker.db export.json
 
 It opens the database read-only and writes `export.json`. Then use Settings, Your data, Import in the hosted app. The export leaves out the resume and job-search profile.
 
+## Paste a job link
+
+In Add application, paste a job link and the form fills in what it can.
+
+- **Greenhouse, Lever, Ashby, SmartRecruiters:** the app reads the company and role from the link, then confirms them with the board's public API (the five API hosts are allowed in the page's `connect-src`). Company names from Lever and Ashby stay marked as guesses, since those APIs don't return one.
+- **Other sites:** the company and role are guessed from the link and marked "Guessed from the link".
+- **LinkedIn, Indeed, Workday and company career pages:** use the "Save to Job Tracker" bookmarklet in Settings. It reads the page you are viewing in your own browser and opens the app with the details filled in. It never saves by itself.
+- **Fallback:** "Or paste the job text instead" reads text you copied off the page.
+
+The link is stored on the application and shown as "Open posting". The local Python edition does the same from its server, with extra checks so it can't be pointed at internal addresses.
+
 ## What is not in this edition
 
 Replying from the app, the Jobs tab (resume matching, Adzuna, Windows pop-ups), multiple profiles (each signed-in user has their own data instead) and scheduled background sync.

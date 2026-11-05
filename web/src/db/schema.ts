@@ -29,6 +29,8 @@ export interface ApplicationRow {
   locked: boolean;
   /** you made or edited this application, so rechecks never rewrite it */
   manual: boolean;
+  /** the job posting's web address; absent when there is none. Not indexed. */
+  postingUrl?: string;
 }
 
 export interface EmailRow {
@@ -139,6 +141,12 @@ export class JobTrackerDB extends Dexie {
       contactEdits: "key",
       settings: "key",
     });
+    // v2: applications may carry a postingUrl. It is not indexed, so the stores stay as they are; existing rows simply have no field.
+    this.version(2).stores({}).upgrade((trans) =>
+      trans.table("applications").toCollection().modify((a: { postingUrl?: unknown }) => {
+        if (typeof a.postingUrl !== "string" || !a.postingUrl) delete a.postingUrl;
+      }),
+    );
   }
 }
 

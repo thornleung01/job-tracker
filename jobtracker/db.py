@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS applications (
     applied_at TEXT,
     last_activity TEXT,
     locked INTEGER NOT NULL DEFAULT 0,
-    manual INTEGER NOT NULL DEFAULT 0
+    manual INTEGER NOT NULL DEFAULT 0,
+    url TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_app_company ON applications (company_key);
 CREATE TABLE IF NOT EXISTS emails (
@@ -218,6 +219,8 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
         conn.execute("ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
     if "can_reply" not in {r["name"] for r in conn.execute("PRAGMA table_info(accounts)")}:
         conn.execute("ALTER TABLE accounts ADD COLUMN can_reply INTEGER NOT NULL DEFAULT 0")
+    if "url" not in {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}:
+        conn.execute("ALTER TABLE applications ADD COLUMN url TEXT")      # the link to the job posting, when known
     if not memory:
         _READY.add(str(path))
     return conn
@@ -257,12 +260,12 @@ def thread_application(conn: sqlite3.Connection, account_id: int, thread_id: str
 
 def create_application(
     conn: sqlite3.Connection, company: str, ckey: str, role: str, rkey: str,
-    stage: str, when: str, manual: bool = False,
+    stage: str, when: str, manual: bool = False, url: str | None = None,
 ) -> int:
     cur = conn.execute(
         "INSERT INTO applications (company, company_key, role, role_key, stage, stage_at, "
-        "applied_at, last_activity, manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (company, ckey, role, rkey, stage, when, when if stage == "Applied" else None, when, int(manual)),
+        "applied_at, last_activity, manual, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (company, ckey, role, rkey, stage, when, when if stage == "Applied" else None, when, int(manual), url),
     )
     return cur.lastrowid
 

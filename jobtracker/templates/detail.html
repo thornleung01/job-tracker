@@ -18,6 +18,7 @@
 <div class="card">
   <h1 class="page" style="margin:0">{{ a.company }}</h1>
   <div class="muted">{{ a.role }}</div>
+  {% set posting = a.url|posting_url %}{% if posting %}<div class="small" style="margin-top:6px"><a href="{{ posting }}" target="_blank" rel="noopener noreferrer">Open posting</a></div>{% endif %}
   <div class="row" style="margin-top:12px">
     <span class="badge {{ a.stage|replace(' ', '-') }}">{{ a.stage }}</span>
     <span class="small muted">Applied {{ a.applied_at[:10] if a.applied_at else 'unknown' }} · last activity {{ a.last_activity[:10] }}</span>
@@ -27,6 +28,7 @@
     <form method="post" action="/app/{{ a.id }}/edit" class="row" style="margin-top:8px">
       <label class="sr" for="ed-company">Company</label><input id="ed-company" name="company" value="{{ a.company }}" maxlength="80" required>
       <label class="sr" for="ed-role">Role</label><input id="ed-role" name="role" value="{{ a.role if a.role != 'Unknown role' else '' }}" placeholder="Role" maxlength="100">
+      <label class="sr" for="ed-url">Posting link</label><input id="ed-url" name="url" value="{{ a.url|posting_url or '' }}" placeholder="Posting link" maxlength="500" inputmode="url">
       <button>Save</button>
     </form>
   </details>

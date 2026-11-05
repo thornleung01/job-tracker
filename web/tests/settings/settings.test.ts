@@ -80,7 +80,7 @@ describe("page structure", () => {
   it("has the template's sections, one h1, and sentence case throughout", async () => {
     await setup();
     expect(q("h1")!.textContent).toBe("Settings");
-    expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "Your data", "Account"]);
+    expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "Save jobs from any site", "Your data", "Account"]);
     for (const b of Array.from(document.querySelectorAll("button, label.btn"))) {
       const t = b.textContent!.trim();
       // sentence case: only names (Gmail, Outlook) are capitalised after the first word

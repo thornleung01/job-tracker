@@ -3,6 +3,8 @@
 <div class="panel-inner" data-app="{{ aid }}">
   <div class="panel-status small muted" role="status" tabindex="-1">{{ p.status or '' }}</div>
   {% if p.error %}<div class="notice err" role="alert">{{ p.error }}</div>{% endif %}
+  {# The detail page shows the link up by the title; in the list this is where it appears. #}
+  {% set posting = p.a.url|posting_url %}{% if posting and p.include_emails %}<p class="small" style="margin:0 0 8px"><a href="{{ posting }}" target="_blank" rel="noopener noreferrer">Open posting</a></p>{% endif %}
 
   <div class="panel-forms">
     <form method="post" action="/app/{{ aid }}/step" data-panel-form>

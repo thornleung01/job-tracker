@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, 
 import { ACCENT_COLORS } from "../../app/accents";
 import { isLocalUser } from "../../app/localUser";
 import type { PageProps } from "../../app/pageProps";
+import { BookmarkletCard } from "../../components/BookmarkletCard";
 import { useQuery } from "../../app/useQuery";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
@@ -448,6 +449,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
           </>
         )}
       </section>
+
+      <BookmarkletCard />
 
       <section className="card" id="data" aria-labelledby="h-data">
         <h2 className="sec" id="h-data">Your data</h2>

@@ -3,16 +3,20 @@ import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { Combobox } from "../../components/Combobox";
+import { JobLinkField } from "../../components/joblink/JobLinkField";
+import type { JobLinkDeps } from "../../components/joblink/deps";
+import { useJobLink } from "../../components/joblink/useJobLink";
 import { Notice } from "../../components/Notice";
 import { StageCell } from "../../components/StageBadge";
 import { SyncBanner } from "../../components/SyncBanner";
 import { LastActivity } from "../../components/TimeText";
 import { useAction } from "../../components/useAction";
+import { realJobLinkDeps } from "../../components/joblink/deps";
 import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { localToday } from "../../db/time";
-import { addApplication } from "../../sync/actions";
+import { addApplication as realAddApplication } from "../../sync/actions";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
 import "./applications.css";
@@ -55,7 +59,13 @@ function readState(query: URLSearchParams): ListState {
   };
 }
 
-export default function ApplicationsPage({ db, user, query, navigate }: PageProps) {
+/** What tests may swap: the job-link library and the save. The router passes neither. */
+export interface ApplicationsPageDeps extends Partial<JobLinkDeps> {
+  addApplication?: typeof realAddApplication;
+}
+
+export default function ApplicationsPage({ db, user, query, navigate, deps = {} }: PageProps & { deps?: ApplicationsPageDeps }) {
+  const addApplication = deps.addApplication ?? realAddApplication;
   const local = isLocalUser(user);
   const state = readState(query);
   const { stage, q, account, open } = state;
@@ -92,35 +102,63 @@ export default function ApplicationsPage({ db, user, query, navigate }: PageProp
   const [addOpen, setAddOpen] = useState(false);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
+  const [postingUrl, setPostingUrl] = useState("");
   const [addStage, setAddStage] = useState<Stage>("Applied");
   const [appliedOn, setAppliedOn] = useState(localToday());
   const addBox = useRef<HTMLElement>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
   const companyInput = useRef<HTMLInputElement>(null);
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const link = useJobLink({ company, role, url: postingUrl }, { company: setCompany, role: setRole, url: setPostingUrl }, deps);
   const [focusAdd, setFocusAdd] = useState(0);
-  // The form opens in place under the filter card, and its first field takes focus.
+  const wantFocus = useRef<"company" | "save">("company");
+  const ready = Boolean(data);
+  // The form opens in place under the filter card, and its first field takes focus (Save, when a bookmarklet filled both fields).
   useEffect(() => {
-    if (!focusAdd) return;
+    if (!focusAdd || !ready) return;
     addBox.current?.scrollIntoView?.({ block: "nearest" });
-    companyInput.current?.focus();
-  }, [focusAdd]);
+    (wantFocus.current === "save" ? saveButton.current : companyInput.current)?.focus();
+  }, [focusAdd, ready]);
   const openAdd = () => {
     add.clear();
+    wantFocus.current = "company";
     setAddOpen(true);
     setFocusAdd((n) => n + 1);
   };
   const closeAdd = () => {
     add.clear();
+    link.reset();
     setAddOpen(false);
     addTrigger.current?.focus();
   };
+
+  // The Save to Job Tracker bookmarklet sends the page you were viewing as #/?add=1&c=...: open the form filled in. It never saves.
+  const arrival = useRef("");
+  useEffect(() => {
+    if (query.get("add") !== "1" || arrival.current === query.toString()) return;
+    arrival.current = query.toString();
+    const draft = (deps.draftFromHash ?? realJobLinkDeps.draftFromHash)(query);
+    if (draft) {
+      add.clear();
+      link.adopt(draft);
+      wantFocus.current = draft.company.trim() && draft.role.trim() ? "save" : "company";
+      setAddOpen(true);
+      setFocusAdd((n) => n + 1);
+    }
+    // Take the bookmarklet's parameters out of the address either way, so a reload does not open it again.
+    navigate(listUrl({ stage, q, account, ...sorting, open }), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
   const submitAdd = (e: FormEvent) => {
     e.preventDefault();
     void add.run("add", async () => {
-      await addApplication(db, { company, role, stage: addStage, appliedOn });
+      await addApplication(db, { company, role, stage: addStage, appliedOn, url: postingUrl.trim() || undefined });
       const added = company.trim();
+      link.reset();
       setCompany("");
       setRole("");
+      setPostingUrl("");
       setAddStage("Applied");
       setAppliedOn(localToday());
       return `Added ${added}. It is kept as yours, so a sync never changes it.`;
@@ -229,16 +267,22 @@ export default function ApplicationsPage({ db, user, query, navigate }: PageProp
           <p className="help add-note">Applied somewhere that never emailed you, or the mail is on another account? Log it here. It is kept as yours, so a sync never changes it.</p>
           {add.error ? <Notice tone="err">{add.error}</Notice> : null}
           <form onSubmit={submitAdd}>
-            {/* Reserved: a "Paste a job link" field goes here, above Company. */}
-            <div className="add-link-slot" id="add-link-slot"></div>
+            <div className="add-link-slot" id="add-link-slot">
+              <JobLinkField link={link} navigate={navigate} />
+            </div>
             <div className="row row-end">
               <div className="fgroup f-grow">
                 <label htmlFor="add-company">Company</label>
-                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name" value={company} onChange={(e) => setCompany(e.target.value)} />
+                <input id="add-company" name="company" ref={companyInput} required pattern=".*\S.*" title="Enter a company name" value={company}
+                       aria-describedby={link.hints.company ? "add-company-hint" : undefined}
+                       onChange={(e) => { link.edited("company"); setCompany(e.target.value); }} />
+                {link.hints.company ? <p className="field-hint" id="add-company-hint">{link.hints.company}</p> : null}
               </div>
               <div className="fgroup f-grow">
                 <label htmlFor="add-role">Role (optional)</label>
-                <input id="add-role" name="role" value={role} onChange={(e) => setRole(e.target.value)} />
+                <input id="add-role" name="role" value={role} aria-describedby={link.hints.role ? "add-role-hint" : undefined}
+                       onChange={(e) => { link.edited("role"); setRole(e.target.value); }} />
+                {link.hints.role ? <p className="field-hint" id="add-role-hint">{link.hints.role}</p> : null}
               </div>
               <div className="fgroup">
                 <label htmlFor="add-stage">Stage</label>
@@ -251,8 +295,15 @@ export default function ApplicationsPage({ db, user, query, navigate }: PageProp
                 <input id="add-date" name="applied_on" type="date" value={appliedOn} max={localToday()} onChange={(e) => setAppliedOn(e.target.value)} />
               </div>
             </div>
+            <div className="row add-url-row">
+              <div className="fgroup f-grow">
+                <label htmlFor="add-url">Posting link (optional)</label>
+                <input id="add-url" name="url" type="text" inputMode="url" autoComplete="off" spellCheck={false} value={postingUrl}
+                       onChange={(e) => { link.edited("url"); setPostingUrl(e.target.value); }} />
+              </div>
+            </div>
             <div className="row add-actions">
-              <button type="submit" className="primary" {...add.button("add")}>Save application</button>
+              <button type="submit" className="primary" ref={saveButton} {...add.button("add")}>Save application</button>
               <button type="button" onClick={closeAdd}>Cancel</button>
             </div>
           </form>
