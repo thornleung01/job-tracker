@@ -1,0 +1,15 @@
+/* Interviews in the next week: a hairline list above the filters, and a quiet line under a stage. */
+.interview-line { display: block; margin-top: 4px; white-space: nowrap; }
+.coming-up { margin-bottom: var(--gap); }
+/* The heading is for screen readers: the strip speaks for itself. */
+.coming-up-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.coming-up-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.coming-up-list li { border-bottom: 1px solid var(--line); }
+.coming-up-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; min-height: var(--tap); padding: 10px 8px; color: inherit; text-decoration: none; }
+.coming-up-row:hover { background: var(--hover); }
+.coming-up-company { font-weight: 500; }
+.coming-up-role { flex: 1 1 8rem; min-width: 0; }
+.coming-up-day { margin-left: auto; white-space: nowrap; }
+@media (max-width: 720px) {
+  .list-card td[data-col="stage"] .interview-line { text-align: right; }
+}

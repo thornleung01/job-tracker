@@ -79,31 +79,52 @@ export function namedRound(subject: string | null, body: string | null): number 
   return Math.min(best, MAX_ROUNDS);
 }
 
-type MailForRounds = Pick<EmailRow, "id" | "threadId" | "receivedAt" | "subject" | "body" | "event">;
+export type MailForRounds =Pick<EmailRow, "id" | "threadId" | "receivedAt" | "subject" | "body" | "event">;
+
+export interface Meeting {
+  /** the email thread, or the lone email's own key */
+  thread: string;
+  /** the thread's interview emails, newest first */
+  mails: MailForRounds[];
+  /** the day the newest email that names one says the meeting is on, as YYYY-MM-DD */
+  day: string | null;
+}
 
 /**
- * Rounds from the emails alone. Mail about one meeting (invite, confirmation, reminder, reschedule) shares a thread or a
- * date, so it counts once. The newest email in a thread decides its date and whether it was cancelled. Several sessions on
- * the same day are one round.
+ * The interview meetings in a set of emails, one per thread. Mail about one meeting (invite, confirmation, reminder,
+ * reschedule) shares a thread. The newest email in a thread decides its date and whether it was cancelled, and a cancelled
+ * thread is left out.
  */
-export function roundsFromEmails(emails: readonly MailForRounds[]): number {
+export function interviewMeetings(emails: readonly MailForRounds[]): Meeting[] {
   const threads = new Map<string, MailForRounds[]>();
   for (const e of emails) {
     if (e.event !== "interview") continue;
     const key = e.threadId ?? `msg:${e.id}`;
     threads.set(key, [...(threads.get(key) ?? []), e]);
   }
-  const rounds = new Set<string>();
-  let named = 0;
+  const meetings: Meeting[] = [];
   for (const [thread, mails] of threads) {
     const newestFirst = [...mails].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : a.receivedAt > b.receivedAt ? -1 : b.id - a.id));
     if (CANCELLED.test(newestFirst[0].subject ?? "")) continue;       // a cancelled meeting adds nothing, not even a named round
-    for (const m of newestFirst) named = Math.max(named, namedRound(m.subject, m.body));
     let day: string | null = null;
     for (const m of newestFirst) {
       day = interviewDay(m.subject, m.body, m.receivedAt);
       if (day) break;
     }
+    meetings.push({ thread, mails: newestFirst, day });
+  }
+  return meetings;
+}
+
+/**
+ * Rounds from the emails alone. Mail about one meeting counts once (see interviewMeetings). Several sessions on the same day
+ * are one round.
+ */
+export function roundsFromEmails(emails: readonly MailForRounds[]): number {
+  const rounds = new Set<string>();
+  let named = 0;
+  for (const { thread, mails, day } of interviewMeetings(emails)) {
+    for (const m of mails) named = Math.max(named, namedRound(m.subject, m.body));
     rounds.add(day ? `day:${day}` : `thread:${thread}`);
   }
   return Math.max(rounds.size, named);
