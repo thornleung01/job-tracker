@@ -2,9 +2,14 @@ import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEve
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
+import { BulkBar } from "../../components/bulk/BulkBar";
+import { RowSelect, SelectAll } from "../../components/bulk/SelectBoxes";
+import { useSelection } from "../../components/bulk/useSelection";
 import { Combobox } from "../../components/Combobox";
 import { FollowUpTag } from "../../components/followup/FollowUpTag";
 import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
+import { DuplicateNotice } from "../../components/duplicates/DuplicateNotice";
+import { useDuplicates } from "../../components/duplicates/useDuplicates";
 import { JobLinkField } from "../../components/joblink/JobLinkField";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
@@ -91,6 +96,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
     };
   }, [db, stage, q, account, followUp, sort, dir]);
 
+  // The ticked rows live here, not in the address, and are dropped when the filters change.
+  const selection = useSelection(data?.rows.map((r) => r.id), `${stage}|${q}|${account}`);
+
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
   const [draftQ, setDraftQ] = useState(q);
   const [draftStage, setDraftStage] = useState<string>(stage);
@@ -122,6 +130,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const companyInput = useRef<HTMLInputElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
   const link = useJobLink({ company, role, url: postingUrl }, { company: setCompany, role: setRole, url: setPostingUrl }, deps);
+  const duplicates = useDuplicates(db, company, role, postingUrl, addOpen);
   const [focusAdd, setFocusAdd] = useState(0);
   const wantFocus = useRef<"company" | "save">("company");
   const ready = Boolean(data);
@@ -317,6 +326,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
                        onChange={(e) => { link.edited("url"); setPostingUrl(e.target.value); }} />
               </div>
             </div>
+            <DuplicateNotice matches={duplicates} />
             <div className="row add-actions">
               <button type="submit" className="primary" ref={saveButton} {...add.button("add")}>Save application</button>
               <button type="button" onClick={closeAdd}>Cancel</button>
@@ -341,10 +351,13 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         </Notice>
       ) : null}
 
+      <BulkBar db={db} selection={selection} />
+
       <div className="card list-card">
         <table className="list" role="table">
           <thead role="rowgroup">
             <tr role="row">
+              <th scope="col" role="columnheader" data-col="select"><SelectAll selection={selection} disabled={!rows.length} /></th>
               {columns.map((c) => (
                 <th key={c} scope="col" role="columnheader" data-col={dataCol(c)} aria-sort={sort === c ? (dir === "asc" ? "ascending" : "descending") : "none"}>
                   <a className="sort" href={sortHref(c)}>{COLUMNS[c]}<span className="sort-ind" aria-hidden="true"></span></a>
@@ -357,11 +370,12 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               const isOpen = open.includes(r.id);
               return (
                 <Fragment key={r.id}>
-                  <tr className={`app-row${isOpen ? " is-open" : ""}`} role="row" onClick={(e) => onRowClick(e, r.id)}>
+                  <tr className={`app-row${isOpen ? " is-open" : ""}${selection.has(r.id) ? " is-selected" : ""}`} role="row" onClick={(e) => onRowClick(e, r.id)}>
+                    <td role="cell" data-col="select"><RowSelect selection={selection} id={r.id} company={r.company} /></td>
                     {columns.map((c) => cell(c, r, isOpen))}
                   </tr>
                   <tr className="panel-row" role="row" id={`panel-${r.id}`} hidden={!isOpen}>
-                    <td role="cell" colSpan={columns.length}>
+                    <td role="cell" colSpan={columns.length + 1}>
                       {isOpen ? <div className="panel"><ApplicationPanel db={db} appId={r.id} company={r.company} includeEmails navigate={navigate} /></div> : null}
                     </td>
                   </tr>
@@ -370,7 +384,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             })}
             {!rows.length ? (
               <tr role="row">
-                <td role="cell" colSpan={columns.length} className="muted list-empty">
+                <td role="cell" colSpan={columns.length + 1} className="muted list-empty">
                   {filtered ? "No applications match these filters." : (local ? <>No applications yet. Choose "Add application" to add one, or load the demo data from the banner above.</> : <>No applications yet. <a href="#/settings">Sync your mailbox in Settings</a>, or choose "Add application" to add one.</>)}
                 </td>
               </tr>

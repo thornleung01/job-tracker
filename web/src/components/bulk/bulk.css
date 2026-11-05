@@ -1,0 +1,28 @@
+/* Selecting several applications in the list: the checkbox column and the bar that appears while something is ticked. */
+
+/* The checkbox cell. The label fills it, so a click anywhere in the cell ticks the box instead of opening the row. */
+.bulk-pick { display: flex; align-items: center; justify-content: center; min-width: 28px; min-height: var(--tap); cursor: pointer; }
+.bulk-pick input { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+table.list th[data-col="select"], table.list td[data-col="select"] { width: 1%; padding-right: 0; }
+table.list th[data-col="select"] { padding-top: 0; padding-bottom: 0; }
+tr.app-row.is-selected td { background: var(--fog); }
+
+/* On a phone the checkbox is a narrow first column of each card, and the rest of the card keeps its layout beside it. */
+@media (max-width: 720px) {
+  .list-card table.list tr.app-row { grid-template-columns: auto 1fr auto; }
+  .list-card table.list tr.app-row > td[data-col="select"] { grid-column: 1; grid-row: 1; width: auto; margin-left: -6px; }
+  .list-card table.list tr.app-row > td[data-col="company"] { grid-column: 2; grid-row: 1; }
+  .list-card table.list tr.app-row > td[data-col="stage"] { grid-column: 3; grid-row: 1; }
+  .list-card table.list tr.app-row > td[data-col="last_activity"] { grid-column: 2 / -1; }
+  .list-card table.list tr.app-row.is-selected { background: var(--fog); }
+  .list-card table.list th[data-col="select"] { width: auto; padding: 0; }
+  .list-card table.list th[data-col="select"] .bulk-pick { background: var(--fog); border-radius: var(--r-pill); min-width: var(--tap); }
+}
+
+/* The bar between the filter card and the list. */
+.bulk-bar { padding-top: 12px; padding-bottom: 12px; }
+.bulk-bar .notice { margin-bottom: 12px; }
+.bulk-count { font-weight: 500; margin-right: 4px; }
+.bulk-confirm { margin-top: 12px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.bulk-confirm-q { margin: 0 0 4px; font-weight: 500; }
+.bulk-confirm .help { margin-bottom: 12px; }
