@@ -9,7 +9,6 @@ type TokenConfig = Parameters<GisApi["accounts"]["oauth2"]["initTokenClient"]>[0
 function authWith(respond: (cfg: TokenConfig) => void) {
   const api = {
     accounts: {
-      id: { initialize: () => undefined, prompt: () => undefined, renderButton: () => undefined, disableAutoSelect: () => undefined, cancel: () => undefined },
       oauth2: { initTokenClient: (cfg: TokenConfig) => ({ requestAccessToken: () => respond(cfg) }), revoke: () => undefined },
     },
   } as GisApi;
@@ -34,6 +33,20 @@ describe("the Google NotConnected hint", () => {
     const err = await rejection(authWith((c) => c.callback({ error: "interaction_required" })).requestMailToken());
     expect(err).toBeInstanceOf(NotConnected);
     expect(err.message).toBe(POPUP_HINT);
+  });
+
+  it("is the message when the browser blocks the window during login", async () => {
+    const auth = authWith((c) => c.error_callback?.({ type: "popup_failed_to_open" }));
+    await auth.prepare();
+    const err = await rejection(auth.signIn());
+    expect(err.message).toBe(POPUP_HINT);
+  });
+
+  it("is not used when the person closes the login window", async () => {
+    const auth = authWith((c) => c.error_callback?.({ type: "popup_closed" }));
+    await auth.prepare();
+    const err = await rejection(auth.signIn());
+    expect(err.message).toBe("Login was cancelled.");
   });
 
   it("is not used when the person closed the window or refused access", async () => {

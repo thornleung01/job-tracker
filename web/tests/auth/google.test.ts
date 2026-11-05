@@ -1,36 +1,32 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GIS_SRC, createGisLoader, createGoogleAuth, type GisApi } from "../../src/auth/google";
+import { GIS_SRC, POPUP_HINT, TOKENINFO_URL, createGisLoader, createGoogleAuth, type GisApi } from "../../src/auth/google";
 import { NotConnected } from "../../src/types";
-import { CLIENT_ID, NOW, googleClaims, makeJwt } from "./helpers";
+import { CLIENT_ID, NOW } from "./helpers";
 
 const MAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const LOGIN_SCOPE = `openid email profile ${MAIL_SCOPE}`;
 
-type IdConfig = Parameters<GisApi["accounts"]["id"]["initialize"]>[0];
 type TokenConfig = Parameters<GisApi["accounts"]["oauth2"]["initTokenClient"]>[0];
+type Overrides = Parameters<ReturnType<GisApi["accounts"]["oauth2"]["initTokenClient"]>["requestAccessToken"]>[0];
 
 function fakeGis() {
   const s = {
-    idConfig: undefined as IdConfig | undefined,
-    promptListener: undefined as Parameters<GisApi["accounts"]["id"]["prompt"]>[0],
     tokenConfigs: [] as TokenConfig[],
+    requests: [] as { cfg: TokenConfig; overrides: Overrides }[],
     revoked: [] as string[],
-    respond: ((cfg: TokenConfig) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: MAIL_SCOPE })) as (cfg: TokenConfig) => void,
-    renderButton: vi.fn(),
-    disableAutoSelect: vi.fn(),
+    respond: ((cfg: TokenConfig) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: `openid email profile ${MAIL_SCOPE}` })) as (cfg: TokenConfig) => void,
   };
   const api: GisApi = {
     accounts: {
-      id: {
-        initialize: (c) => void (s.idConfig = c),
-        prompt: (l) => void (s.promptListener = l),
-        renderButton: s.renderButton,
-        disableAutoSelect: s.disableAutoSelect,
-        cancel: vi.fn(),
-      },
       oauth2: {
         initTokenClient: (cfg) => {
           s.tokenConfigs.push(cfg);
-          return { requestAccessToken: () => s.respond(cfg) };
+          return {
+            requestAccessToken: (overrides) => {
+              s.requests.push({ cfg, overrides });
+              s.respond(cfg);
+            },
+          };
         },
         revoke: (t, done) => {
           s.revoked.push(t);
@@ -42,97 +38,231 @@ function fakeGis() {
   return { s, api };
 }
 
-function setup(over: Partial<Parameters<typeof createGoogleAuth>[0]> = {}) {
+const infoBody = (over: Record<string, unknown> = {}) => ({ aud: CLIENT_ID, sub: "1098765432", email: "ada@example.com", scope: LOGIN_SCOPE, expires_in: "3599", ...over });
+const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+function setup(over: Partial<Parameters<typeof createGoogleAuth>[0]> = {}, info: () => Response | Promise<Response> = () => jsonResponse(infoBody())) {
   const { s, api } = fakeGis();
-  const nonces = ["nonce-a", "nonce-b", "nonce-c", "nonce-d"];
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => info());
   const auth = createGoogleAuth({
     clientId: CLIENT_ID,
     mailScope: MAIL_SCOPE,
     loadGis: async () => api,
-    makeNonce: () => nonces.shift() ?? "nonce-z",
     now: () => NOW,
+    fetch: fetchMock as unknown as typeof fetch,
     ...over,
   });
-  return { s, auth };
+  return { s, auth, fetchMock };
 }
 
-const credential = (nonce: string, over: Record<string, unknown> = {}) => ({ credential: makeJwt(googleClaims({ nonce, ...over })) });
+const rejection = async (p: Promise<unknown>) => (await p.then(() => null, (e: unknown) => e)) as Error;
 
-describe("google signIn (ID token credential)", () => {
-  it("passes a fresh nonce to GIS and resolves with the validated user", async () => {
+describe("google signIn (token client)", () => {
+  it("prepare() creates the token client once, with the login and mail scopes", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    await auth.prepare();
+    expect(s.tokenConfigs).toHaveLength(1);
+    expect(s.tokenConfigs[0].client_id).toBe(CLIENT_ID);
+    expect(s.tokenConfigs[0].scope).toBe("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+    expect(s.requests).toHaveLength(0);
+  });
+
+  it("opens the window synchronously inside signIn once prepared, before anything is awaited", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    const p = auth.signIn();
+    expect(s.requests).toHaveLength(1);
+    expect(s.requests[0].overrides).toEqual({ prompt: "" });
+    await p;
+  });
+
+  it("falls back to preparing first when signIn comes early", async () => {
     const { s, auth } = setup();
     const p = auth.signIn();
-    await vi.waitFor(() => expect(s.idConfig).toBeDefined());
-    expect(s.idConfig?.client_id).toBe(CLIENT_ID);
-    expect(s.idConfig?.nonce).toBe("nonce-a");
-    s.idConfig?.callback(credential("nonce-a"));
-    await expect(p).resolves.toEqual({
-      iss: "https://accounts.google.com",
-      sub: "1098765432",
-      provider: "google",
-      email: "ada@example.com",
-      name: "Ada Lovelace",
+    expect(s.requests).toHaveLength(0);
+    await expect(p).resolves.toMatchObject({ user: { provider: "google" } });
+    expect(s.tokenConfigs).toHaveLength(1);
+    expect(s.requests).toHaveLength(1);
+  });
+
+  it("returns the user and the Gmail token from one window", async () => {
+    const { auth } = setup();
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toEqual({
+      user: { iss: "https://accounts.google.com", sub: "1098765432", provider: "google", email: "ada@example.com" },
+      mail: { token: "ya29.token", expiresAt: NOW + 3600_000 },
     });
   });
 
-  it("rejects a credential whose nonce is not ours", async () => {
+  it("asks tokeninfo with a form POST of the access token", async () => {
+    const { auth, fetchMock } = setup();
+    await auth.prepare();
+    await auth.signIn();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(TOKENINFO_URL);
+    expect(TOKENINFO_URL).toBe("https://oauth2.googleapis.com/tokeninfo");
+    expect(init?.method).toBe("POST");
+    expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/x-www-form-urlencoded");
+    expect(String(init?.body)).toBe("access_token=ya29.token");
+  });
+
+  it("retries tokeninfo as a GET when the POST is not accepted", async () => {
+    const { auth, fetchMock } = setup();
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 405 }));
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe(`${TOKENINFO_URL}?access_token=ya29.token`);
+    expect(init?.method).toBe("GET");
+  });
+
+  it("retries tokeninfo as a GET when the POST answers 415", async () => {
+    const { auth, fetchMock } = setup();
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 415 }));
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("GET");
+  });
+
+  it("does not put the token in a URL when the POST fails to send: it is not verified", async () => {
+    const { auth, fetchMock } = setup();
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry other error statuses as a GET", async () => {
+    const { auth, fetchMock } = setup({}, () => jsonResponse({ error: "invalid_token" }, 400));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects when tokeninfo says the token is bad", async () => {
+    const { auth } = setup({}, () => jsonResponse({ error: "invalid_token" }, 400));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+  });
+
+  it("rejects a token issued to another client id", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ aud: "other-client.apps.googleusercontent.com" })));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+  });
+
+  it("accepts azp when it matches the client id along with aud", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ azp: CLIENT_ID })));
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+  });
+
+  it("rejects when aud is another client, even if azp matches", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ aud: "something-else", azp: CLIENT_ID })));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+  });
+
+  it("rejects when aud matches but azp is another client", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ azp: "something-else" })));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+  });
+
+  it("rejects a missing or non-numeric sub", async () => {
+    for (const sub of [undefined, "", "abc123", "12:34", "1e5", 12345]) {
+      const { auth } = setup({}, () => jsonResponse(infoBody({ sub })));
+      await auth.prepare();
+      await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    }
+  });
+
+  it("rejects a missing email", async () => {
+    for (const email of [undefined, "", 7]) {
+      const { auth } = setup({}, () => jsonResponse(infoBody({ email })));
+      await auth.prepare();
+      await expect(auth.signIn()).rejects.toThrow(/email/);
+    }
+  });
+
+  it("logs in without mail when the person unticks Gmail", async () => {
     const { s, auth } = setup();
-    const p = auth.signIn();
-    await vi.waitFor(() => expect(s.idConfig).toBeDefined());
-    s.idConfig?.callback(credential("attacker-nonce"));
-    await expect(p).rejects.toMatchObject({ code: "nonce" });
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.token", expires_in: 3600, scope: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile" });
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toEqual({
+      user: { iss: "https://accounts.google.com", sub: "1098765432", provider: "google", email: "ada@example.com" },
+      mail: null,
+    });
   });
 
-  it("rejects a credential for another client id", async () => {
+  it("with mail: false asks for the login scopes only and returns no mail token", async () => {
     const { s, auth } = setup();
-    const p = auth.signIn();
-    await vi.waitFor(() => expect(s.idConfig).toBeDefined());
-    s.idConfig?.callback(credential("nonce-a", { aud: "other-client" }));
-    await expect(p).rejects.toMatchObject({ code: "audience" });
+    await auth.prepare();
+    const result = await auth.signIn({ mail: false });
+    expect(s.requests[0].overrides).toEqual({ prompt: "", scope: "openid email profile" });
+    expect(result.mail).toBeNull();
+    expect(result.user.sub).toBe("1098765432");
   });
 
-  it("treats a nonce as single use: replaying the same credential is rejected", async () => {
-    const onButtonSignIn = vi.fn();
-    const onButtonError = vi.fn();
-    const { s, auth } = setup({ onButtonSignIn, onButtonError });
-    await auth.renderButton(document.createElement("div"));
-    const first = s.idConfig!;
-    const replayed = credential("nonce-a");
-    first.callback(replayed);
-    expect(s.idConfig?.nonce).toBe("nonce-b");
-    s.idConfig?.callback(replayed);
-    expect(onButtonSignIn).toHaveBeenCalledTimes(1);
-    expect(onButtonError).toHaveBeenCalledTimes(1);
-  });
-
-  it("explains when Google does not show the prompt", async () => {
+  it("revokes the token when the person logged in without mail but it can read mail anyway", async () => {
     const { s, auth } = setup();
-    const p = auth.signIn();
-    await vi.waitFor(() => expect(s.promptListener).toBeDefined());
-    s.promptListener?.({ isNotDisplayed: () => true, isSkippedMoment: () => false, isDismissedMoment: () => false });
-    await expect(p).rejects.toThrow(/button/);
-  });
-});
-
-describe("google button", () => {
-  it("reports a valid credential through onButtonSignIn", async () => {
-    const onButtonSignIn = vi.fn();
-    const { s, auth } = setup({ onButtonSignIn });
-    const el = document.createElement("div");
-    await auth.renderButton(el);
-    expect(s.renderButton).toHaveBeenCalledWith(el, expect.objectContaining({ type: "standard" }));
-    s.idConfig?.callback(credential("nonce-a"));
-    expect(onButtonSignIn).toHaveBeenCalledWith(expect.objectContaining({ sub: "1098765432", provider: "google" }));
+    await auth.prepare();
+    const result = await auth.signIn({ mail: false });
+    expect(result.mail).toBeNull();
+    expect(s.revoked).toEqual(["ya29.token"]);
   });
 
-  it("reports an invalid credential through onButtonError", async () => {
-    const onButtonSignIn = vi.fn();
-    const onButtonError = vi.fn();
-    const { s, auth } = setup({ onButtonSignIn, onButtonError });
-    await auth.renderButton(document.createElement("div"));
-    s.idConfig?.callback(credential("wrong"));
-    expect(onButtonSignIn).not.toHaveBeenCalled();
-    expect(onButtonError).toHaveBeenCalledOnce();
+  it("does not revoke a token that carries no mail scope, or one that is kept", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    await auth.signIn();
+    expect(s.revoked).toEqual([]);
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.login-only", expires_in: 3600, scope: "openid email profile" });
+    await auth.signIn({ mail: false });
+    await auth.signIn();
+    expect(s.revoked).toEqual([]);
+  });
+
+  it("gives the popup hint when the browser blocks the window", async () => {
+    const { s, auth } = setup();
+    s.respond = (cfg) => cfg.error_callback?.({ type: "popup_failed_to_open" });
+    await auth.prepare();
+    const err = await rejection(auth.signIn());
+    expect(err.message).toBe(POPUP_HINT);
+  });
+
+  it("says the login was cancelled when the window is closed or access is denied", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    s.respond = (cfg) => cfg.error_callback?.({ type: "popup_closed" });
+    expect((await rejection(auth.signIn())).message).toBe("Login was cancelled.");
+    s.respond = (cfg) => cfg.callback({ error: "access_denied" });
+    expect((await rejection(auth.signIn())).message).toBe("Login was cancelled.");
+  });
+
+  it("reports other failures plainly", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    s.respond = (cfg) => cfg.callback({ error: "interaction_required" });
+    expect((await rejection(auth.signIn())).message).toBe("Google login wasn't completed. Try again.");
+    s.respond = (cfg) => cfg.callback({});
+    expect((await rejection(auth.signIn())).message).toBe("Google login wasn't completed. Try again.");
+  });
+
+  it("can try again after a failed prepare", async () => {
+    let calls = 0;
+    const { api } = fakeGis();
+    const { auth } = setup({
+      loadGis: async () => {
+        if (calls++ === 0) throw new Error("Couldn't load Google login. Check your connection or content blocker.");
+        return api;
+      },
+    });
+    await expect(auth.prepare()).rejects.toThrow(/Couldn't load/);
+    await expect(auth.prepare()).resolves.toBeUndefined();
   });
 });
 

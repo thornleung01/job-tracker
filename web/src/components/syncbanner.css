@@ -1,4 +1,4 @@
-/* The reconnect banner at the top of the Applications page. Pages load as separate chunks, so the progress bar is styled here too. */
+/* The sync banner under the header on every page: reconnect after a reload, and the first sync after login. On Settings it is quiet and only shows a running sync or its result. */
 /* A status row, not a box: the page's own heading and primary stay the loudest things on screen. The single primary here is the page's action while it shows. */
 .sync-banner { margin-bottom: var(--gap); padding: 0; background: none; border: none; border-radius: 0; }
 .sync-banner:focus { outline: none; }

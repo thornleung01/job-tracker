@@ -1,0 +1,22 @@
+/* The #/setup guide. Cards, buttons, inputs and notices come from the shared stylesheet. */
+.setup { max-width: 760px; }
+.setup .card { margin-bottom: var(--gap); }
+.setup-steps { margin: 0; padding-left: 1.5rem; display: grid; gap: 24px; }
+.setup-steps li { padding-left: 4px; min-width: 0; }
+.setup-steps h3 { font: 500 1rem/1.4 var(--font-ui); margin: 0 0 2px; }
+.setup-steps p { margin: 0 0 10px; }
+.setup-value { margin: 0 0 12px; }
+.setup-label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+.setup-line { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.setup code, .setup-pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+.setup-line code { padding: 8px 12px; background: var(--linen); border-radius: var(--r); overflow-wrap: anywhere; min-width: 0; }
+.setup-copy { display: inline-flex; align-items: center; gap: 8px; }
+.setup-pre { margin: 0 0 12px; padding: 12px 16px; background: var(--linen); border-radius: var(--r); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.setup-sub { font: 500 1rem/1.4 var(--font-ui); margin: 20px 0 8px; }
+.setup-field { margin-bottom: 20px; }
+.setup-field input { width: 100%; max-width: 480px; box-sizing: border-box; }
+.setup-link { font-weight: 500; }
+.setup-back { margin: 0 0 var(--gap); }
+.setup-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.setup .notice > div > .line { margin: 0; }
+.setup .status-bad { color: var(--rejected); }

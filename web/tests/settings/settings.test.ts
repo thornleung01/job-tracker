@@ -11,6 +11,7 @@ import { loadSettings, saveSettings } from "../../src/sync/settings";
 import type { JobTrackerDB } from "../../src/db/schema";
 import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider, type Message, type ProviderName } from "../../src/types";
+import { isSyncing, tryAcquire } from "../../src/sync/syncLock";
 import { mk } from "../sync/helpers";
 import fixture from "../fixtures/python-export.json";
 import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, freshDb, q, render, settle, sleep, waitFor } from "../app/helpers";
@@ -312,6 +313,21 @@ describe("sync", () => {
     expect(byText("Sync now")).not.toBeNull();
     release();
     expect(createProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start a second sync while one is already running, and gives the lock back after", async () => {
+    const { createProvider } = await setup({ maker: gmailWith([mk("1", "Thank you for applying to Acme")]) });
+    await click(byText("Connect Gmail")!);
+    await waitFor(() => byText("Sync now"));
+    const held = tryAcquire()!;
+    await click(byText("Sync now")!);
+    expect(noticeText()).toBe("A sync is already running.");
+    expect(createProvider).not.toHaveBeenCalled();
+    held();
+    await click(byText("Sync now")!);
+    await waitFor(() => noticeText().startsWith("Synced"));
+    expect(createProvider).toHaveBeenCalledTimes(1);
+    expect(isSyncing()).toBe(false);
   });
 
   it("asks you to connect again when the provider says NotConnected", async () => {

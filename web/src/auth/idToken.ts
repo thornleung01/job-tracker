@@ -4,8 +4,8 @@
 // only pick a local IndexedDB namespace and a display name, and the token reaches us straight from the
 // provider over TLS. Anyone who can tamper with it already controls this browser tab.
 // TODO(signature): verify RS256 against the provider JWKS with WebCrypto. Microsoft's keys
-// (login.microsoftonline.com/common/discovery/v2.0/keys) are already allowed by the CSP; Google's live on
-// www.googleapis.com, which would need adding to connect-src in index.html.
+// (login.microsoftonline.com/common/discovery/v2.0/keys) are already allowed by the CSP.
+// Google sign-in no longer uses ID tokens: it identifies the person through Google's tokeninfo endpoint.
 
 export type IdTokenErrorCode =
   | "malformed"
@@ -111,7 +111,6 @@ export function validateIdToken(token: string, opts: ValidateOptions): IdTokenCl
   return claims as IdTokenClaims;
 }
 
-export const GOOGLE_ISSUERS: ReadonlyArray<string> = ["https://accounts.google.com", "accounts.google.com"];
 /** Microsoft v2.0 issuer: personal accounts and every work or school tenant, always with a GUID tenant id. */
 export const MICROSOFT_ISSUER = /^https:\/\/login\.microsoftonline\.com\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/v2\.0$/i;
 

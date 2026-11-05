@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { GOOGLE_ISSUERS, IdTokenError, MICROSOFT_ISSUER, randomNonce, validateIdToken } from "../../src/auth/idToken";
+import { IdTokenError, MICROSOFT_ISSUER, randomNonce, validateIdToken } from "../../src/auth/idToken";
 import { CLIENT_ID, MS_CLIENT_ID, MS_TENANT, NOW, NOW_SEC, googleClaims, makeJwt, msClaims } from "./helpers";
 
+const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"]; // generic fixture: Google-shaped claims
 const opts = { issuers: GOOGLE_ISSUERS, audience: CLIENT_ID, nonce: "n-1", now: NOW };
 
 function codeOf(fn: () => unknown): string {

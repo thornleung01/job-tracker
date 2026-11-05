@@ -25,13 +25,35 @@ export interface MailDeps {
   getAddress: typeof getAddressFn;
 }
 
-/** Asks for mail access, looks up the address, and saves (or switches back on) the account row. */
-export async function connectMailbox(db: JobTrackerDB, user: AuthUser, provider: ProviderName, deps: MailDeps): Promise<{ id: number; address: string }> {
-  await deps.connectMail(provider);
+export type RegisterResult = { id: number; address: string } | { inactive: AccountRow };
+
+/**
+ * Looks up the address of a mailbox whose token is already in memory and saves the account row. No window opens.
+ * A mailbox the person switched off on purpose stays off unless `reactivate` is set (a deliberate Connect click).
+ */
+export async function registerMailbox(
+  db: JobTrackerDB, user: AuthUser, provider: ProviderName, deps: Pick<MailDeps, "tokenSource" | "getAddress">, opts: { reactivate: true },
+): Promise<{ id: number; address: string }>;
+export async function registerMailbox(
+  db: JobTrackerDB, user: AuthUser, provider: ProviderName, deps: Pick<MailDeps, "tokenSource" | "getAddress">, opts?: { reactivate?: boolean },
+): Promise<RegisterResult>;
+export async function registerMailbox(
+  db: JobTrackerDB, user: AuthUser, provider: ProviderName, deps: Pick<MailDeps, "tokenSource" | "getAddress">, opts: { reactivate?: boolean } = {},
+): Promise<RegisterResult> {
   const address = await deps.getAddress(provider, deps.tokenSource);
+  if (!opts.reactivate) {
+    const existing = await db.accounts.where("[provider+address]").equals([provider, address]).first();
+    if (existing && !existing.active) return { inactive: existing };
+  }
   const id = await upsertAccount(db, provider, address);
   connected.set(keyFor(user, provider), address);
   return { id, address };
+}
+
+/** Asks for mail access, looks up the address, and saves (or switches back on) the account row. */
+export async function connectMailbox(db: JobTrackerDB, user: AuthUser, provider: ProviderName, deps: MailDeps): Promise<{ id: number; address: string }> {
+  await deps.connectMail(provider);
+  return registerMailbox(db, user, provider, deps, { reactivate: true });
 }
 
 export function isConnected(user: AuthUser, account: Pick<AccountRow, "provider" | "address">, sessionMail: Record<ProviderName, boolean>): boolean {

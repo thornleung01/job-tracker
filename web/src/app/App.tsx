@@ -1,10 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalMode } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
+import { Notice } from "../components/Notice";
+import { PROVIDER_LABEL } from "../pages/settings/actions";
+import { SyncBanner, defaultDeps as syncBannerDefaults, type SyncBannerDeps } from "../components/SyncBanner";
 import { SignIn } from "../pages/signin/SignIn";
 import { AppearanceSync, applyDefaultAppearance } from "./appearance";
+import type { Session } from "../auth";
 import { defaultAuth, type ShellAuth } from "./authApi";
 import { LocalBanner } from "./LocalBanner";
+import { LocalDataOffer } from "./LocalDataOffer";
 import { dbNameForUser, isLocalUser, LOCAL_USER, type PageUser } from "./localUser";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { focusHeading } from "./focus";
@@ -24,6 +29,9 @@ export interface AppProps {
    */
   local?: boolean;
 }
+
+// The setup guide has no auth in it, so the signed-out screen can show it without a user or a database.
+const SetupGuide = lazy(() => import("../pages/setup/SetupGuide"));
 
 function Loading() {
   return (
@@ -75,12 +83,39 @@ function PageHost({ match, db, user, loaders }: { match: RouteMatch; db: JobTrac
   return <Page db={db} user={user} params={match.params} query={match.query} navigate={navigate} />;
 }
 
-function SignedIn({ user, loaders, openDb }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB }) {
+/** The sync banner reads the session and the first-sync handoff from the app's auth; connecting and tokens stay the real module's. */
+function bannerDepsFor(auth: ShellAuth | undefined): Partial<SyncBannerDeps> | undefined {
+  if (!auth) return undefined;
+  return {
+    auth: { ...syncBannerDefaults.auth, getSession: auth.getSession, subscribe: auth.subscribe, takePendingSync: auth.takePendingSync },
+  };
+}
+
+/** Shown once after a login that asked for mail and didn't get it. Gone when dismissed, or when a mailbox is connected. It comes back only on the next login. */
+function MailDeclinedNotice({ auth }: { auth: ShellAuth }) {
+  const session = useSyncExternalStore(auth.subscribe, auth.getSession);
+  const [dismissed, setDismissed] = useState(false);
+  if (!session.mailDeclined || dismissed) return null;
+  return (
+    <Notice>
+      <p className="line">{`Logged in. ${PROVIDER_LABEL[session.mailDeclined]} access wasn't allowed, so nothing will sync. Connect it in Settings.`}</p>
+      <div className="row">
+        <button className="quiet" onClick={() => setDismissed(true)}>Dismiss</button>
+      </div>
+    </Notice>
+  );
+}
+
+function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB; auth?: ShellAuth }) {
   const db = useUserDb(user, openDb);
   const hash = useHash();
   const match = useMemo(() => matchRoute(hash), [hash]);
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
+  // The first sync waits until the offer to bring over earlier data has been answered (or there was nothing to offer).
+  const [offerResolved, setOfferResolved] = useState(false);
+  const resolveOffer = useCallback(() => setOfferResolved(true), []);
+  const bannerDeps = useMemo(() => bannerDepsFor(auth), [auth]);
 
   useLayoutEffect(() => {
     document.title = `${PAGE_TITLES[match.page]} · Job Tracker`;
@@ -110,6 +145,10 @@ function SignedIn({ user, loaders, openDb }: { user: PageUser; loaders: PageLoad
       <div className="wrap">
         <Header db={db} page={match.page} />
         {isLocalUser(user) && <LocalBanner db={db} />}
+        {!isLocalUser(user) && <LocalDataOffer db={db} onResolved={resolveOffer} />}
+        {auth && !isLocalUser(user) && <MailDeclinedNotice auth={auth} />}
+        {/* On every page, so the first sync starts wherever the person lands and keeps going when they move. Settings has its own buttons, so there it is quiet. A signed-in user is never a local build. */}
+        {!isLocalUser(user) && <SyncBanner db={db} user={user} deps={bannerDeps} autoStart={offerResolved} quiet={match.page === "settings"} local={false} />}
         <main id="main" ref={mainRef} tabIndex={-1}>
           <ErrorBoundary
             resetKey={match.path}
@@ -135,7 +174,7 @@ function SignedIn({ user, loaders, openDb }: { user: PageUser; loaders: PageLoad
   );
 }
 
-function SignedInBoundary({ user, loaders, openDb, onSignOut }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB; onSignOut?: () => void }) {
+function SignedInBoundary({ user, loaders, openDb, onSignOut, auth }: { user: PageUser; loaders: PageLoaders; openDb: (name: string) => JobTrackerDB; onSignOut?: () => void; auth?: ShellAuth }) {
   return (
     <ErrorBoundary
       fallback={() => (
@@ -150,7 +189,7 @@ function SignedInBoundary({ user, loaders, openDb, onSignOut }: { user: PageUser
         </div>
       )}
     >
-      <SignedIn key={dbNameForUser(user)} user={user} loaders={loaders} openDb={openDb} />
+      <SignedIn key={dbNameForUser(user)} user={user} loaders={loaders} openDb={openDb} auth={auth} />
     </ErrorBoundary>
   );
 }
@@ -169,7 +208,25 @@ function AuthedApp({ auth, loaders, openDb }: { auth: ShellAuth; loaders: PageLo
   }, [signedIn]);
 
   if (signedIn) {
-    return <SignedInBoundary user={session.user!} loaders={loaders} openDb={openDb} onSignOut={() => void auth.signOut()} />;
+    return <SignedInBoundary user={session.user!} loaders={loaders} openDb={openDb} onSignOut={() => void auth.signOut()} auth={auth} />;
+  }
+  return <SignedOut auth={auth} session={session} />;
+}
+
+/** The sign-in screen, or the site setup guide when the address is #/setup (the owner sets the site up before anyone can log in). */
+function SignedOut({ auth, session }: { auth: ShellAuth; session: Session }) {
+  const hash = useHash();
+  if (matchRoute(hash).page === "setup") {
+    return (
+      <main className="wrap" id="main">
+        <p className="setup-back">
+          <a className="setup-link" href="#/">Back to log in</a>
+        </p>
+        <Suspense fallback={<Loading />}>
+          <SetupGuide />
+        </Suspense>
+      </main>
+    );
   }
   return <SignIn auth={auth} session={session} />;
 }

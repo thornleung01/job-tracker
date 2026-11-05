@@ -2,9 +2,9 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ImportError } from "../../src/portability";
 import {
-  connectMailbox, connectedAddress, describeImport, describeSync, exportFilename, forgetConnections, isConnected, parseImportText, runSync,
+  connectMailbox, connectedAddress, registerMailbox, describeImport, describeSync, exportFilename, forgetConnections, isConnected, parseImportText, runSync,
 } from "../../src/pages/settings/actions";
-import { listAccounts, upsertAccount } from "../../src/db/repo";
+import { deactivateAccount, listAccounts, upsertAccount } from "../../src/db/repo";
 import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider } from "../../src/types";
 import { ada, closeDbs, freshDb } from "../app/helpers";
@@ -43,6 +43,56 @@ describe("connectMailbox", () => {
     ).rejects.toBeInstanceOf(NotConnected);
     expect(await listAccounts(db)).toEqual([]);
     expect(connectedAddress(ada, "outlook")).toBeNull();
+  });
+});
+
+describe("registerMailbox", () => {
+  it("saves the account and remembers the address without asking for access", async () => {
+    const db = freshDb();
+    const connectMail = vi.fn(async () => {});
+    const getAddress = vi.fn(async () => "me@gmail.com");
+    const tokenSource = vi.fn(async () => "t");
+    const r = await registerMailbox(db, ada, "gmail", { getAddress, tokenSource });
+    expect(r).toEqual({ id: expect.any(Number), address: "me@gmail.com" });
+    expect(getAddress).toHaveBeenCalledWith("gmail", tokenSource);
+    expect(connectMail).not.toHaveBeenCalled();
+    expect((await listAccounts(db)).map((a) => [a.address, a.active])).toEqual([["me@gmail.com", true]]);
+    expect(connectedAddress(ada, "gmail")).toBe("me@gmail.com");
+  });
+
+  it("keeps an account the person switched off, and says so", async () => {
+    const db = freshDb();
+    const id = await upsertAccount(db, "gmail", "me@gmail.com");
+    await deactivateAccount(db, id);
+    const r = await registerMailbox(db, ada, "gmail", { getAddress: vi.fn(async () => "me@gmail.com"), tokenSource: vi.fn() });
+    expect(r).toEqual({ inactive: expect.objectContaining({ id, address: "me@gmail.com", active: false }) });
+    expect((await listAccounts(db)).map((a) => a.active)).toEqual([false]);
+    expect(connectedAddress(ada, "gmail")).toBeNull();
+  });
+
+  it("leaves an already active account as it is and reuses its id", async () => {
+    const db = freshDb();
+    const id = await upsertAccount(db, "outlook", "me@outlook.com");
+    const r = await registerMailbox(db, ada, "outlook", { getAddress: vi.fn(async () => "me@outlook.com"), tokenSource: vi.fn() });
+    expect(r).toEqual({ id, address: "me@outlook.com" });
+    expect(await listAccounts(db)).toHaveLength(1);
+  });
+
+  it("a deliberate Connect still switches a disconnected account back on", async () => {
+    const db = freshDb();
+    const id = await upsertAccount(db, "gmail", "me@gmail.com");
+    await deactivateAccount(db, id);
+    const connectMail = vi.fn(async () => {});
+    const r = await connectMailbox(db, ada, "gmail", { connectMail, getAddress: vi.fn(async () => "me@gmail.com"), tokenSource: vi.fn(), createProvider: vi.fn() });
+    expect(r).toEqual({ id, address: "me@gmail.com" });
+    expect(connectMail).toHaveBeenCalledTimes(1);
+    expect((await listAccounts(db)).map((a) => a.active)).toEqual([true]);
+  });
+
+  it("saves nothing when the address can't be read", async () => {
+    const db = freshDb();
+    await expect(registerMailbox(db, ada, "gmail", { getAddress: vi.fn(async () => { throw new Error("offline"); }), tokenSource: vi.fn() })).rejects.toThrow("offline");
+    expect(await listAccounts(db)).toEqual([]);
   });
 });
 

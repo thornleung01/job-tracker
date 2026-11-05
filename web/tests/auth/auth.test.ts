@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAuth, type Auth, type AuthDeps } from "../../src/auth";
-import type { GoogleAccessToken, GoogleAuth } from "../../src/auth/google";
-import type { MicrosoftAccessToken, MicrosoftAuth } from "../../src/auth/microsoft";
+import { createAuth, type Auth } from "../../src/auth";
+import type { GoogleAccessToken, GoogleAuth, GoogleSignInResult } from "../../src/auth/google";
+import type { MicrosoftAccessToken, MicrosoftAuth, MicrosoftSignInResult } from "../../src/auth/microsoft";
 import type { AuthUser } from "../../src/auth/user";
 import { NotConnected } from "../../src/types";
 
@@ -15,30 +15,26 @@ const SECRET_M = "eyJ.SECRET-MICROSOFT-ACCESS-TOKEN";
 function fakes() {
   const clock = { now: NOW };
   const google = {
-    signIn: vi.fn(async () => ada),
-    renderButton: vi.fn(async () => {}),
+    prepare: vi.fn(async () => {}),
+    signIn: vi.fn(async (_opts?: { mail?: boolean }): Promise<GoogleSignInResult> => ({ user: ada, mail: null })),
     requestMailToken: vi.fn(async (): Promise<GoogleAccessToken> => ({ token: SECRET_G, expiresAt: clock.now + 3600_000 })),
     revoke: vi.fn(async () => {}),
-    disableAutoSelect: vi.fn(),
   } satisfies GoogleAuth;
   const microsoft = {
-    signIn: vi.fn(async () => grace),
+    prepare: vi.fn(async () => {}),
+    signIn: vi.fn(async (_opts?: { mail?: boolean }): Promise<MicrosoftSignInResult> => ({ user: grace, mail: null })),
     requestMailToken: vi.fn(async (): Promise<MicrosoftAccessToken> => ({ token: SECRET_M, expiresAt: clock.now + 3600_000 })),
     clear: vi.fn(async () => {}),
   } satisfies MicrosoftAuth;
-  let hooks: Parameters<AuthDeps["google"]>[0] | undefined;
   const memory = new Map<string, string>();
   const hintStorage = { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) };
   const auth: Auth = createAuth({
-    google: (h) => {
-      hooks = h;
-      return google;
-    },
+    google,
     microsoft,
     now: () => clock.now,
     hintStorage,
   });
-  return { auth, google, microsoft, clock, memory, hooks: () => hooks! };
+  return { auth, google, microsoft, clock, memory };
 }
 
 const deferred = <T,>() => {
@@ -72,7 +68,7 @@ describe("session", () => {
 
   it("shows signing-in while waiting, and the error after a failure", async () => {
     const { auth, google } = fakes();
-    const d = deferred<AuthUser>();
+    const d = deferred<GoogleSignInResult>();
     google.signIn.mockReturnValueOnce(d.promise);
     const p = auth.signIn("google");
     expect(auth.getSession().status).toBe("signing-in");
@@ -82,24 +78,26 @@ describe("session", () => {
   });
 
   it("refuses a provider that has no client id configured", async () => {
-    const auth = createAuth({ google: () => fakes().google, microsoft: fakes().microsoft, isConfigured: () => false });
+    const auth = createAuth({ google: fakes().google, microsoft: fakes().microsoft, isConfigured: () => false });
     await expect(auth.signIn("google")).rejects.toThrow(/isn't available on this site/);
     expect(auth.getSession().error).toMatch(/isn't available on this site/);
   });
 
-  it("signs in through the rendered Google button", async () => {
-    const { auth, hooks, google } = fakes();
-    const el = document.createElement("div");
-    await auth.renderGoogleButton(el);
-    expect(google.renderButton).toHaveBeenCalledWith(el, undefined);
-    hooks().onButtonSignIn(ada);
-    expect(auth.getSession()).toMatchObject({ status: "signed-in", user: ada });
+  it("prepares each provider", async () => {
+    const { auth, google, microsoft } = fakes();
+    await auth.prepare("google");
+    expect(google.prepare).toHaveBeenCalledOnce();
+    expect(microsoft.prepare).not.toHaveBeenCalled();
+    await auth.prepare("microsoft");
+    expect(microsoft.prepare).toHaveBeenCalledOnce();
   });
 
-  it("reports a failed button sign-in", () => {
-    const { auth, hooks } = fakes();
-    hooks().onButtonError(new Error("nonce mismatch"));
-    expect(auth.getSession()).toMatchObject({ status: "signed-out", error: "nonce mismatch" });
+  it("calls the provider before awaiting anything, so its window opens inside the click", () => {
+    const { auth, google, microsoft } = fakes();
+    void auth.signIn("google").catch(() => undefined);
+    expect(google.signIn).toHaveBeenCalledOnce();
+    void auth.signIn("microsoft").catch(() => undefined);
+    expect(microsoft.signIn).not.toHaveBeenCalled(); // already signing in: the first one has to be signed out first
   });
 
   it("works with useSyncExternalStore: stable snapshots, notifies, unsubscribes", async () => {
@@ -121,9 +119,160 @@ describe("session", () => {
     const f = fakes();
     await f.auth.signIn("microsoft");
     expect([...f.memory.entries()]).toEqual([["jobtracker:lastProvider", "microsoft"]]);
-    const next = createAuth({ google: () => f.google, microsoft: f.microsoft, hintStorage: { getItem: (k) => f.memory.get(k) ?? null, setItem: () => {} } });
+    const next = createAuth({ google: f.google, microsoft: f.microsoft, hintStorage: { getItem: (k) => f.memory.get(k) ?? null, setItem: () => {} } });
     expect(next.getSession().lastProvider).toBe("microsoft");
     expect(next.getSession().status).toBe("signed-out");
+  });
+});
+
+describe("one-click login that also connects the mailbox", () => {
+  const mailToken = () => ({ token: SECRET_G, expiresAt: NOW + 3600_000 });
+
+  it("signs in with Google by default asking for mail, sets mail.gmail and serves the token without another request", async () => {
+    const { auth, google } = fakes();
+    google.signIn.mockResolvedValueOnce({ user: ada, mail: mailToken() });
+    await expect(auth.signIn("google")).resolves.toEqual(ada);
+    expect(google.signIn).toHaveBeenCalledWith({});
+    expect(auth.getSession().mail).toEqual({ gmail: true, outlook: false });
+    await expect(auth.tokenSource("gmail")).resolves.toBe(SECRET_G);
+    expect(google.requestMailToken).not.toHaveBeenCalled();
+  });
+
+  it("sets pendingSync, and takePendingSync returns it once and then null", async () => {
+    const { auth, google } = fakes();
+    google.signIn.mockResolvedValueOnce({ user: ada, mail: mailToken() });
+    await auth.signIn("google");
+    expect(auth.getSession().pendingSync).toBe("gmail");
+    expect(auth.takePendingSync()).toBe("gmail");
+    expect(auth.getSession().pendingSync).toBeNull();
+    expect(auth.takePendingSync()).toBeNull();
+    expect(auth.getSession().mail.gmail).toBe(true);
+  });
+
+  it("does the same for Microsoft with the outlook mailbox", async () => {
+    const { auth, microsoft } = fakes();
+    microsoft.signIn.mockResolvedValueOnce({ user: grace, mail: { token: SECRET_M, expiresAt: NOW + 3600_000 } });
+    await auth.signIn("microsoft");
+    expect(auth.getSession().mail).toEqual({ gmail: false, outlook: true });
+    expect(auth.takePendingSync()).toBe("outlook");
+    await expect(auth.tokenSource("outlook")).resolves.toBe(SECRET_M);
+    expect(microsoft.requestMailToken).not.toHaveBeenCalled();
+  });
+
+  it("passes mail: false through and leaves the mailbox unconnected with nothing pending", async () => {
+    const { auth, google } = fakes();
+    await auth.signIn("google", { mail: false });
+    expect(google.signIn).toHaveBeenCalledWith({ mail: false });
+    expect(auth.getSession().mail).toEqual({ gmail: false, outlook: false });
+    expect(auth.takePendingSync()).toBeNull();
+    await expect(auth.tokenSource("gmail")).rejects.toThrow(/Gmail isn't connected/);
+  });
+
+  it("logs in without mail when the person declined Gmail", async () => {
+    const { auth } = fakes(); // the fake returns mail: null
+    await auth.signIn("google");
+    expect(auth.getSession()).toMatchObject({ status: "signed-in", mail: { gmail: false, outlook: false }, pendingSync: null });
+  });
+
+  it("signing out clears a pending first sync and revokes the Google token from the login", async () => {
+    const { auth, google } = fakes();
+    google.signIn.mockResolvedValueOnce({ user: ada, mail: mailToken() });
+    await auth.signIn("google");
+    await auth.signOut();
+    expect(auth.getSession().pendingSync).toBeNull();
+    expect(google.revoke).toHaveBeenCalledWith(SECRET_G);
+  });
+
+  it("a login that finishes after sign-out keeps no mail token", async () => {
+    const { auth, google } = fakes();
+    const d = deferred<GoogleSignInResult>();
+    google.signIn.mockReturnValueOnce(d.promise);
+    const p = auth.signIn("google");
+    await auth.signOut();
+    d.resolve({ user: ada, mail: mailToken() });
+    await expect(p).rejects.toThrow(/cancelled/);
+    expect(auth.getSession()).toMatchObject({ status: "signed-out", pendingSync: null, mail: { gmail: false, outlook: false } });
+    await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
+  });
+
+  it("revokes the Google token of a login that finishes after sign-out", async () => {
+    const { auth, google } = fakes();
+    const d = deferred<GoogleSignInResult>();
+    google.signIn.mockReturnValueOnce(d.promise);
+    const p = auth.signIn("google");
+    await auth.signOut();
+    expect(google.revoke).not.toHaveBeenCalled();
+    d.resolve({ user: ada, mail: mailToken() });
+    await expect(p).rejects.toThrow(/cancelled/);
+    expect(google.revoke).toHaveBeenCalledWith(SECRET_G);
+  });
+
+  it("does not throw when revoking a discarded token fails", async () => {
+    const { auth, google } = fakes();
+    const d = deferred<GoogleSignInResult>();
+    google.signIn.mockReturnValueOnce(d.promise);
+    google.revoke.mockRejectedValueOnce(new Error("offline"));
+    const p = auth.signIn("google");
+    await auth.signOut();
+    d.resolve({ user: ada, mail: mailToken() });
+    await expect(p).rejects.toThrow(/cancelled/);
+  });
+
+  it("keeps the failure message and leaves nothing pending", async () => {
+    const { auth, microsoft } = fakes();
+    microsoft.signIn.mockRejectedValueOnce(new Error("Your organization has to approve mail access. You can log in without it."));
+    await expect(auth.signIn("microsoft")).rejects.toThrow(/organization/);
+    expect(auth.getSession()).toMatchObject({ status: "signed-out", error: "Your organization has to approve mail access. You can log in without it.", pendingSync: null });
+  });
+});
+
+describe("a declined mail permission", () => {
+  it("starts null and stays null when mail was connected", async () => {
+    const { auth, google } = fakes();
+    expect(auth.getSession().mailDeclined).toBeNull();
+    google.signIn.mockResolvedValueOnce({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("names gmail when Google logged in without the mail token", async () => {
+    const { auth } = fakes(); // the fake returns mail: null
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBe("gmail");
+    expect(auth.getSession().mail.gmail).toBe(false);
+  });
+
+  it("names outlook when Microsoft logged in without Mail.Read", async () => {
+    const { auth } = fakes();
+    await auth.signIn("microsoft");
+    expect(auth.getSession().mailDeclined).toBe("outlook");
+  });
+
+  it("is not set when the login never asked for mail", async () => {
+    const { auth } = fakes();
+    await auth.signIn("google", { mail: false });
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("is cleared when a mailbox is connected later, and by sign-out", async () => {
+    const { auth } = fakes();
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBe("gmail");
+    await auth.connectMail("gmail");
+    expect(auth.getSession().mailDeclined).toBeNull();
+    await auth.signOut();
+    await auth.signIn("microsoft");
+    expect(auth.getSession().mailDeclined).toBe("outlook");
+    await auth.signOut();
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("stays set when a later connect attempt fails", async () => {
+    const { auth, google } = fakes();
+    await auth.signIn("google");
+    google.requestMailToken.mockRejectedValueOnce(new NotConnected("nope"));
+    await expect(auth.connectMail("gmail")).rejects.toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mailDeclined).toBe("gmail");
   });
 });
 
@@ -239,7 +388,6 @@ describe("signOut", () => {
     await auth.signOut();
     expect(auth.getSession()).toMatchObject({ status: "signed-out", user: null, mail: { gmail: false, outlook: false } });
     expect(google.revoke).toHaveBeenCalledWith(SECRET_G);
-    expect(google.disableAutoSelect).toHaveBeenCalled();
     expect(microsoft.clear).toHaveBeenCalled();
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
     await expect(auth.tokenSource("outlook")).rejects.toBeInstanceOf(NotConnected);
@@ -285,11 +433,11 @@ describe("signOut", () => {
 
   it("a sign-in that finishes after sign-out is discarded", async () => {
     const { auth, google } = fakes();
-    const d = deferred<AuthUser>();
+    const d = deferred<GoogleSignInResult>();
     google.signIn.mockReturnValueOnce(d.promise);
     const p = auth.signIn("google");
     await auth.signOut();
-    d.resolve(ada);
+    d.resolve({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
     await expect(p).rejects.toThrow(/cancelled/);
     expect(auth.getSession().status).toBe("signed-out");
   });
@@ -322,15 +470,15 @@ describe("token storage", () => {
     const { auth } = fakes();
     // no hintStorage injected here: the default (real localStorage) is exercised through the spy
     const real = createAuth({
-      google: () => ({
-        signIn: async () => ada,
-        renderButton: async () => {},
+      google: {
+        prepare: async () => {},
+        signIn: async () => ({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } }),
         requestMailToken: async () => ({ token: SECRET_G, expiresAt: NOW + 3600_000 }),
         revoke: async () => {},
-        disableAutoSelect: () => {},
-      }),
+      },
       microsoft: {
-        signIn: async () => grace,
+        prepare: async () => {},
+        signIn: async () => ({ user: grace, mail: { token: SECRET_M, expiresAt: NOW + 3600_000 } }),
         requestMailToken: async () => ({ token: SECRET_M, expiresAt: NOW + 3600_000 }),
         clear: async () => {},
       },

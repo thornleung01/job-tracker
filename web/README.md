@@ -1,6 +1,6 @@
 # Job Tracker, hosted edition
 
-A static, client-side build of Job Tracker for GitHub Pages (https://thornleung01.github.io/job-tracker/). There is no server. Login is Google or Microsoft OAuth in the browser, emails are read straight from Gmail and Microsoft Graph, and everything is stored in IndexedDB on your device, separately for each logged-in user. Tokens are kept in memory only, so after a reload you log in and connect your mailbox again. Sync runs while the app is open.
+A static, client-side build of Job Tracker for GitHub Pages (https://thornleung01.github.io/job-tracker/). There is no server. Login is Google or Microsoft OAuth in the browser, emails are read straight from Gmail and Microsoft Graph, and everything is stored in IndexedDB on your device, separately for each logged-in user. Tokens are kept in memory only, so after a reload you log in again (one click, and it reconnects your mailbox). Sync runs while the app is open.
 
 The Python app in the repo root is the local edition and is unchanged by this. See `PRODUCT.md` and `DESIGN.md`.
 
@@ -14,31 +14,63 @@ npm test
 npm run build
 ```
 
-Login needs two client IDs. Put them in `web/.env.local`:
+Login needs two app IDs, one for Google and one for Microsoft. Without them the site opens in demo mode: no login, no mailbox, one local copy of your data in this browser. The IDs live in `web/site-config.json`, which the setup page writes for you (see below). They are public by design.
+
+You can also set them with `web/.env.local`:
 
 ```
 VITE_GOOGLE_CLIENT_ID=...
 VITE_MS_CLIENT_ID=...
 ```
 
-For the deployed site, set the same values as repository variables `GOOGLE_CLIENT_ID` and `MS_CLIENT_ID` (Settings, Secrets and variables, Actions, Variables). They are public by design. The workflow in `.github/workflows/pages.yml` passes them to the build.
+or with the repository variables `GOOGLE_CLIENT_ID` and `MS_CLIENT_ID` (Settings, Secrets and variables, Actions, Variables), which `.github/workflows/pages.yml` passes to the build. A non-empty value from the build environment wins over `web/site-config.json`. An ID in the file must match the format of a Google or Microsoft ID, or it is ignored and the setup page says so.
 
 ## One-time setup (you do this in the consoles)
 
+Open the site's `#/setup` page (https://thornleung01.github.io/job-tracker/#/setup, or the "Set it up" link in Settings, Email accounts, or Site setup on the login page) and follow it. It works in demo mode and while logged out. It gives you:
+
+- numbered steps for the Google and Microsoft consoles, with a link to each page
+- the exact values to copy, each with a Copy button: the JavaScript origin, the redirect URI and the scopes, taken from the address you opened it at
+- fields to paste the two IDs into, checked as you type
+- the text of `web/site-config.json`, with an "Open site-config.json on GitHub" link to the edit page
+
+On GitHub, replace the file's contents with that text and commit to `main`. The site redeploys in a few minutes (the Actions run is linked from the page) and login turns on. There are no repository variables to set.
+
+### Without the guide
+
+The same facts, compactly.
+
 **Google Cloud**
-- Create an OAuth client of type Web application.
-- Authorized JavaScript origins: `https://thornleung01.github.io` and, for development, `http://localhost:5173`.
+- Enable the Gmail API.
+- Create an OAuth client of type Web application. Authorized JavaScript origins: `https://thornleung01.github.io` and, for development, `http://localhost:5173`. No redirect URIs.
 - Consent screen: External, status Testing. Add everyone you invite as a test user (up to 100). This list is the real access control.
 - Scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/gmail.readonly`. Invited people will see Google's "unverified app" screen.
 
 **Microsoft Entra**
+- Needs a free Azure account to have a directory.
 - App registration, supported accounts: any organizational directory and personal Microsoft accounts.
 - Platform: Single-page application. Redirect URIs: `https://thornleung01.github.io/job-tracker/` and `http://localhost:5173/job-tracker/`.
 - Delegated permissions: `openid`, `profile`, `email`, `Mail.Read`.
+- Edit this app later, don't recreate it. Microsoft gives each person a different user id in each app, so a new app would hide everyone's saved applications.
 
 **GitHub**
 - The repository must be public for free Pages.
 - Settings, Pages, Source: GitHub Actions.
+
+## Inviting someone
+
+- Gmail: add their address under Test users on the Google consent screen (Audience page). Without that, Google refuses the login.
+- They will see Google's notice that the app isn't verified. They choose Advanced, then Go to Job Tracker.
+- Outlook needs nothing extra. They choose Continue with Microsoft.
+- The bottom of the setup page has a message you can copy and send them.
+
+## What people see
+
+- The login page has Continue with Google and Continue with Microsoft. One window logs them in and asks for read access to their mail. The last one they used is highlighted.
+- If they say no to the mail permission, or the window fails, they can choose "Log in without connecting your mailbox" and connect later in Settings.
+- After login the mailbox is added and the first sync starts by itself, on every page except Settings.
+- If they saved applications in demo mode in this browser, the app offers to bring them into their account. It never does it automatically. Afterwards they can remove the earlier copy.
+- Gmail's access is checked with Google (`oauth2.googleapis.com/tokeninfo`) to learn who logged in. Microsoft's ID token is still validated in the browser. Tokens stay in memory only, and Log out revokes the Google token.
 
 ## Moving your existing data
 

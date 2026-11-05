@@ -188,6 +188,8 @@ describe("local mode (no client IDs)", () => {
     expect(q("#sync")).toBeNull();
     expect(q("#account")).toBeNull();
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up on this site.");
+    expect(q("#accounts a")?.getAttribute("href")).toBe("#/setup");
+    expect(q("#accounts a")?.textContent).toBe("Set it up");
     expect(byText("Connect Gmail")).toBeNull();
     expect(byText("Connect Outlook")).toBeNull();
     expect(byText("Log out")).toBeNull();
@@ -262,6 +264,16 @@ describe("builds with client IDs", () => {
     expect(isLocalMode(loadConfig({ VITE_GOOGLE_CLIENT_ID: "g" }, origin))).toBe(false);
     expect(isLocalMode(loadConfig({ VITE_MS_CLIENT_ID: "m" }, origin))).toBe(false);
     expect(isLocalMode(loadConfig({ VITE_GOOGLE_CLIENT_ID: "g", VITE_MS_CLIENT_ID: "m" }, origin))).toBe(false);
+    // A valid ID in the committed site-config.json also turns local mode off, an invalid one does not.
+    expect(isLocalMode(loadConfig({}, origin, { googleClientId: "1-a.apps.googleusercontent.com" }))).toBe(false);
+    expect(isLocalMode(loadConfig({}, origin, { googleClientId: "nope" }))).toBe(true);
+  });
+
+  it("does not take client IDs from the URL or storage", () => {
+    window.history.replaceState(null, "", "/?VITE_GOOGLE_CLIENT_ID=1-a.apps.googleusercontent.com#/?VITE_MS_CLIENT_ID=0a1b2c3d-4e5f-6789-abcd-ef0123456789");
+    window.localStorage.setItem("VITE_GOOGLE_CLIENT_ID", "1-a.apps.googleusercontent.com");
+    expect(isLocalMode(loadConfig({}, window.location.origin))).toBe(true);
+    window.localStorage.clear();
   });
 
   it("only a local user maps to the local database", () => {

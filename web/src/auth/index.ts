@@ -21,13 +21,8 @@ function toMailProvider(p: MailTarget): ProviderName {
   return p === "google" ? "gmail" : p === "microsoft" ? "outlook" : p;
 }
 
-interface GoogleHooks {
-  onButtonSignIn(user: AuthUser): void;
-  onButtonError(error: Error): void;
-}
-
 export interface AuthDeps {
-  google: (hooks: GoogleHooks) => GoogleAuth;
+  google: GoogleAuth;
   microsoft: MicrosoftAuth;
   isConfigured?: (provider: IdentityProvider) => boolean;
   now?: () => number;
@@ -35,10 +30,18 @@ export interface AuthDeps {
   hintStorage?: Pick<Storage, "getItem" | "setItem">;
 }
 
+export interface SignInOptions {
+  /** Ask for mailbox access in the same window. Defaults to true. */
+  mail?: boolean;
+}
+
 export interface Auth {
-  signIn(provider: IdentityProvider): Promise<AuthUser>;
-  /** Renders Google's own button; the session updates when the person completes it. */
-  renderGoogleButton(parent: HTMLElement, options?: Record<string, unknown>): Promise<void>;
+  /** Loads what the provider needs so signIn() can open its window straight from a click. Safe to call often. */
+  prepare(provider: IdentityProvider): Promise<void>;
+  /** Call it directly from a click handler: the provider window opens before anything is awaited. */
+  signIn(provider: IdentityProvider, opts?: SignInOptions): Promise<AuthUser>;
+  /** The mailbox the last login just connected, once; null afterwards or when none was connected. */
+  takePendingSync(): ProviderName | null;
   signOut(): Promise<void>;
   connectMail(provider: MailTarget): Promise<void>;
   tokenSource: TokenSource;
@@ -90,21 +93,41 @@ export function createAuth(deps: AuthDeps): Auth {
   /** Bumped on every sign-out so a request that was in flight cannot revive tokens afterwards. */
   let generation = 0;
 
-  function completeSignIn(user: AuthUser): void {
+  function completeSignIn(user: AuthUser, mail: { token: string; expiresAt: number } | null, mailRequested: boolean): void {
     tokens.clear();
     inflight.clear();
     writeLastProvider(user.provider, deps.hintStorage);
-    store.update({ status: "signed-in", user, mail: { gmail: false, outlook: false }, error: null, lastProvider: user.provider });
+    const mailbox = toMailProvider(user.provider);
+    const connected: Record<ProviderName, boolean> = { gmail: false, outlook: false };
+    if (mail) {
+      tokens.set(mailbox, { token: mail.token, expiresAt: mail.expiresAt });
+      connected[mailbox] = true;
+    }
+    store.update({
+      status: "signed-in",
+      user,
+      mail: connected,
+      pendingSync: mail ? mailbox : null,
+      mailDeclined: mailRequested && !mail ? mailbox : null,
+      error: null,
+      lastProvider: user.provider,
+    });
   }
 
-  const google = deps.google({
-    onButtonSignIn: completeSignIn,
-    onButtonError: (e) => store.update({ status: "signed-out", error: message(e) }),
-  });
+  const google = deps.google;
   const microsoft = deps.microsoft;
 
   function setMail(provider: ProviderName, connected: boolean): void {
     store.update({ mail: { ...store.getSnapshot().mail, [provider]: connected } });
+  }
+
+  /** Ends a Google token nobody will use. Best effort: it never throws and never waits longer than the revoke timeout. */
+  function discardGoogleToken(token: string): void {
+    try {
+      void withTimeout(google.revoke(token), REVOKE_TIMEOUT_MS);
+    } catch {
+      // nothing to do
+    }
   }
 
   async function signOut(): Promise<void> {
@@ -113,14 +136,22 @@ export function createAuth(deps: AuthDeps): Auth {
     tokens.clear();
     inflight.clear();
     store.reset();
-    google.disableAutoSelect();
     await Promise.allSettled([
       googleToken ? withTimeout(google.revoke(googleToken), REVOKE_TIMEOUT_MS) : Promise.resolve(),
       microsoft.clear(),
     ]);
   }
 
-  async function signIn(provider: IdentityProvider): Promise<AuthUser> {
+  function takePendingSync(): ProviderName | null {
+    const pending = store.getSnapshot().pendingSync;
+    if (pending) store.update({ pendingSync: null });
+    return pending;
+  }
+
+  const prepare = (provider: IdentityProvider): Promise<void> => (provider === "google" ? google.prepare() : microsoft.prepare());
+
+  // No await before the provider call when signed out: the provider's window has to open inside the click.
+  async function signIn(provider: IdentityProvider, opts: SignInOptions = {}): Promise<AuthUser> {
     if (deps.isConfigured && !deps.isConfigured(provider)) {
       const err = new Error(`${provider === "google" ? "Google" : "Microsoft"} login isn't available on this site yet.`);
       store.update({ status: "signed-out", error: err.message });
@@ -130,9 +161,12 @@ export function createAuth(deps: AuthDeps): Auth {
     const gen = generation;
     store.update({ status: "signing-in", error: null });
     try {
-      const user = await (provider === "google" ? google.signIn() : microsoft.signIn());
-      if (gen !== generation) throw new Error("Login was cancelled.");
-      completeSignIn(user);
+      const { user, mail } = await (provider === "google" ? google.signIn(opts) : microsoft.signIn(opts));
+      if (gen !== generation) {
+        if (mail && provider === "google") discardGoogleToken(mail.token);
+        throw new Error("Login was cancelled.");
+      }
+      completeSignIn(user, mail, opts.mail !== false);
       return user;
     } catch (e) {
       if (gen === generation) store.update({ status: "signed-out", error: message(e) });
@@ -156,8 +190,7 @@ export function createAuth(deps: AuthDeps): Auth {
       const t = await acquire(provider, true);
       if (gen !== generation) throw new NotConnected("You were logged out. Log in and try again.");
       tokens.set(provider, t);
-      setMail(provider, true);
-      store.update({ error: null });
+      store.update({ mail: { ...store.getSnapshot().mail, [provider]: true }, mailDeclined: null, error: null });
     } catch (e) {
       if (gen === generation && e instanceof NotConnected) store.update({ error: e.message });
       throw e;
@@ -199,8 +232,9 @@ export function createAuth(deps: AuthDeps): Auth {
   };
 
   return {
+    prepare,
     signIn,
-    renderGoogleButton: (parent, options) => google.renderButton(parent, options),
+    takePendingSync,
     signOut,
     connectMail,
     tokenSource,
@@ -214,13 +248,11 @@ let instance: Auth | null = null;
 
 function auth(): Auth {
   return (instance ??= createAuth({
-    google: (hooks) =>
-      createGoogleAuth({
-        clientId: config.googleClientId,
-        mailScope: config.googleMailScope,
-        loadGis: createGisLoader(),
-        ...hooks,
-      }),
+    google: createGoogleAuth({
+      clientId: config.googleClientId,
+      mailScope: config.googleMailScope,
+      loadGis: createGisLoader(),
+    }),
     microsoft: createMicrosoftAuth({
       settings: { clientId: config.msClientId, authority: config.msAuthority, redirectUri: config.redirectUri },
       loginScopes: config.msLoginScopes,
@@ -230,8 +262,9 @@ function auth(): Auth {
   }));
 }
 
-export const signIn = (provider: IdentityProvider) => auth().signIn(provider);
-export const renderGoogleButton = (parent: HTMLElement, options?: Record<string, unknown>) => auth().renderGoogleButton(parent, options);
+export const prepare = (provider: IdentityProvider) => auth().prepare(provider);
+export const signIn = (provider: IdentityProvider, opts?: SignInOptions) => auth().signIn(provider, opts);
+export const takePendingSync = () => auth().takePendingSync();
 export const signOut = () => auth().signOut();
 export const connectMail = (provider: MailTarget) => auth().connectMail(provider);
 export const tokenSource: TokenSource = (provider, signal) => auth().tokenSource(provider, signal);

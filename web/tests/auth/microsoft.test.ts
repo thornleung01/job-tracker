@@ -38,11 +38,77 @@ function setup(over: Partial<MsalLike> = {}, claimsOver: (nonce: string) => Reco
 }
 
 describe("microsoft signIn", () => {
-  it("logs in with OIDC scopes only, sends our nonce and returns the user", async () => {
+  it("asks for the login and mail scopes in one window, sends our nonce and returns the user", async () => {
     const { auth, fake } = setup();
-    const user = await auth.signIn();
-    expect(fake.loginPopup).toHaveBeenCalledWith({ scopes: ["openid", "profile", "email"], nonce: "ms-nonce" });
+    const { user } = await auth.signIn();
+    expect(fake.loginPopup).toHaveBeenCalledWith({ scopes: ["openid", "profile", "email", "Mail.Read"], nonce: "ms-nonce" });
     expect(user).toMatchObject({ provider: "microsoft", sub: "AAAAAAAAbbbbbbbbCCCCCC", email: "grace@outlook.com", name: "Grace Hopper" });
+  });
+
+  it("returns the access token from the same window as the mail token when Mail.Read was granted", async () => {
+    const { auth, fake } = setup({
+      loginPopup: vi.fn(async ({ nonce }) => ({
+        idToken: makeJwt(msClaims({ nonce })),
+        accessToken: "eyJ.mail-from-login",
+        expiresOn: new Date(NOW + 3000_000),
+        account,
+        scopes: ["openid", "profile", "email", "Mail.Read"],
+      })),
+    });
+    const { mail } = await auth.signIn({ mail: true });
+    expect(mail).toEqual({ token: "eyJ.mail-from-login", expiresAt: NOW + 3000_000 });
+    // the account is remembered, so later silent refreshes work
+    await auth.requestMailToken({ interactive: false });
+    expect(fake.acquireTokenSilent).toHaveBeenCalledWith({ scopes: ["Mail.Read"], account });
+  });
+
+  it("matches the granted scope name regardless of case", async () => {
+    const { auth } = setup({
+      loginPopup: vi.fn(async ({ nonce }) => ({ idToken: makeJwt(msClaims({ nonce })), accessToken: "t", expiresOn: null, account, scopes: ["mail.read", "openid"] })),
+    });
+    expect((await auth.signIn()).mail?.token).toBe("t");
+  });
+
+  it("returns no mail token when the result does not include Mail.Read", async () => {
+    const { auth } = setup({
+      loginPopup: vi.fn(async ({ nonce }) => ({ idToken: makeJwt(msClaims({ nonce })), accessToken: "graph-profile-token", expiresOn: null, account, scopes: ["openid", "profile", "User.Read"] })),
+    });
+    expect((await auth.signIn()).mail).toBeNull();
+  });
+
+  it("with mail: false asks for the login scopes only and returns no mail token", async () => {
+    const { auth, fake } = setup();
+    const { mail } = await auth.signIn({ mail: false });
+    expect(fake.loginPopup).toHaveBeenCalledWith({ scopes: ["openid", "profile", "email"], nonce: "ms-nonce" });
+    expect(mail).toBeNull();
+  });
+
+  it.each([
+    ["AADSTS65001", Object.assign(new Error("AADSTS65001: The user or administrator has not consented"), { errorCode: "invalid_grant" })],
+    ["AADSTS90094", Object.assign(new Error("AADSTS90094: Admin consent is required"), { errorCode: "access_denied" })],
+    ["consent_required", Object.assign(new Error("x"), { errorCode: "consent_required" })],
+    ["interaction_required with admin", Object.assign(new Error("interaction_required: needs admin approval"), { errorCode: "interaction_required" })],
+  ])("explains an admin consent block (%s)", async (_name, error) => {
+    const { auth } = setup({ loginPopup: vi.fn(async () => Promise.reject(error)) });
+    await expect(auth.signIn()).rejects.toThrow("Your organization has to approve mail access. You can log in without it.");
+  });
+
+  it("does not blame the organization when the person closed the window", async () => {
+    const { auth } = setup({ loginPopup: vi.fn(async () => Promise.reject(Object.assign(new Error("user_cancelled"), { errorCode: "user_cancelled" }))) });
+    await expect(auth.signIn()).rejects.toThrow(/Allow pop-ups/);
+  });
+
+  it("does not use the admin text when mail was not requested", async () => {
+    const { auth } = setup({ loginPopup: vi.fn(async () => Promise.reject(new Error("AADSTS65001"))) });
+    await expect(auth.signIn({ mail: false })).rejects.toThrow(/Allow pop-ups/);
+  });
+
+  it("prepare() warms the MSAL client without opening a window", async () => {
+    const { auth, createClient, fake } = setup();
+    await auth.prepare();
+    await auth.prepare();
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(fake.loginPopup).not.toHaveBeenCalled();
   });
 
   it("rejects an ID token with the wrong nonce", async () => {
@@ -124,6 +190,26 @@ describe("microsoft mail token", () => {
     await auth.clear();
     expect(fake.clearCache).toHaveBeenCalledOnce();
     await expect(auth.requestMailToken({ interactive: false })).rejects.toBeInstanceOf(NotConnected);
+  });
+
+  it("a login that finishes after clear() leaves no account behind and cancels", async () => {
+    let finish!: () => void;
+    const gate = new Promise<void>((r) => (finish = r));
+    const { auth, fake } = setup({
+      loginPopup: vi.fn(async ({ nonce }) => {
+        await gate;
+        return { idToken: makeJwt(msClaims({ nonce })), accessToken: "t", expiresOn: null, account, scopes: ["openid", "Mail.Read"] };
+      }),
+    });
+    const p = auth.signIn();
+    const settled = p.then(() => null, (e: unknown) => e as Error);
+    await vi.waitFor(() => expect(fake.loginPopup).toHaveBeenCalled());
+    await auth.clear();
+    finish();
+    expect((await settled)?.message).toMatch(/cancelled/);
+    expect(fake.clearCache).toHaveBeenCalledTimes(2); // the sign-out, and again for what the late login cached
+    await expect(auth.requestMailToken({ interactive: false })).rejects.toBeInstanceOf(NotConnected);
+    expect(fake.acquireTokenSilent).not.toHaveBeenCalled();
   });
 
   it("clear() before any use does nothing", async () => {

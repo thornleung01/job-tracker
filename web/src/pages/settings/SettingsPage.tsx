@@ -17,6 +17,7 @@ import {
   loadSettings, saveSettings, type AppearanceSettings, type ColumnId,
 } from "../../sync/settings";
 import type { SyncProgress } from "../../sync/sync";
+import { tryAcquire } from "../../sync/syncLock";
 import type { ProviderName, TokenSource } from "../../types";
 import {
   PROVIDER_LABEL, accountLabel, connectMailbox, connectedAddress, describeImport, describeSync, downloadText, exportFilename,
@@ -62,7 +63,7 @@ interface Progress {
 /** What Settings sees of auth in a local build: nothing. Never reaches the real auth module. */
 const NO_AUTH: SettingsDeps["auth"] = {
   getSession: (() => {
-    const session: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null };
+    const session: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null, pendingSync: null, mailDeclined: null };
     return () => session;
   })(),
   subscribe: () => () => undefined,
@@ -180,6 +181,11 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   // -- sync ----
   async function syncNow() {
     if (!account) return;
+    const release = tryAcquire();
+    if (!release) {
+      say("ok", "A sync is already running.");
+      return;
+    }
     const controller = new AbortController();
     abort.current = controller;
     setNotice(null);
@@ -210,6 +216,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       console.error(e);
       say("err", "Sync stopped because something went wrong. Try again.");
     } finally {
+      release();
       abort.current = null;
       setProgress(null);
     }
@@ -420,7 +427,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       ) : (
         <section className="card" id="accounts" aria-labelledby="h-accounts">
           <h2 className="sec" id="h-accounts">Email accounts</h2>
-          <p className="muted">Mail sync isn't set up on this site.</p>
+          <p className="muted">Mail sync isn't set up on this site. <a href="#/setup">Set it up</a></p>
         </section>
       )}
 
