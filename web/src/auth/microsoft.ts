@@ -98,21 +98,23 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
   const now = deps.now ?? (() => Date.now());
   let client: Promise<MsalLike> | null = null;
   let account: MsalAccount | null = null;
+  /** Bumped by clear(), so a login or token request that finishes after sign-out cannot bring the account back. */
+  let generation = 0;
 
   const msal = () => (client ??= create(deps.settings).catch((e) => {
     client = null;
     throw e;
   }));
 
-  function toToken(r: MsalResult): MicrosoftAccessToken {
+  function toToken(r: MsalResult, gen: number): MicrosoftAccessToken {
     if (!r.accessToken) throw new NotConnected("Outlook didn't return an access token. Try again.");
-    if (r.account) account = r.account;
+    if (r.account && gen === generation) account = r.account;
     return { token: r.accessToken, expiresAt: r.expiresOn?.getTime() ?? now() + 55 * 60_000 };
   }
 
-  async function popup(app: MsalLike): Promise<MicrosoftAccessToken> {
+  async function popup(app: MsalLike, gen: number): Promise<MicrosoftAccessToken> {
     try {
-      return toToken(await app.acquireTokenPopup({ scopes: deps.mailScopes, ...(account ? { account } : {}) }));
+      return toToken(await app.acquireTokenPopup({ scopes: deps.mailScopes, ...(account ? { account } : {}) }), gen);
     } catch (e) {
       if (e instanceof NotConnected) throw e;
       throw new NotConnected("Outlook connection wasn't completed. Allow pop-ups and try again.");
@@ -127,6 +129,7 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
     async signIn(opts = {}) {
       const mail = opts.mail ?? true;
       const app = await msal();
+      const gen = generation;
       const nonce = makeNonce();
       let result: MsalResult;
       try {
@@ -141,29 +144,36 @@ export function createMicrosoftAuth(deps: MicrosoftDeps): MicrosoftAuth {
         nonce,
         now: now(),
       });
+      if (gen !== generation) {
+        // Signed out while the window was open: forget what this login just cached and keep nothing.
+        await app.clearCache().catch(() => undefined);
+        throw new Error("Login was cancelled.");
+      }
       account = result.account;
       const user = userFromClaims("microsoft", claims);
       const granted = (result.scopes ?? []).map((x) => x.toLowerCase());
       const gotMail = mail && !!result.accessToken && deps.mailScopes.every((x) => granted.includes(x.toLowerCase()));
-      return { user, mail: gotMail ? toToken(result) : null };
+      return { user, mail: gotMail ? toToken(result, gen) : null };
     },
 
     async requestMailToken({ interactive, signal }) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const app = await msal();
+      const gen = generation;
       if (account) {
         try {
-          return toToken(await app.acquireTokenSilent({ scopes: deps.mailScopes, account }));
+          return toToken(await app.acquireTokenSilent({ scopes: deps.mailScopes, account }), gen);
         } catch (e) {
           if (e instanceof NotConnected) throw e;
           if (!needsInteraction(e)) throw e;
         }
       }
       if (!interactive) throw new NotConnected("Outlook needs you to reconnect.");
-      return popup(app);
+      return popup(app, gen);
     },
 
     async clear() {
+      generation++;
       account = null;
       const pending = client;
       client = null;

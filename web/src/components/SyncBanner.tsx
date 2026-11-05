@@ -2,7 +2,7 @@
 // otherwise has to open Settings, press Connect for each mailbox and then Sync. This does all three in one press,
 // through the same connectMailbox and runSync that Settings uses, so the two screens cannot drift apart.
 // Right after a login that also connected a mailbox (autoStart), it registers that mailbox and runs the first sync by itself.
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalUser, type PageUser } from "../app/localUser";
 import { useQuery } from "../app/useQuery";
 import * as realAuth from "../auth";
@@ -13,6 +13,7 @@ import type { AccountRow, JobTrackerDB } from "../db/schema";
 import { PROVIDER_LABEL, accountLabel, connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../pages/settings/actions";
 import { createProvider, getAddress } from "../providers";
 import { accountSummaries } from "../sync/queries";
+import { isSyncing, tryAcquire } from "../sync/syncLock";
 import type { SyncProgress } from "../sync/sync";
 import { NotConnected, type ProviderName, type TokenSource } from "../types";
 import "./syncbanner.css";
@@ -79,6 +80,11 @@ export interface SyncBannerProps {
    * carry-over offer may still be waiting for an answer).
    */
   autoStart?: boolean;
+  /**
+   * On a page that has its own Connect and Sync buttons (Settings). Shows nothing unless a sync is running or has a
+   * result, and never asks to reconnect. It stays mounted, so a sync keeps going when the person moves to that page.
+   */
+  quiet?: boolean;
 }
 
 export function SyncBanner(props: SyncBannerProps) {
@@ -87,7 +93,7 @@ export function SyncBanner(props: SyncBannerProps) {
   return <Banner {...props} user={user} />;
 }
 
-function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & { user: AuthUser }) {
+function Banner({ db, user, deps: given, autoStart = false, quiet = false }: SyncBannerProps & { user: AuthUser }) {
   const deps: SyncBannerDeps = { ...defaultDeps, ...given };
   const { auth } = deps;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
@@ -108,25 +114,43 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
       abort.current?.abort();
     };
   }, []);
+  // Focus moves to the result only when the person pressed Reconnect and sync themselves. An automatic first sync
+  // finishes seconds after login, wherever they are by then, and role=status already announces what it found.
+  const focusResult = useRef(false);
   useEffect(() => {
-    if (result) box.current?.focus();
+    if (result && focusResult.current) {
+      focusResult.current = false;
+      box.current?.focus();
+    }
   }, [result]);
 
   // Always call the newest closure: it runs from a timer, not from a render.
   const start = useRef(reconnectAndSync);
-  start.current = reconnectAndSync;
+  useLayoutEffect(() => {
+    start.current = reconnectAndSync;
+  });
   const taken = useRef(false);
   // Deferred a tick so React's development double-mount (mount, unmount, mount) takes the pending mailbox only once,
   // and a real unmount in between takes nothing.
   useEffect(() => {
     if (!autoStart || taken.current) return;
-    const timer = setTimeout(() => {
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
       if (!mounted.current || taken.current || busy.current) return;
+      // Settings' own sync is running: wait for it rather than take the mailbox and lose it.
+      if (isSyncing()) {
+        retry = setTimeout(attempt, 250);
+        return;
+      }
       taken.current = true;
       const provider = auth.takePendingSync();
       if (provider) void start.current(provider);
-    }, 0);
-    return () => clearTimeout(timer);
+    };
+    const timer = setTimeout(attempt, 0);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(retry);
+    };
   }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const needed: AccountRow[] = (accounts ?? []).filter((a) => a.active && !isConnected(user, a, session.mail));
@@ -134,8 +158,14 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
   /** `auto` is a mailbox that is already connected: register it and sync, with no window. Otherwise reconnect what's needed. */
   async function reconnectAndSync(auto?: ProviderName) {
     if (busy.current) return;
+    const release = tryAcquire();
+    if (!release) {
+      setResult({ ok: true, lines: ["A sync is already running."] });
+      return;
+    }
     busy.current = true;
-    let silent = false;
+    if (auto) focusResult.current = false;
+    let switchedOff: ProviderName | null = null;
     const controller = new AbortController();
     abort.current = controller;
     const providers = auto ? [] : [...new Set(needed.map((a) => a.provider))];
@@ -154,7 +184,7 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
       if (auto) {
         try {
           const done = await registerMailbox(db, user, auto, { tokenSource: auth.tokenSource, getAddress: deps.getAddress });
-          if ("inactive" in done) silent = true;
+          if ("inactive" in done) switchedOff = auto;
           else connectedAny = true;
         } catch (e) {
           problems.push(`Couldn't connect ${PROVIDER_LABEL[auto]}. ${errorText(e)}`);
@@ -196,8 +226,9 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
     } finally {
       abort.current = null;
       busy.current = false;
+      release();
       if (mounted.current) {
-        if (!silent) setResult(describeBanner(report, problems));
+        setResult(switchedOff ? { ok: true, lines: [`${PROVIDER_LABEL[switchedOff]} is switched off in Settings.`] } : describeBanner(report, problems));
         setRunning(false);
         setProgress(null);
       }
@@ -205,10 +236,10 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
   }
 
   if (accounts === undefined) return null;
-  if (!running && !result && needed.length === 0) return null;
+  if (!running && !result && (quiet || needed.length === 0)) return null;
 
   const err = !running && result !== null && !result.ok;
-  const showButton = needed.length > 0 || running;
+  const showButton = (!quiet && needed.length > 0) || running;
   return (
     <div
       key={err ? "err" : "info"}
@@ -235,7 +266,10 @@ function Banner({ db, user, deps: given, autoStart = false }: SyncBannerProps & 
         {(showButton || running || result) && (
           <div className="sync-banner-actions">
             {showButton && (
-              <button className="primary" disabled={running} aria-busy={running || undefined} onClick={() => void reconnectAndSync()}>
+              <button className="primary" disabled={running} aria-busy={running || undefined} onClick={() => {
+                focusResult.current = true;
+                void reconnectAndSync();
+              }}>
                 Reconnect and sync
               </button>
             )}

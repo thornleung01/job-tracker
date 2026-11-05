@@ -106,7 +106,6 @@ export interface GoogleAuth {
 }
 
 interface Pending {
-  mail: boolean;
   resolve(r: GisTokenResponse): void;
   reject(e: Error): void;
 }
@@ -162,7 +161,7 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
   function open(client: GisTokenClient, mail: boolean): Promise<GisTokenResponse> {
     settle()?.reject(new Error(CANCELLED));
     return new Promise<GisTokenResponse>((resolve, reject) => {
-      pending = { mail, resolve, reject };
+      pending = { resolve, reject };
       try {
         client.requestAccessToken(mail ? { prompt: "" } : { prompt: "", scope: GOOGLE_LOGIN_SCOPES });
       } catch (e) {
@@ -174,34 +173,42 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
 
   async function tokenInfo(accessToken: string): Promise<TokenInfo> {
     const body = new URLSearchParams({ access_token: accessToken });
-    let res: Response | null = null;
     try {
-      res = await doFetch(TOKENINFO_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+      let res = await doFetch(TOKENINFO_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+      // Only a server that says it doesn't take a POST gets the token in the URL; a network failure is not retried that way.
+      if (res.status === 405 || res.status === 415) res = await doFetch(`${TOKENINFO_URL}?${body.toString()}`, { method: "GET" });
+      if (!res.ok) throw new Error(NOT_VERIFIED);
+      const info: unknown = await res.json();
+      if (typeof info !== "object" || info === null) throw new Error(NOT_VERIFIED);
+      return info as TokenInfo;
     } catch {
-      res = null;
+      throw new Error(NOT_VERIFIED);
     }
-    // Some browsers or networks refuse the POST; the same call is accepted as a GET.
-    if (!res || res.status === 405 || res.status === 415) {
-      res = await doFetch(`${TOKENINFO_URL}?${body.toString()}`, { method: "GET" });
-    }
-    if (!res.ok) throw new Error(NOT_VERIFIED);
-    const info: unknown = await res.json();
-    if (typeof info !== "object" || info === null) throw new Error(NOT_VERIFIED);
-    return info as TokenInfo;
   }
 
   async function finish(r: GisTokenResponse, mail: boolean): Promise<GoogleSignInResult> {
     if (r.error === "access_denied") throw new Error(CANCELLED);
     if (r.error || !r.access_token) throw new Error(NOT_COMPLETED);
     const info = await tokenInfo(r.access_token);
-    if (info.aud !== deps.clientId && info.azp !== deps.clientId) throw new Error(NOT_VERIFIED);
+    if (info.aud !== deps.clientId || (info.azp !== undefined && info.azp !== deps.clientId)) throw new Error(NOT_VERIFIED);
     if (typeof info.sub !== "string" || !/^\d+$/.test(info.sub)) throw new Error(NOT_VERIFIED);
     if (typeof info.email !== "string" || info.email === "") throw new Error("Google didn't share your email address. Try again.");
     const user = userFromClaims("google", { iss: GOOGLE_ISSUER, sub: info.sub, email: info.email });
     const granted = (r.scope ?? (typeof info.scope === "string" ? info.scope : "")).split(" ");
-    if (!mail || !granted.includes(deps.mailScope)) return { user, mail: null };
+    const hasMailScope = granted.includes(deps.mailScope);
+    if (!mail || !hasMailScope) {
+      // Logged in without mail, but Google handed back a token that can read it anyway: it is never used, so end it.
+      if (hasMailScope) void revoke(r.access_token).catch(() => undefined);
+      return { user, mail: null };
+    }
     const seconds = Number(r.expires_in ?? 3600);
     return { user, mail: { token: r.access_token, expiresAt: now() + seconds * 1000 } };
+  }
+
+  async function revoke(token: string): Promise<void> {
+    const api = loaded;
+    if (!api) return;
+    await new Promise<void>((resolve) => api.accounts.oauth2.revoke(token, () => resolve()));
   }
 
   return {
@@ -248,10 +255,6 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
       });
     },
 
-    async revoke(token) {
-      const api = loaded;
-      if (!api) return;
-      await new Promise<void>((resolve) => api.accounts.oauth2.revoke(token, () => resolve()));
-    },
+    revoke,
   };
 }

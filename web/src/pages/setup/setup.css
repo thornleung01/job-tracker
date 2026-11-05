@@ -16,6 +16,7 @@
 .setup-field { margin-bottom: 20px; }
 .setup-field input { width: 100%; max-width: 480px; box-sizing: border-box; }
 .setup-link { font-weight: 500; }
+.setup-back { margin: 0 0 var(--gap); }
 .setup-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .setup .notice > div > .line { margin: 0; }
 .setup .status-bad { color: var(--rejected); }

@@ -119,12 +119,27 @@ describe("google signIn (token client)", () => {
     expect(init?.method).toBe("GET");
   });
 
-  it("retries tokeninfo as a GET when the POST fails to send", async () => {
+  it("retries tokeninfo as a GET when the POST answers 415", async () => {
+    const { auth, fetchMock } = setup();
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 415 }));
+    await auth.prepare();
+    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("GET");
+  });
+
+  it("does not put the token in a URL when the POST fails to send: it is not verified", async () => {
     const { auth, fetchMock } = setup();
     fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await auth.prepare();
-    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry other error statuses as a GET", async () => {
+    const { auth, fetchMock } = setup({}, () => jsonResponse({ error: "invalid_token" }, 400));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects when tokeninfo says the token is bad", async () => {
@@ -139,10 +154,22 @@ describe("google signIn (token client)", () => {
     await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
   });
 
-  it("accepts the client id in azp when aud differs", async () => {
-    const { auth } = setup({}, () => jsonResponse(infoBody({ aud: "something-else", azp: CLIENT_ID })));
+  it("accepts azp when it matches the client id along with aud", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ azp: CLIENT_ID })));
     await auth.prepare();
     await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
+  });
+
+  it("rejects when aud is another client, even if azp matches", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ aud: "something-else", azp: CLIENT_ID })));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+  });
+
+  it("rejects when aud matches but azp is another client", async () => {
+    const { auth } = setup({}, () => jsonResponse(infoBody({ azp: "something-else" })));
+    await auth.prepare();
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
   });
 
   it("rejects a missing or non-numeric sub", async () => {
@@ -178,6 +205,25 @@ describe("google signIn (token client)", () => {
     expect(s.requests[0].overrides).toEqual({ prompt: "", scope: "openid email profile" });
     expect(result.mail).toBeNull();
     expect(result.user.sub).toBe("1098765432");
+  });
+
+  it("revokes the token when the person logged in without mail but it can read mail anyway", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    const result = await auth.signIn({ mail: false });
+    expect(result.mail).toBeNull();
+    expect(s.revoked).toEqual(["ya29.token"]);
+  });
+
+  it("does not revoke a token that carries no mail scope, or one that is kept", async () => {
+    const { s, auth } = setup();
+    await auth.prepare();
+    await auth.signIn();
+    expect(s.revoked).toEqual([]);
+    s.respond = (cfg) => cfg.callback({ access_token: "ya29.login-only", expires_in: 3600, scope: "openid email profile" });
+    await auth.signIn({ mail: false });
+    await auth.signIn();
+    expect(s.revoked).toEqual([]);
   });
 
   it("gives the popup hint when the browser blocks the window", async () => {

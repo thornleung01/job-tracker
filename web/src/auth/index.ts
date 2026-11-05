@@ -93,7 +93,7 @@ export function createAuth(deps: AuthDeps): Auth {
   /** Bumped on every sign-out so a request that was in flight cannot revive tokens afterwards. */
   let generation = 0;
 
-  function completeSignIn(user: AuthUser, mail: { token: string; expiresAt: number } | null): void {
+  function completeSignIn(user: AuthUser, mail: { token: string; expiresAt: number } | null, mailRequested: boolean): void {
     tokens.clear();
     inflight.clear();
     writeLastProvider(user.provider, deps.hintStorage);
@@ -108,6 +108,7 @@ export function createAuth(deps: AuthDeps): Auth {
       user,
       mail: connected,
       pendingSync: mail ? mailbox : null,
+      mailDeclined: mailRequested && !mail ? mailbox : null,
       error: null,
       lastProvider: user.provider,
     });
@@ -118,6 +119,15 @@ export function createAuth(deps: AuthDeps): Auth {
 
   function setMail(provider: ProviderName, connected: boolean): void {
     store.update({ mail: { ...store.getSnapshot().mail, [provider]: connected } });
+  }
+
+  /** Ends a Google token nobody will use. Best effort: it never throws and never waits longer than the revoke timeout. */
+  function discardGoogleToken(token: string): void {
+    try {
+      void withTimeout(google.revoke(token), REVOKE_TIMEOUT_MS);
+    } catch {
+      // nothing to do
+    }
   }
 
   async function signOut(): Promise<void> {
@@ -152,8 +162,11 @@ export function createAuth(deps: AuthDeps): Auth {
     store.update({ status: "signing-in", error: null });
     try {
       const { user, mail } = await (provider === "google" ? google.signIn(opts) : microsoft.signIn(opts));
-      if (gen !== generation) throw new Error("Login was cancelled.");
-      completeSignIn(user, mail);
+      if (gen !== generation) {
+        if (mail && provider === "google") discardGoogleToken(mail.token);
+        throw new Error("Login was cancelled.");
+      }
+      completeSignIn(user, mail, opts.mail !== false);
       return user;
     } catch (e) {
       if (gen === generation) store.update({ status: "signed-out", error: message(e) });
@@ -177,8 +190,7 @@ export function createAuth(deps: AuthDeps): Auth {
       const t = await acquire(provider, true);
       if (gen !== generation) throw new NotConnected("You were logged out. Log in and try again.");
       tokens.set(provider, t);
-      setMail(provider, true);
-      store.update({ error: null });
+      store.update({ mail: { ...store.getSnapshot().mail, [provider]: true }, mailDeclined: null, error: null });
     } catch (e) {
       if (gen === generation && e instanceof NotConnected) store.update({ error: e.message });
       throw e;

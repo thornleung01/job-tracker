@@ -192,6 +192,26 @@ describe("microsoft mail token", () => {
     await expect(auth.requestMailToken({ interactive: false })).rejects.toBeInstanceOf(NotConnected);
   });
 
+  it("a login that finishes after clear() leaves no account behind and cancels", async () => {
+    let finish!: () => void;
+    const gate = new Promise<void>((r) => (finish = r));
+    const { auth, fake } = setup({
+      loginPopup: vi.fn(async ({ nonce }) => {
+        await gate;
+        return { idToken: makeJwt(msClaims({ nonce })), accessToken: "t", expiresOn: null, account, scopes: ["openid", "Mail.Read"] };
+      }),
+    });
+    const p = auth.signIn();
+    const settled = p.then(() => null, (e: unknown) => e as Error);
+    await vi.waitFor(() => expect(fake.loginPopup).toHaveBeenCalled());
+    await auth.clear();
+    finish();
+    expect((await settled)?.message).toMatch(/cancelled/);
+    expect(fake.clearCache).toHaveBeenCalledTimes(2); // the sign-out, and again for what the late login cached
+    await expect(auth.requestMailToken({ interactive: false })).rejects.toBeInstanceOf(NotConnected);
+    expect(fake.acquireTokenSilent).not.toHaveBeenCalled();
+  });
+
   it("clear() before any use does nothing", async () => {
     const { auth, createClient } = setup();
     await auth.clear();

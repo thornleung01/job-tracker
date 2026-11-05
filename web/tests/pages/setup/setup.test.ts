@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { $, $$, button, cleanup, click, freshDb, mountPage, text, type } from "../applications/harness";
-import { configJsonText } from "../../../src/config";
+import { $, $$, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
+import { config, configJsonText } from "../../../src/config";
 import SetupGuide from "../../../src/pages/setup/SetupGuide";
 import Setup from "../../../src/pages/setup";
 import { editConfigUrl, actionsUrl, GITHUB_REPO } from "../../../src/site";
@@ -194,6 +194,40 @@ describe("pasting IDs", () => {
   });
 });
 
+describe("page basics", () => {
+  it("sets the document title", async () => {
+    document.title = "Something else";
+    await mount();
+    expect(document.title).toBe("Set up · Job Tracker");
+  });
+
+  it("moves focus to the heading on mount", async () => {
+    const c = await mount();
+    expect(document.activeElement).toBe($(c, "h1"));
+  });
+
+  it("takes its values from the app's config, the same ones the login code uses", async () => {
+    const c = await mount();
+    const v = setupValues(new URL(config.redirectUri).origin, config.baseUrl);
+    expect(v.redirectUri).toBe(config.redirectUri);
+    const codes = $$(c, "code").map(text);
+    expect(codes).toContain(config.redirectUri);
+    expect(codes).toContain(v.origin);
+    expect(codes).toContain(config.redirectUri + "privacy.html");
+  });
+
+  it("does not announce the pasted-ID feedback line, but still links it to the field", async () => {
+    const c = await mount();
+    const field = $(c, "#setup-google-id")!;
+    const note = $(c, "#setup-google-id-note")!;
+    expect(field.getAttribute("aria-describedby")).toBe("setup-google-id-note");
+    expect(note.hasAttribute("role")).toBe(false);
+    await type(field, "oops");
+    expect(text(note)).toContain("doesn't look like a Google client ID");
+    expect(note.hasAttribute("role")).toBe(false);
+  });
+});
+
 describe("copying", () => {
   it("writes each value to the clipboard and says so", async () => {
     const writeText = mockClipboard();
@@ -206,6 +240,31 @@ describe("copying", () => {
     expect(writeText).toHaveBeenLastCalledWith(siteUrl());
     await click($(c, "button[aria-label='Copy Google scopes']"));
     expect(writeText).toHaveBeenLastCalledWith("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+  });
+
+  it("clears the Copied note after two seconds", async () => {
+    mockClipboard();
+    const c = await mount();
+    const origin = $(c, "button[aria-label='Copy Authorized JavaScript origin']");
+    await click(origin);
+    const status = origin!.parentElement!.querySelector("[role=status]");
+    expect(text(status)).toBe("Copied.");
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(text(status)).toBe("Copied.");
+    await waitFor(() => text(status) === "", "the note to clear", 3000);
+  });
+
+  it("starts the two seconds again when copied twice", async () => {
+    mockClipboard();
+    const c = await mount();
+    const origin = $(c, "button[aria-label='Copy Authorized JavaScript origin']");
+    const status = origin!.parentElement!.querySelector("[role=status]");
+    await click(origin);
+    await new Promise((r) => setTimeout(r, 1200));
+    await click(origin);
+    await new Promise((r) => setTimeout(r, 1200));
+    // 2.4 seconds after the first copy but 1.2 after the second: still showing.
+    expect(text(status)).toBe("Copied.");
   });
 
   it("copies the generated JSON", async () => {

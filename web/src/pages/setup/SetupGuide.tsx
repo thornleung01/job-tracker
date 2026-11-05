@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { focusHeading } from "../../app/focus";
 import { config, configJsonText, isGoogleClientId, isMsClientId, type IdSource } from "../../config";
 import { Notice } from "../../components/Notice";
 import { actionsUrl, editConfigUrl } from "../../site";
@@ -10,8 +11,19 @@ import "./setup.css";
  * steps. It never loads Google or Microsoft scripts and makes no network request: every link opens in a new tab.
  */
 
+const NOTE_MS = 2000;
+
 function CopyButton({ text, label, disabled }: { text: string; label: string; disabled?: boolean }) {
-  const [note, setNote] = useState("");
+  // `n` counts the copies, so copying again within the two seconds starts them over.
+  const [shown, setShown] = useState({ text: "", n: 0 });
+  const note = shown.text;
+  const setNote = (text: string) => setShown((s) => ({ text, n: s.n + 1 }));
+  // "Copied." is only a confirmation: take it away after a moment so it doesn't read as the current state.
+  useEffect(() => {
+    if (!shown.text) return;
+    const timer = setTimeout(() => setShown((s) => ({ ...s, text: "" })), NOTE_MS);
+    return () => clearTimeout(timer);
+  }, [shown]);
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
@@ -73,13 +85,22 @@ function IdField({ id, label, value, onChange, valid, hint, wrong }: IdFieldProp
       <label className="field" htmlFor={id}>{label}</label>
       <input id={id} type="text" value={value} spellCheck={false} autoComplete="off" autoCapitalize="off"
         aria-invalid={filled && !valid} aria-describedby={`${id}-note`} onChange={(e) => onChange(e.target.value)} />
-      <p className={`help flush${filled && !valid ? " status-bad" : ""}`} id={`${id}-note`} role="status">{feedback}</p>
+      <p className={`help flush${filled && !valid ? " status-bad" : ""}`} id={`${id}-note`}>{feedback}</p>
     </div>
   );
 }
 
 export default function SetupGuide() {
-  const values = useMemo(() => setupValues(window.location.origin, import.meta.env.BASE_URL), []);
+  // The same address the login code uses, so the values shown here can't differ from what the app sends.
+  const values = useMemo(() => setupValues(new URL(config.redirectUri).origin, config.baseUrl), []);
+  const root = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    document.title = "Set up · Job Tracker";
+  }, []);
+
+  // Land on the heading, like every other page. The signed-in shell does this after a navigation too: harmless to do twice.
+  useEffect(() => (root.current ? focusHeading(root.current) : undefined), []);
   const [google, setGoogle] = useState(config.source.google === "file" ? config.googleClientId : "");
   const [microsoft, setMicrosoft] = useState(config.source.microsoft === "file" ? config.msClientId : "");
 
@@ -94,7 +115,7 @@ export default function SetupGuide() {
   const mStatus = statusLine("Microsoft", config.source.microsoft);
 
   return (
-    <div className="setup">
+    <div className="setup" ref={root}>
       <h1 className="page">Set up mail sync</h1>
 
       <section className="card" aria-labelledby="h-setup-status">

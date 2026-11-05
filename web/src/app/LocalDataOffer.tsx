@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { JobTrackerDB } from "../db/schema";
 import { Notice } from "../components/Notice";
-import { bringOverLocalData, localApplicationCount, removeLocalCopy, TargetNotEmptyError } from "./carryOver";
+import { isDatabaseEmpty } from "../portability";
+import { bringOverLocalData, carryOverDone, CarryOverError, localApplicationCount, removeLocalCopy } from "./carryOver";
 import "./localdataoffer.css";
 
 export const DISMISS_KEY = "jobtracker:carryover-dismissed";
@@ -31,11 +32,12 @@ type Phase =
   | { name: "brought"; count: number }
   | { name: "confirm"; count: number }
   | { name: "removed" }
-  | { name: "failed"; message: string };
+  | { name: "failed"; message: string; count: number; retry: boolean };
 
 /**
- * Offered once per session to a signed-in person who has an earlier copy in this browser (saved before they logged in)
- * and an empty account. It never copies anything on its own, and the earlier copy is only deleted after a confirmed
+ * Offered to a signed-in person who has an earlier copy in this browser (saved before they logged in) and a completely
+ * empty account, until a bring-over has worked once in this browser (the copy belongs to nobody, so it is not offered
+ * to the next account) and, after Not now, until the session ends. It never copies anything on its own, and the earlier copy is only deleted after a confirmed
  * question. `onResolved` is called exactly once, when it is safe to go on (the first sync waits for it, because
  * importing replaces everything): at once when there is nothing to offer, or after Not now, a finished copy or an error.
  */
@@ -45,11 +47,15 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
   const [removeError, setRemoveError] = useState<string | null>(null);
   const resolved = useRef(false);
   const latest = useRef(onResolved);
-  latest.current = onResolved;
+  useLayoutEffect(() => {
+    latest.current = onResolved;
+  });
   const box = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
+  const bring = useRef<HTMLButtonElement>(null);
   const focusOpener = useRef(false);
+  const focusBring = useRef(false);
 
   function resolve() {
     if (resolved.current) return;
@@ -60,10 +66,10 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      if (readDismissed()) return false;
+      if (carryOverDone() || readDismissed()) return false;
       const local = await localApplicationCount();
       if (local === 0) return false;
-      if ((await db.applications.count()) > 0) return false;
+      if (!(await isDatabaseEmpty(db))) return false;
       if (!cancelled) setPhase({ name: "offer", count: local });
       return true;
     }
@@ -85,7 +91,10 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
   // cancelled, and the notice when a result replaces what was clicked.
   const name = phase.name;
   useEffect(() => {
-    if (name === "confirm") cancel.current?.focus();
+    if (name === "offer" && focusBring.current) {
+      focusBring.current = false;
+      bring.current?.focus();
+    } else if (name === "confirm") cancel.current?.focus();
     else if (name === "brought" && focusOpener.current) {
       focusOpener.current = false;
       opener.current?.focus();
@@ -101,10 +110,18 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
   async function bringOver() {
     if (busy) return;
     setBusy(true);
+    const count = phase.name === "offer" ? phase.count : 0;
     try {
       setPhase({ name: "brought", count: await bringOverLocalData(db) });
     } catch (e) {
-      setPhase({ name: "failed", message: e instanceof TargetNotEmptyError ? e.message : "Couldn't bring them over. Nothing was changed. Your earlier copy is still in this browser." });
+      // A refusal (account not empty, copy gone) won't change on a retry; anything else might.
+      const refused = e instanceof CarryOverError;
+      setPhase({
+        name: "failed",
+        message: refused ? e.message : "Couldn't bring them over. Nothing was changed. Your earlier copy is still in this browser.",
+        count,
+        retry: !refused,
+      });
     }
     setBusy(false);
     resolve();
@@ -129,9 +146,9 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
 
   if (phase.name === "offer") {
     return (
-      <div className="carryover carryover-row" role="status">
+      <div className="carryover carryover-row" role="group" aria-label="Earlier copy">
         <span className="carryover-text">You have {applications(phase.count)} saved in this browser from before you logged in.</span>
-        <button type="button" disabled={busy} aria-busy={busy || undefined} onClick={() => void bringOver()}>Bring them over</button>
+        <button type="button" ref={bring} disabled={busy} aria-busy={busy || undefined} onClick={() => void bringOver()}>Bring them over</button>
         <button type="button" className="muted" disabled={busy} onClick={notNow}>Not now</button>
       </div>
     );
@@ -141,6 +158,19 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
     return (
       <div className="carryover" ref={box} tabIndex={-1}>
         <Notice tone="err">{phase.message}</Notice>
+        {phase.retry && (
+          <p className="row">
+            <button
+              type="button"
+              onClick={() => {
+                focusBring.current = true;
+                setPhase({ name: "offer", count: phase.count });
+              }}
+            >
+              Try again
+            </button>
+          </p>
+        )}
       </div>
     );
   }

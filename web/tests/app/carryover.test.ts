@@ -4,8 +4,9 @@ import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_DB_NAME } from "../../src/config";
 import { openDatabase, type JobTrackerDB } from "../../src/db/schema";
-import { bringOverLocalData, localApplicationCount, removeLocalCopy, TargetNotEmptyError } from "../../src/app/carryOver";
+import { bringOverLocalData, DONE_KEY, localApplicationCount, NothingToBringOverError, removeLocalCopy, TargetNotEmptyError } from "../../src/app/carryOver";
 import { DISMISS_KEY, LocalDataOffer } from "../../src/app/LocalDataOffer";
+import { importAll } from "../../src/portability";
 import { upsertAccount } from "../../src/db/repo";
 import { addNote } from "../../src/sync/activity";
 import { addApp, addMail } from "../pages/applications/harness";
@@ -39,6 +40,7 @@ async function localCounts() {
 
 beforeEach(async () => {
   window.sessionStorage.clear();
+  window.localStorage.removeItem(DONE_KEY);
   await Dexie.delete(LOCAL_DB_NAME);
 });
 afterEach(async () => {
@@ -87,6 +89,78 @@ describe("bringOverLocalData and removeLocalCopy", () => {
     await addApp(target, "Initech");
     await expect(bringOverLocalData(target)).rejects.toBeInstanceOf(TargetNotEmptyError);
     expect((await target.applications.toArray()).map((a) => a.company)).toEqual(["Initech"]);
+  });
+
+  it("refuses when the target has any data at all, not only applications, and changes nothing", async () => {
+    await seedLocal();
+    const withSettings = freshDb();
+    await withSettings.settings.put({ key: "theme", value: "dark" });
+    await expect(bringOverLocalData(withSettings)).rejects.toBeInstanceOf(TargetNotEmptyError);
+    expect(await withSettings.settings.toArray()).toEqual([{ key: "theme", value: "dark" }]);
+    expect(await withSettings.applications.count()).toBe(0);
+
+    const withAccount = freshDb();
+    await upsertAccount(withAccount, "outlook", "me@outlook.com");
+    await expect(bringOverLocalData(withAccount)).rejects.toBeInstanceOf(TargetNotEmptyError);
+    expect(await withAccount.accounts.count()).toBe(1);
+    expect(await withAccount.applications.count()).toBe(0);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+  });
+
+  it("checks that the target is empty inside the import transaction, so a row written just before it is not wiped", async () => {
+    await seedLocal();
+    const target = freshDb();
+    await target.open();
+    const real = target.transaction.bind(target) as (...a: unknown[]) => Promise<unknown>;
+    vi.spyOn(target, "transaction").mockImplementation((async (...args: unknown[]) => {
+      await target.settings.put({ key: "late", value: 1 }); // lands after any earlier check, before the import runs
+      return real(...args);
+    }) as never);
+    await expect(bringOverLocalData(target)).rejects.toBeInstanceOf(TargetNotEmptyError);
+    expect(await target.settings.toArray()).toEqual([{ key: "late", value: 1 }]);
+    expect(await target.applications.count()).toBe(0);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+  });
+
+  it("throws when the local database vanished, and does not create it again", async () => {
+    await seedLocal();
+    await removeLocalCopy();
+    const open = vi.fn(openDatabase);
+    const target = freshDb();
+    await expect(bringOverLocalData(target, open)).rejects.toBeInstanceOf(NothingToBringOverError);
+    expect(open).not.toHaveBeenCalled();
+    expect(await localExists()).toBe(false);
+    expect(await localNames()).not.toContain(LOCAL_DB_NAME);
+    expect(await target.applications.count()).toBe(0);
+  });
+
+  it("refuses an earlier copy with no applications, and changes nothing", async () => {
+    const local = openDatabase(LOCAL_DB_NAME);
+    await upsertAccount(local, "gmail", "me@gmail.com");
+    local.close();
+    const target = freshDb();
+    await expect(bringOverLocalData(target)).rejects.toBeInstanceOf(NothingToBringOverError);
+    expect(await target.accounts.count()).toBe(0);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+  });
+
+  it("records that a bring-over worked only after it succeeds", async () => {
+    await seedLocal();
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+    await bringOverLocalData(freshDb());
+    expect(window.localStorage.getItem(DONE_KEY)).toBe("1");
+  });
+
+  it("importAll still replaces everything (Settings > Import is unchanged)", async () => {
+    await seedLocal();
+    const local = openDatabase(LOCAL_DB_NAME);
+    const { exportAll } = await import("../../src/portability");
+    const envelope = await exportAll(local);
+    local.close();
+    const target = freshDb();
+    await addApp(target, "Initech");
+    await importAll(target, envelope);
+    expect((await target.applications.toArray()).map((a) => a.company).sort()).toEqual(["Acme", "Globex"]);
   });
 
   it("removes the local database", async () => {
@@ -153,7 +227,10 @@ describe("LocalDataOffer", () => {
     await render(h(LocalDataOffer, { db, onResolved }));
     await waitFor(() => byText("Bring them over"));
     expect(offerText()).toContain("You have 2 applications saved in this browser from before you logged in.");
-    expect(q(".carryover")?.getAttribute("role")).toBe("status");
+    const row = q(".carryover")!;
+    expect(row.getAttribute("role")).toBe("group");
+    expect(row.getAttribute("aria-label")).toBe("Earlier copy");
+    expect(row.querySelector("[role=status]")).toBeNull();
     await settle(100);
     expect(await db.applications.count()).toBe(0);
     expect(await db.emails.count()).toBe(0);
@@ -174,8 +251,8 @@ describe("LocalDataOffer", () => {
     const db = freshDb();
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const real = db.applications.count.bind(db.applications);
-    vi.spyOn(db.applications, "count").mockImplementation((() => gate.then(() => real())) as never);
+    const real = db.transaction.bind(db) as (...a: unknown[]) => Promise<unknown>;
+    vi.spyOn(db, "transaction").mockImplementation(((...args: unknown[]) => gate.then(() => real(...args))) as never);
     const onResolved = vi.fn();
     const view = await render(h(LocalDataOffer, { db, onResolved }));
     await settle(50);
@@ -238,11 +315,93 @@ describe("LocalDataOffer", () => {
     await addApp(db, "Initech");
     await click(bring);
     await waitFor(() => q('.carryover [role="alert"]'));
-    expect(q('.carryover [role="alert"]')!.textContent).toContain("already has applications");
+    expect(q('.carryover [role="alert"]')!.textContent).toContain("already has data");
     expect(onResolved).toHaveBeenCalledTimes(1);
     expect((await db.applications.toArray()).map((a) => a.company)).toEqual(["Initech"]);
     expect((await localCounts()).applications).toBe(2);
     await settle(50);
     expect(onResolved).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer when the account has settings or accounts but no applications", async () => {
+    await seedLocal();
+    for (const prepare of [
+      (d: JobTrackerDB) => d.settings.put({ key: "theme", value: "dark" }),
+      (d: JobTrackerDB) => upsertAccount(d, "gmail", "me@gmail.com"),
+    ]) {
+      cleanupRendered();
+      const db = freshDb();
+      await prepare(db);
+      expect(await db.applications.count()).toBe(0);
+      const onResolved = vi.fn();
+      const view = await render(h(LocalDataOffer, { db, onResolved }));
+      await waitFor(() => onResolved.mock.calls.length === 1);
+      await settle(50);
+      expect(onResolved).toHaveBeenCalledTimes(1);
+      expect(view.container.textContent).toBe("");
+    }
+  });
+
+  it("stops offering in this browser once a bring-over worked, but not before", async () => {
+    await seedLocal();
+    // Not now does not set the flag
+    const first = vi.fn();
+    await render(h(LocalDataOffer, { db: freshDb(), onResolved: first }));
+    await click((await waitFor(() => byText("Not now")))!);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+    window.sessionStorage.clear();
+    cleanupRendered();
+
+    const second = vi.fn();
+    await render(h(LocalDataOffer, { db: freshDb(), onResolved: second }));
+    await click((await waitFor(() => byText("Bring them over")))!);
+    await waitFor(() => offerText().includes("Brought over 2 applications"));
+    expect(window.localStorage.getItem(DONE_KEY)).toBe("1");
+    expect(window.localStorage.getItem("jobtracker:carryover-done")).toBe("1");
+    cleanupRendered();
+
+    // a different account in the same browser, with the earlier copy still there
+    expect((await localCounts()).applications).toBe(2);
+    const third = vi.fn();
+    const view = await render(h(LocalDataOffer, { db: freshDb(), onResolved: third }));
+    await waitFor(() => third.mock.calls.length === 1);
+    await settle(50);
+    expect(third).toHaveBeenCalledTimes(1);
+    expect(view.container.textContent).toBe("");
+  });
+
+  it("offers Try again after an unexpected failure, and onResolved still fires once", async () => {
+    await seedLocal();
+    const db = freshDb();
+    const onResolved = vi.fn();
+    await render(h(LocalDataOffer, { db, onResolved }));
+    const bring = await waitFor(() => byText("Bring them over"));
+    vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("disk full"));
+    await click(bring);
+    await waitFor(() => q('.carryover [role="alert"]'));
+    expect(q('.carryover [role="alert"]')!.textContent).toContain("Couldn't bring them over");
+    expect(onResolved).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+
+    await click(byText("Try again")!);
+    const again = await waitFor(() => byText("Bring them over"));
+    expect(q('.carryover [role="alert"]')).toBeNull();
+    expect(document.activeElement).toBe(again);
+    await click(again);
+    await waitFor(() => offerText().includes("Brought over 2 applications"));
+    expect(await db.applications.count()).toBe(2);
+    expect(onResolved).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no Try again when the refusal can't change", async () => {
+    await seedLocal();
+    const db = freshDb();
+    await render(h(LocalDataOffer, { db, onResolved: vi.fn() }));
+    const bring = await waitFor(() => byText("Bring them over"));
+    await db.settings.put({ key: "theme", value: "dark" });
+    await click(bring);
+    await waitFor(() => q('.carryover [role="alert"]'));
+    expect(offerText()).toContain("already has data");
+    expect(byText("Try again")).toBeNull();
   });
 });

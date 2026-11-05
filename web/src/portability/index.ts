@@ -41,20 +41,31 @@ function summary(data: ExportData): ImportSummary {
   return Object.fromEntries(TABLE_NAMES.map((t) => [t, data[t].length])) as unknown as ImportSummary;
 }
 
+/** Clears every table and writes `data`. Call it inside a read-write transaction over db.tables. */
+async function writeAll(db: JobTrackerDB, data: ExportData): Promise<void> {
+  await Promise.all(db.tables.map((t) => t.clear()));
+  await db.accounts.bulkAdd(data.accounts);
+  await db.applications.bulkAdd(data.applications);
+  await db.emails.bulkAdd(data.emails);
+  await db.activity.bulkAdd(data.activity);
+  await db.feedback.bulkAdd(data.feedback);
+  await db.ignoredMail.bulkAdd(data.ignoredMail);
+  await db.learnedRules.bulkAdd(data.learnedRules);
+  await db.contactEdits.bulkAdd(data.contactEdits);
+  await db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
+}
+
 async function replaceWith(db: JobTrackerDB, data: ExportData): Promise<ImportSummary> {
-  await tx(db, async () => {
-    await Promise.all(db.tables.map((t) => t.clear()));
-    await db.accounts.bulkAdd(data.accounts);
-    await db.applications.bulkAdd(data.applications);
-    await db.emails.bulkAdd(data.emails);
-    await db.activity.bulkAdd(data.activity);
-    await db.feedback.bulkAdd(data.feedback);
-    await db.ignoredMail.bulkAdd(data.ignoredMail);
-    await db.learnedRules.bulkAdd(data.learnedRules);
-    await db.contactEdits.bulkAdd(data.contactEdits);
-    await db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
-  });
+  await tx(db, () => writeAll(db, data));
   return summary(data);
+}
+
+/** True when every table is empty: no applications, accounts, emails, notes, settings, nothing. */
+export async function isDatabaseEmpty(db: JobTrackerDB): Promise<boolean> {
+  return db.transaction("r", db.tables, async () => {
+    for (const t of db.tables) if ((await t.count()) > 0) return false;
+    return true;
+  });
 }
 
 /**
@@ -64,6 +75,20 @@ async function replaceWith(db: JobTrackerDB, data: ExportData): Promise<ImportSu
 export async function importAll(db: JobTrackerDB, input: unknown): Promise<ImportSummary> {
   const { data } = parseEnvelope(parseJson(input));
   return replaceWith(db, data);
+}
+
+/**
+ * Like importAll, but only when every table is empty, and the check and the write are one transaction, so nothing can
+ * slip in between them. Returns null (and changes nothing) when the database already has any data.
+ */
+export async function importAllIfEmpty(db: JobTrackerDB, input: unknown): Promise<ImportSummary | null> {
+  const { data } = parseEnvelope(parseJson(input));
+  const written = await tx(db, async () => {
+    for (const t of db.tables) if ((await t.count()) > 0) return false;
+    await writeAll(db, data);
+    return true;
+  });
+  return written ? summary(data) : null;
 }
 
 /** The same, for the file made from the local edition's database by scripts/export_json.py. */

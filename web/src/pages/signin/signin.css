@@ -10,8 +10,10 @@
 .signin-actions button.google-btn:hover:not(:disabled) { background: #f6f6f6; }
 .signin-actions button.google-btn.primary { box-shadow: inset 0 0 0 1px #747775, 0 0 0 2px var(--ink); }
 .google-mark { flex: none; }
+/* Forced colours drops box-shadow, so the last-used ring becomes a real outline. */
+@media (forced-colors: active) { .google-btn.primary { outline: 2px solid; } }
 .signin-help { margin: 0; text-wrap: pretty; }
-.signin-skip { align-self: flex-start; background: none; box-shadow: none; padding: 0; color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.signin-skip { align-self: flex-start; background: none; box-shadow: none; padding: 0; color: var(--ink); font-weight: 500; }
 .signin-skip:hover:not(:disabled) { background: none; }
 .signin-footer { margin: 0; }
 .signin-footer a { font-weight: 500; color: var(--ink); }

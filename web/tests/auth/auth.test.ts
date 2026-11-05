@@ -195,11 +195,84 @@ describe("one-click login that also connects the mailbox", () => {
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
   });
 
+  it("revokes the Google token of a login that finishes after sign-out", async () => {
+    const { auth, google } = fakes();
+    const d = deferred<GoogleSignInResult>();
+    google.signIn.mockReturnValueOnce(d.promise);
+    const p = auth.signIn("google");
+    await auth.signOut();
+    expect(google.revoke).not.toHaveBeenCalled();
+    d.resolve({ user: ada, mail: mailToken() });
+    await expect(p).rejects.toThrow(/cancelled/);
+    expect(google.revoke).toHaveBeenCalledWith(SECRET_G);
+  });
+
+  it("does not throw when revoking a discarded token fails", async () => {
+    const { auth, google } = fakes();
+    const d = deferred<GoogleSignInResult>();
+    google.signIn.mockReturnValueOnce(d.promise);
+    google.revoke.mockRejectedValueOnce(new Error("offline"));
+    const p = auth.signIn("google");
+    await auth.signOut();
+    d.resolve({ user: ada, mail: mailToken() });
+    await expect(p).rejects.toThrow(/cancelled/);
+  });
+
   it("keeps the failure message and leaves nothing pending", async () => {
     const { auth, microsoft } = fakes();
     microsoft.signIn.mockRejectedValueOnce(new Error("Your organization has to approve mail access. You can log in without it."));
     await expect(auth.signIn("microsoft")).rejects.toThrow(/organization/);
     expect(auth.getSession()).toMatchObject({ status: "signed-out", error: "Your organization has to approve mail access. You can log in without it.", pendingSync: null });
+  });
+});
+
+describe("a declined mail permission", () => {
+  it("starts null and stays null when mail was connected", async () => {
+    const { auth, google } = fakes();
+    expect(auth.getSession().mailDeclined).toBeNull();
+    google.signIn.mockResolvedValueOnce({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("names gmail when Google logged in without the mail token", async () => {
+    const { auth } = fakes(); // the fake returns mail: null
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBe("gmail");
+    expect(auth.getSession().mail.gmail).toBe(false);
+  });
+
+  it("names outlook when Microsoft logged in without Mail.Read", async () => {
+    const { auth } = fakes();
+    await auth.signIn("microsoft");
+    expect(auth.getSession().mailDeclined).toBe("outlook");
+  });
+
+  it("is not set when the login never asked for mail", async () => {
+    const { auth } = fakes();
+    await auth.signIn("google", { mail: false });
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("is cleared when a mailbox is connected later, and by sign-out", async () => {
+    const { auth } = fakes();
+    await auth.signIn("google");
+    expect(auth.getSession().mailDeclined).toBe("gmail");
+    await auth.connectMail("gmail");
+    expect(auth.getSession().mailDeclined).toBeNull();
+    await auth.signOut();
+    await auth.signIn("microsoft");
+    expect(auth.getSession().mailDeclined).toBe("outlook");
+    await auth.signOut();
+    expect(auth.getSession().mailDeclined).toBeNull();
+  });
+
+  it("stays set when a later connect attempt fails", async () => {
+    const { auth, google } = fakes();
+    await auth.signIn("google");
+    google.requestMailToken.mockRejectedValueOnce(new NotConnected("nope"));
+    await expect(auth.connectMail("gmail")).rejects.toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mailDeclined).toBe("gmail");
   });
 });
 

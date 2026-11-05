@@ -84,7 +84,7 @@ export const q = <T extends Element = HTMLElement>(sel: string, root: ParentNode
 export const byText = (text: string, sel = "button, a, label", root: ParentNode = document) =>
   Array.from(root.querySelectorAll<HTMLElement>(sel)).find((e) => (e.textContent ?? "").trim() === text) ?? null;
 
-const SIGNED_OUT: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, pendingSync: null, error: null, lastProvider: null };
+const SIGNED_OUT: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, pendingSync: null, mailDeclined: null, error: null, lastProvider: null };
 
 /**
  * A controllable stand-in for the auth module.

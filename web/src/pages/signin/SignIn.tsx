@@ -29,6 +29,8 @@ function GoogleMark() {
 export function SignIn({ auth, session, configured = buildConfigured() }: SignInProps) {
   const busy = session.status === "signing-in";
   const none = !configured.google && !configured.microsoft;
+  // The line under the buttons explains them, so each button points at it.
+  const helpId = none ? undefined : "signin-help";
   // The provider whose login just failed, so the person can try again without the mailbox.
   const [failed, setFailed] = useState<IdentityProvider | null>(null);
 
@@ -67,13 +69,13 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
         <div className="card signin-card">
           <div className="signin-actions">
             {configured.google && (
-              <button className={`google-btn${session.lastProvider === "google" ? " primary" : ""}`} disabled={busy} onClick={() => logIn("google", true)}>
+              <button className={`google-btn${session.lastProvider === "google" ? " primary" : ""}`} disabled={busy} aria-describedby={helpId} onClick={() => logIn("google", true)}>
                 <GoogleMark />
                 Continue with Google
               </button>
             )}
             {configured.microsoft && (
-              <button className={session.lastProvider === "microsoft" ? "primary" : undefined} disabled={busy} onClick={() => logIn("microsoft", true)}>
+              <button className={session.lastProvider === "microsoft" ? "primary" : undefined} disabled={busy} aria-describedby={helpId} onClick={() => logIn("microsoft", true)}>
                 Continue with Microsoft
               </button>
             )}
@@ -82,8 +84,9 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
             <p className="small muted">{configured.google ? "Microsoft" : "Google"} login isn't available on this site yet.</p>
           )}
           {!none && (
-            <p className="small muted signin-help">
-              One window logs you in and lets Job Tracker read your email. Google may say it hasn't verified the app: choose Advanced, then Go to Job Tracker.
+            <p className="small muted signin-help" id={helpId}>
+              One window logs you in and lets Job Tracker read your email.
+              {configured.google && " Google may say it hasn't verified the app: choose Advanced, then Go to Job Tracker."}
             </p>
           )}
           {failed && (
