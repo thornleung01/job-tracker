@@ -9,6 +9,7 @@ import { MailMeta } from "../../components/MailMeta";
 import { MoreMenu } from "../../components/detail/MoreMenu";
 import { Notice } from "../../components/Notice";
 import { PersonCard } from "../../components/PersonCard";
+import { OfferDetails, showsOffer } from "../../components/offer/OfferDetails";
 import { InterviewRounds } from "../../components/rounds/InterviewRounds";
 import { StageBadge } from "../../components/StageBadge";
 import { TimeText, dayText } from "../../components/TimeText";
@@ -164,6 +165,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           {app.locked ? <span className="small muted">{"·"} Stage set by you. Syncs won't change it.</span> : null}
         </div>
         {data.rounds || app.stage === "Interview" ? <div className="detail-rounds"><InterviewRounds db={db} appId={id} rounds={data.rounds} /></div> : null}
+        {showsOffer(app) ? <OfferDetails db={db} app={app} /> : null}
         <details className="more detail-edit">
           <summary>Edit details</summary>
           <form className="row" onSubmit={saveCompany}>

@@ -157,8 +157,8 @@ export function describeImport(s: ImportSummary): string {
   return `Imported ${n(s.applications, "application", "applications")} and ${n(s.emails, "email", "emails")}.`;
 }
 
-export function downloadText(filename: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+export function downloadText(filename: string, text: string, type = "application/json"): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;

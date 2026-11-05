@@ -8,12 +8,13 @@ import { needsFollowUp } from "./followUp";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
+import { listRounds } from "./listRounds";
 import { nextInterviewDay } from "./upcoming";
 
-export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails";
-export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails"];
+export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds";
+export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails", "rounds"];
 export const DEFAULT_DIR: Readonly<Record<SortColumn, "asc" | "desc">> = {
-  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc",
+  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc", rounds: "desc",
 };
 
 export interface ListQuery {
@@ -36,6 +37,8 @@ export interface ApplicationListRow extends ApplicationRow {
   followUp: boolean;
   /** the next day an interview email says a meeting is on (YYYY-MM-DD, today or later), or null */
   nextInterview: string | null;
+  /** interview rounds (yours, or worked out from the emails and steps); null when there is nothing to count */
+  rounds: number | null;
 }
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
@@ -61,11 +64,13 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
   }
   const needle = (query.q ?? "").trim().toLowerCase();
+  const rounds = await listRounds(db, emails);
   let rows: ApplicationListRow[] = (await db.applications.toArray()).map((a) => {
     const idleDays = daysSince(a.lastActivity, now);
     return {
       ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays),
       nextInterview: nextInterviewDay(interviews.get(a.id) ?? [], localToday(now)),
+      rounds: rounds(a),
     };
   });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) rows = rows.filter((a) => a.stage === query.stage);
@@ -81,6 +86,8 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     applied: (a, b) => (a.appliedAt === null || b.appliedAt === null ? (a.appliedAt === null ? 1 : 0) - (b.appliedAt === null ? 1 : 0) : sign * nullable(a.appliedAt, b.appliedAt)),
     lastActivity: (a, b) => sign * nullable(a.lastActivity, b.lastActivity),
     emails: (a, b) => sign * (a.nEmails - b.nEmails),
+    // no count always goes last, whichever way you sort
+    rounds: (a, b) => (a.rounds === null || b.rounds === null ? (a.rounds === null ? 1 : 0) - (b.rounds === null ? 1 : 0) : sign * (a.rounds - b.rounds)),
   };
   return rows.sort((a, b) => by[sort](a, b) || a.id - b.id);
 }

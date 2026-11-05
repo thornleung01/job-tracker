@@ -14,6 +14,7 @@ export const COLUMNS = {
   applied: "Applied",
   lastActivity: "Last activity",
   emails: "Emails",
+  rounds: "Rounds",
 } as const;
 export type ColumnId = keyof typeof COLUMNS;
 /** 0 means all time */

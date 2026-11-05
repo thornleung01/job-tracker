@@ -1,0 +1,12 @@
+/* The decision line under the stage in the list. */
+.offer-deadline { display: block; margin-top: 4px; }
+
+/* The Offer section on the detail page. */
+.offer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.offer-title { margin: 0 0 8px; font-size: 1rem; line-height: 1.4; }
+.offer-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.offer-form .fgroup:first-child { flex: 1 1 220px; max-width: 360px; }
+.offer-form .fgroup input { width: 100%; }
+.offer-actions { margin: 0; }
+.offer-error { margin: 8px 0 0; color: var(--rejected); }
+.offer-status { margin: 8px 0 0; }
