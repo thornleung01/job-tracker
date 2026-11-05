@@ -26,19 +26,30 @@ export function sanitizeText(value: unknown, limit: number): string {
 
 // ---------------------------------------------------------------- names from slugs
 
-const SMALL_WORDS = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "with"]);
+// "an" is left out: in a slug it is as likely to be part of a name ("lgs-an-ibm-company") as a connecting word.
+const SMALL_WORDS = new Set(["a", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "with"]);
 const ROLE_ACRONYMS: Record<string, string> = {
   qa: "QA", ui: "UI", ux: "UX", sre: "SRE", sdet: "SDET", aws: "AWS", gcp: "GCP", sql: "SQL", seo: "SEO", hr: "HR",
   cto: "CTO", ceo: "CEO", cfo: "CFO", coo: "COO", cpo: "CPO", vp: "VP", ml: "ML", ai: "AI", api: "API", sap: "SAP",
   crm: "CRM", erp: "ERP", etl: "ETL", sdr: "SDR", bdr: "BDR", ii: "II", iii: "III", iv: "IV", ios: "iOS", devops: "DevOps",
 };
 
+/** Percent-decodes text from a URL. Never throws; control characters and path separators become spaces and invisible or direction-changing characters are dropped. */
 function safeDecode(s: string): string {
+  let out: string;
   try {
-    return decodeURIComponent(s);
+    out = decodeURIComponent(s);
   } catch {
-    return s;
+    // A malformed sequence somewhere: decode the well-formed runs and leave the rest as typed.
+    out = s.replace(/(?:%[0-9a-f]{2})+/gi, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
   }
+  return out === s ? s : out.replace(/[\u0000-\u001f\u007f-\u009f/\\]/g, " ").replace(/[\u00ad\u200b-\u200f\u202a-\u202e\u2060\ufeff]/g, "");
 }
 
 function deslug(slug: string): string[] {
@@ -273,7 +284,7 @@ function tenant(c: Ctx): string {
 function linkedin(c: Ctx): Derived {
   const i = c.segs.findIndex((s, k) => s === "view" && /^jobs2?$/.test(c.segs[k - 1] ?? ""));
   if (i < 0) return c.segs[0] === "company" && c.segs[1] ? { company: name(c.segs[1]) } : {};
-  const m = /^(.+)-(\d{6,})$/.exec(safeDecode(c.segs[i + 1] ?? ""));
+  const m = /^(.+)-(\d{6,})$/.exec(c.segs[i + 1] ?? "");
   if (!m) return {};
   const base = m[1];
   const at = base.toLowerCase().lastIndexOf("-at-");

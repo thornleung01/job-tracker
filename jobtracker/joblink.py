@@ -36,6 +36,9 @@ TOTAL_TIMEOUT = 8.0     # seconds for everything one "Fill in" does
 ALLOWED_PORTS = {80, 443}
 USER_AGENT = "JobTracker/1.0 (+personal use)"
 PAGE_TYPES = {"text/html", "application/json", "application/ld+json"}
+ASHBY_HOST = "jobs.ashbyhq.com"      # the one host a POST may go to
+_ASHBY_TARGETS = {"job": "/api/non-user-graphql?op=ApiJobPosting",
+                  "organization": "/api/non-user-graphql?op=ApiOrganizationFromHostedJobsPageName"}
 LIMITS = {"company": 60, "role": 90, "location": 80}
 
 # Messages are fixed on purpose: nothing from the network or from an exception reaches the person.
@@ -220,13 +223,15 @@ def _pinned(scheme: str, host: str, ip: str, port: int, timeout: float):
     return Pinned(host, port, timeout=timeout)
 
 
-def _transport(scheme: str, host: str, ips: list[str], port: int, target: str, headers: dict, timeout: float):
-    """Open `target` on one of `ips` (already checked) and return the response, headers read and body not yet."""
+def _transport(scheme: str, host: str, ips: list[str], port: int, target: str, headers: dict, timeout: float,
+               method: str = "GET", body: bytes | None = None):
+    """Open `target` on one of `ips` (already checked) and return the response, headers read and body not yet.
+    `method` and `body` are only ever passed by `_Fetcher.post_json`; every ordinary fetch is a GET without a body."""
     last: Exception | None = None
     for ip in ips:
         conn = _pinned(scheme, host, ip, port, timeout)
         try:
-            conn.request("GET", target, headers=headers)
+            conn.request(method, target, body=body, headers=headers)
             return _Live(conn, conn.getresponse())
         except (OSError, http.client.HTTPException, ssl.SSLError) as exc:
             last = exc
@@ -307,6 +312,44 @@ class _Fetcher:
             finally:
                 resp.close()
         raise _FetchFailed                                    # too many redirects
+
+    def post_json(self, op: str, payload: dict) -> bytes:
+        """POST `payload` as JSON to one of the fixed Ashby GraphQL operations and return the body.
+
+        Everything `get` enforces applies here too: the host is checked by parse_url and every address it resolves to is
+        vetted, the connection goes only to those addresses, and the total clock and 1 MB cap are shared. On top of that:
+        the host and path are fixed in this file (`op` only selects between two), no redirect is ever followed (any 3xx is a
+        failure, so a POST can't be bounced anywhere), the answer must be exactly application/json, and a body that fills
+        the cap is refused rather than truncated."""
+        target = _ASHBY_TARGETS.get(op)
+        if target is None:
+            raise _FetchFailed
+        body = json.dumps(payload).encode("ascii")           # ensure_ascii: whatever went in, only ASCII goes out
+        headers = {"User-Agent": USER_AGENT, "Accept": "application/json", "Accept-Encoding": "identity", "Connection": "close",
+                   "Content-Type": "application/json", "Content-Length": str(len(body))}
+        scheme, host, port, path = parse_url("https://" + ASHBY_HOST + target)
+        if (scheme, host, port) != ("https", ASHBY_HOST, 443) or path != target:
+            raise _FetchFailed
+        ips = self.addresses(host)
+        resp = self.transport(scheme, host, ips, port, path, headers, self.left(), method="POST", body=body)
+        try:
+            if resp.status != 200:                            # includes every 3xx: a POST is never redirected
+                raise _FetchFailed
+            if (resp.headers.get("content-type") or "").split(";")[0].strip().lower() != "application/json":
+                raise _FetchFailed
+            chunks, size = [], 0
+            while size < MAX_BYTES:
+                self.left()
+                chunk = resp.read(min(65536, MAX_BYTES - size))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                size += len(chunk)
+            if size >= MAX_BYTES:                             # too big to be one of these tiny answers
+                raise _FetchFailed
+            return b"".join(chunks)
+        finally:
+            resp.close()
 
 
 # -- cleaning what was found ------------------------------------------------------------------------------------
@@ -519,8 +562,9 @@ _BOARD_HOSTS = {
     "smartrecruiters": ("jobs.smartrecruiters.com",),
 }
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
+_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 _JOB_ID = {"greenhouse": re.compile(r"\d{1,20}"), "lever": re.compile(r"[0-9a-f-]{36}", re.I),
-           "ashby": re.compile(r"[0-9a-f-]{36}", re.I), "smartrecruiters": re.compile(r"\d{6,30}")}
+           "ashby": _UUID, "smartrecruiters": re.compile(r"\d{6,30}")}
 
 
 def _pretty(token: str) -> str:
@@ -573,10 +617,86 @@ def from_board(platform: str, token: str, job: str, data) -> dict | None:
         return None
     known = clean_text(name, LIMITS["company"])
     location = clean_text(posting["location"], LIMITS["location"])
+    if platform == "smartrecruiters":
+        location = _smartrecruiters_place(data.get("location")) or location
     if posting["remote"] and "remote" not in location.lower():
         location = f"Remote ({location})" if location else "Remote"
     return {"company": known or _pretty(token), "role": clean_text(posting["title"], LIMITS["role"]), "location": location,
             "source": platform, "guessed_company": not known, "guessed_role": False}
+
+
+def _smartrecruiters_place(loc) -> str:
+    """"Hyderabad, India" from a SmartRecruiters location. Only the public place is ever used: never `address` or
+    `postalCode`. `fullLocation` can have empty parts ("Hyderabad, , India"), so it is split on commas, emptied and
+    tidied. A remote job is just "Remote". A bare lowercase country code ("in") is shown in capitals."""
+    if not isinstance(loc, dict):
+        return ""
+    if loc.get("remote") is True:
+        return "Remote"
+    full = loc.get("fullLocation")
+    pieces = full.split(",") if isinstance(full, str) else []
+    if not any(clean_text(p, 40) for p in pieces):
+        city, region, country = loc.get("city"), loc.get("region"), loc.get("country")
+        pieces = [x for x in (city, region, country) if isinstance(x, str)]
+    bits = []
+    for piece in pieces:
+        bit = clean_text(piece, 40)
+        if len(bit) == 2 and bit.isalpha() and bit.islower():
+            bit = bit.upper()
+        if bit:
+            bits.append(bit)
+    return clean_text(", ".join(bits), LIMITS["location"])
+
+
+def _graphql_data(raw: bytes, key: str):
+    """data[key] from a GraphQL answer, or None when it is missing, null or not an object."""
+    body = json.loads(raw.decode("utf-8", "replace"))
+    inner = body.get("data") if isinstance(body, dict) else None
+    found = inner.get(key) if isinstance(inner, dict) else None
+    return found if isinstance(found, dict) else None
+
+
+def _ashby_posting(fetcher: _Fetcher, token: str, job: str) -> dict | None:
+    """Role and place from Ashby's own hosted-page GraphQL API (two tiny POSTs, however big the board is), else None.
+
+    The board name and job id are checked here again, so nothing but a plain slug and a UUID can ever be put in a
+    request, whoever calls this. The company comes from the second question; if only that one fails the company is the
+    usual marked guess. Any failure other than an unsafe address returns None so the board listing is tried next."""
+    if not _TOKEN.fullmatch(token) or not _UUID.fullmatch(job):
+        return None
+    try:
+        posting = _graphql_data(fetcher.post_json("job", {
+            "operationName": "ApiJobPosting",
+            "variables": {"organizationHostedJobsPageName": token, "jobPostingId": job},
+            "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { "
+                     "jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) "
+                     "{ id title locationName workplaceType employmentType } }"}), "jobPosting")
+        role = clean_text(posting.get("title"), LIMITS["role"]) if posting else ""
+        if not role or (posting.get("id") and str(posting["id"]).lower() != job.lower()):
+            return None
+    except JobLinkError:
+        raise
+    except (_FetchFailed, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    location = clean_text(posting.get("locationName"), LIMITS["location"])
+    if str(posting.get("workplaceType") or "").lower() == "remote" and "remote" not in location.lower():
+        location = f"Remote ({location})" if location else "Remote"
+    name = ""
+    try:
+        org = _graphql_data(fetcher.post_json("organization", {
+            "operationName": "ApiOrganizationFromHostedJobsPageName",
+            "variables": {"organizationHostedJobsPageName": token, "searchContext": "JobBoard"},
+            "query": "query ApiOrganizationFromHostedJobsPageName($organizationHostedJobsPageName: String!, "
+                     "$searchContext: OrganizationSearchContext) { organization: organizationFromHostedJobsPageName("
+                     "organizationHostedJobsPageName: $organizationHostedJobsPageName, searchContext: $searchContext) { name } }"}),
+            "organization")
+        name = clean_text(org.get("name"), LIMITS["company"]) if org else ""
+    except JobLinkError:
+        raise
+    except (_FetchFailed, ValueError, KeyError, TypeError, AttributeError):
+        name = ""
+    return {"company": name or _pretty(token), "role": role, "location": location, "source": "ashby",
+            "guessed_company": not name, "guessed_role": False}
 
 
 # -- the one entry point ----------------------------------------------------------------------------------------
@@ -593,13 +713,16 @@ def derive(url: str, *, resolver: Callable | None = None, transport: Callable | 
     board = _board_api(cleaned)
     if board:
         platform, token, job, api = board
-        try:
-            _, body, _, _ = fetcher.get(api, accept="application/json")
-            result = from_board(platform, token, job, json.loads(body.decode("utf-8", "replace")))
-        except JobLinkError:
-            raise                                            # an unsafe hop is an answer, not something to work around
-        except (_FetchFailed, ValueError, KeyError, TypeError, AttributeError):
-            result = None
+        if platform == "ashby":                              # the board listing can be huge and has no company name
+            result = _ashby_posting(fetcher, token, job)
+        if result is None:
+            try:
+                _, body, _, _ = fetcher.get(api, accept="application/json")
+                result = from_board(platform, token, job, json.loads(body.decode("utf-8", "replace")))
+            except JobLinkError:
+                raise                                        # an unsafe hop is an answer, not something to work around
+            except (_FetchFailed, ValueError, KeyError, TypeError, AttributeError):
+                result = None
 
     if result is None:
         try:

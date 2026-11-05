@@ -51,8 +51,9 @@ class Net:
         answer = self.dns.get(host, [PUBLIC])
         return answer() if callable(answer) else answer
 
-    def transport(self, scheme, host, ips, port, target, headers, timeout):
-        self.connected.append({"scheme": scheme, "host": host, "ips": list(ips), "port": port, "target": target, "headers": dict(headers)})
+    def transport(self, scheme, host, ips, port, target, headers, timeout, method="GET", body=None):
+        self.connected.append({"scheme": scheme, "host": host, "ips": list(ips), "port": port, "target": target, "headers": dict(headers),
+                               "method": method, "body": body})
         hit = self.routes.get(host + target)
         if hit is None:
             return Resp(b"not found", status=404)
@@ -495,6 +496,302 @@ def test_board_look_alike_hosts_and_odd_ids_do_not_reach_the_api_hosts():
         net = Net()
         net.derive(url)
         assert not any(c["host"].startswith(("api.", "boards-api")) for c in net.connected), url
+
+
+# -- Ashby's own GraphQL (the POST path) -------------------------------------------------------------------------
+
+ASHBY_JOB = "7458d4e9-da2e-47bd-98cb-adfda43d42b2"
+ASHBY_JOB_URL = "jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting"
+ASHBY_ORG_URL = "jobs.ashbyhq.com/api/non-user-graphql?op=ApiOrganizationFromHostedJobsPageName"
+ASHBY_JOB_ANSWER = {"data": {"jobPosting": {"id": ASHBY_JOB, "title": "Engineering Manager - EU", "locationName": "Remote - European Union",
+                                            "workplaceType": "Remote", "employmentType": "FullTime"}}}
+
+
+def js(data, status=200, ctype="application/json", headers=None):
+    return Resp(json.dumps(data).encode(), status=status, ctype=ctype, headers=headers)
+
+
+def ashby_net(job=None, org=None, extra=None):
+    routes = {ASHBY_JOB_URL: job or js(ASHBY_JOB_ANSWER), ASHBY_ORG_URL: org or js({"data": {"organization": {"name": "Ashby"}}})}
+    routes.update(extra or {})
+    return Net(routes)
+
+
+def posts(net):
+    return [c for c in net.connected if c["method"] == "POST"]
+
+
+def test_ashby_graphql_gives_a_confirmed_company_role_and_place():
+    net = ashby_net()
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}?utm_source=x")
+    assert out == {"company": "Ashby", "role": "Engineering Manager - EU", "location": "Remote - European Union",
+                   "url": f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}", "source": "ashby", "guessed_company": False, "guessed_role": False}
+    assert [c["method"] for c in net.connected] == ["POST", "POST"]       # the huge board listing is never fetched
+
+
+def test_ashby_posts_go_only_to_the_fixed_host_port_and_pinned_addresses():
+    net = ashby_net()
+    net.dns["jobs.ashbyhq.com"] = [PUBLIC, "93.184.216.35"]
+    net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    first, second = posts(net)
+    for sent, op in ((first, "ApiJobPosting"), (second, "ApiOrganizationFromHostedJobsPageName")):
+        assert (sent["scheme"], sent["host"], sent["port"]) == ("https", "jobs.ashbyhq.com", 443)
+        assert sent["ips"] == [PUBLIC, "93.184.216.35"]
+        assert sent["target"] == "/api/non-user-graphql?op=" + op
+        body = json.loads(sent["body"])
+        assert body["operationName"] == op and set(body) == {"operationName", "variables", "query"}
+        assert body["variables"]["organizationHostedJobsPageName"] == "ashby"
+        assert sent["headers"]["Content-Type"] == "application/json" and sent["headers"]["Content-Length"] == str(len(sent["body"]))
+        assert set(sent["headers"]) == {"User-Agent", "Accept", "Accept-Encoding", "Connection", "Content-Type", "Content-Length"}
+    assert json.loads(first["body"])["variables"] == {"organizationHostedJobsPageName": "ashby", "jobPostingId": ASHBY_JOB}
+    assert json.loads(second["body"])["variables"] == {"organizationHostedJobsPageName": "ashby", "searchContext": "JobBoard"}
+    assert net.resolved.count("jobs.ashbyhq.com") == 2                        # each request resolved and vetted afresh
+
+
+def test_ashby_post_to_a_name_that_resolves_privately_is_refused():
+    net = ashby_net()
+    net.dns["jobs.ashbyhq.com"] = ["10.0.0.9"]
+    with pytest.raises(joblink.JobLinkError):
+        net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert net.connected == []
+
+
+def test_ashby_null_job_falls_back_to_the_board_listing():
+    board = {"jobs": [{"id": ASHBY_JOB, "title": "Platform Engineer", "location": "Berlin", "isRemote": False}]}
+    net = ashby_net(job=js({"data": {"jobPosting": None}}), extra={"api.ashbyhq.com/posting-api/job-board/ashby": js(board)})
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert (out["role"], out["location"], out["source"], out["company"], out["guessed_company"]) == ("Platform Engineer", "Berlin", "ashby", "Ashby", True)
+    assert [(c["method"], c["host"]) for c in net.connected] == [("POST", "jobs.ashbyhq.com"), ("GET", "api.ashbyhq.com")]
+
+
+def test_ashby_null_job_and_no_listing_fall_back_to_the_page_then_the_address():
+    net = ashby_net(job=js({"data": {"jobPosting": None}}), extra={f"jobs.ashbyhq.com/ashby/{ASHBY_JOB}": page(ld(POSTING))})
+    assert net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")["source"] == "json-ld"
+    bare = ashby_net(job=js({"data": {"jobPosting": None}}))
+    out = bare.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert out["source"] == "link" and out["guessed_company"] and out["guessed_role"]
+    assert [c["method"] for c in bare.connected] == ["POST", "GET", "GET"]    # the org question is never asked for a missing job
+
+
+def test_ashby_org_failure_keeps_the_job_and_marks_the_company_as_a_guess():
+    for org in (Resp(b"{}", status=500, ctype="application/json"), js({"data": {"organization": None}}), js({"errors": [{"message": "x"}]}),
+                Resp(b"not json", ctype="application/json"), js({"data": {"organization": {"name": None}}})):
+        net = ashby_net(org=org)
+        out = net.derive(f"https://jobs.ashbyhq.com/some-board/{ASHBY_JOB}")
+        assert (out["company"], out["guessed_company"], out["role"], out["source"]) == ("Some Board", True, "Engineering Manager - EU", "ashby")
+        assert [c["method"] for c in net.connected] == ["POST", "POST"]
+
+
+def test_ashby_remote_workplace_without_the_word_in_the_place():
+    job = {"data": {"jobPosting": {"id": ASHBY_JOB, "title": "Analyst", "locationName": "Toronto", "workplaceType": "Remote"}}}
+    assert ashby_net(job=js(job)).derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")["location"] == "Remote (Toronto)"
+    onsite = {"data": {"jobPosting": {"id": ASHBY_JOB, "title": "Analyst", "locationName": "Toronto", "workplaceType": "OnSite"}}}
+    assert ashby_net(job=js(onsite)).derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")["location"] == "Toronto"
+
+
+def test_ashby_answer_for_a_different_job_is_not_trusted():
+    other = {"data": {"jobPosting": {"id": "11111111-2222-4333-8444-555555555555", "title": "Someone Else", "locationName": "X"}}}
+    out = ashby_net(job=js(other)).derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert out["role"] != "Someone Else"
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_ashby_post_never_follows_a_redirect(status):
+    to = "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting"
+    net = ashby_net(job=redirect(to, status), org=redirect("http://169.254.169.254/", status))
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert out["source"] == "link"                                            # the redirect counted as a plain failure
+    assert [c["target"] for c in posts(net)] == ["/api/non-user-graphql?op=ApiJobPosting"]       # asked once, not re-sent anywhere
+    assert not any(c["host"] == "169.254.169.254" for c in net.connected)
+
+
+def test_ashby_post_redirect_to_a_private_address_does_not_even_resolve_it():
+    net = ashby_net(job=redirect("http://127.0.0.1:8765/x", 307))
+    net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert net.resolved.count("127.0.0.1") == 0 and all(c["host"] != "127.0.0.1" for c in net.connected)
+
+
+def test_ashby_oversize_answer_is_refused_and_never_read_past_the_cap():
+    big = Resp(b'{"data":{"jobPosting":{"id":"' + ASHBY_JOB.encode() + b'","title":"' + b"x" * 5_000_000 + b'"}}}', ctype="application/json")
+    net = ashby_net(job=big)
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert big.pos <= joblink.MAX_BYTES and big.closed
+    assert out["source"] == "link"
+
+
+@pytest.mark.parametrize("ctype", ["text/html", "text/plain", "application/ld+json", "application/octet-stream", "application/jsonp", ""])
+def test_ashby_post_answer_must_be_application_json(ctype):
+    wrong = Resp(json.dumps(ASHBY_JOB_ANSWER).encode(), ctype=ctype)
+    net = ashby_net(job=wrong)
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert wrong.read_calls == 0 and wrong.closed
+    assert out["source"] == "link"
+
+
+def test_ashby_json_content_type_with_a_charset_is_fine():
+    net = ashby_net(job=js(ASHBY_JOB_ANSWER, ctype="Application/JSON; charset=utf-8"))
+    assert net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")["role"] == "Engineering Manager - EU"
+
+
+def test_ashby_post_error_status_and_timeout_fall_back():
+    for status in (400, 403, 404, 429, 500, 204):
+        net = ashby_net(job=Resp(b"{}", status=status, ctype="application/json"))
+        assert net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")["source"] == "link"
+
+
+def test_ashby_post_shares_the_total_clock(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(joblink.time, "monotonic", lambda: clock[0])
+    slow = Resp(json.dumps(ASHBY_JOB_ANSWER).encode(), ctype="application/json", on_read=lambda: clock.__setitem__(0, clock[0] + 9))
+    net = ashby_net(job=slow)
+    out = net.derive(f"https://jobs.ashbyhq.com/ashby/{ASHBY_JOB}")
+    assert out["source"] == "link" and slow.closed
+    assert len(posts(net)) == 1
+
+
+SLUG_ATTACKS = ['x","jobPostingId":"1', 'a"}) { id } #', "a b", "a/../b", "a\nb", "../x", "a%22b", 'a"b', "-lead", "a" * 82, "a;b", "a{b}", "a\\b",
+                "a\u0000b"]
+ID_ATTACKS = ['7458d4e9-da2e-47bd-98cb-adfda43d42b2"}', '7458d4e9-da2e-47bd-98cb-adfda43d42b2\n', "7458d4e9-da2e-47bd-98cb-adfda43d42b2 ",
+              "-" * 36, "7458d4e9da2e47bd98cbadfda43d42b2", "7458d4e9-da2e-47bd-98cb-adfda43d42b2-extra", '"},"x":{"a":"', "g458d4e9-da2e-47bd-98cb-adfda43d42b2",
+              "{{7458d4e9-da2e-47bd-98cb-adfda43d42b}}", "7458d4e9-da2e-47bd-98cb-adfda43d42b2\u0000"]
+
+
+@pytest.mark.parametrize("slug", SLUG_ATTACKS)
+def test_ashby_slug_injection_never_reaches_a_request(slug):
+    fetcher = joblink._Fetcher(resolver=lambda h, t: pytest.fail("resolved"), transport=lambda *a, **k: pytest.fail("connected"))
+    assert joblink._ashby_posting(fetcher, slug, ASHBY_JOB) is None
+
+
+@pytest.mark.parametrize("job", ID_ATTACKS)
+def test_ashby_job_id_injection_never_reaches_a_request(job):
+    fetcher = joblink._Fetcher(resolver=lambda h, t: pytest.fail("resolved"), transport=lambda *a, **k: pytest.fail("connected"))
+    assert joblink._ashby_posting(fetcher, "ashby", job) is None
+
+
+@pytest.mark.parametrize("tail", ID_ATTACKS[:4] + ["%22%7D", "..%2f..%2f", "7458d4e9-da2e-47bd-98cb-adfda43d42b2%0a"])
+def test_ashby_job_id_injection_through_the_address_makes_no_post(tail):
+    net = ashby_net()
+    try:
+        net.derive(f"https://jobs.ashbyhq.com/ashby/{tail.replace(' ', '%20').replace(chr(10), '%0a')}")
+    except joblink.JobLinkError:
+        pass                                                                  # refused outright: also fine
+    assert posts(net) == []
+
+
+def test_ashby_slug_injection_through_the_address_makes_no_post():
+    for slug in ("a%22b", "a%20b", "a%0ab", "x%22%2c%22y", "..%2fx", "a%5cb"):
+        net = ashby_net()
+        net.derive(f"https://jobs.ashbyhq.com/{slug}/{ASHBY_JOB}")
+        assert posts(net) == [], slug
+
+
+def test_post_json_accepts_only_the_two_fixed_operations():
+    f = joblink._Fetcher(resolver=lambda h, t: pytest.fail("resolved"), transport=lambda *a, **k: pytest.fail("connected"))
+    for op in ("", "x", "/api/other", "https://evil.example/", "job\n", None):
+        with pytest.raises(joblink._FetchFailed):
+            f.post_json(op, {})
+
+
+def test_post_body_is_ascii_json_built_with_json_dumps():
+    net = ashby_net()
+    f = joblink._Fetcher(net.resolver, net.transport)
+    f.post_json("job", {"variables": {"jobPostingId": "é\u2028\"}"}})
+    sent = net.connected[0]["body"]
+    assert isinstance(sent, bytes) and sent.isascii()
+    assert json.loads(sent) == {"variables": {"jobPostingId": "é\u2028\"}"}}
+
+
+def test_the_real_transport_sends_a_post_with_a_body_and_length_to_the_pinned_address():
+    import http.server
+    import threading
+
+    seen = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            raw = self.rfile.read(int(self.headers["Content-Length"]))
+            seen.update(host=self.headers["Host"], ctype=self.headers["Content-Type"], length=self.headers["Content-Length"], body=raw,
+                        cookie=self.headers["Cookie"], path=self.path)
+            body = b'{"ok": true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    payload = b'{"a": 1}'
+    try:
+        resp = joblink._transport("http", "jobs.example.test", ["127.0.0.1"], server.server_port, "/api/x?op=Y",
+                                  {"User-Agent": joblink.USER_AGENT, "Content-Type": "application/json", "Content-Length": str(len(payload))},
+                                  5, method="POST", body=payload)
+        assert resp.status == 200 and resp.read(100) == b'{"ok": true}'
+        resp.close()
+    finally:
+        server.shutdown()
+    assert seen["body"] == payload and seen["ctype"] == "application/json" and seen["length"] == str(len(payload))
+    assert seen["host"].startswith("jobs.example.test") and seen["cookie"] is None and seen["path"] == "/api/x?op=Y"
+
+
+def test_the_real_transport_defaults_to_get(monkeypatch):
+    methods = []
+
+    class Conn:
+        def request(self, method, target, body=None, headers=None):
+            methods.append((method, body))
+            raise OSError("stop")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(joblink, "_pinned", lambda *a: Conn())
+    with pytest.raises(joblink._FetchFailed):
+        joblink._transport("https", "example.com", [PUBLIC], 443, "/", {}, 5)
+    assert methods == [("GET", None)]
+
+
+def test_get_requests_carry_no_method_or_body_to_the_transport():
+    net = Net({"example.com/job": page(head="<title>Cook</title>")})
+    net.derive("https://example.com/job")
+    assert net.connected[0]["method"] == "GET" and net.connected[0]["body"] is None
+
+
+# -- SmartRecruiters places --------------------------------------------------------------------------------------
+
+SR_LIVE = {"id": "744000159888121", "name": "Software Engineer", "company": {"identifier": "ServiceNow", "name": "ServiceNow"},
+           "location": {"city": "Hyderabad", "country": "in", "address": "Plot 12, Hitech City Road", "postalCode": "500081",
+                        "remote": False, "hybrid": True, "fullLocation": "Hyderabad, , India"}}
+
+
+def sr_derive(location, **top):
+    api = {**SR_LIVE, "location": location, **top}
+    net = Net({"api.smartrecruiters.com/v1/companies/ServiceNow/postings/744000159888121": Resp(json.dumps(api).encode(), ctype="application/json")})
+    return net.derive("https://jobs.smartrecruiters.com/ServiceNow/744000159888121-software-engineer")
+
+
+def test_smartrecruiters_live_posting_has_a_clean_place():
+    out = sr_derive(SR_LIVE["location"])
+    assert out == {"company": "ServiceNow", "role": "Software Engineer", "location": "Hyderabad, India",
+                   "url": "https://jobs.smartrecruiters.com/ServiceNow/744000159888121-software-engineer", "source": "smartrecruiters",
+                   "guessed_company": False, "guessed_role": False}
+    assert "Plot 12" not in json.dumps(out) and "500081" not in json.dumps(out)
+
+
+def test_smartrecruiters_place_edge_cases():
+    base = {k: v for k, v in SR_LIVE["location"].items() if k != "fullLocation"}
+    assert sr_derive({**base, "fullLocation": " Toronto ,,  Ontario ,   Canada, "})["location"] == "Toronto, Ontario, Canada"
+    assert sr_derive({**base, "remote": True})["location"] == "Remote"
+    assert sr_derive({**base, "remote": True, "fullLocation": "Hyderabad, , India"})["location"] == "Remote"
+    assert sr_derive({**base, "fullLocation": ", ,"})["location"] == "Hyderabad, IN"                      # nothing usable: the parts, code in capitals
+    assert sr_derive({"country": "in"})["location"] == "IN"                                                # never a bare lowercase code
+    assert sr_derive({"fullLocation": "in"})["location"] == "IN"
+    assert sr_derive({"city": "Ottawa", "region": "ON", "country": "ca"})["location"] == "Ottawa, ON, CA"
+    assert sr_derive({"address": "1 Secret Street", "postalCode": "K1A 0B1"})["location"] == ""
+    assert sr_derive({"fullLocation": "<b>Pune</b>,  India"})["location"] == "Pune, India"
 
 
 # -- the route ---------------------------------------------------------------------------------------------------

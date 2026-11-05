@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { extract } from "../../src/jobs/bookmarklet";
-import { bare, hostile, indeed, jsonLd, jsonLdBroken, jsonLdRemote, linkedin, ogOnly, ogWithH1, parse, workday } from "./fixtures";
+import {
+  bare, classHidden, companyFallback, driftedLinkedin, genericCompanyLink, hostile, indeed, indeedRenamed, indeedSlug, jsonLd, jsonLdBroken, jsonLdRemote, linkedin, linkedinDecoys,
+  linkedinHidden, linkedinRenamed, ogOnly, ogWithH1, parse, titleAt, titleDash, titleIndeedJobPost, titleIndeedThree, titleLinkedinAt, titleLinkedinHiring, titleLinkedinHiringNoLoc,
+  titlePipe, workday,
+} from "./fixtures";
 
 const run = (f: { html: string; url: string }) => extract(parse(f.html), f.url);
 
@@ -67,5 +71,79 @@ describe("extract", () => {
   it("survives a document that throws on every query", () => {
     const broken = { querySelector: () => { throw new Error("boom"); }, querySelectorAll: () => { throw new Error("boom"); }, title: "" } as unknown as Document;
     expect(extract(broken, "https://example.com/a")).toEqual({ c: "", r: "", l: "", u: "https://example.com/a", g: 0 });
+  });
+
+  describe("survives markup churn (no class names, no test ids)", () => {
+    it("LinkedIn: the heading, the company link and the location line are enough", () => {
+      expect(run(linkedinRenamed)).toEqual({
+        c: "Acme Corp",
+        r: "Senior Product Designer",
+        l: "Toronto, Ontario, Canada (Hybrid)",
+        u: "https://www.linkedin.com/jobs/view/4011122233",
+        g: 0,
+      });
+    });
+
+    it("Indeed: the heading, the /cmp/ link and any element with 'location' in its test id (not the search form's)", () => {
+      expect(run(indeedRenamed)).toEqual({ c: "Acme Corp", r: "Data Analyst", l: "Toronto, ON", u: "https://ca.indeed.com/viewjob?jk=ffeeddcc00112233", g: 0 });
+    });
+
+    it("a company link with no readable text gives the slug, flagged as a guess; 'Location' labels are dropped", () => {
+      expect(run(indeedSlug)).toEqual({ c: "Acme Corp", r: "Backend Engineer", l: "Remote", u: "https://www.indeed.com/viewjob?jk=0123abcd4567ef89", g: 1 });
+    });
+
+    it("picks the company link beside the heading, not the nav, an earlier section, the aside, a related list or the footer", () => {
+      expect(run(linkedinDecoys)).toEqual({ c: "Acme Corp", r: "Senior Designer", l: "Calgary, Alberta, Canada", u: "https://www.linkedin.com/jobs/view/3999000111", g: 0 });
+    });
+
+    it("without a heading, takes the first company link outside nav, footer, aside and lists; the role stays a guess", () => {
+      expect(run(companyFallback)).toEqual({ c: "Acme Corp Ltd", r: "Staff Engineer", l: "", u: "https://www.linkedin.com/jobs/view/3999000222", g: 2 });
+    });
+
+    it("ignores hidden, aria-hidden and display:none duplicates, in text as well as in whole blocks", () => {
+      expect(run(linkedinHidden)).toEqual({ c: "Initech", r: "Platform Engineer", l: "Waterloo, Ontario", u: "https://www.linkedin.com/jobs/view/4000000001", g: 0 });
+    });
+
+    it("skips hidden duplicates when falling back to the site class names", () => {
+      expect(run(classHidden)).toMatchObject({ c: "Globex", l: "Toronto, ON" });
+    });
+
+    it("does not treat an unknown site's /company/ link as the company", () => {
+      expect(run(genericCompanyLink)).toMatchObject({ c: "Initech", r: "Staff Engineer", g: 3 });
+    });
+
+    it("reads nothing from a page it cannot read, but still returns the posting's address", () => {
+      expect(run(driftedLinkedin)).toEqual({ c: "", r: "", l: "", u: "https://www.linkedin.com/jobs/view/4022233344", g: 0 });
+    });
+
+    it("keeps the site class names working when the structure is absent", () => {
+      expect(run(linkedin)).toMatchObject({ c: "Acme Corp", l: "Toronto, ON", g: 0 });
+    });
+  });
+
+  describe("title patterns (all guesses)", () => {
+    it("LinkedIn 'Company hiring Role in Location | LinkedIn', with the unread-count prefix removed", () => {
+      expect(run(titleLinkedinHiring)).toEqual({ c: "Acme Corp", r: "Senior Designer", l: "Toronto, Ontario, Canada", u: "https://www.linkedin.com/jobs/view/3999000111", g: 3 });
+    });
+
+    it("LinkedIn: ' in ' that is not followed by a place stays part of the role", () => {
+      expect(run(titleLinkedinHiringNoLoc)).toMatchObject({ c: "Acme", r: "Analyst in Training", l: "", g: 3 });
+    });
+
+    it("LinkedIn 'Role at Company | LinkedIn'", () => {
+      expect(run(titleLinkedinAt)).toMatchObject({ c: "Acme Corp", r: "Senior Designer", l: "", g: 3 });
+    });
+
+    it("Indeed 'Role - Company - Location | Indeed.com'", () => {
+      expect(run(titleIndeedThree)).toEqual({ c: "Globex", r: "Data Analyst", l: "Toronto, ON", u: "https://ca.indeed.com/viewjob?jk=aabbccdd11223344", g: 3 });
+    });
+
+    it("Indeed 'Role - job post - Company'", () => {
+      expect(run(titleIndeedJobPost)).toMatchObject({ c: "Globex", r: "Data Analyst", l: "", g: 3 });
+    });
+
+    it.each([["pipe", titlePipe], ["dash", titleDash], ["at", titleAt]])("generic 'Role %s Company'", (_n, f) => {
+      expect(run(f)).toMatchObject({ c: "Globex", r: "Product Designer", l: "", g: 3 });
+    });
   });
 });

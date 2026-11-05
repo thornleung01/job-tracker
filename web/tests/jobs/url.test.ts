@@ -47,6 +47,11 @@ const TABLE: Row[] = [
   ["https://www.linkedin.com/comm/jobs/view/qa-engineer-at-acme-3812345678", "https://www.linkedin.com/comm/jobs/view/qa-engineer-at-acme-3812345678", "Acme", "QA Engineer"],
   ["https://www.linkedin.com/company/acme-corp/jobs/", "https://www.linkedin.com/company/acme-corp/jobs", "Acme Corp", ""],
   ["https://www.linkedin.com/jobs/view/senior-software-engineer-at-acme-corp-3812345678/?refId=abc", "https://www.linkedin.com/jobs/view/senior-software-engineer-at-acme-corp-3812345678", "Acme Corp", "Senior Software Engineer"],
+  // LinkedIn as it really appears: country subdomains, percent-encoded accents, tracking tails
+  ["https://ca.linkedin.com/jobs/view/ing%C3%A9nieur-principal-de-donn%C3%A9es-at-lgs-an-ibm-company-4477480926", "https://ca.linkedin.com/jobs/view/ing%C3%A9nieur-principal-de-donn%C3%A9es-at-lgs-an-ibm-company-4477480926", "Lgs An Ibm Company", "Ing\u00e9nieur Principal De Donn\u00e9es"],
+  ["https://uk.linkedin.com/jobs/view/senior-data-engineer-at-monzo-bank-3901234567?trk=public_jobs_topcard-title&position=1&pageNum=0", "https://uk.linkedin.com/jobs/view/senior-data-engineer-at-monzo-bank-3901234567", "Monzo Bank", "Senior Data Engineer"],
+  ["https://de.linkedin.com/jobs/view/softwareentwickler-m-w-d-at-sap-4012345678?refId=abc%3D%3D&trackingId=x%2Fy%3D%3D&trk=public_jobs_jserp-result_search-card", "https://de.linkedin.com/jobs/view/softwareentwickler-m-w-d-at-sap-4012345678", "Sap", "Softwareentwickler M W D"],
+  ["https://ca.linkedin.com/jobs/view/d%C3%A9veloppeur-logiciel-senior-at-soci%C3%A9t%C3%A9-g%C3%A9n%C3%A9rale-4400000001?trk=public_jobs_topcard_logo", "https://ca.linkedin.com/jobs/view/d%C3%A9veloppeur-logiciel-senior-at-soci%C3%A9t%C3%A9-g%C3%A9n%C3%A9rale-4400000001", "Soci\u00e9t\u00e9 G\u00e9n\u00e9rale", "D\u00e9veloppeur Logiciel Senior"],
   // Indeed
   ["https://ca.indeed.com/viewjob?jk=abc123def456&from=serp&vjs=3&tk=1abc", "https://ca.indeed.com/viewjob?jk=abc123def456", "", ""],
   ["https://www.indeed.com/cmp/Acme-Corp/jobs?jk=abc", "https://www.indeed.com/cmp/Acme-Corp/jobs?jk=abc", "Acme Corp", ""],
@@ -163,6 +168,40 @@ describe("parseJobUrl table", () => {
   });
 });
 
+describe("LinkedIn links, real shapes", () => {
+  it("the percent-encoded French posting is decoded and both fields are marked as guesses", () => {
+    expect(parseJobUrl("https://ca.linkedin.com/jobs/view/ing%C3%A9nieur-principal-de-donn%C3%A9es-at-lgs-an-ibm-company-4477480926")).toEqual({
+      company: "Lgs An Ibm Company", role: "Ing\u00e9nieur Principal De Donn\u00e9es", location: "",
+      url: "https://ca.linkedin.com/jobs/view/ing%C3%A9nieur-principal-de-donn%C3%A9es-at-lgs-an-ibm-company-4477480926",
+      source: "link", guessed: { company: true, role: true },
+    });
+  });
+
+  const NASTY = [
+    "https://www.linkedin.com/jobs/view/senior%2Fengineer-at-ac%2Fme-3812345678",
+    "https://www.linkedin.com/jobs/view/senior%5Cengineer-at-acme%5C-3812345678",
+    "https://www.linkedin.com/jobs/view/senior%00engineer-at-ac%07me%0d%0a-3812345678",
+    "https://www.linkedin.com/jobs/view/senior%252Fengineer-at-ac%250Ame-3812345678",
+    "https://www.linkedin.com/jobs/view/senior%e2%80%aeengineer-at-acme-3812345678",
+    "https://www.linkedin.com/jobs/view/%E0%A4%A-engineer-at-%ZZacme%-3812345678",
+    "https://www.linkedin.com/jobs/view/engineer-at-acme%-3812345678",
+    "https://www.linkedin.com/jobs/view/%C3-engineer-at-%C3%A9acme-3812345678",
+    "https://www.linkedin.com/jobs/view/%%%-at-%%-3812345678",
+  ];
+
+  it.each(NASTY)("%s does not throw and yields no control characters or slashes", (url) => {
+    const d = parseJobUrl(url);
+    expect(d).not.toBeNull();
+    for (const v of [d?.company, d?.role]) expect(v).not.toMatch(/[\u0000-\u001f\u007f-\u009f/\\\u202a-\u202e]/);
+  });
+
+  it("malformed percent sequences keep the readable part", () => {
+    const d = parseJobUrl("https://www.linkedin.com/jobs/view/product-designer-at-caf%C3%A9-%ZZ-3812345678");
+    expect(d?.role).toBe("Product Designer");
+    expect(d?.company).toContain("Caf\u00e9");
+  });
+});
+
 describe("helpers", () => {
   it("title-cases slugs without inventing capitals", () => {
     expect(slugToName("my-company")).toBe("My Company");
@@ -170,6 +209,10 @@ describe("helpers", () => {
     expect(slugToName("OpenAI")).toBe("OpenAI");
     expect(slugToName("ACME-CORP")).toBe("Acme Corp");
     expect(slugToName("ibm")).toBe("Ibm");
+    expect(slugToName("acme_labs-2")).toBe("Acme Labs 2");
+    expect(slugToName("acme-hq")).toBe("Acme Hq");
+    expect(slugToName("acme-inc")).toBe("Acme Inc");
+    expect(slugToName("lgs-an-ibm-company")).toBe("Lgs An Ibm Company");
     expect(slugToName("senior-qa-engineer", "role")).toBe("Senior QA Engineer");
   });
 
