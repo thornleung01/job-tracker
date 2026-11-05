@@ -3,6 +3,8 @@ import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
 import { Combobox } from "../../components/Combobox";
+import { FollowUpTag } from "../../components/followup/FollowUpTag";
+import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
 import { JobLinkField } from "../../components/joblink/JobLinkField";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
@@ -29,6 +31,7 @@ interface ListState {
   account: number;
   sort: string;
   dir: string;
+  followUp: boolean;
   open: number[];
 }
 
@@ -40,6 +43,7 @@ export function listUrl(s: Partial<ListState>): string {
   if (s.account) p.set("account", String(s.account));
   if (s.sort) p.set("sort", s.sort);
   if (s.dir) p.set("dir", s.dir);
+  if (s.followUp) p.set("followUp", "1");
   if (s.open?.length) p.set("open", s.open.join(","));
   const qs = p.toString();
   return qs ? `/?${qs}` : "/";
@@ -57,6 +61,7 @@ function readState(query: URLSearchParams): ListState {
     account: Number(query.get("account")) || 0,
     sort: SORT_COLUMNS.includes(sort as SortColumn) ? sort : "",
     dir: dir === "asc" || dir === "desc" ? dir : "",
+    followUp: query.get("followUp") === "1",
     open: [...new Set((query.get("open") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0))],
   };
 }
@@ -70,18 +75,18 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const addApplication = deps.addApplication ?? realAddApplication;
   const local = isLocalUser(user);
   const state = readState(query);
-  const { stage, q, account, open } = state;
+  const { stage, q, account, followUp, open } = state;
   const sort = (state.sort || "lastActivity") as SortColumn;
   const dir = state.dir || DEFAULT_DIR[sort];
 
   const data = useQuery(async () => {
-    const rows = await listApplications(db, { stage, q, account, sort, dir });
+    const rows = await listApplications(db, { stage, q, account, followUp, sort, dir });
     const counts = await stageCounts(db);
     return {
       rows, counts, accounts: await listAccounts(db), review: await reviewCount(db),
       columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
     };
-  }, [db, stage, q, account, sort, dir]);
+  }, [db, stage, q, account, followUp, sort, dir]);
 
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
   const [draftQ, setDraftQ] = useState(q);
@@ -89,14 +94,16 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const [draftAccount, setDraftAccount] = useState(account);
   useEffect(() => setDraftQ(q), [q]);
   useEffect(() => setDraftStage(stage), [stage]);
+  const [draftFollowUp, setDraftFollowUp] = useState(followUp);
   useEffect(() => setDraftAccount(account), [account]);
+  useEffect(() => setDraftFollowUp(followUp), [followUp]);
 
   const sorting = { sort: state.sort, dir: state.dir };
   const apply = (e?: FormEvent) => {
     e?.preventDefault();
-    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, ...sorting }));
+    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ...sorting }));
   };
-  const setOpen = (ids: number[]) => navigate(listUrl({ stage, q, account, ...sorting, open: ids }), { replace: true });
+  const setOpen = (ids: number[]) => navigate(listUrl({ stage, q, account, followUp, ...sorting, open: ids }), { replace: true });
   const toggle = (id: number) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
 
   // Add an application by hand: one button opens the form under the filter card
@@ -148,7 +155,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       setFocusAdd((n) => n + 1);
     }
     // Take the bookmarklet's parameters out of the address either way, so a reload does not open it again.
-    navigate(listUrl({ stage, q, account, ...sorting, open }), { replace: true });
+    navigate(listUrl({ stage, q, account, followUp, ...sorting, open }), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
@@ -180,11 +187,11 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   if (!data) return <h1 className="page">Applications</h1>;
   const { rows, counts, accounts, review, columns, suggestions: suggest } = data;
   const total = STAGES.reduce((n, s) => n + counts[s], 0);
-  const filtered = Boolean(stage || q.trim() || account);
+  const filtered = Boolean(stage || q.trim() || account || followUp);
   const thisAccount = accounts.find((a) => a.id === account);
 
   const sortHref = (c: ColumnId) =>
-    "#" + listUrl({ stage, q, account, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
+    "#" + listUrl({ stage, q, account, followUp, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
 
   const onRowClick = (e: MouseEvent<HTMLTableRowElement>, id: number) => {
     // Clicking empty space in a row opens it too.
@@ -203,7 +210,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       case "company":
         return (
           <td role="cell" data-col="company" key={c}>
-            <a className="expander" href={"#" + listUrl({ stage, q, account, ...sorting, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
+            <a className="expander" href={"#" + listUrl({ stage, q, account, followUp, ...sorting, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
                role="button" data-id={r.id} aria-expanded={isOpen} aria-controls={`panel-${r.id}`}
                onClick={(e) => { e.preventDefault(); toggle(r.id); }} onKeyDown={(e) => onExpanderKey(e, r.id)}>
               <span className="chev" aria-hidden="true"></span><strong>{r.company}</strong>
@@ -215,7 +222,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><QuickStage db={db} appId={r.id} company={r.company} stage={r.stage} stageAt={r.stageAt} locked={r.locked} /></td>;
       case "applied": return <td role="cell" data-col="applied" key={c} className="small muted"><QuickDate db={db} appId={r.id} company={r.company} appliedAt={r.appliedAt} /></td>;
       case "lastActivity":
-        return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} /></td>;
+        return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} />{r.followUp ? <> <FollowUpTag /></> : null}</td>;
       case "emails": return <td role="cell" data-col="emails" key={c} className="small muted">{r.nEmails}</td>;
     }
   };
@@ -239,7 +246,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           <div className="fgroup f-search">
             <label htmlFor="f-q">Search</label>
             <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company or role"
-                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, ...sorting })); }} />
+                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ...sorting })); }} />
           </div>
           <div className="fgroup">
             <label htmlFor="f-stage">Stage</label>
@@ -257,6 +264,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               </select>
             </div>
           ) : null}
+          <FollowUpToggle checked={draftFollowUp} onChange={setDraftFollowUp} />
           {/* One primary per surface: the open add form owns it, so Apply filters steps down while the form is showing. */}
           <button type="submit" className={addOpen ? undefined : "primary"}>Apply filters</button>
           <button type="button" ref={addTrigger} aria-expanded={addOpen} aria-controls="add-application" onClick={openAdd}>Add application</button>
@@ -316,6 +324,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         <span className="small muted">Showing {rows.length}{filtered ? ` of ${total}` : ""} application{rows.length !== 1 ? "s" : ""}</span>
         {stage ? <span className="chip">Stage: {stage}</span> : null}
         {q.trim() ? <span className="chip">Search: {q.trim()}</span> : null}
+        {followUp ? <span className="chip">Needs follow-up</span> : null}
         {thisAccount ? <span className="chip">Account: {thisAccount.address}</span> : null}
         {filtered ? <a className="small clear-filters" href={"#" + listUrl({})}>Clear filters</a> : null}
       </div>
