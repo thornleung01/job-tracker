@@ -33,6 +33,10 @@ export interface ApplicationRow {
   postingUrl?: string;
   /** the number of interview rounds you typed; absent means "work it out from the emails and steps". Not indexed. */
   interviewRounds?: number;
+  /** what the offer pays, free text of at most 60 characters; absent when none. Not indexed. */
+  offerSalary?: string;
+  /** the day you have to decide by, YYYY-MM-DD (a past day is allowed); absent when none. Not indexed. */
+  offerDeadline?: string;
 }
 
 export interface EmailRow {

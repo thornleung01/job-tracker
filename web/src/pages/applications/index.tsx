@@ -10,6 +10,7 @@ import { Notice } from "../../components/Notice";
 import { QuickDate } from "../../components/quickedit/QuickDate";
 import { QuickRole } from "../../components/quickedit/QuickRole";
 import { QuickStage } from "../../components/quickedit/QuickStage";
+import { OfferDeadline } from "../../components/offer/OfferDeadline";
 import { SyncBanner } from "../../components/SyncBanner";
 import { LastActivity } from "../../components/TimeText";
 import { useAction } from "../../components/useAction";
@@ -212,11 +213,12 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           </td>
         );
       case "role": return <td role="cell" data-col="role" key={c}><QuickRole db={db} appId={r.id} company={r.company} role={r.role} /></td>;
-      case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><QuickStage db={db} appId={r.id} company={r.company} stage={r.stage} stageAt={r.stageAt} locked={r.locked} /></td>;
+      case "stage": return <td role="cell" data-col="stage" key={c} id={`stage-${r.id}`}><QuickStage db={db} appId={r.id} company={r.company} stage={r.stage} stageAt={r.stageAt} locked={r.locked} /><OfferDeadline stage={r.stage} deadline={r.offerDeadline} /></td>;
       case "applied": return <td role="cell" data-col="applied" key={c} className="small muted"><QuickDate db={db} appId={r.id} company={r.company} appliedAt={r.appliedAt} /></td>;
       case "lastActivity":
         return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} /></td>;
       case "emails": return <td role="cell" data-col="emails" key={c} className="small muted">{r.nEmails}</td>;
+      case "rounds": return <td role="cell" data-col="rounds" key={c} className="small muted">{r.rounds ?? ""}</td>;
     }
   };
 

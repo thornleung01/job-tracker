@@ -22,6 +22,7 @@ import {
   PROVIDER_LABEL, accountLabel, connectMailbox, connectedAddress, describeImport, describeSync, downloadText, exportFilename,
   isConnected, parseImportText, readFileText, runImport, runSync, type MailDeps, type ParsedImport,
 } from "./actions";
+import { csvFilename, downloadCsv, exportApplicationsCsv } from "./exportCsv";
 
 export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddress"> {
   auth: {
@@ -32,6 +33,8 @@ export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddr
     tokenSource: TokenSource;
   };
   download(filename: string, text: string): void;
+  /** saves the applications spreadsheet; its own function because it is a different file type */
+  downloadCsv?(filename: string, text: string): void;
 }
 
 export const defaultDeps: SettingsDeps = {
@@ -45,6 +48,7 @@ export const defaultDeps: SettingsDeps = {
   createProvider,
   getAddress,
   download: downloadText,
+  downloadCsv,
 };
 
 type Notice = { kind: "ok" | "err"; lines: string[] } | null;
@@ -218,6 +222,16 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
     } catch (e) {
       console.error(e);
       say("err", "Couldn't export your data. Try again.");
+    }
+  }
+
+  async function exportCsv() {
+    try {
+      (deps.downloadCsv ?? downloadCsv)(csvFilename(), await exportApplicationsCsv(db));
+      say("ok", "Your applications were exported.");
+    } catch (e) {
+      console.error(e);
+      say("err", "Couldn't export your applications. Try again.");
     }
   }
 
@@ -462,6 +476,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <p className="help">Everything is stored in this browser. Export a copy to keep it safe or move it.</p>
         <div className="row field-block">
           <button onClick={() => void exportData()}>Export data</button>
+          <button onClick={() => void exportCsv()}>Export CSV</button>
           <label className="btn file-pick">
             Import data
             <input ref={fileInput} type="file" accept=".json,application/json" className="sr" onChange={(e) => void chooseFile(e.target.files?.[0])} />

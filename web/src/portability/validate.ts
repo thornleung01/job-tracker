@@ -1,6 +1,7 @@
 // Checks an export before anything is written, so a bad or hostile file can never half-replace your data.
 import { BODY_LIMIT } from "../types";
 import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow, RuleKind } from "../db/schema";
+import { safeOfferDeadline, safeOfferSalary } from "../db/offer";
 import { safePostingUrl } from "../db/postingUrl";
 import { isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
@@ -136,6 +137,9 @@ export function parseExportData(raw: unknown): ExportData {
     const postingUrl = safePostingUrl(r.postingUrl);
     // A rounds count outside 0 to MAX_ROUNDS, or not a whole number, is dropped: the app then works the count out itself.
     const rounds = typeof r.interviewRounds === "number" && Number.isInteger(r.interviewRounds) && r.interviewRounds >= 0 && r.interviewRounds <= MAX_ROUNDS ? r.interviewRounds : undefined;
+    // Offer details that aren't plain text of 60 characters or a real day are dropped, never an error.
+    const offerSalary = safeOfferSalary(r.offerSalary);
+    const offerDeadline = safeOfferDeadline(r.offerDeadline);
     if (rowId && isStage(stage)) {
       applications.push({
         id: rowId, company, companyKey: str(r, "companyKey", k, { max: 200 }), role: str(r, "role", k, { max: 300 }),
@@ -144,6 +148,8 @@ export function parseExportData(raw: unknown): ExportData {
         // A link that is not a plain http(s) address is dropped, never an error and never kept.
         ...(postingUrl ? { postingUrl } : {}),
         ...(rounds !== undefined ? { interviewRounds: rounds } : {}),
+        ...(offerSalary ? { offerSalary } : {}),
+        ...(offerDeadline ? { offerDeadline } : {}),
       });
     }
   });
