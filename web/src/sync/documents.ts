@@ -1,12 +1,12 @@
 // Resumes and cover letters. Resume versions are standalone: an application points at one with `resumeId`, and many can point
 // at the same. A cover letter belongs to one application. The master is the resume you copy versions from.
-// A deleted document stays in Recently deleted for TRASH_DAYS, like an application (sync/trash.ts), and is hidden everywhere else.
+// A deleted document stays in Recently deleted for TRASH_DAYS (db/limits.ts), like an application (sync/trash.ts), and is hidden everywhere else.
 import { normalizeSections } from "../db/documentShape";
-import { MAX_DOC_TITLE_CHARS, MAX_POSTING_CHARS, MAX_RESUME_VERSIONS } from "../db/limits";
+import { MAX_DOC_TITLE_CHARS, MAX_POSTING_CHARS, MAX_RESUME_VERSIONS, TRASH_DAYS } from "../db/limits";
 import { ActionError, MissingRecordError } from "../db/errors";
 import { requireApplication } from "../db/repo";
-import { tx, type DocSection, type DocumentRow, type JobTrackerDB } from "../db/schema";
-import { iso } from "../db/time";
+import { tx, type DocumentRow, type JobTrackerDB } from "../db/schema";
+import { DAY_MS, iso } from "../db/time";
 
 /** A request about documents that the app refuses, with a sentence that is safe to show. It is an ActionError, so the page's notice shows its own words. */
 export class DocumentError extends ActionError {
@@ -16,9 +16,7 @@ export class DocumentError extends ActionError {
   }
 }
 
-export const MASTER_TITLE = "Master resume";
-/** A deleted document is kept this many days before it is erased for good. */
-export const DOCUMENT_TRASH_DAYS = 30;
+const MASTER_TITLE = "Master resume";
 
 export const isLiveDocument = (d: Pick<DocumentRow, "deletedAt">): boolean => !d.deletedAt;
 
@@ -188,12 +186,14 @@ export async function restoreDocument(db: JobTrackerDB, id: number): Promise<voi
   });
 }
 
-/** Erases a document for good. An application that pointed at it no longer has a resume set. */
+/** Erases a document for good. An application that pointed at a resume no longer has one set. A cover letter is never pointed at, so it skips that scan. */
 export async function eraseDocument(db: JobTrackerDB, id: number): Promise<void> {
   await tx(db, async () => {
-    for (const a of (await db.applications.toArray()).filter((x) => x.resumeId === id)) {
-      const { resumeId: _drop, ...rest } = a;
-      await db.applications.put(rest);
+    if ((await db.documents.get(id))?.kind === "resume") {
+      for (const a of (await db.applications.toArray()).filter((x) => x.resumeId === id)) {
+        const { resumeId: _drop, ...rest } = a;
+        await db.applications.put(rest);
+      }
     }
     await db.documents.delete(id);
   });
@@ -204,14 +204,24 @@ export async function listDeletedDocuments(db: JobTrackerDB, now: Date = new Dat
   return (await db.documents.toArray())
     .filter((d): d is DocumentRow & { deletedAt: string } => Boolean(d.deletedAt))
     .sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1))
-    .map((d) => ({ ...d, daysLeft: Math.max(0, DOCUMENT_TRASH_DAYS - Math.floor((now.getTime() - new Date(d.deletedAt).getTime()) / 86_400_000)) }));
+    .map((d) => ({ ...d, daysLeft: Math.max(0, TRASH_DAYS - Math.floor(Math.max(0, now.getTime() - new Date(d.deletedAt).getTime()) / DAY_MS)) })); // a deletion time in the future counts as just now
 }
 
 /** Erases the deleted documents that have been there TRASH_DAYS or more. Returns how many. */
 export async function purgeExpiredDocuments(db: JobTrackerDB, now: Date = new Date()): Promise<number> {
   const old = (await listDeletedDocuments(db, now)).filter((d) => d.daysLeft === 0);
-  for (const d of old) await eraseDocument(db, d.id);
-  return old.length;
+  // One document that won't erase doesn't stop the rest: the first failure is thrown once the others are done.
+  let erased = 0;
+  let failure: unknown;
+  for (const d of old) {
+    try {
+      await eraseDocument(db, d.id);
+      erased++;
+    } catch (e) {
+      failure ??= e;
+    }
+  }
+  if (failure) throw failure;
+  return erased;
 }
 
-export type { DocSection };

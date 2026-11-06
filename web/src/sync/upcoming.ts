@@ -1,9 +1,6 @@
 // Upcoming interviews: the next day an application's interview emails say a meeting is on, and how to show it.
 import { WEEKDAY_NAMES, dayText } from "../db/dayText";
-import type { JobTrackerDB } from "../db/schema";
 import { daysBetween, weekdayOf } from "../db/time";
-import { isLiveDocument } from "./documents";
-import { isLive } from "./live";
 import { interviewMeetings, type MailForRounds } from "./rounds";
 
 /** "Sun" ... "Sat", by weekday number (see weekdayOf in db/time.ts). The full names are WEEKDAY_NAMES in db/dayText.ts. */
@@ -63,21 +60,6 @@ export interface UpcomingRow {
   stage?: string;
   /** the title of the resume sent, when it is live; a deleted or missing resume leaves it out */
   resumeTitle?: string | null;
-}
-
-/**
- * Application id to the title of the live resume it was sent with. An application whose resume was deleted (or is gone) has no
- * entry, so "Sent:" is simply not shown for it. Reads two tables, so a live query re-runs when either changes.
- */
-export async function resumeTitlesByApp(db: JobTrackerDB): Promise<Map<number, string>> {
-  const titles = new Map<number, string>();
-  const [apps, docs] = await Promise.all([db.applications.toArray(), db.documents.toArray()]);
-  const resumes = new Map(docs.filter((d) => d.kind === "resume" && isLiveDocument(d)).map((d) => [d.id, d.title]));
-  for (const a of apps) {
-    const title = a.resumeId === undefined || !isLive(a) ? undefined : resumes.get(a.resumeId);
-    if (title) titles.set(a.id, title);
-  }
-  return titles;
 }
 
 /** The interviews in the next week, soonest first (then by company, then id), at most five. */

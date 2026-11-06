@@ -64,3 +64,6 @@ export const MAX_DOC_SECTIONS = 30;
 export const MAX_DOC_ITEMS = 60;
 /** The most resume versions you can keep besides the master. */
 export const MAX_RESUME_VERSIONS = 5;
+
+/** Days a deleted application, resume or cover letter waits in Recently deleted before it is erased for good. */
+export const TRASH_DAYS = 30;

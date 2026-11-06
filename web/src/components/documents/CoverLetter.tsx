@@ -3,7 +3,8 @@ import { useQuery } from "../../app/useQuery";
 import type { ApplicationRow, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { coverLetterMail } from "../../sync/applicationActions";
 import type { Contact } from "../../sync/contacts";
-import { DOCUMENT_TRASH_DAYS, deleteDocument, saveCoverLetter } from "../../sync/documents";
+import { TRASH_DAYS } from "../../db/limits";
+import { deleteDocument, saveCoverLetter } from "../../sync/documents";
 import { InlineConfirm } from "../InlineConfirm";
 import type { ActionRunner } from "../useAction";
 import { greeting, letterSections, letterText } from "./letter";
@@ -52,7 +53,7 @@ export function CoverLetter({ db, app, cover, people, act }: Props) {
       await deleteDocument(db, cover.id);
       focusNext.current = "[data-write]";
       setAsking(false);
-      return `Cover letter deleted. You can restore it for ${DOCUMENT_TRASH_DAYS} days.`;
+      return `Cover letter deleted. You can restore it for ${TRASH_DAYS} days.`;
     });
   };
   const copy = async (letter: string) => {
@@ -91,7 +92,7 @@ export function CoverLetter({ db, app, cover, people, act }: Props) {
           {asking ? (
             <InlineConfirm
               title="Delete this cover letter?"
-              help={`You can restore it for ${DOCUMENT_TRASH_DAYS} days.`}
+              help={`You can restore it for ${TRASH_DAYS} days.`}
               confirmLabel="Delete cover letter"
               onConfirm={remove}
               onCancel={() => setAsking(false)}

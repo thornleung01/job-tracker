@@ -1,3 +1,4 @@
+import { TRASH_DAYS } from "../../db/limits";
 import { useState, type FormEvent } from "react";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { Notice } from "../../components/Notice";
@@ -144,7 +145,7 @@ function VersionCard({ db, doc, used, say }: CardProps) {
   const remove = () =>
     void act.run("delete", async () => {
       await deleteDocument(db, doc.id);
-      say(`Deleted ${doc.title}. It's in Recently deleted for 30 days.`, true);
+      say(`Deleted ${doc.title}. It's in Recently deleted for ${TRASH_DAYS} days.`, true);
     });
 
   return (
@@ -171,7 +172,7 @@ function VersionCard({ db, doc, used, say }: CardProps) {
         {!editing ? <Status text={act.busy === null ? act.status : null} /> : null}
       </div>
       {confirming ? (
-        <InlineConfirm title="Delete this resume version?" help="It stays in Recently deleted for 30 days." confirmLabel="Delete" act={act} actionKey="delete"
+        <InlineConfirm title="Delete this resume version?" help={`It stays in Recently deleted for ${TRASH_DAYS} days.`} confirmLabel="Delete" act={act} actionKey="delete"
                        onConfirm={remove} onCancel={() => setConfirming(false)} />
       ) : null}
       {editing ? <EditorBlock db={db} doc={doc} label={doc.title} draft={draft} act={act} onSaved={() => setEditing(false)} onCancel={() => setEditing(false)} /> : null}

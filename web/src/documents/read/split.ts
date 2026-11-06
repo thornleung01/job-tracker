@@ -6,7 +6,7 @@ const SUMMARY = "Summary";
 const MAX_HEADING_CHARS = 40;
 const MAX_HEADING_WORDS = 6;
 /** Bullet glyphs, a dash, and the private-use bullets Word's Symbol font leaves behind. */
-const BULLET = /^[•·▪◦●■□○‣⁃–—\-*]\s*/;
+const BULLET = /^[•·▪◦●■□○‣⁃\u2013\u2014\-*\uf0b7\uf0a7\uf0d8]\s*/;
 /** Words that stay lowercase inside a Title Case heading. */
 const SMALL = new Set(["and", "of", "the", "for", "in", "to", "a", "on", "with", "&"]);
 

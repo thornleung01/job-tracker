@@ -64,6 +64,6 @@ export async function readPdf(data: Uint8Array, open: PdfOpener = openWithPdfjs)
   try {
     return await pdfText(doc);
   } finally {
-    void doc.destroy?.();
+    void doc.destroy?.().catch(() => {}); // a failed clean-up isn't the reader's problem, and mustn't surface as an unhandled rejection
   }
 }

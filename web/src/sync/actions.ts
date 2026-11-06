@@ -159,7 +159,7 @@ export async function deleteApplication(db: JobTrackerDB, appId: number, emails:
 }
 
 /** Folds one application into another: emails, notes, steps and people corrections move across. */
-export async function mergeApplications(db: JobTrackerDB, appId: number, into: number): Promise<void> {
+export async function mergeApplications(db: JobTrackerDB, appId: number, into: number, now: Date = new Date()): Promise<void> {
   // Both rows are read inside the transaction that writes, so a sync's newer lastActivity or a second tab's delete can't slip in between.
   await tx(db, async () => {
     const src = await db.applications.get(appId);
@@ -179,10 +179,13 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
     if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
     if (!dst.postingText && src.postingText) fields.postingText = src.postingText;
     if (dst.resumeId === undefined && src.resumeId !== undefined) fields.resumeId = src.resumeId;
-    // One cover letter per application: the target's stays, and the source's moves over only when the target has none.
-    if (!(await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt).count())) {
-      await db.documents.where("applicationId").equals(appId).modify({ applicationId: into });
-    }
+    // One cover letter per application: the target's stays. The source's moves over, and when the target has one already it goes to
+    // Recently deleted instead of being erased with the source, so a letter you wrote is never lost without a way back.
+    const targetHasLetter = (await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt).count()) > 0;
+    await db.documents.where("applicationId").equals(appId).modify((d) => {
+      d.applicationId = into;
+      if (targetHasLetter && !d.deletedAt) d.deletedAt = iso(now);
+    });
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.feedback.where("applicationId").equals(appId).modify({ applicationId: into });

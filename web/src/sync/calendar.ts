@@ -30,7 +30,10 @@ export interface CalendarEvent {
 /** The part of a list row the calendar reads. */
 export type CalendarRow = Pick<
   ApplicationListRow, "id" | "company" | "role" | "stage" | "appliedAt" | "lastActivity" | "followUp" | "offerDeadline" | "interviewDays"
->;
+> & {
+  /** the title of the live resume sent, which the list rows carry; interview events show it */
+  resumeTitle?: string | null;
+};
 
 /** A step you logged (kind "step" in the activity table). */
 export interface CalendarStep {
@@ -65,11 +68,10 @@ const SHOWN_ELSEWHERE = "Applied";
  *    gets "No reply in 30 days" on that 30th day instead.
  *  - Step: a step you logged, except "Applied" and an "Interview" on a day that already shows an interview. The same step on the
  *    same day shows once. A step of an application that isn't in `rows` (deleted, or filtered out) is left out.
- * `resumeTitles` (application id to live resume title, see resumeTitlesByApp) gives interview events their `resumeTitle`.
+ * An interview event carries the row's `resumeTitle` when it has one.
  */
 export function calendarEvents(
   rows: readonly CalendarRow[], steps: readonly CalendarStep[], today: string, range: { from: string; to: string },
-  resumeTitles?: ReadonlyMap<number, string>,
 ): Map<string, CalendarEvent[]> {
   const events = new Map<string, CalendarEvent[]>();
   const interviewOn = new Set<string>();
@@ -81,7 +83,7 @@ export function calendarEvents(
     const event: CalendarEvent = {
       key: `${kind}:${row.id}:${day}:${label}`, day, kind, appId: row.id, company: row.company, role: row.role, stage: row.stage, label, past: day < today,
     };
-    const resumeTitle = kind === "interview" ? resumeTitles?.get(row.id) : undefined;
+    const resumeTitle = kind === "interview" ? row.resumeTitle : undefined;
     if (resumeTitle) event.resumeTitle = resumeTitle;
     const list = events.get(day);
     if (list) list.push(event);

@@ -44,7 +44,8 @@ export interface ListQuery {
   now?: Date;
 }
 
-export interface ApplicationListRow extends ApplicationRow {
+/** A list row leaves out the posting text: search reads it while the rows are built, and nothing on the list needs up to 20,000 characters per row. */
+export interface ApplicationListRow extends Omit<ApplicationRow, "postingText"> {
   nEmails: number;
   /** whole calendar days (your time zone) since the last activity, never negative; null when unknown. Follow-ups count these days. */
   idleDays: number | null;
@@ -69,7 +70,7 @@ type InterviewMail = EmailRow & { applicationId: number };
 const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
 
 /** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
-type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds" | "resumeTitle">;
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds" | "resumeTitle"> & Pick<ApplicationRow, "postingText">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
@@ -120,8 +121,9 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   const rows: ApplicationListRow[] = early.map((a) => {
     // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
     const days = meetingDays(interviews.get(a.id) ?? []);
+    const { postingText: _posting, ...rest } = a;
     return {
-      ...a, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
+      ...rest, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
       match: hits?.get(a.id), resumeTitle: a.resumeId === undefined ? null : resumeTitles.get(a.resumeId) ?? null,
     };
   });
@@ -134,9 +136,9 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     applied: (a, b) => (a.appliedAt === null || b.appliedAt === null ? (a.appliedAt === null ? 1 : 0) - (b.appliedAt === null ? 1 : 0) : sign * nullable(a.appliedAt, b.appliedAt)),
     lastActivity: (a, b) => sign * nullable(a.lastActivity, b.lastActivity),
     emails: (a, b) => sign * (a.nEmails - b.nEmails),
-    // no count always goes last, whichever way you sort
     // no resume always goes last, whichever way you sort
     resume: (a, b) => (a.resumeTitle === null || b.resumeTitle === null ? (a.resumeTitle === null ? 1 : 0) - (b.resumeTitle === null ? 1 : 0) : sign * compareText(a.resumeTitle, b.resumeTitle)),
+    // no count always goes last, whichever way you sort
     rounds: (a, b) => (a.rounds === null || b.rounds === null ? (a.rounds === null ? 1 : 0) - (b.rounds === null ? 1 : 0) : sign * (a.rounds - b.rounds)),
   };
   return rows.sort((a, b) => by[sort](a, b) || a.id - b.id);

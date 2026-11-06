@@ -4,8 +4,15 @@ import type {
 } from "../db/schema";
 
 export const EXPORT_FORMAT = "jobtracker-export";
-/** 2 added the posting link on applications. Version 1 files are still read. Applications may also carry `interviewRounds`, an optional number you typed: it is additive, so it needed no new version. The same goes for `offerSalary` (text, at most 60 characters) and `offerDeadline` (YYYY-MM-DD): optional, and dropped on import when they are not valid. Likewise `deletedAt` (an ISO time): an application with it is in Recently deleted, and a value that is not a time is dropped. */
-/** 3 added `documents` (resumes and cover letters) and, on applications, `postingText` and `resumeId`. Older files are still read: a file without `documents` has none. */
+/**
+ * 2 added the posting link on applications.
+ * Version 1 files are still read.
+ * Applications may also carry `interviewRounds`, an optional number you typed: it is additive, so it needed no new version.
+ * The same goes for `offerSalary` (text, at most 60 characters) and `offerDeadline` (YYYY-MM-DD): optional, and dropped on import when they are not valid.
+ * Likewise `deletedAt` (an ISO time): an application with it is in Recently deleted, and a value that is not a time is dropped.
+ * 3 added `documents` (resumes and cover letters) and, on applications, `postingText` and `resumeId`.
+ * Older files are still read: a file without `documents` has none.
+ */
 export const EXPORT_VERSION = 3;
 
 export interface ExportData {

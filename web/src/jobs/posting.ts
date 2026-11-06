@@ -11,8 +11,8 @@ const INLINE_TAGS = /<\/?(?:a|abbr|b|big|cite|code|em|font|i|mark|small|span|str
 const clean = (text: string): string =>
   text
     .replace(/\r\n?/g, "\n")
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏⁠﻿]/g, "")
-    .replace(/ /g, " ")
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u2060\ufeff]/g, "")
+    .replace(/\u00a0/g, " ")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

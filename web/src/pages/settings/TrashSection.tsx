@@ -7,9 +7,9 @@ import { StageBadge } from "../../components/StageBadge";
 import { useAction } from "../../components/useAction";
 import { useNoticeFocus } from "../../components/useNoticeFocus";
 import { useQuery } from "../../app/useQuery";
-import { ActionError, MissingRecordError } from "../../db/errors";
+import { MissingRecordError } from "../../db/errors";
 import type { JobTrackerDB } from "../../db/schema";
-import { DocumentError, restoreDocument } from "../../sync/documents";
+import { restoreDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
 import { TRASH_DAYS, deleteDocumentForever, deleteForever, emptyTrash, listTrash, restoreApplication, type AnyTrashEntry } from "../../sync/trash";
 import "./trash.css";
@@ -44,7 +44,6 @@ export function TrashSection({ db }: { db: JobTrackerDB }) {
     } catch (err) {
       // Restored or erased elsewhere meanwhile, or the refusal's own words ("Restore the application first.") shown in the notice.
       if (err instanceof MissingRecordError) return `${name} is no longer in Recently deleted.`;
-      if (err instanceof DocumentError) throw new ActionError(err.message);
       throw err;
     }
     return `Restored ${name}.`;

@@ -1,7 +1,7 @@
 import type { ResumeChoice } from "../bulk/BulkBar";
 
 /** What the select says for "go and add your resume": picking it opens the Resume page instead of setting a value. */
-export const ADD_RESUME = "add";
+const ADD_RESUME = "add";
 
 interface Props {
   id: string;

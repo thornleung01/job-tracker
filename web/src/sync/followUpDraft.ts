@@ -123,7 +123,8 @@ export function draftLink(
 ): MailLink | null {
   const to = safeAddress(draft.to);
   const subject = oneLine(draft.subject, MAX_SUBJECT_CHARS);
-  const body = String(draft.body).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ").slice(0, MAX_DRAFT_BODY_CHARS);
+  const text = String(draft.body).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ");
+  const body = Array.from(text).slice(0, MAX_DRAFT_BODY_CHARS).join(""); // by character, so a cut never splits an emoji
   const named = (service: string) => (what ? `Draft ${what} in ${service}` : `Draft in ${service}`);
   const query = (...pairs: [string, string][]) => pairs.filter(([, v]) => v !== "").map(([k, v]) => `${k}=${encode(v)}`).join("&");
   let label: string;

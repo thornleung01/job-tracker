@@ -97,8 +97,8 @@ async function addOne(
       const [existing] = await findDuplicates(db, company, role, url);
       if (existing) return { status: "skipped", existing };
       // The posting text is the draft's description, kept as the job posting for this application.
-      const description = (read as JobDraft & { description?: string }).description?.trim();
-      const input: AddApplicationInput & { postingText?: string; resumeId?: number } = {
+      const description = read.description?.trim();
+      const input: AddApplicationInput = {
         company, role, stage: "Applied", url,
         ...(description ? { postingText: description } : {}),
         ...(o.resumeId !== undefined ? { resumeId: o.resumeId } : {}),

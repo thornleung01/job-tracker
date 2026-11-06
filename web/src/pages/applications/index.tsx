@@ -34,10 +34,9 @@ import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
 import { isDayString, localToday } from "../../db/time";
-import { addApplication as realAddApplication } from "../../sync/actions";
+import { addApplication as realAddApplication, type AddApplicationInput } from "../../sync/actions";
 import { liveResumes } from "../../sync/documents";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
-import { resumeTitlesByApp } from "../../sync/upcoming";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
@@ -105,7 +104,7 @@ function rememberResume(db: JobTrackerDB, value: string): void {
 }
 
 /** The job posting text a draft carries (JobDraft.description), or "". */
-const descriptionOf = (draft: JobDraft | null): string => (draft as (JobDraft & { description?: string }) | null)?.description?.trim() ?? "";
+const descriptionOf = (draft: JobDraft | null): string => draft?.description?.trim() ?? "";
 
 /** The attribute the stylesheet hangs the phone layout on: last activity is `last_activity` there. */
 const dataCol = (c: ColumnId): string => (c === "lastActivity" ? "last_activity" : c);
@@ -191,10 +190,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   // The calendar: the page's filtered rows plus the steps logged in the grid's days. Moving around it replaces the history entry.
   const range = useMemo(() => gridRange(month), [month]);
   const steps = useQuery(() => (calendar ? calendarSteps(db, range.from, range.to) : []), [db, calendar, range.from, range.to], { keepPrevious: true });
-  const resumeTitles = useQuery(() => (calendar ? resumeTitlesByApp(db) : new Map<number, string>()), [db, calendar]);
   const dataRows = data?.rows;
   const events = useMemo<ReadonlyMap<string, readonly CalendarEvent[]>>(
-    () => (calendar && dataRows ? calendarEvents(dataRows, steps ?? [], today, range, resumeTitles) : new Map()), [calendar, dataRows, steps, today, range, resumeTitles]);
+    () => (calendar && dataRows ? calendarEvents(dataRows, steps ?? [], today, range) : new Map()), [calendar, dataRows, steps, today, range]);
   const calendarUrl = (o: { month: string; day: string }) => listUrl({ ...filters, ...sorting, ...keep, ...o });
   const goMonth = (m: string) => {
     const { from, to } = gridRange(m);
@@ -300,7 +298,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const submitAdd = (e: FormEvent) => {
     e.preventDefault();
     void add.run("add", async () => {
-      const input: Parameters<typeof addApplication>[1] & { postingText?: string; resumeId?: number } = {
+      const input: AddApplicationInput = {
         company, role, stage: addStage, appliedOn, url: postingUrl.trim() || undefined,
         ...(posting.current ? { postingText: posting.current } : {}),
         ...(sentResume ? { resumeId: Number(sentResume) } : {}),

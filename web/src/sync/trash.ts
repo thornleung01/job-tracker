@@ -5,13 +5,14 @@
 import { MissingRecordError } from "../db/errors";
 import { clearEmail } from "../db/repo";
 import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
+import { TRASH_DAYS } from "../db/limits";
 import { DAY_MS, iso } from "../db/time";
 import type { Stage } from "../db/stages";
 import { eraseDocument, listDeletedDocuments, purgeExpiredDocuments } from "./documents";
 import { removeApplicationRow } from "./recheck";
 
 /** How long a deleted application waits before it is erased for good. */
-export const TRASH_DAYS = 30;
+export { TRASH_DAYS };
 /**
  * That is 30 x 24 hours counted on the timestamp, not 30 calendar days: a clock change (daylight saving) or a different time
  * zone can't move it by more than the hour the clocks changed, and nothing here depends on the viewer's zone.
