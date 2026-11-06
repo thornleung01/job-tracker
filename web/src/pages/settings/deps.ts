@@ -1,7 +1,7 @@
 // What the Settings sections reach outside the page for, so tests can hand in fakes: auth, the mail providers and the
 // two file downloads. SettingsPage merges a test's partial deps over `defaultDeps`.
 import { realAiDeps, type AiDeps } from "../../ai";
-import { lockAllVaults } from "../../ai/vault";
+import { lockAllVaults } from "../../ai";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
 import { createProvider, getAddress } from "../../providers";

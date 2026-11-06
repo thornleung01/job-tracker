@@ -2,7 +2,7 @@
 import { getSession, prepare, signIn, signOut, subscribe, takePendingSync } from "../auth";
 import type { Session } from "../auth";
 import type { IdentityProvider } from "../auth/user";
-import { lockAllVaults } from "../ai/vault";
+import { lockAllVaults } from "../ai";
 import { signOutAndForget } from "../sync/mailbox";
 import type { ProviderName } from "../types";
 

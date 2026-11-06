@@ -1,10 +1,9 @@
-import { AI_MODELS, AiError, type AiModel, type Complete } from "../../../ai";
+import { AiError, CHECK_MODEL, type AiModel, type Complete } from "../../../ai";
 import { ForgetKey } from "./ForgetKey";
 import { KeyEnding } from "./KeyEnding";
 import { ModelSelect, type CardPart } from "./shared";
 
 /** The cheapest model, for the tiny request that tests a key. */
-const CHECK_MODEL = AI_MODELS[1].id;   // switch to the CHECK_MODEL exported by ../../../ai when it lands
 const CHECK_REQUEST = {
   model: CHECK_MODEL,
   system: 'Reply with the JSON {"ok":true}.',

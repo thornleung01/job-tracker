@@ -17,7 +17,8 @@ import type { Sleep } from "../providers/backoff";
 import { DEFAULT_MAX_TOKENS, type AiReply, type AiRequest, type Complete } from "./deps";
 import { AiError } from "./errors";
 
-const AI_HOST = "api.anthropic.com";
+/** The one host the key is ever sent to. Exported so the CSP test can check that it matches `connect-src`. */
+export const AI_HOST = "api.anthropic.com";
 export const AI_URL = `https://${AI_HOST}/v1/messages`;
 export const AI_VERSION = "2026-10-21";
 /** A reply is not streamed, so one of up to 8,000 tokens can take over two minutes on the larger models. */
