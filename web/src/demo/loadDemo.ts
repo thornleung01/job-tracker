@@ -3,6 +3,7 @@
 import type { JobTrackerDB } from "../db/schema";
 import { iso, localToday, shiftDay } from "../db/time";
 import { importFromPythonExport, type ImportSummary } from "../portability";
+import { createVersion, saveCoverLetter, saveMaster } from "../sync/documents";
 import { loadSettings, saveSettings } from "../sync/settings";
 
 const ISO_UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
@@ -46,6 +47,66 @@ async function addDemoInterviews(db: JobTrackerDB, now: Date): Promise<void> {
   })));
 }
 
+const DAY_MS = 86_400_000;
+const lines = (...texts: string[]) => texts.map((text) => ({ text }));
+
+/** The demo master resume: a made-up analyst's, in four sections. */
+const DEMO_RESUME = [
+  { heading: "Summary", items: lines("Analyst with 5 years of experience turning messy data into decisions for finance and product teams.") },
+  {
+    heading: "Experience",
+    items: lines(
+      "Senior Analyst, Northfield Bank (2022 to now)",
+      "Built a weekly reporting model that cut month-end close time by 2 days.",
+      "Led a dashboard rollout used by 40 people across 3 teams.",
+      "Ran A/B tests on the onboarding flow and shared the results with product.",
+      "Analyst, Harbour Retail (2019 to 2022)",
+      "Wrote SQL pipelines that replaced 12 hours of manual spreadsheet work each week.",
+    ),
+  },
+  { heading: "Skills", items: lines("SQL, Python, Tableau, Excel", "Experiment design, forecasting, stakeholder reporting") },
+  { heading: "Education", items: lines("B.Com in Economics, Demo University (2019)") },
+];
+
+/** Each version is the master with the line that fits its kind of role moved to the top of Experience. The roles it was sent for follow the role's name. */
+const DEMO_VERSIONS = [
+  { title: "Resume for data roles", roles: /data/i, first: "Wrote SQL pipelines that replaced 12 hours of manual spreadsheet work each week." },
+  { title: "Resume for product roles", roles: /product|business/i, first: "Ran A/B tests on the onboarding flow and shared the results with product." },
+];
+
+/**
+ * A demo master resume, two versions of it, and every application whose role fits a version pointing at that version, so the
+ * Resume page, the list filter and the Resume column have something to show. The first Interview-stage application gets a cover letter.
+ * Nothing here is random: the same demo gives the same documents.
+ */
+async function addDemoDocuments(db: JobTrackerDB, now: Date): Promise<void> {
+  const ago = (days: number) => new Date(now.getTime() - days * DAY_MS);
+  const masterId = await saveMaster(db, DEMO_RESUME, "paste", ago(45));
+  const apps = (await db.applications.toArray()).sort((a, b) => a.id - b.id);
+  const taken = new Set<number>();
+  for (const [i, v] of DEMO_VERSIONS.entries()) {
+    const sections = DEMO_RESUME.map((s) =>
+      s.heading === "Experience" ? { ...s, items: [...s.items.filter((x) => x.text === v.first), ...s.items.filter((x) => x.text !== v.first)] } : s,
+    );
+    const id = await createVersion(db, { title: v.title, sections, basedOn: masterId, source: "copy" }, ago(30 - i * 10));
+    for (const a of apps.filter((x) => !taken.has(x.id) && v.roles.test(x.role))) {
+      taken.add(a.id);
+      await db.applications.update(a.id, { resumeId: id });
+    }
+  }
+  const interview = apps.find((a) => a.stage === "Interview");
+  if (!interview) return;
+  await saveCoverLetter(db, interview.id, [{
+    heading: "",
+    items: lines(
+      `Dear hiring team at ${interview.company},`,
+      `I'm applying for the ${interview.role} role. For 5 years I've turned messy data into decisions that finance and product teams act on.`,
+      "At Northfield Bank I built the weekly reporting model that cut month-end close by 2 days, and led a dashboard rollout used by 40 people.",
+      "I'd enjoy bringing that to your team and would welcome a conversation.",
+    ),
+  }], "paste", ago(2));
+}
+
 /** Replaces everything with the demo set. Your own look (theme, accent and so on) is kept. */
 export async function loadDemoData(db: JobTrackerDB, now: Date = new Date()): Promise<ImportSummary> {
   const demo = (await import("./demo-export.json")).default as { tables: unknown };
@@ -55,5 +116,6 @@ export async function loadDemoData(db: JobTrackerDB, now: Date = new Date()): Pr
   const summary = await importFromPythonExport(db, shifted);
   await saveSettings(db, "appearance", { ...before.appearance });
   await addDemoInterviews(db, now);
+  await addDemoDocuments(db, now);
   return summary;
 }

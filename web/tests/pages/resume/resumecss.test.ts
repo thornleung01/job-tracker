@@ -1,0 +1,52 @@
+// @vitest-environment node
+// The test runner empties imported CSS, so this reads the stylesheets as text.
+import { describe, expect, it } from "vitest";
+
+const NODE_FS = "node:fs";
+
+async function css(path: string): Promise<string> {
+  const fs = (await import(/* @vite-ignore */ NODE_FS)) as { readFileSync(url: URL, enc: string): string };
+  return fs.readFileSync(new URL(`../../../src/${path}`, import.meta.url), "utf8");
+}
+
+const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css"];
+
+describe.each(SHEETS)("%s", (sheet) => {
+  it("uses the app's tokens: no hex colours, no tabular-nums, no underlines, no !important", async () => {
+    const text = (await css(sheet)).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(text).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(text).not.toContain("tabular-nums");
+    expect(text).not.toMatch(/text-decoration:\s*underline/);
+    expect(text).not.toContain("!important");
+  });
+});
+
+describe("the print stylesheet", () => {
+  it("hides the app's header, banners and buttons only while a document is shown", async () => {
+    const text = await css("pages/resume/print.css");
+    const print = text.slice(text.indexOf("@media print"));
+    expect(print).toContain(".wrap:has(.doc-print) > :not(main) { display: none; }");
+    expect(print).toContain("main:has(.doc-print) > :not(.doc-print) { display: none; }");
+    expect(print).toContain(".doc-print-bar { display: none; }");
+    expect(print).toContain(".skip { display: none; }");
+  });
+
+  it("is black on white in a system font with no card shadow, and sets page margins", async () => {
+    const text = await css("pages/resume/print.css");
+    const print = text.slice(text.indexOf("@media print"));
+    expect(print).toMatch(/body:has\(\.doc-print\) \{[^}]*background: white; color: black; font: [^}]*system-ui/);
+    expect(print).toMatch(/\.doc-sheet \{[^}]*box-shadow: none/);
+    expect(text).toMatch(/@page \{ margin: \d+mm; \}/);
+  });
+});
+
+describe("the phone nav", () => {
+  it("clips the full label instead of removing it, so the link keeps its accessible name", async () => {
+    const text = await css("styles/base.css");
+    const phone = text.slice(text.indexOf("@media (max-width: 520px)"));
+    expect(phone).toMatch(/nav a \.nav-full \{[^}]*clip-path: inset\(50%\)/);
+    expect(phone).not.toMatch(/\.nav-full \{[^}]*display: none/);
+    expect(phone).toMatch(/nav a \.nav-short \{ display: inline; \}/);
+    expect(text).toMatch(/nav a \.nav-short \{ display: none; \}/);
+  });
+});
