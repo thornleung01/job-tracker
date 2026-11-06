@@ -3,6 +3,8 @@ import type { Suggestion } from "../sync/queries";
 import "./combobox.css";
 
 const PER_GROUP = 6;
+const APPLICATION_KINDS: Suggestion["kind"][] = ["Company", "Role"];
+const HEADING: Record<Suggestion["kind"], string> = { Company: "Companies", Role: "Roles", Person: "People", Title: "Titles" };
 const lower = (s: string) => s.toLowerCase();
 
 interface ComboboxProps {
@@ -14,13 +16,17 @@ interface ComboboxProps {
   suggestions: Suggestion[];
   placeholder?: string;
   listLabel?: string;
+  /** the groups to show, in order */
+  kinds?: Suggestion["kind"][];
+  /** shown when there are no suggestions at all */
+  emptyText?: string;
 }
 
 /**
  * A search field with suggestions: a combobox over the companies and roles that exist. Typing filters them and picking one
  * searches for it. Enter on plain text is left to the surrounding form. Everything is drawn as text, never as HTML.
  */
-export function Combobox({ id, value, onChange, onChoose, suggestions, placeholder, listLabel = "Companies and roles you have" }: ComboboxProps) {
+export function Combobox({ id, value, onChange, onChoose, suggestions, placeholder, listLabel = "Companies and roles you have", kinds = APPLICATION_KINDS, emptyText = "No applications yet." }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,8 +37,8 @@ export function Combobox({ id, value, onChange, onChoose, suggestions, placehold
     const pick = (kind: Suggestion["kind"]) =>
       suggestions.filter((s) => s.kind === kind && (!needle || lower(s.text).includes(needle)))
         .sort((a, b) => (lower(a.text).startsWith(needle) ? 0 : 1) - (lower(b.text).startsWith(needle) ? 0 : 1)).slice(0, PER_GROUP);
-    return [...pick("Company"), ...pick("Role")];
-  }, [suggestions, q]);
+    return kinds.flatMap(pick);
+  }, [suggestions, q, kinds]);
 
   useEffect(() => () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -106,17 +112,17 @@ export function Combobox({ id, value, onChange, onChoose, suggestions, placehold
       <ul id={`${id}-list`} className="combo-list" role="listbox" aria-label={listLabel} hidden={!open}>
         {!items.length ? (
           <li className="combo-empty" role="presentation">
-            {suggestions.length ? `Nothing matches "${q}". Press Enter to search anyway.` : "No applications yet."}
+            {suggestions.length ? `Nothing matches "${q}". Press Enter to search anyway.` : emptyText}
           </li>
         ) : null}
         {items.map((it, i) => {
           const heading = it.kind !== lastKind;
           lastKind = it.kind;
-          const count = `${it.n} application${it.n === 1 ? "" : "s"}`;
+          const count = it.note ?? `${it.n} application${it.n === 1 ? "" : "s"}`;
           const at = q ? lower(it.text).indexOf(lower(q)) : -1;
           return (
             <Fragment key={`${it.kind}-${it.text}`}>
-              {heading ? <li className="combo-group" role="presentation" aria-hidden="true">{it.kind === "Company" ? "Companies" : "Roles"}</li> : null}
+              {heading ? <li className="combo-group" role="presentation" aria-hidden="true">{HEADING[it.kind]}</li> : null}
               <li
                 id={optionId(i)} role="option" aria-selected={i === active} aria-label={`${it.text}, ${it.kind.toLowerCase()}, ${count}`}
                 onMouseDown={(e) => {

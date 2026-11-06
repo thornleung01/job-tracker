@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
+import { Combobox } from "../../components/Combobox";
 import { Notice } from "../../components/Notice";
 import { PersonCard } from "../../components/PersonCard";
 import { useNoticeFocus } from "../../components/useNoticeFocus";
 import { UNKNOWN_ROLE } from "../../pipeline/extract";
-import { derive, type Contact } from "../../sync/contacts";
+import { derive, suggestionsFor, type Contact } from "../../sync/contacts";
+import type { Suggestion } from "../../sync/queries";
 import "./people.css";
+
+const SUGGESTION_KINDS: Suggestion["kind"][] = ["Person", "Company", "Role", "Title"];
 
 interface Group {
   id: number;
@@ -40,6 +44,7 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
     if (removed) result.focus();   // the Not a person button is gone with the card
   };
   const list = useRef<HTMLDivElement>(null);
+  const suggest = useMemo(() => suggestionsFor(everyone ?? []), [everyone]);
 
   if (!everyone) return <h1 className="page">People</h1>;
   const needle = q.toLocaleLowerCase();
@@ -47,9 +52,14 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
   const groups = groupByApplication(shown);
   const total = everyone.length;
 
+  const go = (text: string) => navigate(text.trim() ? `/people?q=${encodeURIComponent(text.trim())}` : "/people");
   const search = (e: FormEvent) => {
     e.preventDefault();
-    navigate(draft.trim() ? `/people?q=${encodeURIComponent(draft.trim())}` : "/people");
+    go(draft);
+  };
+  const choose = (text: string) => {
+    setDraft(text);
+    go(text);
   };
   const fold = (open: boolean) => list.current?.querySelectorAll("details.company").forEach((d) => { (d as HTMLDetailsElement).open = open; });
 
@@ -61,9 +71,9 @@ export default function PeoplePage({ db, query, navigate }: PageProps) {
       <form className="row people-search" onSubmit={search}>
         <div className="fgroup f-search">
           <label htmlFor="c-q">Search</label>
-          <input id="c-q" name="q" value={draft} placeholder="Name, title, company or role" autoComplete="off" onChange={(e) => setDraft(e.target.value)} />
+          <Combobox id="c-q" value={draft} onChange={setDraft} suggestions={suggest} kinds={SUGGESTION_KINDS} placeholder="Name, title, company or role"
+                    listLabel="People, companies, roles and titles you have" emptyText="No people yet." onChoose={choose} />
         </div>
-        <button type="submit" className="primary">Search</button>
         {q ? <a className="small clear-search" href="#/people">Clear search</a> : null}
       </form>
 

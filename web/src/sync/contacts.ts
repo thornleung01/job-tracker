@@ -11,13 +11,15 @@
 import { isContactKey } from "../db/contactKey";
 import { ActionError } from "../db/errors";
 import { MAX_NAME_CHARS, MAX_TITLE_CHARS } from "../db/limits";
+import { UNKNOWN_ROLE } from "../pipeline/extract";
 import type { ApplicationRow, ContactEditRow, EmailRow, JobTrackerDB } from "../db/schema";
 import { tx } from "../db/schema";
 import { byDesc } from "./compare";
 import { liveApplications } from "./live";
 import { replyLink, recipient, type MailLink } from "./links";
 import { pipeline } from "./pipeline";
-import { squeeze } from "./text";
+import type { Suggestion } from "./queries";
+import { plural, squeeze } from "./text";
 
 // Words that make a phrase a job title. A title is the capitalised words after a name, up to the last of these.
 const TITLE_KEYWORDS = new Set([
@@ -332,6 +334,42 @@ export async function saveEdit(db: JobTrackerDB, key: string, name: string, titl
   const cleanName = squeeze(name).slice(0, MAX_NAME_CHARS);
   const cleanTitle = squeeze(title).slice(0, MAX_TITLE_CHARS);
   await tx(db, () => db.contactEdits.put({ key, name: cleanName || null, title: cleanTitle, hidden: false }));
+}
+
+const PEOPLE_SUGGESTION_LIMIT = 300;
+
+/**
+ * What the People search offers, from people already worked out: the people (with their company), then companies, roles and
+ * job titles with how many people they cover. Newest contact first, one pass, no email reads.
+ */
+export function suggestionsFor(people: readonly Contact[]): Suggestion[] {
+  const named = new Map<string, Suggestion>();
+  const counted = new Map<Suggestion["kind"], Map<string, Suggestion>>();
+  const count = (kind: Suggestion["kind"], text: string) => {
+    const key = text.toLocaleLowerCase();
+    const group = counted.get(kind) ?? new Map<string, Suggestion>();
+    counted.set(kind, group);
+    const known = group.get(key);
+    if (known) known.n++;
+    else group.set(key, { kind, text, n: 1 });
+  };
+  for (const c of people) {   // newest contact first, so the first of each is the one to show
+    const key = c.name.toLocaleLowerCase();
+    if (c.name && !named.has(key)) named.set(key, { kind: "Person", text: c.name, n: 1, note: c.company });
+    if (c.company) count("Company", c.company);
+    if (c.role && c.role !== UNKNOWN_ROLE) count("Role", c.role);
+    if (c.title) count("Title", c.title);
+  }
+  const out = [...named.values()].slice(0, PEOPLE_SUGGESTION_LIMIT);
+  for (const kind of ["Company", "Role", "Title"] as const) {
+    for (const s of [...(counted.get(kind)?.values() ?? [])].slice(0, PEOPLE_SUGGESTION_LIMIT)) out.push({ ...s, note: plural(s.n, "person", "people") });
+  }
+  return out;
+}
+
+/** The same, from the database. The People page already has the people, so it calls suggestionsFor itself. */
+export async function peopleSuggestions(db: JobTrackerDB): Promise<Suggestion[]> {
+  return suggestionsFor(await derive(db));
 }
 
 export async function hide(db: JobTrackerDB, key: string): Promise<void> {
