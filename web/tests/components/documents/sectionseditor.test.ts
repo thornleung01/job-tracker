@@ -5,7 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { $, $$, addApp, button, click, cleanup, freshDb, mountPage, text, type, waitFor } from "../../pages/applications/harness";
 import { SectionsEditor } from "../../../src/components/documents/SectionsEditor";
-import { MAX_DOC_LABEL_CHARS, MAX_DOC_RIGHT_CHARS } from "../../../src/db/limits";
+import { normalizeSections } from "../../../src/db/documentShape";
+import { MAX_DOC_HEADING_CHARS, MAX_DOC_ITEM_CHARS, MAX_DOC_LABEL_CHARS, MAX_DOC_RIGHT_CHARS } from "../../../src/db/limits";
 import type { DocSection } from "../../../src/db/schema";
 import DetailPage from "../../../src/pages/detail";
 import { saveMaster } from "../../../src/sync/documents";
@@ -195,5 +196,49 @@ describe("inside an application's resume edit", () => {
     const copy = (await db.documents.toArray()).find((d) => !d.master)!;
     expect(copy.sections[0].items[0]).toMatchObject({ text: "Acme", kind: "org", right: "Toronto, ON" });
     expect("kind" in copy.sections[0].items[1]).toBe(false);
+  });
+});
+
+describe("editing a typed line's text", () => {
+  it("keeps its kind, label and right", async () => {
+    const c = await mount([{ id: "s1", heading: "Experience", items: [
+      { id: "a", text: "Acme", kind: "org", right: "Toronto, ON" },
+      { id: "b", text: "Cut close time", kind: "bullet", label: "Reporting" },
+    ] }]);
+    await type(named(c, "Job 1 of Experience"), "Acme Corp");
+    expect(latest[0].items[0]).toEqual({ id: "a", text: "Acme Corp", kind: "org", right: "Toronto, ON" });
+    await type(named(c, "Bullet 2 of Experience"), "Cut close time by 2 days");
+    expect(latest[0].items[1]).toEqual({ id: "b", text: "Cut close time by 2 days", kind: "bullet", label: "Reporting" });
+  });
+});
+
+describe("adding lines in other places", () => {
+  it("adds a plain line to an empty section and focuses it", async () => {
+    const c = await mount([{ id: "s1", heading: "Projects", items: [] }]);
+    await click(button($(c, 'section[aria-label="Projects"]')!, "Add line"));
+    expect(latest[0].items).toHaveLength(1);
+    expect(latest[0].items[0]).toMatchObject({ text: "" });
+    expect("kind" in latest[0].items[0]).toBe(false);
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Line 1 of Projects");
+  });
+
+  it.each(["title", "org"] as const)("adds a plain line, not a bullet, after a %s line", async (kind) => {
+    const c = await mount([{ id: "s1", heading: "Experience", items: [{ id: "a", text: "Acme", kind, right: "x" }] }]);
+    await click(button($(c, 'section[aria-label="Experience"]')!, "Add line"));
+    expect(latest[0].items).toHaveLength(2);
+    expect("kind" in latest[0].items[1]).toBe(false);
+  });
+});
+
+describe("the field limits", () => {
+  it("are set as maxLength on every field, and a longer value is cut by normalizeSections on save", async () => {
+    // jsdom doesn't cut typed text at maxLength (a browser does), so this checks the attribute on each field and the cut on the way in
+    const c = await mount([{ id: "s1", heading: "Experience", items: [{ id: "a", text: "Acme", kind: "org", right: "x" }, { id: "b", text: "y", kind: "bullet", label: "z" }] }]);
+    expect((named(c, "Heading of section 1") as HTMLInputElement).maxLength).toBe(MAX_DOC_HEADING_CHARS);
+    expect((named(c, "Job 1 of Experience") as HTMLTextAreaElement).maxLength).toBe(MAX_DOC_ITEM_CHARS);
+    expect((named(c, "Location of line 1 of Experience") as HTMLInputElement).maxLength).toBe(MAX_DOC_RIGHT_CHARS);
+    expect((named(c, "Label of line 2 of Experience") as HTMLInputElement).maxLength).toBe(MAX_DOC_LABEL_CHARS);
+    await type(named(c, "Job 1 of Experience"), "x".repeat(MAX_DOC_ITEM_CHARS + 50));
+    expect(normalizeSections(latest)[0].items[0].text).toHaveLength(MAX_DOC_ITEM_CHARS);
   });
 });

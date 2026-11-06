@@ -13,8 +13,8 @@ export function newItemId(): string {
 const clean = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/\r\n?/g, "\n").trim().slice(0, max) : "");
 
 /**
- * Turns anything into valid sections. Text is trimmed and cut to the limits, empty lines and sections without a heading or lines
- * are dropped, and a missing or repeated id is replaced, so ids are unique across the whole document. Never throws.
+ * Turns anything into valid sections. Text is trimmed and cut to the limits, a label is kept only on a bullet or skill and a right-hand
+ * value only on a job, school or title, empty lines and sections without a heading or lines are dropped, and a missing or repeated id is replaced, so ids are unique across the whole document. Never throws.
  */
 export function normalizeSections(raw: unknown): DocSection[] {
   if (!Array.isArray(raw)) return [];
@@ -34,13 +34,14 @@ export function normalizeSections(raw: unknown): DocSection[] {
       if (typeof i !== "object" || i === null) return [];
       const item = i as Record<string, unknown>;
       const text = clean(item.text, MAX_DOC_ITEM_CHARS);
-      const label = clean(item.label, MAX_DOC_LABEL_CHARS);
-      const right = clean(item.right, MAX_DOC_RIGHT_CHARS);
-      // A line is kept when it has any of the three: a job line may be only a location, a bullet only a label.
+      const kind = isDocItemKind(item.kind) ? item.kind : undefined;
+      // A field the line's kind doesn't show is dropped, so a hidden value never rides along into the saved line or the text export
+      // (the editor's type select does the same). A line with no kind has neither.
+      const label = kind === "bullet" || kind === "skill" ? clean(item.label, MAX_DOC_LABEL_CHARS) : "";
+      const right = kind === "org" || kind === "school" || kind === "title" ? clean(item.right, MAX_DOC_RIGHT_CHARS) : "";
+      // Then a line is kept when it has any of the three: a job line may be only a location, a bullet only a label.
       if (!text && !label && !right) return [];
-      return [{
-        id: unique(item.id), text, ...(isDocItemKind(item.kind) ? { kind: item.kind } : {}), ...(label ? { label } : {}), ...(right ? { right } : {}),
-      }];
+      return [{ id: unique(item.id), text, ...(kind ? { kind } : {}), ...(label ? { label } : {}), ...(right ? { right } : {}) }];
     });
     if (!heading && !items.length) continue;
     sections.push({ id: unique(rec.id), heading, items });

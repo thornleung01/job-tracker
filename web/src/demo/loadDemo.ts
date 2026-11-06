@@ -1,6 +1,6 @@
 // "Load demo data": replaces what is in this browser with a bundled, seeded demo set (no real people or mail).
 // The JSON is loaded on demand so it stays out of the main bundle.
-import type { JobTrackerDB } from "../db/schema";
+import type { DocItemKind, JobTrackerDB } from "../db/schema";
 import { iso, localToday, shiftDay } from "../db/time";
 import { importFromPythonExport, type ImportSummary } from "../portability";
 import { createVersion, saveCoverLetter, saveMaster } from "../sync/documents";
@@ -50,7 +50,7 @@ async function addDemoInterviews(db: JobTrackerDB, now: Date): Promise<void> {
 const DAY_MS = 86_400_000;
 const lines = (...texts: string[]) => texts.map((text) => ({ text }));
 
-interface DemoLine { text: string; kind?: "org" | "title" | "bullet" | "skill" | "school"; label?: string; right?: string }
+interface DemoLine { text: string; kind?: DocItemKind; label?: string; right?: string }
 const org = (text: string, right: string): DemoLine => ({ kind: "org", text, right });
 const title = (text: string, right: string): DemoLine => ({ kind: "title", text, right });
 const bullet = (label: string, text: string): DemoLine => ({ kind: "bullet", label, text });

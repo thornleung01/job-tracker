@@ -138,15 +138,16 @@ export const isDocItemKind = (value: unknown): value is DocItemKind => typeof va
 /**
  * One line of a resume or paragraph of a cover letter. The id is stable, so a tailored line can be traced to the line it came from.
  * `kind`, `label` and `right` are optional and additive: they need no new database or export version, and a line without them is plain text.
+ * A label belongs only on a bullet or skill and `right` only on an org, school or title: normalizeSections drops them elsewhere.
  */
 export interface DocItem {
   id: string;
   /** the line: an organization, a job title, a bullet's body, a skill's values, a school, or plain text */
   text: string;
   kind?: DocItemKind;
-  /** the bold lead-in of a bullet ("Reporting & Automation") or a skill ("Analytics") */
+  /** the bold lead-in of a bullet ("Reporting & Automation") or a skill ("Analytics"); only those kinds keep one */
   label?: string;
-  /** shown on the right: the location of an org or school, the dates of a title */
+  /** shown on the right: the location of an org or school, the dates of a title; only those kinds keep one */
   right?: string;
 }
 

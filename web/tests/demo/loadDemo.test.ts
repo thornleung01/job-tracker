@@ -1,8 +1,10 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { MAX_RESUME_VERSIONS } from "../../src/db/limits";
-import type { JobTrackerDB } from "../../src/db/schema";
+import type { DocItem, DocSection, JobTrackerDB } from "../../src/db/schema";
+import { itemText } from "../../src/db/documentShape";
 import { loadDemoData } from "../../src/demo/loadDemo";
+import { readPastedSections } from "../../src/documents/read";
 import { getCoverLetter, getMaster, liveResumes } from "../../src/sync/documents";
 import { liveApplications } from "../../src/sync/live";
 import { exportAllAsJson } from "../../src/portability";
@@ -33,7 +35,7 @@ describe("demo resumes", () => {
     expect(kinds(master, "Work experience").filter((k) => k === "org")).toHaveLength(2);
     expect(kinds(master, "Work experience").filter((k) => k === "title")).toHaveLength(3);
     expect(kinds(master, "Education")).toEqual(["school", undefined]);
-    const jobs = master.sections[3].items;
+    const jobs = master.sections.find((s) => s.heading === "Work experience")!.items;
     expect(jobs.filter((i) => i.kind === "org" || i.kind === "title").every((i) => i.right)).toBe(true);
     expect(jobs.filter((i) => i.kind === "bullet").every((i) => i.label)).toBe(true);
     expect(versions.map((v) => v.title)).toEqual(["Resume for data roles", "Resume for product roles"]);
@@ -49,6 +51,37 @@ describe("demo resumes", () => {
       for (const b of lines(v, true)) expect(lines(master, true)).toContain(b);
     }
     expect(lines(versions[0], true)).not.toEqual(lines(versions[1], true));
+  });
+
+  it("survives being printed as a resume's text and read back, with its jobs, titles, bullets, skills and school recognised", async () => {
+    const db = pool.open();
+    await loadDemoData(db, NOW);
+    const { master } = await summaryOf(db);
+    // What a printed or saved-as-PDF copy reads like: the name and contact lines first, capital headings, a gap before the right-hand
+    // text and a bullet mark on each bullet. (sectionsToText's own comma form and sentence-case headings are not what the importer reads.)
+    const line = (i: DocItem) => (i.kind === "bullet" ? `\u2022 ${itemText({ ...i, kind: undefined })}` : i.right ? `${i.text}\t${i.right}` : itemText(i));
+    const printed = master.sections
+      .map((s) => (s.heading === "Header" ? s.items.map((i) => i.text) : [s.heading.toUpperCase(), ...s.items.map(line)]).join("\n"))
+      .join("\n\n");
+    const back = readPastedSections(printed);
+    expect(back.map((s) => s.heading)).toEqual(["Header", ...master.sections.slice(1).map((s) => s.heading.toUpperCase())]);
+    const pick = (sections: DocSection[], heading: string) => sections.find((s) => s.heading.toLowerCase() === heading.toLowerCase())!.items;
+    for (const heading of ["Skills and qualifications", "Work experience", "Education"]) {
+      const was = pick(master.sections, heading);
+      const now = pick(back, heading);
+      expect(now, heading).toHaveLength(was.length);
+      was.forEach((item, n) => {
+        const got = now[n];
+        // The importer only reads a location that ends in a two-letter region code ("Toronto, ON"), so a job or school with "Ontario"
+        // spelled out stays a plain line with its words intact. Every other kind of line must come back as it was.
+        if (item.kind === "org" || item.kind === "school") {
+          expect(got.text, `${heading} ${n}`).toContain(item.text);
+          expect(got.text, `${heading} ${n}`).toContain(item.right);
+          return;
+        }
+        expect({ text: got.text, kind: got.kind, label: got.label, right: got.right }, `${heading} ${n}`).toEqual({ text: item.text, kind: item.kind, label: item.label, right: item.right });
+      });
+    }
   });
 
   it("points applications at each version, spread across stages so both have replies", async () => {

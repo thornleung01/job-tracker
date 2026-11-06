@@ -1,12 +1,14 @@
+// The advisory one-page fit check for the classic resume template: it measures the sheet as it would print and says whether it fits.
 import { plural } from "../../sync/text";
 
-/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. */
-export const PX_PER_INCH = 96;
+const PX_PER_INCH = 96;
+/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. Keep in sync with print.css (@page classic). */
 export const PRINTABLE_HEIGHT_PX = (11 - 2 * 0.5) * PX_PER_INCH;
-/** The printed text column: 8.5in wide minus the same margins. */
+/** The printed text column: 8.5in wide minus the same margins. Keep in sync with print.css (@page classic). */
 export const PRINT_WIDTH_PX = (8.5 - 2 * 0.5) * PX_PER_INCH;
 /** The classic template's body text: 10.5pt (14px) on a 1.25 line height. */
-export const CLASSIC_FONT_PX = 14;
+const CLASSIC_FONT_PX = 14;
+/** One body line. Keep in sync with print.css (.doc-sheet.classic: 10.5pt on a 1.25 line height). */
 export const CLASSIC_LINE_PX = CLASSIC_FONT_PX * 1.25;
 
 export interface PageVerdict {
@@ -18,8 +20,8 @@ export interface PageVerdict {
 /** Does content of this height fit the printable height? If not, by about how many lines does it overflow. */
 export function pageVerdict(contentHeightPx: number, printableHeightPx: number, lineHeightPx: number): PageVerdict {
   const over = contentHeightPx - printableHeightPx;
-  if (!(over > 0)) return { fits: true, overByLines: 0 };
-  return { fits: false, overByLines: Math.max(1, Math.ceil(over / Math.max(lineHeightPx, 1))) };
+  if (Number.isNaN(over) || over <= 0) return { fits: true, overByLines: 0 };
+  return { fits: false, overByLines: Math.max(1, Math.ceil(over / lineHeightPx)) };
 }
 
 /** The quiet status line next to the print buttons. */
@@ -37,8 +39,13 @@ export function measureSheetHeight(sheet: HTMLElement): number {
     position: "absolute", left: "-10000px", top: "0", visibility: "hidden", pointerEvents: "none",
     width: `${PRINT_WIDTH_PX}px`, maxWidth: "none", margin: "0", padding: "0", boxSizing: "content-box", fontSize: `${CLASSIC_FONT_PX}px`,
   });
+  // On a narrow screen print.css shrinks the type with the viewport (--classic-fs), but the page prints at 10.5pt. A custom property
+  // can't go through Object.assign.
+  copy.style.setProperty("--classic-fs", "10.5pt");
   document.body.append(copy);
-  const height = copy.offsetHeight;
-  copy.remove();
-  return height;
+  try {
+    return copy.offsetHeight;
+  } finally {
+    copy.remove();
+  }
 }
