@@ -1,14 +1,13 @@
 // Reading a resume from a file or from pasted text. The result is sections to check and edit: nothing is saved here.
 import type { DocSection } from "../../db/schema";
 import { MAX_FILE_BYTES, MESSAGES, MIN_TEXT_CHARS, ReadError } from "./errors";
-import { splitSections } from "./split";
+import { splitSections, squeezeLine } from "./split";
 
 export { ReadError, MESSAGES, MAX_FILE_BYTES, MAX_PDF_PAGES } from "./errors";
 export { splitSections } from "./split";
 
-/** Spaces and tabs squeezed, lines trimmed, no runs of blank lines. */
-const tidy = (text: string) =>
-  text.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+/** Spaces squeezed, lines trimmed, no runs of blank lines. A gap (a tab, or 3 or more spaces) stays as one tab: it is where text was right-aligned. */
+const tidy = (text: string) => text.replace(/\r\n?/g, "\n").split("\n").map(squeezeLine).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
 const extension = (name: string) => /\.([a-z0-9]+)$/i.exec(name)?.[1].toLowerCase() ?? "";
 

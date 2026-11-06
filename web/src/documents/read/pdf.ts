@@ -5,6 +5,7 @@ import { MAX_PDF_PAGES, MESSAGES, ReadError } from "./errors";
 interface TextItem {
   str?: string;
   hasEOL?: boolean;
+  width?: number;
   transform?: readonly number[];
 }
 export interface PdfPageLike {
@@ -18,18 +19,40 @@ export interface PdfDocumentLike {
 /** The one place pdf.js is touched, so a test can hand in a small stand-in. */
 export type PdfOpener = (data: Uint8Array) => Promise<PdfDocumentLike>;
 
-/** One page's text items as lines: a new line where pdf.js says the line ends or the text moves down the page. */
+/** A gap wider than this many average characters between two items on a line is where text was right-aligned or put in a column. */
+const GAP_CHARS = 3;
+
+/**
+ * One page's text items as lines: a new line where pdf.js says the line ends or the text moves down the page. Where two items on the same
+ * line are far apart, a tab is kept between them, so right-aligned text (a location, dates) can be told from the text beside it.
+ */
 export function joinItems(items: readonly object[]): string {
   let out = "";
   let lastY: number | null = null;
+  let lastEnd: number | null = null; // where the previous item on this line stopped
+  let charWidth = 0; // the average character width of the last item that had text
   for (const item of items as readonly TextItem[]) {
     const y = item.transform?.[5];
-    if (out && y !== undefined && lastY !== null && Math.abs(y - lastY) > 2 && !out.endsWith("\n")) out += "\n";
-    if (y !== undefined) lastY = y;
+    const x = item.transform?.[4];
     const str = item.str ?? "";
+    if (out && y !== undefined && lastY !== null && Math.abs(y - lastY) > 2 && !out.endsWith("\n")) out += "\n";
+    if (out.endsWith("\n")) lastEnd = null;
+    if (y !== undefined) lastY = y;
+    const blank = str.trim() === "";
+    if (!blank && x !== undefined && lastEnd !== null && charWidth > 0 && x - lastEnd > GAP_CHARS * charWidth && out && !out.endsWith("\n")) {
+      out = `${out.replace(/ +$/, "")}\t`;
+    }
+    // pdf.js puts a space item across a wide gap, so a gap is measured from the end of the last item with text, not from the space.
+    if (!blank) lastEnd = x !== undefined && item.width !== undefined ? x + item.width : null;
+    if (!blank) {
+      if (item.width && item.width > 0) charWidth = item.width / str.length;
+      else if (item.transform?.[0]) charWidth = Math.abs(item.transform[0]) * 0.5; // no width given: half the font size is a typical character
+    }
     out += str;
-    if (item.hasEOL) out += "\n";
-    else if (str && !str.endsWith(" ")) out += " ";
+    if (item.hasEOL) {
+      out += "\n";
+      lastEnd = null;
+    } else if (str && !str.endsWith(" ")) out += " ";
   }
   return out.split("\n").map((l) => l.trim()).join("\n");
 }
