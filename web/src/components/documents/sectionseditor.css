@@ -1,0 +1,17 @@
+/* The resume editor, on the Resume page and on an application's detail page: sections one under another, each a heading field and its lines.
+   A line is a field with its three small actions beside it. Everything sits under .doc-editor so it can't reach anything else. */
+.doc-editor { display: grid; gap: var(--gap); margin-top: var(--gap); }
+.doc-editor .doc-section { display: grid; gap: 8px; justify-items: start; }
+.doc-editor .doc-heading { display: flex; gap: 12px; align-items: center; width: 100%; }
+.doc-editor .doc-heading input { flex: 1 1 auto; min-width: 0; font-weight: 500; }
+.doc-editor .doc-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; width: 100%; }
+.doc-editor .doc-items li { display: flex; gap: 4px; align-items: flex-start; }
+.doc-editor .doc-items textarea { flex: 1 1 auto; width: auto; min-width: 0; min-height: var(--tap); padding: 10px 16px; border-radius: var(--r); resize: vertical; }
+@supports (field-sizing: content) {
+  .doc-editor .doc-items textarea { field-sizing: content; min-height: var(--tap); resize: none; }
+}
+.doc-editor .doc-line-actions { display: flex; flex: none; }
+.doc-editor .doc-line-actions button { display: inline-flex; align-items: center; justify-content: center; width: var(--tap-sm); min-height: var(--tap-sm); padding: 0;
+                                       background: transparent; box-shadow: none; color: var(--muted); }
+.doc-editor .doc-line-actions button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.doc-editor .doc-line-actions button:disabled { opacity: .3; }

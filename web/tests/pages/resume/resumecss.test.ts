@@ -9,7 +9,7 @@ async function css(path: string): Promise<string> {
   return fs.readFileSync(new URL(`../../../src/${path}`, import.meta.url), "utf8");
 }
 
-const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css"];
+const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css", "components/documents/sectionseditor.css", "components/documents/documents.css"];
 
 describe.each(SHEETS)("%s", (sheet) => {
   it("uses the app's tokens: no hex colours, no tabular-nums, no underlines, no !important", async () => {
@@ -22,6 +22,13 @@ describe.each(SHEETS)("%s", (sheet) => {
 });
 
 describe("the print stylesheet", () => {
+  it("scopes its block rules under .doc-sheet and uses no uppercase, so it can't reach the detail page after a visit", async () => {
+    const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(text).not.toMatch(/(^|\n)\s*\.doc-block/);
+    expect(text).not.toMatch(/text-transform:\s*uppercase/);
+  });
+
+
   it("hides the app's header, banners and buttons only while a document is shown", async () => {
     const text = await css("pages/resume/print.css");
     const print = text.slice(text.indexOf("@media print"));
@@ -48,5 +55,14 @@ describe("the phone nav", () => {
     expect(phone).not.toMatch(/\.nav-full \{[^}]*display: none/);
     expect(phone).toMatch(/nav a \.nav-short \{ display: inline; \}/);
     expect(text).toMatch(/nav a \.nav-short \{ display: none; \}/);
+  });
+});
+
+describe("the editor stylesheet", () => {
+  it("keeps every rule under .doc-editor, so the Resume page and the detail page can share it", async () => {
+    const text = (await css("components/documents/sectionseditor.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    const selectors = [...text.matchAll(/(^|\n|\{|\})\s*([^@{}\n][^{}]*)\{/g)].map((m) => m[2].trim());
+    expect(selectors.length).toBeGreaterThan(5);
+    for (const sel of selectors) expect(sel.startsWith(".doc-editor"), sel).toBe(true);
   });
 });

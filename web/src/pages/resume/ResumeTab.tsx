@@ -8,7 +8,7 @@ import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { createVersion, deleteDocument, saveMaster, updateDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
 import { Importer, type Incoming } from "./Importer";
-import { SectionsEditor } from "./SectionsEditor";
+import { SectionsEditor } from "../../components/documents/SectionsEditor";
 
 interface CardProps {
   db: JobTrackerDB;

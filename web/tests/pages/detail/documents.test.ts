@@ -35,7 +35,9 @@ async function setup(o: { stage?: "Applied" | "Interview"; master?: boolean; rec
 
 const select = (c: HTMLElement) => $(c, "select[name=resume]") as HTMLSelectElement;
 const section = (c: HTMLElement) => $(c, "section.documents") as HTMLElement;
-const editor = (c: HTMLElement) => $(c, "form.doc-editor") as HTMLElement;
+const editor = (c: HTMLElement) => $(c, ".doc-editor") as HTMLElement;
+/** The "Add line" button of the editor section with this heading. */
+const addLineIn = (c: HTMLElement, heading: string) => button($(editor(c), `section[aria-label="${heading}"]`) as HTMLElement, "Add line");
 const link = (c: HTMLElement, label: string) => $$(section(c), "a").find((a) => text(a) === label) as HTMLAnchorElement | undefined;
 const row = async (db: JobTrackerDB, id: number) => (await db.applications.get(id))!;
 const notice = (c: HTMLElement) => text($(c, ".notice"));
@@ -75,7 +77,7 @@ describe("the Documents section", () => {
     it("makes a copy for this job, chooses it and opens it to edit", async () => {
       const { db, id, container } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), "form.doc-editor") !== null);
+      await waitFor(() => $(section(container), ".doc-editor") !== null);
       const resumeId = (await row(db, id)).resumeId!;
       const copy = (await db.documents.get(resumeId))!;
       expect(copy.title).toBe("Resume for Acme, Analyst");
@@ -88,16 +90,16 @@ describe("the Documents section", () => {
     it("edits a line, adds one, removes one and saves", async () => {
       const { db, id, container } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), "form.doc-editor") !== null);
+      await waitFor(() => $(section(container), ".doc-editor") !== null);
       const resumeId = (await row(db, id)).resumeId!;
 
       await type($(editor(container), "textarea"), "Built 12 dashboards");
-      await click(button(section(container), "Add line to Skills"));
+      await click(addLineIn(container, "Skills"));
       const fields = $$(editor(container), "textarea");
       await type(fields[fields.length - 1], "Python");
-      await click($$(section(container), "button").find((b) => b.getAttribute("aria-label") === "Remove line 2 of Experience")!);
+      await click($$(section(container), "button").find((b) => b.getAttribute("aria-label") === "Remove line 2" && b.closest('section[aria-label="Experience"]') !== null)!);
       await click(button(section(container), "Save"));
-      await waitFor(() => $(section(container), "form.doc-editor") === null);
+      await waitFor(() => $(section(container), ".doc-editor") === null);
 
       const saved = (await db.documents.get(resumeId))!;
       expect(saved.sections.map((s) => [s.heading, s.items.map((i) => i.text)])).toEqual([["Experience", ["Built 12 dashboards"]], ["Skills", ["SQL", "Python"]]]);
@@ -107,10 +109,10 @@ describe("the Documents section", () => {
     it("leaves the master alone when only the copy is edited", async () => {
       const { db, container, master } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), "form.doc-editor") !== null);
+      await waitFor(() => $(section(container), ".doc-editor") !== null);
       await type($(editor(container), "textarea"), "Changed");
       await click(button(section(container), "Save"));
-      await waitFor(() => $(section(container), "form.doc-editor") === null);
+      await waitFor(() => $(section(container), ".doc-editor") === null);
       expect((await db.documents.get(master!))!.sections[0].items[0].text).toBe("Built dashboards");
     });
 
@@ -121,7 +123,7 @@ describe("the Documents section", () => {
       await click(button(section(container), "Edit"));
       await type($(editor(container), "textarea"), "Nope");
       await click(button(section(container), "Cancel"));
-      expect($(section(container), "form.doc-editor")).toBeNull();
+      expect($(section(container), ".doc-editor")).toBeNull();
       expect((await db.documents.get((await row(db, id)).resumeId!))!.sections[0].items[0].text).toBe("Built dashboards");
     });
 

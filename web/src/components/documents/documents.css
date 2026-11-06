@@ -4,14 +4,6 @@
 .documents .doc-note { margin: 8px 0 0; }
 .documents .doc-actions { margin-top: 12px; }
 
-/* The inline resume editor: a heading and the lines under it, each in a quiet panel. */
-.documents .doc-editor { margin-top: 14px; display: flex; flex-direction: column; gap: var(--pad); }
-.documents .doc-edit-section { margin: 0; padding: var(--pad); border: 0; border-radius: var(--r); background: var(--linen); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; min-width: 0; }
-.documents .doc-edit-heading { width: 100%; box-sizing: border-box; font-weight: 500; }
-.documents .doc-edit-line { display: flex; gap: 8px; align-items: flex-start; width: 100%; }
-.documents .doc-edit-line textarea { flex: 1 1 auto; min-width: 0; min-height: 0; }
-.documents .doc-edit-line button { flex: none; }
-
 /* The saved letter reads like a letter: paragraphs, not a box of text. */
 .documents .doc-letter { max-width: 68ch; padding: var(--pad); border-radius: var(--r); background: var(--linen); }
 .documents .doc-letter p { margin: 0 0 12px; overflow-wrap: anywhere; }
@@ -26,7 +18,7 @@
 .documents .doc-posting-text { max-width: 68ch; max-height: 24rem; overflow: auto; margin: 8px 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
 
 @media (forced-colors: active) {
-  .documents .doc-edit-section, .documents .doc-letter { border: 1px solid CanvasText; }
+  .documents .doc-letter { border: 1px solid CanvasText; }
 }
 @media (prefers-reduced-motion: reduce) {
   .documents * { transition: none; }

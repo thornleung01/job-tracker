@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { copyResumeForApplication, setApplicationResume, updateDocument } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
-import { ResumeEditor } from "./ResumeEditor";
+import { SectionsEditor } from "./SectionsEditor";
 
 interface Props {
   db: JobTrackerDB;
@@ -10,6 +10,20 @@ interface Props {
   /** the resumes you haven't deleted, master first */
   resumes: readonly DocumentRow[];
   act: ActionRunner;
+}
+
+/** The chosen resume's text as fields. Nothing is saved until Save. It is keyed by the resume, so choosing another starts from that one. */
+function EditResume({ sections, act, onSave, onCancel }: { sections: readonly DocSection[]; act: ActionRunner; onSave(sections: DocSection[]): void; onCancel(): void }) {
+  const [draft, setDraft] = useState<DocSection[]>(() => sections.map((s) => ({ ...s, items: s.items.map((i) => ({ ...i })) })));
+  return (
+    <>
+      <SectionsEditor sections={draft} onChange={setDraft} label="Edit resume" />
+      <div className="row doc-actions">
+        <button type="button" className="primary" onClick={() => onSave(draft)} {...act.button("resume-edit")}>Save</button>
+        <button type="button" onClick={onCancel} disabled={act.busy !== null}>Cancel</button>
+      </div>
+    </>
+  );
 }
 
 /** Which resume version went with this application: choose one, make a copy for this job, edit it, print it. */
@@ -65,7 +79,7 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
         ) : null}
       </div>
       {deleted ? <p className="small muted doc-note">Resume sent: (deleted)</p> : null}
-      {chosen && editing ? <ResumeEditor key={chosen.id} sections={chosen.sections} act={act} onSave={save} onCancel={() => setEditing(false)} /> : null}
+      {chosen && editing ? <EditResume key={chosen.id} sections={chosen.sections} act={act} onSave={save} onCancel={() => setEditing(false)} /> : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { newItemId } from "../../db/documentShape";
 import { MAX_DOC_HEADING_CHARS, MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_SECTIONS } from "../../db/limits";
 import type { DocSection } from "../../db/schema";
+import "./sectionseditor.css";
 
 interface Props {
   sections: DocSection[];
