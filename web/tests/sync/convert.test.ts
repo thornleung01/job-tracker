@@ -5,6 +5,7 @@ import { ActionError } from "../../src/db/errors";
 import { HEADER_HEADING } from "../../src/db/documentShape";
 import { MAX_AI_INPUT_CHARS } from "../../src/db/limits";
 import { convertResume } from "../../src/sync/convert";
+import { testVault } from "../ai/helpers";
 import { TEMPLATE_RESUME_LINES } from "../documents/fixtures";
 
 const it_ = (kind: string, text: string, label = "", right = "") => ({ kind, text, label, right });
@@ -72,7 +73,7 @@ describe("convertResume: refusals", () => {
 });
 
 describe("convertResume: the model", () => {
-  it("uses the given model first, then the vault's, then the default", async () => {
+  it("uses the given model first, then the vault's", async () => {
     const stored: VaultStatus = { state: "unlocked", last4: "test", model: "claude-opus-5-5" };
     const a = fakeDeps(MINIMAL, { status: stored });
     await convertResume(TEXT, a.deps, { db: "d" });
@@ -80,9 +81,6 @@ describe("convertResume: the model", () => {
     const b = fakeDeps(MINIMAL, { status: stored });
     await convertResume(TEXT, b.deps, { db: "d", model: "claude-haiku-5-5" as AiModel });
     expect(b.complete.mock.calls[0][1].model).toBe("claude-haiku-5-5");
-    const c = fakeDeps(MINIMAL, { key: "k", status: { state: "none" } });
-    await convertResume(TEXT, c.deps, { db: "d" });
-    expect(c.complete.mock.calls[0][1].model).toBe(DEFAULT_MODEL);
   });
 
   it("sends the key and the text as a JSON string, for the right database", async () => {
@@ -94,10 +92,52 @@ describe("convertResume: the model", () => {
     expect(JSON.parse(complete.mock.calls[0][1].user)).toEqual({ task: "convert", resumeText: TEXT });
   });
 
-  it("has no database access: its only inputs are the text and the deps", async () => {
-    // there is no fake-indexeddb in this file and the call still works: it only gets the database's name, never a handle
-    expect(typeof (globalThis as { indexedDB?: unknown }).indexedDB).toBe("undefined");
-    await expect(convertResume(TEXT, fakeDeps(MINIMAL).deps, { db: "d" })).resolves.toMatchObject({ flags: [], unused: [] });
+  it("doesn't import the database schema or Dexie at run time", () => {
+    const files = import.meta.glob("../../src/sync/convert.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    const source = Object.values(files)[0];
+    const runtimeImports = [...source.matchAll(/^import\s+(?!type\b)[^;]*?from\s+"([^"]+)"/gms)].map((m) => m[1]);
+    expect(runtimeImports.length).toBeGreaterThan(0);
+    for (const from of runtimeImports) expect(from).not.toMatch(/db\/schema|db\/db|dexie/);
+  });
+});
+
+describe("convertResume: with the real vault", () => {
+  const KEY = "sk-ant-api03-SECRETSECRETSECRET-abcd1234";
+  const PASSPHRASE = "correct horse battery";
+
+  async function realDeps() {
+    const vault = testVault();
+    const complete = vi.fn(async (_key: string, _req: AiRequest, _o?: { signal?: AbortSignal }) => ({ json: MINIMAL, model: "m" }));
+    await vault.save("d", KEY, PASSPHRASE, "claude-opus-5-5");
+    return { vault, complete, deps: { vault, complete } satisfies AiDeps };
+  }
+
+  it("uses the saved key and model, and the model asked for wins", async () => {
+    const { deps, complete, vault } = await realDeps();
+    await convertResume(TEXT, deps, { db: "d" });
+    expect(complete.mock.calls[0][0]).toBe(KEY);
+    expect(complete.mock.calls[0][1].model).toBe("claude-opus-5-5");
+    vault.setModel("d", "claude-haiku-5-5");
+    await convertResume(TEXT, deps, { db: "d" });
+    expect(complete.mock.calls[1][1].model).toBe("claude-haiku-5-5");
+    await convertResume(TEXT, deps, { db: "d", model: "claude-sonnet-5-5" });
+    expect(complete.mock.calls[2][1].model).toBe("claude-sonnet-5-5");
+  });
+
+  it("says locked after a lock, then works again after an unlock", async () => {
+    const { deps, complete, vault } = await realDeps();
+    vault.lock("d");
+    await expect(convertResume(TEXT, deps, { db: "d" })).rejects.toMatchObject({ code: "locked" });
+    expect(complete).not.toHaveBeenCalled();
+    await vault.unlock("d", PASSPHRASE);
+    await expect(convertResume(TEXT, deps, { db: "d" })).resolves.toMatchObject({ flags: [] });
+  });
+
+  it("says noKey after the key was forgotten, and for a person who never saved one", async () => {
+    const { deps, vault } = await realDeps();
+    await expect(convertResume(TEXT, deps, { db: "someone-else" })).rejects.toMatchObject({ code: "noKey" });
+    vault.forget("d");
+    await expect(convertResume(TEXT, deps, { db: "d" })).rejects.toMatchObject({ code: "noKey" });
   });
 });
 
