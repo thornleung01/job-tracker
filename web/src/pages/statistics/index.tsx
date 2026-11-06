@@ -214,11 +214,11 @@ function Results({ view, data }: { view: View; data: FlowData }) {
         {tip ? tipContent(layout, tip.key) : null}
       </div>
 
-      <details style={{ marginTop: 12 }} open={tableOpen} onToggle={(e) => setTableOpen(e.currentTarget.open)}>
+      <details className="chart-table" open={tableOpen} onToggle={(e) => setTableOpen(e.currentTarget.open)}>
         <summary className="disclosure">
           <span className="chev" aria-hidden="true"></span>Table view
         </summary>
-        <table style={{ marginTop: 8 }}>
+        <table>
           <thead>
             <tr>
               <th>Stage</th>
@@ -236,7 +236,7 @@ function Results({ view, data }: { view: View; data: FlowData }) {
             ))}
           </tbody>
         </table>
-        <table style={{ marginTop: 14 }}>
+        <table className="second">
           <thead>
             <tr>
               <th>From</th>
@@ -284,10 +284,14 @@ export default function StatisticsPage({ db, query, navigate }: PageProps) {
           {view.stats.flow.total ? (
             <>
               <StatTiles flow={view.stats.flow} speed={view.stats.speed} pace={view.stats.pace} />
-              {view.stats.pace ? <WeeklyBars pace={view.stats.pace} /> : null}
+              {view.stats.pace || view.stats.monthly.length ? (
+                <div className="stat-pair">
+                  {view.stats.pace ? <WeeklyBars pace={view.stats.pace} /> : null}
+                  <MonthlyRates months={view.stats.monthly} />
+                </div>
+              ) : null}
               <SpeedRanges speed={view.stats.speed} waiting={view.stats.waiting} account={view.account} />
               <Results view={view} data={view.stats.flow} />
-              <MonthlyRates months={view.stats.monthly} />
             </>
           ) : (
             <div className="card viz-root">

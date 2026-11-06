@@ -320,7 +320,7 @@ describe("statistics page: sections", () => {
     expect(headings().filter((h) => h !== "Waiting now")).toEqual(["Pace", "How fast companies reply", "Where applications went"]);
     // The summary comes first, then the cards in the same order as the headings.
     const order = [...host.querySelectorAll("section.card, div.card")].map((c) => c.getAttribute("aria-label") ?? c.querySelector("h2")?.textContent);
-    expect(order).toEqual(["Summary", "Pace", "How fast companies reply", "Where applications went"]);
+    expect(order.filter((o) => o !== "Waiting now")).toEqual(["Summary", "Pace", "How fast companies reply", "Where applications went"]);
   });
 
   it("agrees with the funnel: the tiles use the same counts", async () => {
@@ -332,8 +332,7 @@ describe("statistics page: sections", () => {
     const db = await seed();
     await app(db, "Old Co", "Applied", 70);
     await render(db);
-    expect(headings()).toContain("Reply rate by month sent");
-    expect(host.querySelector("section.card:last-of-type h2")?.textContent).toBe("Reply rate by month sent");
+    expect(headings().filter((h) => h !== "Waiting now")).toEqual(["Pace", "Reply rate by month sent", "How fast companies reply", "Where applications went"]);
   });
 
   it("leaves out Pace when no application has an applied day, but keeps the funnel and the speed card", async () => {

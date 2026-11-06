@@ -164,11 +164,10 @@ describe("Waiting now", () => {
   it("lists the three counts and links the two that are above zero", async () => {
     await render();
     expect(host.querySelector("h3")).toBeNull();
-    expect(host.querySelector(".waiting-now p")!.textContent).toBe("Waiting now");
-    const items = [...host.querySelectorAll(".waiting-now li")].map((e) => e.textContent);
-    expect(items).toEqual(["Under 7 days: 3", "7 to 29 days: 2 follow up", "30 days or more: 1 no reply"]);
+    expect(host.querySelector(".waiting-now h2")!.textContent).toBe("Waiting now");
+    const rows = [...host.querySelectorAll(".waiting-now li")].map((e) => [e.querySelector(".wn-label")!.textContent, e.querySelector(".wn-note")?.textContent ?? "", e.querySelector(".wn-count")!.textContent]);
+    expect(rows).toEqual([["Under 7 days", "", "3"], ["7 to 29 days", "Follow up", "2"], ["30 days or more", "No reply", "1"]]);
     expect(links().map((a) => a.getAttribute("href"))).toEqual(["#/?followUp=1", "#/?ghosted=1"]);
-    expect(host.querySelectorAll(".waiting-now .small").length).toBeGreaterThan(0);
   });
 
   it("appends the account when it is non-zero and matches the list's own address", async () => {
@@ -186,8 +185,9 @@ describe("Waiting now", () => {
 
   it("shows a zero count as plain text", async () => {
     await render(SPEED, { fresh: 4, followUp: 0, ghosted: 2 });
-    expect(links().map((a) => a.textContent)).toEqual(["2 no reply"]);
-    expect(host.querySelectorAll(".waiting-now li")[1].textContent).toBe("7 to 29 days: 0 follow up");
+    expect(links().map((a) => a.querySelector(".wn-label")!.textContent)).toEqual(["30 days or more"]);
+    expect(host.querySelectorAll(".waiting-now li")[1].querySelector("a")).toBeNull();
+    expect(host.querySelectorAll(".waiting-now li")[1].querySelector(".wn-count")!.textContent).toBe("0");
   });
 
   it("is hidden when all three are 0", async () => {

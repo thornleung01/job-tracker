@@ -51,10 +51,10 @@
 /* The headline numbers (StatTiles): a value, a label and one line of context, with no boxes around them. */
 .viz-root .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 24px; margin: 0; }
 .viz-root .tile { min-width: 0; }
-.viz-root .tile dt { color: var(--ink2); font-size: 0.875rem; }
+.viz-root .tile dt { color: var(--ink2); font-size: 0.9375rem; }
 .viz-root .tile dd { margin: 4px 0 0; }
-.viz-root .tile-value { display: block; font: 500 clamp(1.5rem, 3vw, 2rem)/1.2 var(--font-ui); letter-spacing: -0.5px; overflow-wrap: anywhere; }
-.viz-root .tile.quiet .tile-value { color: var(--ink2); font-size: 1rem; line-height: 2.4; font-weight: 400; letter-spacing: 0; }
+.viz-root .tile-value { display: block; font: 700 clamp(2rem, 4vw, 2.5rem)/1.2 var(--font-ui); letter-spacing: -0.8px; overflow-wrap: anywhere; }
+.viz-root .tile.quiet .tile-value { color: var(--ink2); font-size: 1.25rem; line-height: 2.4; font-weight: 400; letter-spacing: -0.2px; }
 .viz-root .tile-sub { display: block; margin-top: 2px; color: var(--ink2); font-size: 0.875rem; }
 @media (max-width: 720px) { .viz-root .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -63,3 +63,22 @@
 .viz-root svg.pace-chart { max-width: 600px; }
 .viz-root svg.speed-chart { max-width: 475px; }
 .viz-root svg.monthly-chart { max-width: 600px; }
+
+/* The headline numbers sit straight on the page, not in a box: carded and uncarded content together give the page its rhythm. */
+.card.viz-root.summary { background: none; box-shadow: none; padding: 0 var(--pad); }
+
+/* Charts that belong together sit side by side. A lone card fills the row, and its chart sits in the middle of it. */
+.stat-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: var(--gap); margin-bottom: var(--section); align-items: stretch; }
+.stat-pair > .card { margin-bottom: 0; }
+.viz-root svg.chart { margin-inline: auto; }
+.viz-root .chart-wrap { padding-block: 4px; }
+
+/* Table views: a calm table that stays near the numbers it describes. */
+.viz-root details.chart-table > table, .viz-root details > table { max-width: 640px; margin-top: 8px; }
+.viz-root details > table.second { margin-top: 24px; }
+.viz-root th { font-size: 0.8125rem; padding: 8px 12px; }
+.viz-root td { padding: 12px; font-size: 0.9375rem; }
+.viz-root th, .viz-root td { padding-inline: 12px; }
+.viz-root tbody tr:last-child td { border-bottom: 1px solid var(--hair); }
+.viz-root details.chart-table { overflow-x: auto; }
+@media (max-width: 720px) { .viz-root th, .viz-root td { padding-inline: 6px; } .viz-root th:first-child, .viz-root td:first-child { padding-left: 0; } .viz-root th:last-child, .viz-root td:last-child { padding-right: 0; } }
