@@ -108,7 +108,7 @@ describe("flow page: sentence", () => {
 describe("flow page: chart", () => {
   it("draws nodes with rounded bars, and the Lucide check and x on Offer and Rejected", async () => {
     await render(await seed());
-    const rects = [...host.querySelectorAll("svg rect")];
+    const rects = [...host.querySelectorAll("svg#sankey rect")];
     expect(rects).toHaveLength(5); // Applied, Heard back, No response yet, Offer, Rejected
     rects.forEach((r) => expect(r.getAttribute("rx")).toBe("2"));
     const icons = [...host.querySelectorAll("[data-icon]")];
@@ -121,7 +121,7 @@ describe("flow page: chart", () => {
       expect(i.getAttribute("transform")).toContain(`scale(${16 / 24})`);
       expect(i.getAttribute("aria-hidden")).toBe("true");
     });
-    expect(host.querySelectorAll(".node")).toHaveLength(host.querySelectorAll("svg rect").length);
+    expect(host.querySelectorAll(".node")).toHaveLength(host.querySelectorAll("svg#sankey rect").length);
   });
 
   it("gives each node and flow one keyboard stop with a spoken label", async () => {
@@ -131,7 +131,7 @@ describe("flow page: chart", () => {
     expect(labels).toContain("Applied: 3 applications, 100% of all");
     expect(labels).toContain("Heard back to Offer: 1 application, 33% of all");
     expect(stops.every((s) => s.getAttribute("role") === "img")).toBe(true);
-    expect(q("svg")!.getAttribute("role")).toBe("group");
+    expect(q("svg#sankey")!.getAttribute("role")).toBe("group");
   });
 
   it("shows a tooltip on hover, dims the other links, and hides on leave", async () => {
@@ -141,11 +141,11 @@ describe("flow page: chart", () => {
     const tip = q("#tip")!;
     expect(tip.hidden).toBe(false);
     expect(tip.textContent).toBe("Applied3 applications · 100% of allNext: Heard back 2, No response yet 1");
-    expect(q("svg")!.classList.contains("dim")).toBe(true);
+    expect(q("svg#sankey")!.classList.contains("dim")).toBe(true);
     expect(host.querySelectorAll(".link.hl").length).toBeGreaterThan(0);
     await act(async () => { applied.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
     expect(tip.hidden).toBe(true);
-    expect(q("svg")!.classList.contains("dim")).toBe(false);
+    expect(q("svg#sankey")!.classList.contains("dim")).toBe(false);
   });
 
   it("shows a flow tooltip from keyboard focus and hides on blur", async () => {
@@ -188,7 +188,7 @@ describe("flow page: table view", () => {
   it("lists stage, count and percent in a disclosure, numbers right-aligned", async () => {
     await render(await seed());
     expect(q("details > summary.disclosure")!.textContent).toBe("Table view");
-    const [stages, links] = host.querySelectorAll("table");
+    const [stages, links] = q("svg#sankey")!.closest(".card")!.querySelectorAll("table");
     const rows = [...stages.querySelectorAll("tbody tr")].map((r) => [...r.children].map((c) => c.textContent));
     expect(rows).toContainEqual(["Applied", "3", "100%"]);
     expect(rows).toContainEqual(["Offer", "1", "33%"]);
@@ -308,5 +308,53 @@ describe("flow page: safety", () => {
     for (const [f, text] of Object.entries(sources)) {
       expect(text, f).not.toMatch(/dangerouslySetInnerHTML|\.innerHTML\s*=|insertAdjacentHTML/);
     }
+  });
+});
+
+describe("statistics page: sections", () => {
+  const headings = () => [...host.querySelectorAll("h2")].map((h) => h.textContent);
+
+  it("shows the numbers, pace, speed and the funnel in that order, and no monthly chart with one month of applications", async () => {
+    await render(await seed());
+    expect(q("section[aria-label='Summary']")).not.toBeNull();
+    expect(headings().filter((h) => h !== "Waiting now")).toEqual(["Pace", "How fast companies reply", "Where applications went"]);
+    // The summary comes first, then the cards in the same order as the headings.
+    const order = [...host.querySelectorAll("section.card, div.card")].map((c) => c.getAttribute("aria-label") ?? c.querySelector("h2")?.textContent);
+    expect(order).toEqual(["Summary", "Pace", "How fast companies reply", "Where applications went"]);
+  });
+
+  it("agrees with the funnel: the tiles use the same counts", async () => {
+    await render(await seed());
+    expect([...host.querySelectorAll(".tile-value")].map((e) => e.textContent).slice(0, 3)).toEqual(["3", "67%", "0%"]);
+  });
+
+  it("adds the monthly reply rate once applications span two months", async () => {
+    const db = await seed();
+    await app(db, "Old Co", "Applied", 70);
+    await render(db);
+    expect(headings()).toContain("Reply rate by month sent");
+    expect(host.querySelector("section.card:last-of-type h2")?.textContent).toBe("Reply rate by month sent");
+  });
+
+  it("leaves out Pace when no application has an applied day, but keeps the funnel and the speed card", async () => {
+    const db = freshDb();
+    const id = await app(db, "Acme", "Applied");
+    await db.applications.update(id, { appliedAt: null });
+    await render(db);
+    expect(headings()).not.toContain("Pace");
+    expect(headings()).toContain("Where applications went");
+  });
+
+  it("shows only the empty message, with none of the new cards, when the filter finds nothing", async () => {
+    await render(freshDb());
+    expect(q("section[aria-label='Summary']")).toBeNull();
+    expect(host.querySelectorAll("h2")).toHaveLength(0);
+  });
+
+  it("reaches the follow-up filter on the list from Waiting now", async () => {
+    const db = freshDb();
+    await app(db, "Quiet Co", "Applied", 12);
+    await render(db);
+    expect(q<HTMLAnchorElement>(".waiting-now a")!.getAttribute("href")).toBe("#/?followUp=1");
   });
 });

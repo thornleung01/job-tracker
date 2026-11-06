@@ -235,6 +235,8 @@ The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, 
 
 ### Statistics charts (scoped to the Statistics page's chart root)
 - Stages, Offer and Rejected take their fills from the stage map above, so a stage is the same colour on the list and in the chart. Only the no-outcome-yet grey is the chart's own: #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
+- The other charts on the page (pace, speed, reply rate by month) follow the same rules: one axis, recessive hairline gridlines at a few round values, 12px axis text in the secondary ink and never in a series colour, thin marks with a 4px rounded data end, and no number on every mark. Colour follows the thing measured: applications use Applied, replies use Heard back. Past weeks are the chart grey and the current week takes the accent (emphasis form). A month that isn't final is a 45 degree hatch in its own colour, with the words "Still coming in", so colour is never the only signal. Each chart is drawn in a small coordinate space and capped at about 1.25 times its width (`max-width` in `statistics.css`) so its text stays near its normal size on a wide screen and shrinks to fit on a phone.
+- Every chart sits in `ChartFrame`: a heading, one line of note at most, the chart, a tooltip (a tap pins it on a phone), arrow keys between marks with one tab stop, and a Table view. The headline numbers are plain text with no boxes: a 2rem/500 value, a label and one line of context.
 
 ### Named Rules
 **The One Voice Rule.** Chroma is reserved for status, the data-viz palette and the single chosen accent. A surface with a new color needs a new status to justify it.
