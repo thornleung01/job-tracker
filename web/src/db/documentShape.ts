@@ -61,3 +61,7 @@ export function sectionsToText(sections: readonly DocSection[]): string {
     .map((s) => [s.heading, ...s.items.map(itemText)].filter(Boolean).join("\n"))
     .join("\n\n");
 }
+
+/** The heading of the section that holds a resume's name and contact line. The importer writes it and the print view looks for it. */
+export const HEADER_HEADING = "Header";
+export const isHeaderHeading = (heading: string): boolean => heading.trim().toLowerCase() === HEADER_HEADING.toLowerCase();
