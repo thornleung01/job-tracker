@@ -17,6 +17,9 @@ describe("the privacy page", () => {
     ["the backup is written to a temporary file and swapped in", "only replaces your file once it is complete"],
     ["the follow-up draft names the recipient's first name and your own address", "the recipient's first name in the greeting"],
     ["the follow-up draft is never opened in a disconnected account", "never one you have disconnected"],
+    ["a resume, a cover letter and the posting text stay on the device", "your resume and its versions, cover letters, the text of a job posting"],
+    ["a job board's description is kept as the posting text on the device", "kept on the application as the job posting text, on your device only"],
+    ["the export carries resumes and the CSV leaves their text out", "no email text, no resume text and no job posting text"],
     ["the offer counts only what you can see but copies the rest", "The offer counts only the applications you haven't deleted"],
   ])("says that %s", (_what, words) => {
     expect(page).toContain(words);
