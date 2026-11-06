@@ -72,13 +72,7 @@ describe("demo resumes", () => {
       expect(now, heading).toHaveLength(was.length);
       was.forEach((item, n) => {
         const got = now[n];
-        // The importer only reads a location that ends in a two-letter region code ("Toronto, ON"), so a job or school with "Ontario"
-        // spelled out stays a plain line with its words intact. Every other kind of line must come back as it was.
-        if (item.kind === "org" || item.kind === "school") {
-          expect(got.text, `${heading} ${n}`).toContain(item.text);
-          expect(got.text, `${heading} ${n}`).toContain(item.right);
-          return;
-        }
+        // Every line comes back as it was, including a job or school whose location spells the province out ("Toronto, Ontario").
         expect({ text: got.text, kind: got.kind, label: got.label, right: got.right }, `${heading} ${n}`).toEqual({ text: item.text, kind: item.kind, label: item.label, right: item.right });
       });
     }
