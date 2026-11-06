@@ -132,9 +132,11 @@ export async function stageCounts(db: JobTrackerDB): Promise<Record<Stage, numbe
 }
 
 export interface Suggestion {
-  kind: "Company" | "Role";
+  kind: "Company" | "Role" | "Person" | "Title";
   text: string;
   n: number;
+  /** what to show beside the text instead of the application count, such as "3 people" or a person's company */
+  note?: string;
 }
 
 /** The companies and roles you actually have, newest activity first, for the search box. */

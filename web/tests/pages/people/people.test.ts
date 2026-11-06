@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { $, $$, addApp, addMail, button, cleanup, click, freshDb, key, mountPage, text, type, waitFor } from "../applications/harness";
+import { $, $$, addApp, addMail, button, cleanup, click, freshDb, key, mountPage, submitForm, text, type, waitFor } from "../applications/harness";
 import PeoplePage from "../../../src/pages/people";
 import { upsertAccount } from "../../../src/db/repo";
 
@@ -73,7 +73,7 @@ describe("the People page", () => {
     const { db } = await setup();
     const m = await mountPage(PeoplePage, db, "/people");
     await type($(m.container, "#c-q"), "recruiter");
-    await click(button(m.container, "Search"));
+    await submitForm($(m.container, "form.people-search"));
     expect(m.visited.at(-1)).toBe("/people?q=recruiter");
     expect(names(m.container)).toEqual(["DoorDash"]);
     expect(text($(m.container, ".result-line"))).toBe("1 of 3 people across 1 application");
