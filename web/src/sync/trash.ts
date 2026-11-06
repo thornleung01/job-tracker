@@ -2,6 +2,7 @@
 // job search. A deleted application keeps its emails, notes, steps and people corrections; it is left out of every list,
 // count and match (sync/live.ts) until you restore it or it is purged. Purging is the old delete: the application row goes
 // and every email's content is erased, so nothing can rebuild it.
+// This file also lists and erases deleted documents (resumes and cover letters), whose own moves and live check are in sync/documents.ts.
 import { MissingRecordError } from "../db/errors";
 import { clearEmail } from "../db/repo";
 import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
