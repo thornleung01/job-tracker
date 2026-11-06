@@ -136,7 +136,7 @@ From the repository root, `python scripts/export_json.py data/tracker.db export.
 
 ## Privacy
 
-Nothing is sent to a server run by the developer. In the hosted edition, if you add your own Anthropic key and press Convert, your browser sends the resume text shown to Anthropic and nothing else. See [web/public/privacy.html](web/public/privacy.html) for the hosted edition and "Where your data lives" in [SETUP.md](SETUP.md) for the local one.
+Nothing is sent to a server run by the developer. In the hosted edition, if you add your own Anthropic key and press Convert, your browser sends the resume text shown to Anthropic when you press Convert, and one short test message ("ping", no resume text) when you press Check key. Nothing else is sent. See [web/public/privacy.html](web/public/privacy.html) for the hosted edition and "Where your data lives" in [SETUP.md](SETUP.md) for the local one.
 
 ## Reviews
 

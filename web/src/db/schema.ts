@@ -173,7 +173,7 @@ export interface DocumentRow {
   sections: DocSection[];
   /** the document it was copied or tailored from */
   basedOn?: number;
-  /** how it was made. "ai" is reserved for tailoring with your own key (a later step): nothing sets it yet. */
+  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, and tailoring will use it too) */
   source?: "upload" | "paste" | "copy" | "ai";
   createdAt: string;
   updatedAt: string;

@@ -61,7 +61,7 @@ describe("web app manifest", () => {
   });
 
   it("needs no change to the content security policy (the manifest and icons are the site's own)", () => {
-    const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)![1];
+    const csp = /http-equiv=(["'])Content-Security-Policy\1 content=(["'])([\s\S]+?)\2/.exec(html)![3];
     expect(csp).toContain("default-src 'self'");
     expect(csp).not.toContain("manifest-src");
     expect(csp).toContain("img-src 'self'");
