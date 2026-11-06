@@ -103,6 +103,45 @@ describe("PDF text joining (a stand-in for pdf.js)", () => {
       expect(joinItems([{ str: "One" }, { str: "Two" }])).toBe("One Two");
     });
 
+    it("adds no tab for items that overlap or come out of order, and keeps one tab per column on a multi-column line", () => {
+      expect(joinItems([at("Ab", 0), at("cd", 6)])).toBe("Ab cd");
+      expect(joinItems([at("Right", 400), at("Left", 72)])).toBe("Right Left");
+      expect(joinItems([at("Name", 72), at("Role", 250), at("Dates", 450)])).toBe("Name\tRole\tDates");
+    });
+
+    it("ends the line at a blank item that has hasEOL, and keeps a blank line for an empty one", () => {
+      const eol = (str: string) => ({ str, hasEOL: true, width: 0, transform: [12, 0, 0, 12, 100, 700] });
+      expect(joinItems([at("One", 72), eol(" "), at("Two", 72)])).toBe("One\nTwo");
+      expect(joinItems([at("One", 72), eol(""), eol(""), at("Two", 72)])).toBe("One\n\nTwo");
+      // the first item on the next line is not measured against the end of the line before
+      expect(joinItems([at("One", 72), eol(" "), at("Two", 400)])).toBe("One\nTwo");
+    });
+
+    it("measures an item with a width of 0 by half its font size, and ends it where it starts", () => {
+      const zero = (str: string, x: number) => ({ str, width: 0, transform: [12, 0, 0, 12, x, 700] });
+      expect(joinItems([zero("One", 72), zero("Two", 400)])).toBe("One\tTwo");
+      expect(joinItems([zero("One", 72), zero("Two", 80)])).toBe("One Two");
+    });
+
+    it("puts no tab at an ordinary word space, whatever the font size", () => {
+      expect(joinItems([at("Built", 72), at(" ", 102), at("a", 108), at(" ", 114), at("model", 120)]).replace(/ +/g, " ")).toBe("Built a model");
+      expect(joinItems([at("Built", 72, 700, 40), at("model", 72 + 40 + 4, 700, 40)])).toBe("Built model");
+    });
+
+    it("reads a line of 100,000 items in linear time", () => {
+      const line = Array.from({ length: 100_000 }, (_, i) => at("ab", i * 14));
+      const start = performance.now();
+      const text = joinItems(line);
+      expect(performance.now() - start).toBeLessThan(1000);
+      expect(text.startsWith("ab ab ab")).toBe(true);
+      expect(text.split(" ")).toHaveLength(100_000);
+      // with a gap before every item the page string is trimmed each time
+      const columns = Array.from({ length: 100_000 }, (_, i) => at("ab", i * 100));
+      const columnStart = performance.now();
+      expect(joinItems(columns).split("\t")).toHaveLength(100_000);
+      expect(performance.now() - columnStart).toBeLessThan(1000);
+    });
+
     it("hands the gap on as text: through a fake document, tidy and the splitter", async () => {
       const page = [at("Northwind Traders", 72, 700), at("Toronto, ON", 400, 700), at("Senior Analyst", 72, 686), at("Aug 2024 – Present", 400, 686), at("Plans the season for the stores", 72, 672)];
       const d: PdfDocumentLike = { numPages: 1, getPage: async () => ({ getTextContent: async () => ({ items: page }) }) };
