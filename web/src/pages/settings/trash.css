@@ -11,3 +11,4 @@
   .trash-row { grid-template-columns: 1fr; }
   .trash-actions { grid-column: 1; grid-row: auto; }
 }
+.trash-kind { white-space: nowrap; }

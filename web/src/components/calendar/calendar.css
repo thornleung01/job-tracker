@@ -39,6 +39,8 @@
 .cal-event-kind svg { flex: none; }
 .cal-event-company { font-weight: 500; }
 .cal-event-role { flex: 1 1 8rem; min-width: 0; }
+/* The resume sent takes its own line under the rest and is cut with an ellipsis when long. */
+.cal-event-sent { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-agenda-day { margin-bottom: 16px; }
 
 @media (max-width: 720px) {
