@@ -1,11 +1,29 @@
 /* The resume editor, on the Resume page and on an application's detail page: sections one under another, each a heading field and its lines.
-   A line is a field with its three small actions beside it. Everything sits under .doc-editor so it can't reach anything else. */
+   A line is a small type select, its text (with a label before it or a location or dates after it), and its three small actions. Everything sits under .doc-editor so it can't reach anything else. */
 .doc-editor { display: grid; gap: var(--gap); margin-top: var(--gap); }
 .doc-editor .doc-section { display: grid; gap: 8px; justify-items: start; }
 .doc-editor .doc-heading { display: flex; gap: 12px; align-items: center; width: 100%; }
 .doc-editor .doc-heading input { flex: 1 1 auto; min-width: 0; font-weight: 500; }
 .doc-editor .doc-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; width: 100%; }
 .doc-editor .doc-items li { display: flex; gap: 4px; align-items: flex-start; }
+.doc-editor .doc-line-fields { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; align-items: start;
+                               grid-template-columns: 9.5rem minmax(0, 1fr); grid-template-areas: "type text"; }
+.doc-editor .doc-line-fields.has-label { grid-template-columns: 9.5rem minmax(8rem, 13rem) minmax(0, 1fr); grid-template-areas: "type label text"; }
+.doc-editor .doc-line-fields.has-right { grid-template-columns: 9.5rem minmax(0, 1fr) minmax(12ch, 22ch); grid-template-areas: "type text right"; }
+.doc-editor .doc-kind { grid-area: type; min-width: 0; }
+.doc-editor .doc-label { grid-area: label; min-width: 0; }
+.doc-editor .doc-right { grid-area: right; min-width: 0; }
+.doc-editor .doc-line-fields textarea { grid-area: text; }
+/* On a phone the type and the right-hand field share a row above, the label and the text sit below. */
+@media (max-width: 720px) {
+  .doc-editor .doc-items li { flex-wrap: wrap; }
+  .doc-editor .doc-line-fields { flex-basis: 100%; }
+  .doc-editor .doc-line-actions { margin-left: auto; }
+  .doc-editor .doc-line-fields, .doc-editor .doc-line-fields.has-label, .doc-editor .doc-line-fields.has-right { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .doc-editor .doc-line-fields { grid-template-areas: "type type" "text text"; }
+  .doc-editor .doc-line-fields.has-label { grid-template-areas: "type type" "label text"; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .doc-editor .doc-line-fields.has-right { grid-template-areas: "type right" "text text"; }
+}
 .doc-editor .doc-items textarea { flex: 1 1 auto; width: auto; min-width: 0; min-height: var(--tap); padding: 10px 16px; border-radius: var(--r); resize: vertical; }
 @supports (field-sizing: content) {
   .doc-editor .doc-items textarea { field-sizing: content; min-height: var(--tap); resize: none; }
