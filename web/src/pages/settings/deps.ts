@@ -1,5 +1,7 @@
 // What the Settings sections reach outside the page for, so tests can hand in fakes: auth, the mail providers and the
 // two file downloads. SettingsPage merges a test's partial deps over `defaultDeps`.
+import { realAiDeps, type AiDeps } from "../../ai";
+import { lockAllVaults } from "../../ai/vault";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
 import { createProvider, getAddress } from "../../providers";
@@ -24,13 +26,15 @@ export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddr
   downloadCsv(filename: string, text: string): void;
   /** the backup file and the storage status; left out, Your data uses the real browser APIs (backup/deps.ts) */
   backup?: BackupDeps;
+  /** the AI key vault and the API call */
+  ai: AiDeps;
 }
 
 export const defaultDeps: SettingsDeps = {
   auth: {
     getSession: realAuth.getSession,
     subscribe: realAuth.subscribe,
-    signOut: signOutAndForget(realAuth.signOut),
+    signOut: signOutAndForget(realAuth.signOut, lockAllVaults),
     connectMail: realAuth.connectMail,
     tokenSource: realAuth.tokenSource,
   },
@@ -38,6 +42,7 @@ export const defaultDeps: SettingsDeps = {
   getAddress,
   download: downloadText,
   downloadCsv,
+  ai: realAiDeps,
 };
 
 const NOT_SET_UP = "Mail sync isn't set up on this site.";

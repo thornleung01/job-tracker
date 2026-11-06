@@ -23,8 +23,10 @@ interface Props {
   db: JobTrackerDB;
   /** only a local build offers the demo data */
   isLocal: boolean;
-  deps: Pick<SettingsDeps, "download" | "downloadCsv" | "backup">;
+  deps: Pick<SettingsDeps, "download" | "downloadCsv" | "backup" | "ai">;
   report: Reporter;
+  /** called after the AI key is forgotten, so the AI card shows "no key" */
+  onKeyForgotten?: () => void;
 }
 
 /** The most import problems listed one by one before "And n more problems." */
@@ -33,7 +35,7 @@ const PROBLEMS_SHOWN = 8;
 /** The real browser APIs, used when a caller hands in no fakes. */
 const realBackup = realBackupDeps();
 
-export function DataSection({ db, isLocal, deps, report }: Props) {
+export function DataSection({ db, isLocal, deps, report, onKeyForgotten }: Props) {
   const { say } = report;
   const act = useAction();
   const [pendingImport, setPendingImport] = useState<{ name: string; parsed: ParsedImport } | null>(null);
@@ -214,6 +216,9 @@ export function DataSection({ db, isLocal, deps, report }: Props) {
     act.run("delete", async () => {
       try {
         await clearAll(db);
+        // The locked AI key belongs to the data that is gone too.
+        deps.ai.vault.forget(db.name);
+        onKeyForgotten?.();
         // The reminder times and the chosen file belong to the data that is gone. The file itself is left where it is.
         clearBackupState(db.name);
         await forgetBackupFile(db.name, backup.file).catch(() => undefined);
