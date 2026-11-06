@@ -189,7 +189,7 @@ describe("a 9 pm Toronto email, from sync to the list, the detail text and the C
       expect(dayText(row.appliedAt)).toBe("October 21, 2026");
       expect(row.idleDays).toBe(0);
       const csv = applicationsToCsv([{ ...row, nEmails: 1, rounds: null } as CsvRow]);
-      expect(csv.split("\r\n")[1]).toBe("Acme,Unknown role,Applied,2026-10-21,2026-10-21,1,,,,");
+      expect(csv.split("\r\n")[1]).toBe("Acme,Unknown role,Applied,2026-10-21,2026-10-21,1,,,,,");
       expect(csvFilename(new Date("2026-10-22T01:30:00Z"))).toBe("job-tracker-applications-2026-10-21.csv");
     });
   });

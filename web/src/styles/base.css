@@ -301,11 +301,12 @@
     .list-card table.list tr.panel-row { display: block; }
     .list-card table.list tr.panel-row[hidden] { display: none; }
     .list-card table.list tr.panel-row > td { display: block; }
-    /* Role, Applied, Emails and Rounds make way for the stacked layout (the role shows under the company name). */
+    /* Role, Applied, Emails, Rounds and Resume make way for the stacked layout (the role shows under the company name). */
     .list-card table.list th[data-col="role"], .list-card table.list tr.app-row > td[data-col="role"],
     .list-card table.list th[data-col="applied"], .list-card table.list tr.app-row > td[data-col="applied"],
     .list-card table.list th[data-col="emails"], .list-card table.list tr.app-row > td[data-col="emails"],
-    .list-card table.list th[data-col="rounds"], .list-card table.list tr.app-row > td[data-col="rounds"] { display: none; }
+    .list-card table.list th[data-col="rounds"], .list-card table.list tr.app-row > td[data-col="rounds"],
+    .list-card table.list th[data-col="resume"], .list-card table.list tr.app-row > td[data-col="resume"] { display: none; }
   }
 
   /* Expandable application rows */

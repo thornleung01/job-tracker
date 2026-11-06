@@ -6,7 +6,7 @@ import { BULK_ADD_MAX } from "../db/limits";
 import { parsePostingUrl } from "../db/postingUrl";
 import { tx, type JobTrackerDB } from "../db/schema";
 import type { EnrichOptions, JobDraft } from "../jobs/types";
-import { addApplication } from "./actions";
+import { addApplication, type AddApplicationInput } from "./actions";
 import { findDuplicates, type DuplicateMatch } from "./duplicates";
 
 /** How many links are read at the same time. */
@@ -53,6 +53,8 @@ export interface BulkAddOptions {
   signal?: AbortSignal;
   /** called as each link finishes, with how many are done */
   onResult?: (result: LinkResult, done: number, total: number) => void;
+  /** the resume version sent with every application this run adds */
+  resumeId?: number;
   /** for tests */
   now?: Date;
 }
@@ -94,7 +96,14 @@ async function addOne(
       if (stopped()) return { status: "stopped" };
       const [existing] = await findDuplicates(db, company, role, url);
       if (existing) return { status: "skipped", existing };
-      const id = await addApplication(db, { company, role, stage: "Applied", url }, o.now);
+      // The posting text is the draft's description, kept as the job posting for this application.
+      const description = (read as JobDraft & { description?: string }).description?.trim();
+      const input: AddApplicationInput & { postingText?: string; resumeId?: number } = {
+        company, role, stage: "Applied", url,
+        ...(description ? { postingText: description } : {}),
+        ...(o.resumeId !== undefined ? { resumeId: o.resumeId } : {}),
+      };
+      const id = await addApplication(db, input, o.now);
       return { status: "added", id, company, role, guessed: read.guessed };
     }));
   } catch (e) {

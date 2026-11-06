@@ -90,11 +90,11 @@ describe("applicationsToCsv", () => {
     ]);
     expect(lines(csv)).toEqual([
       CSV_HEADERS.join(","),
-      'Acme,Analyst,Applied,2026-10-01,2026-10-05,3,2,https://acme.example/jobs/1,"$120,000 + equity",2026-10-15',
-      "Beta,Analyst,Applied,,,0,,,,",
+      'Acme,Analyst,Applied,2026-10-01,2026-10-05,3,2,https://acme.example/jobs/1,"$120,000 + equity",2026-10-15,',
+      "Beta,Analyst,Applied,,,0,,,,,",
       "",
     ]);
-    expect(CSV_HEADERS.join(",")).toBe("Company,Role,Stage,Applied,Last activity,Emails,Interview rounds,Posting link,Offer salary,Offer deadline");
+    expect(CSV_HEADERS.join(",")).toBe("Company,Role,Stage,Applied,Last activity,Emails,Interview rounds,Posting link,Offer salary,Offer deadline,Resume sent");
   });
 
   it("keeps a company with an accent and a comma in one field", () => {
@@ -107,7 +107,7 @@ describe("applicationsToCsv", () => {
     const [, data] = lines(csv);
     expect(data.startsWith(`'=cmd|' /C calc'!A0,'+1,Applied,`)).toBe(true);
     expect(data).toContain(",'@evil,'-5,");
-    expect(fieldsOf(data)).toEqual(["'=cmd|' /C calc'!A0", "'+1", "Applied", "2026-10-01", "2026-10-05", "3", "", "'@evil", "'-5", ""]);
+    expect(fieldsOf(data)).toEqual(["'=cmd|' /C calc'!A0", "'+1", "Applied", "2026-10-01", "2026-10-05", "3", "", "'@evil", "'-5", "", ""]);
   });
 
   it("is only the header for an empty database", async () => {
@@ -129,7 +129,7 @@ describe("exportApplicationsCsv", () => {
 
     const rows = lines(await exportApplicationsCsv(db)).slice(1, -1).map((l) => l.split(","));
     const by = (company: string) => rows.find((r) => r[0] === company)!;
-    expect(by("Counted").slice(6)).toEqual(["1", "", "$100k", "2026-12-01"]);
+    expect(by("Counted").slice(6)).toEqual(["1", "", "$100k", "2026-12-01", ""]);
     expect(by("Yours")[6]).toBe("4");
     expect(by("Plain")[6]).toBe("");
   });

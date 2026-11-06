@@ -3,6 +3,7 @@
 .bulk-add-box { width: 100%; }
 .bulk-add-box[hidden] { display: none; }
 .bulk-add-box .row { margin-top: 8px; }
+.bulk-add-resume { margin-top: 12px; align-items: flex-start; }
 .bulk-add-progress { margin: 8px 0 0; }
 /* An empty line takes no room, but stays on the page: a status that is already there when its words arrive is read out. */
 .bulk-add-progress:empty { margin: 0; }
