@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { AiDeps } from "../../ai";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { Notice } from "../../components/Notice";
@@ -7,17 +8,21 @@ import { liveDocuments } from "../../sync/documents";
 import { liveApplications } from "../../sync/live";
 import { CoverLetters } from "./CoverLetters";
 import { PrintView } from "./PrintView";
+import type { ConvertFn } from "./ConvertPanel";
 import { ResumeTab } from "./ResumeTab";
 import "./resume.css";
 
 export type ResumeView = "resumes" | "cover";
 
+/** The AI key and the conversion, which tests replace with fakes (the real ones are the default). */
+export type ResumeDeps = Partial<{ ai: AiDeps; convert: ConvertFn }>;
+
 /** #/resume shows the page, and #/resume/print/<id> shows one document ready to print. */
-export default function ResumePage(props: PageProps) {
+export default function ResumePage(props: PageProps & { deps?: ResumeDeps }) {
   return props.params.id !== undefined ? <PrintView db={props.db} id={props.params.id} /> : <ResumeHome {...props} />;
 }
 
-function ResumeHome({ db, query }: PageProps) {
+function ResumeHome({ db, query, deps }: PageProps & { deps?: ResumeDeps }) {
   const view: ResumeView = query.get("tab") === "cover" ? "cover" : "resumes";
   const data = useQuery(async () => ({ docs: await liveDocuments(db), apps: await liveApplications(db) }), [db]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,7 +50,7 @@ function ResumeHome({ db, query }: PageProps) {
         <>
           {/* Both lists stay in the page, so what you typed and haven't saved is still there when you come back to it. */}
           <div className="resume-view" hidden={view !== "resumes"}>
-            <ResumeTab db={db} resumes={data.docs.filter((d) => d.kind === "resume")} usage={usage} say={say} />
+            <ResumeTab db={db} resumes={data.docs.filter((d) => d.kind === "resume")} usage={usage} say={say} deps={deps} />
           </div>
           <div className="resume-view" hidden={view !== "cover"}>
             <CoverLetters letters={data.docs.filter((d) => d.kind === "cover")} apps={apps} />
