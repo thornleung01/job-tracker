@@ -17,13 +17,17 @@ const keyFor = (user: AuthUser, provider: ProviderName) => `${userKey(user)}|${p
 export const connectedAddress = (user: AuthUser, provider: ProviderName): string | null => connected.get(keyFor(user, provider)) ?? null;
 export const forgetConnections = (): void => connected.clear();
 
-/** Wraps the auth module's signOut so the address map goes with the tokens, even when revoking them fails. */
-export function signOutAndForget(signOut: () => Promise<void>): () => Promise<void> {
+/**
+ * Wraps the auth module's signOut so the address map goes with the tokens, even when revoking them fails. `alsoForget` is anything else
+ * that must not outlive the login (the AI key's unlocked copy), handed in so sync never imports it.
+ */
+export function signOutAndForget(signOut: () => Promise<void>, alsoForget?: () => void): () => Promise<void> {
   return async () => {
     try {
       await signOut();
     } finally {
       forgetConnections();
+      alsoForget?.();
     }
   };
 }

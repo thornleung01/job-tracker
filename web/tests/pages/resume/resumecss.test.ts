@@ -10,7 +10,7 @@ async function css(path: string): Promise<string> {
   return fs.readFileSync(new URL(`../../../src/${path}`, import.meta.url), "utf8");
 }
 
-const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css", "components/documents/sectionseditor.css", "components/documents/documents.css"];
+const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css", "components/documents/sectionseditor.css", "components/documents/documents.css", "pages/resume/convert.css"];
 
 describe.each(SHEETS)("%s", (sheet) => {
   it("uses the app's tokens: no hex colours, no tabular-nums, no underlines, no !important", async () => {

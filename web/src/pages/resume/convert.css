@@ -1,0 +1,31 @@
+/* The convert step on the Resume page: the text that will be sent, the key controls, and the lines to check after an AI conversion. */
+.convert-panel .convert-lead { display: block; margin: 0 0 8px; }
+.convert-panel .convert-text { display: block; min-height: 160px; max-height: 320px; overflow: auto; resize: vertical; white-space: pre-wrap; }
+.convert-panel .convert-count { margin: 6px 0 0; }
+.convert-panel .convert-key { margin: var(--gap) 0 0; }
+.convert-panel .convert-unlock { margin-top: var(--gap); align-items: flex-end; }
+.convert-panel .convert-unlock .fgroup { flex: 1 1 220px; }
+.convert-panel .convert-unlock input { width: 100%; }
+.convert-panel > .notice { margin: var(--gap) 0 0; }
+
+.convert-review .convert-summary { margin: 0 0 var(--gap); }
+.convert-review .convert-flags { margin: 0 0 var(--gap); padding: var(--pad); border: 1px solid var(--line); border-radius: var(--r); background: var(--fog); }
+.convert-review .convert-flags-title { margin: 0 0 8px; font-size: 1rem; font-weight: 500; }
+.convert-review .convert-flags ul { list-style: none; margin: 0; padding: 0; }
+.convert-review .convert-flags li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.convert-review .convert-flags li:first-child { border-top: 0; }
+.convert-review .convert-flag-text { min-width: 0; }
+.convert-review .convert-flag-text p { margin: 0; overflow-wrap: anywhere; }
+.convert-review .convert-flag-note { font-weight: 500; }
+.convert-review .convert-flag-line { margin-top: 2px; }
+.convert-review .convert-flag-actions { flex: none; margin: 0; }
+.convert-review .convert-unused { margin-top: var(--gap); }
+.convert-review .convert-unused p { margin: 4px 0 0; overflow-wrap: anywhere; }
+
+@media (forced-colors: active) {
+  .convert-review .convert-flags { border-color: CanvasText; background: Canvas; }
+}
+
+@media (max-width: 520px) {
+  .convert-review .convert-flags li { flex-direction: column; align-items: stretch; }
+}

@@ -6,8 +6,11 @@ import { splitSections, squeezeLine } from "./split";
 export { ReadError, MESSAGES, MAX_FILE_BYTES, MAX_PDF_PAGES } from "./errors";
 export { splitSections } from "./split";
 
+/** Line breaks as "\n" and no blank space at the ends: the form the text is kept and sent in. */
+export const normalizeText = (text: string) => text.replace(/\r\n?/g, "\n").trim();
+
 /** Spaces squeezed, lines trimmed, no runs of blank lines. A gap (a tab, or 3 or more spaces) stays as one tab: it is where text was right-aligned. */
-const tidy = (text: string) => text.replace(/\r\n?/g, "\n").split("\n").map(squeezeLine).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+const tidy = (text: string) => normalizeText(text).split("\n").map(squeezeLine).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
 const extension = (name: string) => /\.([a-z0-9]+)$/i.exec(name)?.[1].toLowerCase() ?? "";
 

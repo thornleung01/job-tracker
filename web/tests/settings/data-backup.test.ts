@@ -7,6 +7,7 @@ import { readBackupState, recordBackup } from "../../src/backup/state";
 import type { StorageStatus } from "../../src/backup/storage";
 import type { JobTrackerDB } from "../../src/db/schema";
 import { SettingsView, type SettingsDeps } from "../../src/pages/settings/SettingsPage";
+import { fakeAiDeps } from "../ai/helpers";
 import { byText, cleanupRendered, click, closeDbs, fakeAuth, freshDb, q, render, ada, waitFor } from "../app/helpers";
 
 afterEach(() => {
@@ -60,6 +61,7 @@ async function setup(opts: Options = {}) {
     download,
     downloadCsv,
     backup,
+    ai: fakeAiDeps().deps,
   };
   await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
   await waitFor(() => q("#appearance input[type=radio]"));

@@ -70,3 +70,10 @@ export const MAX_RESUME_VERSIONS = 5;
 
 /** Days a deleted application, resume or cover letter waits in Recently deleted before it is erased for good. */
 export const TRASH_DAYS = 30;
+
+// -- AI: text sent to and read back from the model (the person's own key, called from the browser) -----------------------------
+
+/** The most characters of a resume's text that Convert will send. A longer one is refused with a plain message, not cut. */
+export const MAX_AI_INPUT_CHARS = 120_000;
+/** The most characters of a reply that are read. A longer one is treated as cut off. */
+export const MAX_AI_OUTPUT_CHARS = 60_000;

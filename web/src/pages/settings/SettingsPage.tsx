@@ -11,6 +11,7 @@ import { accountSummaries } from "../../sync/queries";
 import { loadSettings } from "../../sync/settings";
 import { AccountSection } from "./AccountSection";
 import { AccountsSection } from "./AccountsSection";
+import { AiSection } from "./AiSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { DataSection } from "./DataSection";
 import { SyncSection } from "./SyncSection";
@@ -45,10 +46,12 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   const settings = useQuery(() => loadSettings(db), [db]);
   const accounts = useQuery(() => accountSummaries(db), [db]);
 
+  // Bumped when "Delete all my data" forgets the AI key, so the AI card starts again from the vault's state.
+  const [aiEpoch, setAiEpoch] = useState(0);
   const [notice, setNotice] = useState<NoticeState>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (notice) noticeRef.current?.focus();
+    if (notice?.focus) noticeRef.current?.focus();
   }, [notice]);
 
   // A live region that is on the page before it has words, so the change is announced.
@@ -57,7 +60,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   useEffect(() => () => clearTimeout(announceTimer.current), []);
 
   const report: Reporter = {
-    say: (kind, ...lines) => setNotice({ kind, lines }),
+    say: (kind, ...lines) => setNotice({ kind, lines, focus: true }),
+    sayQuietly: (kind, ...lines) => setNotice({ kind, lines, focus: false }),
     clear: () => setNotice(null),
     announce: (text) => {
       clearTimeout(announceTimer.current);
@@ -75,6 +79,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <a href="#/settings" onClick={jumpTo("accounts")}>Email accounts</a>
         {account && <a href="#/settings" onClick={jumpTo("sync")}>Sync</a>}
         <a href="#/settings" onClick={jumpTo("appearance")}>Appearance</a>
+        <a href="#/settings" onClick={jumpTo("ai")}>AI</a>
         <a href="#/settings" onClick={jumpTo("trash")}>Recently deleted</a>
         <a href="#/settings" onClick={jumpTo("data")}>Your data</a>
       </nav>
@@ -92,9 +97,10 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <SyncSection db={db} account={account} activeAccounts={activeAccounts} settings={settings?.sync} auth={auth} deps={deps} report={report} />
       )}
       <AppearanceSection db={db} appearance={settings?.appearance} report={report} />
+      <AiSection key={aiEpoch} db={db} deps={deps.ai} report={report} />
       <BookmarkletCard />
       <TrashSection db={db} />
-      <DataSection db={db} isLocal={isLocalUser(user)} deps={deps} report={report} />
+      <DataSection db={db} isLocal={isLocalUser(user)} deps={deps} report={report} onKeyForgotten={() => setAiEpoch((n) => n + 1)} />
       {account && <AccountSection account={account} auth={auth} />}
     </>
   );
