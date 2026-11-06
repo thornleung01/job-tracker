@@ -13,7 +13,7 @@ import { SignIn } from "../../src/pages/signin/SignIn";
 import { upsertAccount } from "../../src/db/repo";
 import { saveSettings } from "../../src/sync/settings";
 import type { JobTrackerDB } from "../../src/db/schema";
-import { ada, byText, click, cleanupRendered, closeDbs, go, fakeAuth, grace, openTestDb, q, render, settle, waitFor } from "./helpers";
+import { ada, byText, nameOf, click, cleanupRendered, closeDbs, go, fakeAuth, grace, openTestDb, q, render, settle, waitFor } from "./helpers";
 
 const page = (name: string) => async () => ({ default: (p: PageProps) => h("section", null, h("h1", { className: "page" }, name), h("p", { "data-id": p.params.id ?? "" }, p.query.toString())) });
 
@@ -22,6 +22,7 @@ function loaders(extra: PageLoaders = {}): PageLoaders {
     applications: page("Applications page"),
     detail: page("Application page"),
     people: page("People page"),
+    resume: page("Resume page"),
     statistics: page("Statistics page"),
     review: page("Review page"),
     settings: page("Settings page"),
@@ -235,8 +236,8 @@ describe("signed in shell", () => {
   it("renders the header like base.html: brand, nav, settings gear, skip link, main", async () => {
     await signedIn();
     expect(q(".brand")!.textContent).toBe("Job Tracker");
-    const links = Array.from(document.querySelectorAll("header.top nav a")).map((a) => a.textContent);
-    expect(links).toEqual(["Applications", "People", "Statistics", "Needs review", ""]);
+    const links = Array.from(document.querySelectorAll("header.top nav a")).map((a) => nameOf(a));
+    expect(links).toEqual(["Applications", "People", "Resume", "Statistics", "Needs review", ""]);
     expect(document.body.textContent).not.toContain("Jobs");
     const gear = q("a.icon-link")!;
     expect(gear.getAttribute("aria-label")).toBe("Settings");
@@ -370,7 +371,7 @@ describe("signed in shell", () => {
     await db().emails.bulkAdd([{ ...base, providerMsgId: "1" }, { ...base, providerMsgId: "2" }]);
     const badge = await waitFor(() => q(".count"));
     expect(badge.textContent).toBe("2");
-    expect(q("nav a[href='#/review']")!.textContent).toBe("Needs review2, 2 emails");   // the number is hidden from screen readers, the words are not
+    expect(nameOf(q("nav a[href='#/review']")!)).toBe("Needs review, 2 emails");   // the number is hidden from screen readers, the words are not
     expect(badge.getAttribute("aria-hidden")).toBe("true");
   });
 

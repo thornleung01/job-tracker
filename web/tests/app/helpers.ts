@@ -137,3 +137,9 @@ const pool = createDbPool("app-test");
 export const openTestDb = (name: string) => pool.open(name);
 export const freshDb = () => openTestDb("fresh");
 export const closeDbs = () => pool.closeAll();
+
+/** The text a screen reader would read: what is inside the element, except what is aria-hidden. */
+export function nameOf(el: Element): string {
+  if (el.getAttribute("aria-hidden") === "true") return "";
+  return Array.from(el.childNodes).map((n) => (n.nodeType === 3 ? n.textContent ?? "" : n instanceof Element ? nameOf(n) : "")).join("");
+}
