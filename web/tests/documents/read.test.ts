@@ -12,7 +12,7 @@ const fails = async (p: Promise<unknown>, message: string) => {
 describe("text files", () => {
   it("reads UTF-8 and splits it into sections", async () => {
     const sections = await readFileSections(file("resume.txt", RESUME_LINES.join("\n")));
-    expect(sections.map((s) => s.heading)).toEqual(["Jane Smith", "EXPERIENCE"]);
+    expect(sections.map((s) => s.heading)).toEqual(["Summary", "EXPERIENCE"]); // no contact line, so the name is not a header
     expect(sections[1].items.map((i) => i.text)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
   });
 
