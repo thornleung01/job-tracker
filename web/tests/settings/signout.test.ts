@@ -5,13 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const auth = vi.hoisted(() => ({ signOut: vi.fn<() => Promise<void>>() }));
 vi.mock("../../src/auth", async (original) => ({ ...(await original<typeof import("../../src/auth")>()), signOut: auth.signOut }));
 
-import { realVault } from "../../src/ai/vault";
+import { lockAllVaults, realVault } from "../../src/ai/vault";
 import { defaultAuth } from "../../src/app/authApi";
 import { defaultDeps } from "../../src/pages/settings/deps";
 import { connectedAddress, forgetConnections, registerMailbox } from "../../src/sync/mailbox";
 import { ada, closeDbs, freshDb } from "../app/helpers";
 
 afterEach(() => {
+  realVault.forget("ada");
+  lockAllVaults();
   forgetConnections();
   auth.signOut.mockReset();
   closeDbs();
@@ -47,7 +49,6 @@ describe("signing out", () => {
       expect(realVault.key("ada")).toBeNull();
       expect(realVault.status("ada")).toMatchObject({ state: "locked", last4: "1234" });
     }
-    realVault.forget("ada");
   });
 
   it("locks the AI key even when revoking the tokens fails", async () => {
@@ -55,6 +56,5 @@ describe("signing out", () => {
     await realVault.save("ada", "sk-ant-test-key-1234", "a long passphrase", "claude-sonnet-5-5");
     await expect(defaultDeps.auth.signOut()).rejects.toThrow("offline");
     expect(realVault.key("ada")).toBeNull();
-    realVault.forget("ada");
   });
 });

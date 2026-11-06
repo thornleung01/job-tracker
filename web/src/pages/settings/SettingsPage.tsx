@@ -51,7 +51,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   const [notice, setNotice] = useState<NoticeState>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (notice) noticeRef.current?.focus();
+    if (notice?.focus) noticeRef.current?.focus();
   }, [notice]);
 
   // A live region that is on the page before it has words, so the change is announced.
@@ -60,7 +60,8 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
   useEffect(() => () => clearTimeout(announceTimer.current), []);
 
   const report: Reporter = {
-    say: (kind, ...lines) => setNotice({ kind, lines }),
+    say: (kind, ...lines) => setNotice({ kind, lines, focus: true }),
+    sayQuietly: (kind, ...lines) => setNotice({ kind, lines, focus: false }),
     clear: () => setNotice(null),
     announce: (text) => {
       clearTimeout(announceTimer.current);

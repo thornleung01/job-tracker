@@ -40,3 +40,4 @@ nav.sub a:hover { color: var(--ink); background: var(--hover); }
 .progress-card .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 700; margin-bottom: 10px; }
 .file-pick { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
 .file-pick:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
+#ai .row .inline-confirm { flex: 1 0 100%; margin-top: 0; }

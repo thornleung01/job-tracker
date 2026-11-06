@@ -9,7 +9,8 @@ import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { convertResume, type ConvertResult } from "../../sync/convert";
 import { createVersion, deleteDocument, saveMaster, updateDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
-import { ConvertPanel, FlagList, type ConvertFn } from "./ConvertPanel";
+import { ConvertPanel, type ConvertFn } from "./ConvertPanel";
+import { FlagList } from "./FlagList";
 import { Importer, type Incoming } from "./Importer";
 import { SectionsEditor } from "../../components/documents/SectionsEditor";
 
@@ -88,7 +89,7 @@ function Review({ db, draft, existing, onDone, onAgain, onSimple }: {
       {draft.ai ? (
         <>
           <p className="muted small convert-summary">Converted with AI. Check each line before you save.</p>
-          <FlagList flags={draft.ai.flags} sections={sections} root={card} heading={title} />
+          <FlagList flags={draft.ai.flags} converted={draft.sections} sections={sections} root={card} heading={title} />
         </>
       ) : null}
       <SectionsEditor sections={sections} onChange={setSections} label="Resume text to check" />
@@ -208,6 +209,12 @@ function VersionCard({ db, doc, used, say }: CardProps) {
   );
 }
 
+/** A file or pasted text on its way in. `draft` exists only once there is something to review, and `incoming` is kept so Convert again and the simple converter can start from the same text. */
+interface Pending {
+  incoming: Incoming;
+  draft: Draft | null;
+}
+
 interface TabProps {
   db: JobTrackerDB;
   resumes: DocumentRow[];
@@ -222,35 +229,32 @@ export function ResumeTab({ db, resumes, usage, say, deps }: TabProps) {
   const versions = resumes.filter((d) => !d.master);
   const ai = deps?.ai ?? realAiDeps;
   const convert = deps?.convert ?? convertResume;
-  // A file or pasted text goes to the convert panel first, then to the review. `round` gives the review a fresh start each time its sections are swapped.
-  const [incoming, setIncoming] = useState<Incoming | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [round, setRound] = useState(0);
+  // A file or pasted text goes to the convert panel first, then to the review. `reviewKey` gives the review a fresh start each time its sections are swapped.
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [reviewKey, setReviewKey] = useState(0);
   const review = (next: Draft) => {
-    setDraft(next);
-    setRound((r) => r + 1);
+    setPending((p) => p && { ...p, draft: next });
+    setReviewKey((n) => n + 1);
   };
-  const done = () => {
-    setIncoming(null);
-    setDraft(null);
-  };
+  const startReading = (incoming: Incoming) => setPending({ incoming, draft: null });
+  const done = () => setPending(null);
+  const useSimple = () => pending && review({ sections: pending.incoming.sections, source: pending.incoming.source });
   return (
     <>
-      {incoming && !draft ? (
-        <ConvertPanel db={db} incoming={incoming} ai={ai} convert={convert} onCancel={done}
-                      onSimple={() => review({ sections: incoming.sections, source: incoming.source })}
+      {pending && !pending.draft ? (
+        <ConvertPanel db={db} incoming={pending.incoming} ai={ai} convert={convert} onCancel={done} onSimple={useSimple}
                       onConverted={(result) => review({ sections: result.sections, source: "ai", ai: result })} />
       ) : null}
-      {incoming && draft ? (
-        <Review key={`review-${round}`} db={db} draft={draft} existing={Boolean(master)} onDone={done} onAgain={() => setDraft(null)}
-                onSimple={() => review({ sections: incoming.sections, source: incoming.source })} />
+      {pending?.draft ? (
+        <Review key={`review-${reviewKey}`} db={db} draft={pending.draft} existing={Boolean(master)} onDone={done}
+                onAgain={() => setPending({ ...pending, draft: null })} onSimple={useSimple} />
       ) : null}
-      {!master && !incoming ? (
+      {!master && !pending ? (
         <div className="card doc-card doc-empty">
-          <Importer fileLabel="Upload a file" onRead={setIncoming} />
+          <Importer fileLabel="Upload a file" onRead={startReading} />
         </div>
       ) : null}
-      {master ? <MasterCard key={master.id} db={db} doc={master} used={usage.get(master.id) ?? 0} onIncoming={setIncoming} /> : null}
+      {master ? <MasterCard key={master.id} db={db} doc={master} used={usage.get(master.id) ?? 0} onIncoming={startReading} /> : null}
       {versions.map((v) => <VersionCard key={v.id} db={db} doc={v} used={usage.get(v.id) ?? 0} say={say} />)}
     </>
   );
