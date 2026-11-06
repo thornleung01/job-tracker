@@ -1,4 +1,4 @@
-// "Appearance": theme, accent, density, corners, list columns and the Flow page's default period. Every change is
+// "Appearance": theme, accent, density, corners, list columns and the Statistics page's default period. Every change is
 // saved the moment it is made, and the app restyles itself from the saved value (app/appearance.tsx).
 import { useEffect, useRef, type CSSProperties } from "react";
 import { ACCENT_COLORS } from "../../app/accents";
@@ -109,7 +109,7 @@ export function AppearanceSection({ db, appearance, report }: Props) {
         </div>
       </div>
       <div className="field-block">
-        <label className="field" htmlFor="flow_days">Default period on the Flow page</label>
+        <label className="field" htmlFor="flow_days">Default period on the Statistics page</label>
         <select id="flow_days" value={shown.flowDays} onChange={(e) => void save({ flowDays: Number(e.target.value) })}>
           {PERIODS.filter((p) => (FLOW_PERIODS as readonly number[]).includes(p.days)).map((p) => <option key={p.days} value={p.days}>{p.label}</option>)}
         </select>

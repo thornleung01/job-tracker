@@ -1,11 +1,29 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isAuthResponseHash, matchRoute, navigate, toHash } from "../../src/app/router";
+import { isAuthResponseHash, matchRoute, movedTo, navigate, toHash } from "../../src/app/router";
+
+describe("the Flow page's old address", () => {
+  it("still matches the Statistics page, so an old bookmark lands there", () => {
+    expect(matchRoute("#/flow").page).toBe("statistics");
+    expect(matchRoute("#/flow/").page).toBe("statistics");
+    expect(matchRoute("#/flow?account=1&days=90").query.get("days")).toBe("90");
+  });
+
+  it("gives the new address with the query kept, and null for everything else", () => {
+    expect(movedTo("#/flow")).toBe("/statistics");
+    expect(movedTo("#/flow/")).toBe("/statistics");
+    expect(movedTo("#/flow?account=1&days=90")).toBe("/statistics?account=1&days=90");
+    expect(movedTo("#/statistics?days=30")).toBeNull();
+    expect(movedTo("#/")).toBeNull();
+    expect(movedTo("#/flowers")).toBeNull();
+    expect(movedTo("#code=abc&state=xyz")).toBeNull();
+  });
+});
 
 describe("matchRoute", () => {
   it("maps every route in ROUTES", () => {
     expect(matchRoute("#/").page).toBe("applications");
     expect(matchRoute("#/people").page).toBe("people");
-    expect(matchRoute("#/flow").page).toBe("flow");
+    expect(matchRoute("#/statistics").page).toBe("statistics");
     expect(matchRoute("#/review").page).toBe("review");
     expect(matchRoute("#/settings").page).toBe("settings");
   });
@@ -31,7 +49,7 @@ describe("matchRoute", () => {
   });
 
   it("tolerates a trailing slash and a missing leading slash", () => {
-    expect(matchRoute("#/flow/").page).toBe("flow");
+    expect(matchRoute("#/statistics/").page).toBe("statistics");
     expect(matchRoute("#people").page).toBe("people");
   });
 
@@ -65,8 +83,8 @@ describe("navigate", () => {
   });
 
   it("sets the hash, and replace keeps the history length and still fires hashchange", async () => {
-    navigate("/flow");
-    expect(window.location.hash).toBe("#/flow");
+    navigate("/statistics");
+    expect(window.location.hash).toBe("#/statistics");
     const before = window.history.length;
     let fired = 0;
     const on = () => fired++;

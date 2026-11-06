@@ -70,7 +70,7 @@ def test_appearance_saved_and_applied_across_pages(env):
     r = c.post("/settings/appearance", data={"theme": "dark", "accent": "clay", "density": "compact",
                                              "corners": "sharp", "columns": ["company", "stage", "emails"], "flow_days": "90"})
     assert r.status_code == 303
-    for page in ("/", "/flow", "/review", "/settings"):
+    for page in ("/", "/statistics", "/review", "/settings"):
         html = c.get(page).text
         assert 'data-theme="dark"' in html and 'data-density="compact"' in html and 'data-corners="sharp"' in html
         assert "--accent-l: #8f4a32" in html
@@ -220,10 +220,10 @@ def test_notice_text_from_the_url_is_escaped(env):
 def test_accessibility_basics_present(env):
     _, client = env
     c = client()
-    for path in ("/", "/settings", "/flow", "/review"):
+    for path in ("/", "/settings", "/statistics", "/review"):
         html = c.get(path).text
         assert '<main id="main">' in html and 'href="#main"' in html and html.count("<h1") == 1, path
-    flow = c.get("/flow").text
+    flow = c.get("/statistics").text
     assert "onchange" not in flow  # auto-submitting selects trap keyboard users
     assert "color-scheme: light" in c.get("/").text
 

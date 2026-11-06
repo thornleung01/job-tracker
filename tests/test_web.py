@@ -113,7 +113,7 @@ def test_a_page_opens_one_database_connection(env, monkeypatch):
     opened = []
     real = db.connect
     monkeypatch.setattr(db, "connect", lambda *a, **k: opened.append(a) or real(*a, **k))
-    for path in ("/", "/settings", "/flow", "/review", "/contacts", "/jobs"):
+    for path in ("/", "/settings", "/statistics", "/review", "/contacts", "/jobs"):
         opened.clear()
         assert client.get(path).status_code == 200
         assert len(opened) == 1, path

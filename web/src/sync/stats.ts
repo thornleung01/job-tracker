@@ -1,4 +1,4 @@
-// Flow (Sankey) data and the sentence summary (jobtracker/stats.py, plus the lede in templates/flow.html).
+// Funnel (Sankey) data and the sentence summary (jobtracker/stats.py, plus the lede in templates/statistics.html).
 import type { JobTrackerDB } from "../db/schema";
 import { STAGE_FOR_EVENT, STAGES, TERMINAL, type Stage } from "../db/stages";
 import { addDays, iso, roundHalfEven } from "../db/time";

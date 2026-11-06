@@ -81,7 +81,7 @@ describe("in the list", () => {
     expect(await names(await seed(), { followUp: true, ghosted: true })).toEqual(["Ghost 30", "Ghost heard", "Nudge 29"]);
   });
 
-  it("leaves Flow's No response yet bucket as it was: stage and replies decide it, not the ghosted rule", async () => {
+  it("leaves the funnel's No response yet bucket as it was: stage and replies decide it, not the ghosted rule", async () => {
     const db = await seed();
     const node = (await sankey(db)).nodes.find((n) => n.id === "No response yet");
     // Applied rows with no reply: Nudge 29, Ghost 30, Fresh and Unknown, whatever their idle time

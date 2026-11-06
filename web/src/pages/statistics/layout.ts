@@ -13,7 +13,7 @@ export const MIN_LINK_PX = 1.5;
 /** The invisible hover and focus target around a link is at least this wide. */
 export const MIN_HIT_PX = 14;
 
-/** The one stage colour map (--stage-* in the shared stylesheet, the same colours as the list badges); "no outcome yet" is the chart's own grey, defined in flow.css. */
+/** The one stage colour map (--stage-* in the shared stylesheet, the same colours as the list badges); "no outcome yet" is the chart's own grey, defined in statistics.css. */
 export const COLORS: Readonly<Record<string, string>> = {
   Applied: "var(--stage-applied)",
   "Heard back": "var(--stage-heard-back)",

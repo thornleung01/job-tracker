@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COLORS, COLS, HEIGHT_PAD, INNER_H, MIN_H, layoutSankey } from "../../../src/pages/flow/layout";
+import { COLORS, COLS, HEIGHT_PAD, INNER_H, MIN_H, layoutSankey } from "../../../src/pages/statistics/layout";
 import type { FlowData, FlowNodeId } from "../../../src/sync/stats";
 
 const COL: Record<FlowNodeId, number> = {

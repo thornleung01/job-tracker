@@ -114,7 +114,7 @@ def test_notices_have_a_full_border_and_a_drawn_icon_not_a_side_stripe(env):
 
 def test_flow_page_uses_a_sentence_and_drawn_icons_not_glyphs(env):
     _, client = env
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     assert 'class="lede"' in html and "Of <strong>1</strong> application, " in html
     assert 'class="stats"' not in html
     assert "✓" not in html and "✕" not in html and "class: 'ico'" in html
@@ -147,7 +147,7 @@ def test_back_link_and_disclosures_use_the_drawn_chevron_not_glyphs(env):
     detail = client.get(f"/app/{a}").text
     assert '<a class="back" href="/"><span class="chev" aria-hidden="true"></span>All applications</a>' in detail
     assert "←" not in detail
-    for page in ("/", "/flow"):
+    for page in ("/", "/statistics"):
         assert 'summary class="disclosure"' in client.get(page).text
     assert "summary.disclosure::-webkit-details-marker { display: none; }" in detail
     assert "--ico-chevron-right" in detail and "border-right: 1.5px" not in detail     # the Lucide chevron, not a drawn border corner
@@ -277,7 +277,7 @@ def test_phone_nav_fits_one_row(env):
 
 def test_flow_labels_are_larger_and_stages_use_the_data_viz_palette(env):
     _, client = env
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     assert ".viz-root .lbl { fill: var(--ink); font-size: 14px" in html and ".viz-root .sub { fill: var(--ink2); font-size: 13px" in html
     # Stages draw from the one stage map in base.html (data-viz 01 to 04 in order, then green and red), not a second palette.
     assert "--ord-" not in html and "--good" not in html and "--crit" not in html

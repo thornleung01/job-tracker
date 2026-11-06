@@ -7,7 +7,7 @@ import { useQuery } from "../../app/useQuery";
 import { ImageUnsupportedError, imageFileName, renderPng } from "./exportPng";
 import { layoutSankey } from "./layout";
 import { SankeyChart, flowsFor, tipContent } from "./Sankey";
-import "./flow.css";
+import "./statistics.css";
 
 const PHONE = "(max-width: 720px)";
 
@@ -271,7 +271,7 @@ function Results({ view }: { view: View }) {
   );
 }
 
-export default function FlowPage({ db, query, navigate }: PageProps) {
+export default function StatisticsPage({ db, query, navigate }: PageProps) {
   const accountParam = wholeNumber(query.get("account")) ?? 0;
   const daysRaw = wholeNumber(query.get("days"));
   const daysParam = daysRaw !== null && (FLOW_PERIODS as readonly number[]).includes(daysRaw) ? daysRaw : null;
@@ -283,11 +283,11 @@ export default function FlowPage({ db, query, navigate }: PageProps) {
     return { data, accounts: accounts.map((a) => ({ id: a.id, address: a.address })), account: accountParam, days };
   }, [db, accountParam, daysParam], { keepPrevious: true });
 
-  const apply = (account: number, days: number) => navigate(`/flow?account=${account}&days=${days}`);
+  const apply = (account: number, days: number) => navigate(`/statistics?account=${account}&days=${days}`);
 
   return (
     <>
-      <h1 className="page">Flow</h1>
+      <h1 className="page">Statistics</h1>
       {view ? (
         <>
           <Filters key={`${view.account}-${view.days}`} view={view} onApply={apply} />

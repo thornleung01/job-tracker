@@ -1,4 +1,4 @@
-"""Regression tests for the second code review, plus the share control on the Flow page."""
+"""Regression tests for the second code review, plus the share control on the Statistics page."""
 import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -145,7 +145,7 @@ def test_search_treats_percent_and_underscore_literally(web):
 def test_flow_page_offers_save_copy_and_share(web):
     conn, client = web
     make_app(conn, "Acme")
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     for ident in ('id="share-save"', 'id="share-copy"', 'id="share-native"', 'id="share-status"'):
         assert ident in html
     assert 'role="group" aria-label="Share this chart"' in html and 'role="status"' in html
@@ -156,7 +156,7 @@ def test_flow_page_offers_save_copy_and_share(web):
 def test_share_image_is_built_in_the_page_and_leaks_nothing(web):
     conn, client = web
     make_app(conn, "Acme")
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     script = html.split("// --- Share.")[1]
     assert "fontAsDataUrl('/static/fonts/Figtree-latin-wght.woff2')" in script   # the only request: a font from this app
     assert script.count("fetch(") == 1 and "XMLHttpRequest" not in script and "sendBeacon" not in script and "http" not in script.split("renderPng")[1].replace("http://www.w3.org", "")
@@ -167,7 +167,7 @@ def test_share_image_is_built_in_the_page_and_leaks_nothing(web):
 
 def test_share_controls_absent_without_data(web):
     _, client = web
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     assert 'id="share-save"' not in html and "No applications to chart" in html
 
 

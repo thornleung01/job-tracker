@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import FlowPage from "../../../src/pages/flow";
+import StatisticsPage from "../../../src/pages/statistics";
 import { createApplication, upsertAccount } from "../../../src/db/repo";
 import { saveSettings } from "../../../src/sync/settings";
 import { iso } from "../../../src/db/time";
@@ -15,7 +15,7 @@ import { closeAll, freshDb } from "../../sync/helpers";
 // vitest blanks stylesheets on import, so read the file itself. (No @types/node here, hence the computed specifier.)
 async function readCss(): Promise<string> {
   const fs = await import(/* @vite-ignore */ "node" + ":fs");
-  return fs.readFileSync(`${(globalThis as unknown as { process: { cwd(): string } }).process.cwd()}/src/pages/flow/flow.css`, "utf8");
+  return fs.readFileSync(`${(globalThis as unknown as { process: { cwd(): string } }).process.cwd()}/src/pages/statistics/statistics.css`, "utf8");
 }
 
 const user = { iss: "https://accounts.google.com", sub: "1", provider: "google" } as const;
@@ -49,7 +49,7 @@ async function app(db: JobTrackerDB, company: string, stage: Stage, ago = 5, acc
 
 async function render(db: JobTrackerDB, search = "", navigate = vi.fn()) {
   root = createRoot(host);
-  await act(async () => root!.render(createElement(FlowPage, { db, user, params: {}, query: new URLSearchParams(search), navigate })));
+  await act(async () => root!.render(createElement(StatisticsPage, { db, user, params: {}, query: new URLSearchParams(search), navigate })));
   await settle();
   return navigate;
 }
@@ -216,7 +216,7 @@ describe("flow page: filters", () => {
     };
     await act(async () => { set(account, "1"); set(days, "90"); });
     await act(async () => { q<HTMLButtonElement>("form button.primary")!.click(); });
-    expect(navigate).toHaveBeenCalledWith("/flow?account=1&days=90");
+    expect(navigate).toHaveBeenCalledWith("/statistics?account=1&days=90");
     expect(q("form button.primary")!.textContent).toBe("Apply filters");
   });
 
@@ -303,7 +303,7 @@ describe("flow page: safety", () => {
   });
 
   it("builds the chart with React, not innerHTML", async () => {
-    const sources = import.meta.glob<string>("../../../src/pages/flow/*.{ts,tsx}", { query: "?raw", import: "default", eager: true });
+    const sources = import.meta.glob<string>("../../../src/pages/statistics/*.{ts,tsx}", { query: "?raw", import: "default", eager: true });
     expect(Object.keys(sources).length).toBeGreaterThanOrEqual(4);
     for (const [f, text] of Object.entries(sources)) {
       expect(text, f).not.toMatch(/dangerouslySetInnerHTML|\.innerHTML\s*=|insertAdjacentHTML/);

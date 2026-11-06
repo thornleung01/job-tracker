@@ -46,7 +46,7 @@ def test_a_person_is_drawn_by_one_shared_component():
 
 # --- tokens, not one-off values ------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("page", [p for p in PAGES if p.name != "flow.html"], ids=lambda p: p.name)
+@pytest.mark.parametrize("page", [p for p in PAGES if p.name != "statistics.html"], ids=lambda p: p.name)
 def test_no_hardcoded_corner_radii_or_colours_in_page_styles(page):
     css = "\n".join(re.findall(r"<style>(.*?)</style>", page.read_text(encoding="utf-8"), re.S))
     css = re.sub(r"--[\w-]+\s*:[^;]+;", "", css) if page.name != "base.html" else re.sub(r"(?s):root[^{]*\{.*?\}", "", css)   # token definitions are the one place for raw values

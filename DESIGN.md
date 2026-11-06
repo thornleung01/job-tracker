@@ -219,8 +219,8 @@ Values below are the light theme with the dark counterpart in the frontmatter (`
 - **Outline** (8% black / 12% white): decorative dividers only.
 - **Field line** (#8c8c8c / #8a8a8a): borders of inputs and notices; held to 3:1 against the surface, which Outline is not.
 
-### Stage colours (one map, used by the list, the detail page and Flow)
-Each of the six stages has a graphic colour and a text colour, both defined once in the shared stylesheet as `--stage-applied`, `--stage-heard-back`, `--stage-assessment`, `--stage-interview`, `--stage-offer`, `--stage-rejected` and the same names with `-text`. The graphic colour fills the dot beside the stage word, the Flow nodes and the Flow links. The text colour is the same hue pulled darker (light theme) or lighter (dark theme) until it holds 4.5:1 on the page surface and on the tinted rows behind it (open row, hover, badge tint). Short aliases `--applied`, `--heard`, `--assess`, `--interview`, `--offer`, `--rejected` point at the text colours for other text uses (danger buttons, error notices, sync status). Rejected doubles as the danger and error color.
+### Stage colours (one map, used by the list, the detail page and Statistics)
+Each of the six stages has a graphic colour and a text colour, both defined once in the shared stylesheet as `--stage-applied`, `--stage-heard-back`, `--stage-assessment`, `--stage-interview`, `--stage-offer`, `--stage-rejected` and the same names with `-text`. The graphic colour fills the dot beside the stage word, the chart nodes and links on Statistics. The text colour is the same hue pulled darker (light theme) or lighter (dark theme) until it holds 4.5:1 on the page surface and on the tinted rows behind it (open row, hover, badge tint). Short aliases `--applied`, `--heard`, `--assess`, `--interview`, `--offer`, `--rejected` point at the text colours for other text uses (danger buttons, error notices, sync status). Rejected doubles as the danger and error color.
 
 | Stage | Graphic light / dark | Text light / dark |
 | --- | --- | --- |
@@ -233,7 +233,7 @@ Each of the six stages has a graphic colour and a text colour, both defined once
 
 The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, pink, yellow) plus data-viz green and the negative red. In the light theme purple, pink and yellow sit under 3:1 on the page surface (2.9, 2.5 and 1.5), so the dot carries a hairline in the text colour, and the stage word beside it is always present: colour is never the only signal.
 
-### Flow chart (scoped to the Flow page's chart root)
+### Statistics charts (scoped to the Statistics page's chart root)
 - Stages, Offer and Rejected take their fills from the stage map above, so a stage is the same colour on the list and in the chart. Only the no-outcome-yet grey is the chart's own: #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
 
 ### Named Rules
@@ -250,7 +250,7 @@ The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, 
 - **Brand** (700, 1.5625rem, 1.2): the wordmark in the header.
 - **Section** (500, 1.25rem, 1.4): section headings. Panel sub-headings are 1rem/500.
 - **Row** (500, 1rem, 1.4): company names in list rows, people names.
-- **Lede** (400, clamp(1.25rem, 2.2vw, 1.5625rem), 1.4, max 46ch): the Flow page sentence summary.
+- **Lede** (400, clamp(1.25rem, 2.2vw, 1.5625rem), 1.4, max 46ch): the Statistics page sentence summary.
 - **Body** (400, 1rem, 1.4, 0.02px; 0.9375rem in compact density). Buttons are 500. Email text is 0.9375rem/1.7 for reading.
 - **Small** (400, 0.875rem): dates, role sub-line, help text, table headers (500, muted).
 - **Label** (500, 0.75rem, 0.18px): tags and the jobs score pill. The stage badge is the exception: 0.875rem/500, because the stage is what each row is for.
@@ -262,7 +262,7 @@ The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, 
 
 ## Layout
 
-Single column, max-width 1120px, centered, padding 40px 16px 96px. The 16px gutter is the same on every screen size; breathing room comes from section spacing and card padding, not a wider margin. Header is a flex row (wordmark left, nav right: Jobs, Applications, People, Flow, Needs review, then a Settings gear icon; the hosted header has no Jobs link). At 520px and below the gear moves into the title row and the words wrap below. Card padding `--pad` 16px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px, and `--section` between cards 32px (64px from 721px up).
+Single column, max-width 1120px, centered, padding 40px 16px 96px. The 16px gutter is the same on every screen size; breathing room comes from section spacing and card padding, not a wider margin. Header is a flex row (wordmark left, nav right: Jobs, Applications, People, Statistics, Needs review, then a Settings gear icon; the hosted header has no Jobs link). At 520px and below the gear moves into the title row and the words wrap below. Card padding `--pad` 16px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px, and `--section` between cards 32px (64px from 721px up).
 
 Compact density tightens these to 12px / 8px / 12px (section 24px, 40px on the web), drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density. At 720px and below each table row becomes a stacked block: company and role on the left, stage (word and dot) on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied, Emails and Rounds columns hide there. The checkbox column stays as a narrow first column of each card. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
 

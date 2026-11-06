@@ -34,6 +34,9 @@ function safeDecode(part: string): string {
   }
 }
 
+/** Addresses that moved. The Flow page is now Statistics, and old bookmarks to #/flow still land there. */
+const MOVED: Readonly<Record<string, string>> = { "/flow": "/statistics" };
+
 function normalise(path: string): string {
   const parts = path.split("/").filter(Boolean);
   return "/" + parts.join("/");
@@ -65,12 +68,22 @@ export function matchRoute(hash: string, routes: readonly Route[] = ROUTES): Rou
   const q = raw.indexOf("?");
   const pathPart = q < 0 ? raw : raw.slice(0, q);
   const query = new URLSearchParams(q < 0 ? "" : raw.slice(q + 1));
-  const path = normalise(pathPart);
+  const asked = normalise(pathPart);
+  const path = MOVED[asked] ?? asked;
   for (const route of routes) {
     const params = matchPattern(route.path, path);
     if (params) return { route, page: route.page, path, params, query, known: true, authResponse: false };
   }
   return { route: fallback, page: fallback.page, path, params: {}, query, known: false, authResponse: false };
+}
+
+/** The new address for a hash that points at a page that moved (query kept), or null when it didn't move. */
+export function movedTo(hash: string): string | null {
+  if (isAuthResponseHash(hash)) return null;
+  const raw = hash.replace(/^#/, "");
+  const q = raw.indexOf("?");
+  const target = MOVED[normalise(q < 0 ? raw : raw.slice(0, q))];
+  return target ? target + (q < 0 ? "" : raw.slice(q)) : null;
 }
 
 /** The hash string for a route like "/app/12" or "/?stage=Applied". */

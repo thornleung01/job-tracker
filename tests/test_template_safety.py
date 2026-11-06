@@ -70,7 +70,7 @@ def env(tmp_path):
 
 
 def pages(app):
-    return ["/", f"/app/{app}", f"/app/{app}/panel", "/contacts", "/review", "/settings", "/jobs", "/flow"]
+    return ["/", f"/app/{app}", f"/app/{app}/panel", "/contacts", "/review", "/settings", "/jobs", "/statistics"]
 
 
 def test_no_page_has_an_inline_event_handler_or_javascript_link(env):

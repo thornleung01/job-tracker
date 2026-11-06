@@ -273,14 +273,14 @@ def nav_of(html):
 
 def test_the_navigation_is_jobs_applications_people_flow_needs_review_and_a_settings_icon(env):
     nav = nav_of(env.client.get("/").text)
-    assert re.findall(r'<a href="([^"]+)"', nav) == ["/jobs", "/", "/contacts", "/flow", "/review", "/settings"]
+    assert re.findall(r'<a href="([^"]+)"', nav) == ["/jobs", "/", "/contacts", "/statistics", "/review", "/settings"]
     labels = [re.sub(r"<[^>]+>", "", t).strip() for t in re.findall(r"<a [^>]*>(.*?)</a>", nav, re.S)]
-    assert labels[:5] == ["Jobs", "Applications", "People", "Flow", "Needs review"] and labels[5] == ""        # Settings has no visible text
+    assert labels[:5] == ["Jobs", "Applications", "People", "Statistics", "Needs review"] and labels[5] == ""        # Settings has no visible text
     assert 'aria-label="Settings"' in nav and 'title="Settings"' in nav and "<svg" in nav and 'aria-hidden="true"' in nav
     assert "Settings<" not in nav
 
 
-@pytest.mark.parametrize("path,current", [("/", "/"), ("/jobs", "/jobs"), ("/flow", "/flow"), ("/review", "/review"), ("/settings", "/settings"),
+@pytest.mark.parametrize("path,current", [("/", "/"), ("/jobs", "/jobs"), ("/statistics", "/statistics"), ("/review", "/review"), ("/settings", "/settings"),
                                           ("/contacts", "/contacts"), ("/app/1", "/")])
 def test_the_current_page_is_marked_in_the_navigation(env, path, current):
     marked = re.findall(r'<a href="([^"]+)"[^>]*aria-current="page"', nav_of(env.client.get(path).text))

@@ -18,7 +18,7 @@ export const COLUMNS = {
 } as const;
 export type ColumnId = keyof typeof COLUMNS;
 export const LOOKBACKS = [30, 60, 90, 180, 365] as const;
-/** Labelled periods for the Flow page and Settings. */
+/** Labelled periods for the Statistics page and Settings. */
 export const PERIODS: readonly { days: number; label: string }[] = [
   { days: 0, label: "All time" },
   { days: 30, label: "Last 30 days" },

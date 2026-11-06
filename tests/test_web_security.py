@@ -14,7 +14,7 @@ from jobtracker.routes.common import PROFILE_COOKIE_MAX_AGE
 from jobtracker.web import create_app
 from tests.test_web_routes import LOCAL, Provider, offline, seed
 
-PAGES = ["/", "/?open=1,2", "/app/1", "/app/1/panel", "/flow", "/contacts", "/review", "/settings",
+PAGES = ["/", "/?open=1,2", "/app/1", "/app/1/panel", "/statistics", "/contacts", "/review", "/settings",
          "/jobs", "/jobs?tab=profile", "/jobs?tab=notifications", "/jobs?tab=sources"]
 
 
@@ -128,7 +128,7 @@ def test_an_oversized_upload_is_refused_before_it_is_read(env):
 
 def test_a_redirect_target_with_control_characters_falls_back_to_home(env):
     client = env()
-    for target in ("/flow\r\nSet-Cookie: x=1", "/flow\x00", "/ok "):
+    for target in ("/statistics\r\nSet-Cookie: x=1", "/statistics\x00", "/ok "):
         response = client.post("/profiles/switch", data={"profile": "default", "next": target})
         assert response.headers["location"] == "/", repr(target)
 

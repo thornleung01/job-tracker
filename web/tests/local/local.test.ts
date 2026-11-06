@@ -107,8 +107,8 @@ describe("local mode (no client IDs)", () => {
 
   it("loads demo data from the banner without asking when the database is empty, then shows Applications", async () => {
     await openLocalApp();
-    await go("#/flow");
-    await waitFor(() => q("h1")?.textContent === "Flow");
+    await go("#/statistics");
+    await waitFor(() => q("h1")?.textContent === "Statistics");
     expect(await hasData(currentDb())).toBe(false);
     await click(byText("Load demo data")!);
     expect(q(".inline-confirm")).toBeNull();
@@ -129,12 +129,12 @@ describe("local mode (no client IDs)", () => {
     expect(await currentDb().applications.count()).toBe(39);
   });
 
-  it("makes every page usable from the demo data: Applications, Flow, People, Review", async () => {
+  it("makes every page usable from the demo data: Applications, Statistics, People, Review", async () => {
     await openLocalApp();
     await click(byText("Load demo data")!);
     await waitFor(() => q("tr.app-row"));
-    await go("#/flow");
-    await waitFor(() => q("h1")?.textContent === "Flow");
+    await go("#/statistics");
+    await waitFor(() => q("h1")?.textContent === "Statistics");
     await waitFor(() => (q("svg") && document.querySelectorAll("table tbody tr").length > 0) || null);
     await go("#/people");
     await waitFor(() => q("h1")?.textContent === "People");

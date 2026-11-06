@@ -76,9 +76,9 @@ def test_flow_page(tmp_path):
     seed(conn)
     conn.commit()
     client = TestClient(create_app(path), base_url="http://127.0.0.1:8765")
-    html = client.get("/flow").text
-    assert "Application flow" in html and 'id="flow-data"' in html and "Table view" in html
-    assert "No applications to chart" in TestClient(create_app(tmp_path / "empty.db"), base_url="http://127.0.0.1:8765").get("/flow").text
+    html = client.get("/statistics").text
+    assert "<h1 class=\"page\">Statistics</h1>" in html and 'id="flow-data"' in html and "Table view" in html
+    assert "No applications to chart" in TestClient(create_app(tmp_path / "empty.db"), base_url="http://127.0.0.1:8765").get("/statistics").text
     conn.close()
 
 
