@@ -1,4 +1,4 @@
-// Draws the sentence and the chart into one PNG, in the page, so nothing is uploaded anywhere. Ported from renderPng in flow.html.
+// Draws the sentence and the chart into one PNG, in the page, so nothing is uploaded anywhere. Ported from renderPng in the local edition's statistics.html.
 import fontUrl from "../../assets/fonts/Figtree-latin-wght.woff2?url";
 
 export interface SummaryPart {

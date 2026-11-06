@@ -69,7 +69,7 @@ async function seed() {
   return db;
 }
 
-describe("flow page: sentence", () => {
+describe("statistics page: sentence", () => {
   it("says there is nothing to chart with no applications", async () => {
     await render(freshDb());
     expect(host.textContent).toContain("No applications to chart. Sync your mailbox or add an application on the Applications page.");
@@ -105,7 +105,7 @@ describe("flow page: sentence", () => {
   });
 });
 
-describe("flow page: chart", () => {
+describe("statistics page: chart", () => {
   it("draws nodes with rounded bars, and the Lucide check and x on Offer and Rejected", async () => {
     await render(await seed());
     const rects = [...host.querySelectorAll("svg#sankey rect")];
@@ -184,7 +184,7 @@ describe("flow page: chart", () => {
   });
 });
 
-describe("flow page: table view", () => {
+describe("statistics page: table view", () => {
   it("lists stage, count and percent in a disclosure, numbers right-aligned", async () => {
     await render(await seed());
     expect(q("details > summary.disclosure")!.textContent).toBe("Table view");
@@ -201,7 +201,7 @@ describe("flow page: table view", () => {
   });
 });
 
-describe("flow page: filters", () => {
+describe("statistics page: filters", () => {
   it("lists accounts and periods, and applies both through the hash query", async () => {
     const db = await seed();
     await upsertAccount(db, "gmail", "me@gmail.com");
@@ -267,7 +267,7 @@ describe("flow page: filters", () => {
   });
 });
 
-describe("flow page: share", () => {
+describe("statistics page: share", () => {
   it("offers Save as image and Copy image, with a status line", async () => {
     await render(await seed());
     expect(q("#share-save")!.textContent).toBe("Save as image");
@@ -287,7 +287,7 @@ describe("flow page: share", () => {
   });
 });
 
-describe("flow page: safety", () => {
+describe("statistics page: safety", () => {
   it("never uses company names or raw HTML anywhere in the page", async () => {
     const db = freshDb();
     const evil = `<img src=x onerror="window.__pwned=1">`;

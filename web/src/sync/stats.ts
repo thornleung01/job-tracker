@@ -86,7 +86,9 @@ export interface Cohort {
 
 /**
  * The applications a Statistics filter keeps, and the dated stages each one showed. One read of the emails and one of the steps,
- * shared by the funnel and every other statistic, so they always count the same applications.
+ * shared by the funnel and every other statistic, so they always count the same applications. The period is a rolling cutoff on the
+ * stored instant (as it always was for the funnel), while the other statistics read each time as the viewer's calendar day, so an
+ * application right at the edge can sit in the funnel and fall in the neighbouring week or month.
  */
 export async function loadCohort(db: JobTrackerDB, filter: FlowFilter = {}): Promise<Cohort> {
   const account = filter.account ?? 0;

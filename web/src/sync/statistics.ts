@@ -39,7 +39,7 @@ export function spread(days: readonly number[]): Spread {
   return { n, median: nearestRank(sorted, 50), p25: nearestRank(sorted, 25), p75: nearestRank(sorted, 75) };
 }
 
-export interface Timing {
+interface Timing {
   /** days from applying to the first sign of any reply */
   reply: number | null;
   interview: number | null;
@@ -58,6 +58,7 @@ export function timingOf(app: Pick<ApplicationRow, "appliedAt" | "stage">, event
   let reply = "";
   let interview = "";
   let outcome = "";
+  // YYYY-MM-DD sorts as text, so the smaller string is the earlier day.
   const earlier = (best: string, day: string) => (!best || day < best ? day : best);
   for (const e of events) {
     const day = dayOf(e.at, timeZone);
@@ -133,15 +134,15 @@ export function paceOf(
   const count = Math.min(wanted, MAX_WEEKS);
   const oldest = shiftDay(thisWeek, -7 * (count - 1));
 
-  const perWeek = new Map<string, number>();
+  const countByWeek = new Map<string, number>();
   for (const day of applied) {
     const week = startOfWeek(day, weekStart);
-    if (week >= oldest) perWeek.set(week, (perWeek.get(week) ?? 0) + 1);
+    if (week >= oldest) countByWeek.set(week, (countByWeek.get(week) ?? 0) + 1);
   }
   const weeks: WeekCount[] = [];
   for (let i = 0; i < count; i++) {
     const start = shiftDay(oldest, 7 * i);
-    weeks.push({ start, end: shiftDay(start, 6), count: perWeek.get(start) ?? 0, current: start === thisWeek });
+    weeks.push({ start, end: shiftDay(start, 6), count: countByWeek.get(start) ?? 0, current: start === thisWeek });
   }
   if (!weeks.some((w) => w.count)) return null;
 
@@ -188,9 +189,10 @@ export function monthlyRates(
   apps: readonly ApplicationRow[], events: ReadonlyMap<number, readonly StageEvent[]>, now: Date = new Date(), timeZone?: string,
 ): MonthRate[] {
   const byMonth = new Map<string, { applied: number; heardBack: number }>();
+  const today = localToday(now, timeZone);
   for (const a of apps) {
     const day = dayOf(a.appliedAt, timeZone);
-    if (!day) continue;
+    if (!day || day > today) continue; // an applied day in the future (only an import can have one) isn't a month yet
     const month = day.slice(0, 7);
     const row = byMonth.get(month) ?? { applied: 0, heardBack: 0 };
     row.applied++;
@@ -200,7 +202,6 @@ export function monthlyRates(
   if (byMonth.size < 2) return [];
 
   const months = [...byMonth.keys()].sort();
-  const today = localToday(now, timeZone);
   const out: MonthRate[] = [];
   let [y, m] = months[0].split("-").map(Number);
   const [lastY, lastM] = months[months.length - 1].split("-").map(Number);
@@ -258,8 +259,7 @@ export interface StatisticsFilter extends FlowFilter {
 export async function statistics(db: JobTrackerDB, filter: StatisticsFilter = {}): Promise<Statistics> {
   const now = filter.now ?? new Date();
   const tz = filter.timeZone;
-  const cohort = await loadCohort(db, { ...filter, now });
-  const goal = await loadGoal(db);
+  const [cohort, goal] = await Promise.all([loadCohort(db, { ...filter, now }), loadGoal(db)]);
   return {
     flow: buildFlow(cohort.apps, cohort.events),
     speed: speedOf(cohort.apps, cohort.events, tz),

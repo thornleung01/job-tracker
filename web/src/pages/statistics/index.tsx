@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
-import { accountSummaries } from "../../sync/queries";
 import { FLOW_PERIODS, PERIODS, loadSettings } from "../../sync/settings";
 import { flowSummary, type FlowData } from "../../sync/stats";
 import { statistics, type Statistics } from "../../sync/statistics";
@@ -268,7 +267,7 @@ export default function StatisticsPage({ db, query, navigate }: PageProps) {
   const daysParam = daysRaw !== null && (FLOW_PERIODS as readonly number[]).includes(daysRaw) ? daysRaw : null;
 
   const view = useQuery<View>(async () => {
-    const [settings, accounts] = await Promise.all([loadSettings(db), accountSummaries(db)]);
+    const [settings, accounts] = await Promise.all([loadSettings(db), db.accounts.orderBy("id").toArray()]); // not accountSummaries: that reads every email just to count them
     const days = daysParam ?? settings.appearance.flowDays; // the period in Settings is the default
     const stats = await statistics(db, { account: accountParam, days });
     return { stats, accounts: accounts.map((a) => ({ id: a.id, address: a.address })), account: accountParam, days };

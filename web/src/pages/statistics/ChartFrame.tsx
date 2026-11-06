@@ -1,8 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { usePhone } from "./usePhone";
 
 /** What a chart draws on each mark so the frame can show its tooltip, move between marks with the arrow keys and read it aloud. */
-export interface MarkProps {
+interface MarkProps {
   "data-key": string;
   role: "img";
   tabIndex: number;
@@ -15,7 +15,7 @@ export interface MarkProps {
   onKeyDown(e: KeyboardEvent): void;
 }
 /** Spread the result on a transparent shape that is bigger than the mark: `<rect {...bind("w:1", <>tip</>, "Week of Nov 2: 3")} />`. */
-export type BindMark = (key: string, tip: ReactNode, label: string) => MarkProps;
+type BindMark = (key: string, tip: ReactNode, label: string) => MarkProps;
 
 interface Tip {
   key: string;
@@ -80,8 +80,7 @@ export function ChartFrame({ title, note, keys, table, footer, children }: Props
   }, [tip]);
 
   const roving = keys.includes(active ?? "") ? active : keys[0];
-  const bind = useMemo<BindMark>(
-    () => (key, content, label) => {
+  const bind: BindMark = (key, content, label) => {
       const at = keys.indexOf(key);
       const move = (to: number) => {
         const next = keys[Math.max(0, Math.min(keys.length - 1, to))];
@@ -125,9 +124,7 @@ export function ChartFrame({ title, note, keys, table, footer, children }: Props
           move(to);
         },
       };
-    },
-    [keys, roving],
-  );
+  };
 
   return (
     <section className="card viz-root" aria-labelledby={id}>

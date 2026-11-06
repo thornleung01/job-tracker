@@ -14,7 +14,7 @@
     --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
     --raise-btn: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10);
     --btn-hi: rgba(255,255,255,.12); --btn-lo: rgba(0,0,0,.5); --btn-drop: rgba(0,0,0,.35);
-    /* One stage colour map, used by the list badges, the detail page and Flow. -stage-X is the graphic (dots, Flow nodes and links, 3:1 or better on the page except the pale light-theme hues, which sit beside the stage word); -stage-X-text is the same hue held to 4.5:1 for any text. */
+    /* One stage colour map, used by the list badges, the detail page and Statistics. -stage-X is the graphic (dots, funnel nodes and links, 3:1 or better on the page except the pale light-theme hues, which sit beside the stage word); -stage-X-text is the same hue held to 4.5:1 for any text. */
     --stage-applied: #5b88d9;     --stage-applied-text: #2b5fbb;
     --stage-heard-back: #b27ee4;  --stage-heard-back-text: #8634d4;
     --stage-assessment: #e47eca;  --stage-assessment-text: #ae248b;
@@ -124,7 +124,7 @@
 
   /* Stage badges. A plain badge is a quiet tonal pill ("Open now", the jobs score). A stage badge is the point of the list row, so it is a
      14px/500 word in the stage's text colour with a dot in its graphic colour; the word carries the meaning, colour only supports it.
-     One map, defined in :root: --stage-X (dots, Flow) and --stage-X-text (words). */
+     One map, defined in :root: --stage-X (dots, funnel) and --stage-X-text (words). */
   .badge { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 3px 12px; border-radius: var(--r-pill);
            background: var(--fog); white-space: nowrap; letter-spacing: 0.18px; }
   .Applied { --st: var(--stage-applied); --st-text: var(--stage-applied-text); }

@@ -1,4 +1,4 @@
-// Sankey geometry, ported from the script in jobtracker/templates/flow.html. Pure: data in, coordinates out.
+// Sankey geometry, ported from the script in jobtracker/templates/statistics.html. Pure: data in, coordinates out.
 import type { FlowData } from "../../sync/stats";
 
 export const NODE_W = 14;

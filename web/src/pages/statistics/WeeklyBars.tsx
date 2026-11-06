@@ -7,7 +7,7 @@ import "./pace.css";
 
 /** Pace chart geometry, in viewBox units (the svg scales to the card). */
 export const W = 480;
-export const H = 200;
+const H = 200;
 const GUTTER = 54; // room for the "0", the max and "Goal 5" labels
 const TOP = 20;
 const BASE = 172; // the baseline: the x labels sit under it

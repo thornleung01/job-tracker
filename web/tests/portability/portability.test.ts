@@ -12,6 +12,7 @@ import { processMessages, processMessage } from "../../src/sync/sync";
 import { mergeApplications } from "../../src/sync/actions";
 import * as contacts from "../../src/sync/contacts";
 import { sankey } from "../../src/sync/stats";
+import { statistics } from "../../src/sync/statistics";
 import { closeAll, dbWithAccount, freshDb, mk, seedNote } from "../sync/helpers";
 import fixture from "../fixtures/python-export.json";
 import golden from "../fixtures/python-export.golden.json";
@@ -61,6 +62,16 @@ describe("export and import", () => {
     await importAll(copy, JSON.parse(await exportAllAsJson(db)));
     expect(await sankey(copy)).toEqual(await sankey(db));
     expect(await loadSettings(copy)).toEqual(await loadSettings(db));
+  });
+
+  it("keeps the Statistics page's default period and gives the same statistics after a round trip", async () => {
+    const { db } = await populated();
+    await saveSettings(db, "appearance", { flowDays: 90 });
+    const copy = freshDb();
+    await importAll(copy, JSON.parse(await exportAllAsJson(db)));
+    expect((await loadSettings(copy)).appearance.flowDays).toBe(90);
+    const opts = { now: new Date("2026-11-05T19:00:00Z"), timeZone: "UTC" };
+    expect(await statistics(copy, opts)).toEqual(await statistics(db, opts));
   });
 
   it("replaces what was there, and carries on with fresh ids after", async () => {

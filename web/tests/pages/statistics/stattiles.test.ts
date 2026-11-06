@@ -34,7 +34,7 @@ describe("tilesFor", () => {
     const tiles = tilesFor(flow(), speed(spreadOf(3, 1)), null);
     expect(tiles[0].sub).toBeUndefined();
     expect(tiles[3]).toEqual({ label: "Time to first reply", value: "1 day", sub: "median, from 3 applications" });
-    expect(tilesFor(flow(), speed(spreadOf(2, null)), null)[3]).toEqual({ label: "Time to first reply", value: "Not enough yet" });
+    expect(tilesFor(flow(), speed(spreadOf(2, null)), null)[3]).toEqual({ label: "Time to first reply", value: "Not enough yet", quiet: true });
   });
 });
 

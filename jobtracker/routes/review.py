@@ -80,7 +80,7 @@ def resolve(email_id: int, action: str = Form(...), stage: str = Form("Applied")
                                                stage, email["received_at"])
             elif not conn.execute("SELECT 1 FROM applications WHERE id = ?", (app_id,)).fetchone():
                 raise HTTPException(400)
-            # Record the stage you chose, so the flow chart reflects your decision.
+            # Record the stage you chose, so the funnel reflects your decision.
             conn.execute("UPDATE emails SET application_id = ?, needs_review = 0, hold = 0, event = ? WHERE id = ?",
                          (app_id, EVENT_FOR_STAGE[stage], email_id))
             db.apply_event(conn, app_id, EVENT_FOR_STAGE[stage], email["received_at"])

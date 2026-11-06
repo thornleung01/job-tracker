@@ -1,4 +1,4 @@
-// Appearance, columns, flow period and sync settings with defaults and sanitising (jobtracker/settings.py).
+// Appearance, columns, the Statistics period and sync settings with defaults and sanitising (jobtracker/settings.py).
 // The accent values (colours) live with the UI; only the names are kept here.
 import type { JobTrackerDB } from "../db/schema";
 import { getSetting, setSetting } from "../db/repo";
@@ -25,7 +25,7 @@ export const PERIODS: readonly { days: number; label: string }[] = [
   { days: 90, label: "Last 90 days" },
   { days: 180, label: "Last 180 days" },
 ];
-/** The flow period days (0 means all time), from the list above. */
+/** The Statistics period days (0 means all time), from the list above. */
 export const FLOW_PERIODS: readonly number[] = PERIODS.map((p) => p.days);
 /** What a sync reads: new mail only, or the last 30/90/180 days. */
 export const SCAN_CHOICES: readonly { days: number; label: string }[] = [
@@ -44,6 +44,7 @@ export interface AppearanceSettings {
   density: Density;
   corners: Corners;
   columns: ColumnId[];
+  /** the Statistics page's default period. Still called flowDays because that is the stored key (and `flow_days` in a Python export), so exports and imports are unchanged. */
   flowDays: number;
 }
 export interface SyncSettings {

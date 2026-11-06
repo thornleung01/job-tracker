@@ -55,7 +55,6 @@ describe("ChartFrame", () => {
     await act(async () => marks()[1].dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 10, clientY: 10 })));
     expect(tip().hidden).toBe(false);
     expect(tip().textContent).toBe("tip b");
-    await act(async () => marks()[1].dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
     // React's onMouseLeave listens for mouseout leaving the element.
     await act(async () => marks()[1].dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })));
     expect(tip().hidden).toBe(true);

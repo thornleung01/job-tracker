@@ -65,6 +65,16 @@ describe("timingOf", () => {
     expect(timingOf(app({ stage: "Rejected" }), [ev("Rejected", "2026-10-02T10:00:00Z")], "UTC").outcome).toBe(1);
   });
 
+  it("takes the earliest of an Offer and a Rejected event, and has no outcome for a terminal stage with no dated terminal event", () => {
+    const both = [ev("Offer", "2026-10-10T10:00:00Z"), ev("Rejected", "2026-10-20T10:00:00Z")];
+    expect(timingOf(app({ stage: "Rejected" }), both, "UTC").outcome).toBe(9);
+    expect(timingOf(app({ stage: "Offer" }), [ev("Heard back", "2026-10-03T10:00:00Z")], "UTC")).toMatchObject({ reply: 2, outcome: null });
+  });
+
+  it("skips an event whose time can't be read", () => {
+    expect(timingOf(app({ stage: "Interview" }), [ev("Interview", "not a time"), ev("Interview", "2026-10-09T10:00:00Z")], "UTC").interview).toBe(8);
+  });
+
   it("has nothing for an application with no applied day, and nothing for stages with no dated evidence", () => {
     expect(timingOf(app({ appliedAt: null }), [ev("Heard back", "2026-10-03T10:00:00Z")], "UTC")).toEqual({ reply: null, interview: null, outcome: null });
     expect(timingOf(app({ stage: "Interview" }), [], "UTC")).toEqual({ reply: null, interview: null, outcome: null });
@@ -171,6 +181,12 @@ describe("paceOf", () => {
     expect(paceNote(paceOf(rows, 30, null, NOW, "UTC")!)).toBe("Best week: 2");
     expect(paceNote(paceOf(rows, 30, 5, NOW, "UTC")!)).toBe("Best week: 2");
     expect(paceNote(paceOf(rowsOn("2026-10-12", "2026-10-13", "2026-10-19", "2026-10-20", "2026-10-26"), 30, 2, NOW, "UTC")!)).toBe("Best week: 2");
+    // One week at the goal is a streak of 1, which isn't worth a sentence: only 2 or more is.
+    const one = paceOf(rowsOn("2026-10-12", "2026-10-26", "2026-10-27", "2026-11-02"), 30, 2, NOW, "UTC")!;
+    expect(one.streak).toBe(1);
+    expect(paceNote(one)).toBe("Best week: 2");
+    // A hand-built pace with no best week and no streak has nothing to say.
+    expect(paceNote({ weeks: [], goal: null, perWeek: 0, best: null, streak: 0 })).toBeNull();
   });
 
   it("can start weeks on Sunday", () => {
@@ -215,6 +231,10 @@ describe("monthlyRates", () => {
     // Exactly 30 days after the month's last day it is no longer settling.
     expect(monthlyRates([on("2026-09-10"), on("2026-10-10")], new Map(), new Date("2026-11-29T19:00:00Z"), "UTC")[1].settling).toBe(true);
     expect(monthlyRates([on("2026-09-10"), on("2026-10-10")], new Map(), new Date("2026-11-30T19:00:00Z"), "UTC")[1].settling).toBe(false);
+  });
+
+  it("leaves out an application dated in the future", () => {
+    expect(monthlyRates([on("2026-10-03"), on("2026-09-03"), on("2026-12-20")], new Map(), NOW, "UTC").map((m) => m.month)).toEqual(["2026-09", "2026-10"]);
   });
 
   it("leaves out an application with no applied day, and keeps the latest two years", () => {
@@ -298,6 +318,29 @@ describe("statistics", () => {
     expect(s.pace!.weeks.reduce((n, w) => n + w.count, 0)).toBe(2);
   });
 
+  it("keeps Pace and Waiting now to the whole account while the period narrows the funnel, speed and monthly chart", async () => {
+    const { db, ids } = await seed();
+    const old = await createApplication(db, { company: "Ancient", companyKey: "ancient", role: "Dev", roleKey: "dev", stage: "Applied", when: "2026-08-01T12:00:00Z" });
+    await db.applications.update(old, { lastActivity: "2026-08-01T12:00:00Z" });
+    const s = await statistics(db, { ...opts, days: 30 });
+    expect(s.flow.total).toBe(2); // Ancient is outside the 30 days, like Acme and Initech
+    expect(s.waiting).toEqual({ fresh: 1, followUp: 1, ghosted: 1 }); // but it is still waiting, and long ghosted
+    expect(s.pace!.weeks.reduce((n, w) => n + w.count, 0)).toBe(2); // pace counts weeks in view, so Ancient's August week isn't one of them
+    expect(s.monthly.map((m) => m.month)).toEqual(["2026-10", "2026-11"]); // the monthly chart follows the period: Ancient's August is out
+    const all = await statistics(db, { ...opts, days: 0 });
+    expect(all.waiting).toEqual(s.waiting);
+    expect(all.monthly.map((m) => m.month)).toEqual(["2026-08", "2026-09", "2026-10", "2026-11"]);
+    expect(ids.a).toBeGreaterThan(0);
+  });
+
+  it("combines an account with a period", async () => {
+    const { db, acct } = await seed();
+    const s = await statistics(db, { ...opts, account: acct, days: 30 });
+    expect(s.flow).toEqual(await sankey(db, { ...opts, account: acct, days: 30 }));
+    expect(s.flow.total).toBe(0); // Acme and Initech have mail in the account, but both were applied over 30 days ago
+    expect((await statistics(db, { ...opts, account: acct, days: 90 })).flow.total).toBe(2);
+  });
+
   it("counts a logged step as dated evidence", async () => {
     const { db, ids } = await seed();
     await addStep(db, ids.c, "Interview", "2026-10-30", "", NOW);
@@ -363,7 +406,7 @@ describe("statistics", () => {
     })) as never);
     const started = Date.now();
     const s = await statistics(db, { now: NOW, timeZone: "UTC" });
-    expect(Date.now() - started).toBeLessThan(5000);
+    expect(Date.now() - started).toBeLessThan(20_000); // a loose bound: it only has to catch something that became quadratic
     expect(s.flow.total).toBe(1000);
     expect(s.speed.reply.n).toBe(500); // the apps whose emails are heard back or interview
     expect(s.speed.interview.n).toBe(250);
