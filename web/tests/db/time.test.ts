@@ -5,7 +5,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { dayText } from "../../src/db/dayText";
-import { dayOf, daysBetween, idleDaysSince, iso, localDay, localToday, stampForDay } from "../../src/db/time";
+import { WEEK_START, dayOf, daysBetween, daysInMonth, idleDaysSince, iso, localDay, localToday, shiftDay, stampForDay, startOfWeek, weekdayOf } from "../../src/db/time";
 import { applicationsToCsv, csvFilename, type CsvRow } from "../../src/portability/csv";
 import { addApplication, setAppliedOn } from "../../src/sync/actions";
 import { processMessages } from "../../src/sync/sync";
@@ -231,3 +231,114 @@ describe("a day you pick by hand", () => {
 function csvDay(value: string | null): string {
   return dayOf(value);
 }
+
+describe("shiftDay", () => {
+  it("moves a day forward and back by calendar days", () => {
+    expect(shiftDay("2026-11-05", 0)).toBe("2026-11-05");
+    expect(shiftDay("2026-11-05", 1)).toBe("2026-11-06");
+    expect(shiftDay("2026-11-05", -5)).toBe("2026-10-31");
+    expect(shiftDay("2026-11-05", 7)).toBe("2026-11-12");
+    expect(shiftDay("2026-11-05", 30)).toBe("2026-12-05");
+  });
+
+  it("crosses month and year ends", () => {
+    expect(shiftDay("2026-12-31", 1)).toBe("2027-01-01");
+    expect(shiftDay("2027-01-01", -1)).toBe("2026-12-31");
+    expect(shiftDay("2026-01-31", 1)).toBe("2026-02-01");
+    expect(shiftDay("2026-10-25", 7)).toBe("2026-11-01");
+  });
+
+  it("knows leap days", () => {
+    expect(shiftDay("2028-02-28", 1)).toBe("2028-02-29");
+    expect(shiftDay("2028-02-29", 1)).toBe("2028-03-01");
+    expect(shiftDay("2026-02-28", 1)).toBe("2026-03-01");
+    expect(shiftDay("2028-03-01", -1)).toBe("2028-02-29");
+    expect(shiftDay("2027-02-28", 366)).toBe("2028-02-29");
+    expect(shiftDay("2100-02-28", 1)).toBe("2100-03-01");
+  });
+
+  it("agrees with daysBetween", () => {
+    for (const n of [-400, -31, -1, 0, 1, 29, 30, 365, 1000]) expect(daysBetween("2026-03-08", shiftDay("2026-03-08", n))).toBe(n);
+  });
+
+  it("is the same in every zone, including across daylight saving changes", async () => {
+    for (const zone of [...REAL_ZONES, "Etc/GMT-14", "Etc/GMT+12"]) {
+      await inZone(zone, () => {
+        expect(shiftDay("2026-03-07", 1), zone).toBe("2026-03-08");
+        expect(shiftDay("2026-03-08", 1), zone).toBe("2026-03-09");
+        expect(shiftDay("2026-10-31", 1), zone).toBe("2026-11-01");
+        expect(shiftDay("2026-11-01", 1), zone).toBe("2026-11-02");
+        expect(shiftDay("2026-04-05", 7), zone).toBe("2026-04-12");   // Sydney and Lord Howe end daylight saving
+        expect(shiftDay("2026-10-04", -7), zone).toBe("2026-09-27");   // Sydney starts it
+      });
+    }
+  });
+});
+
+describe("daysInMonth", () => {
+  it("gives the length of each month", () => {
+    expect(Array.from({ length: 12 }, (_, i) => daysInMonth(2026, i + 1))).toEqual([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
+  });
+
+  it("counts a leap February in leap years only", () => {
+    expect(daysInMonth(2028, 2)).toBe(29);
+    expect(daysInMonth(2024, 2)).toBe(29);
+    expect(daysInMonth(2000, 2)).toBe(29);
+    expect(daysInMonth(2026, 2)).toBe(28);
+    expect(daysInMonth(2100, 2)).toBe(28);
+    expect(daysInMonth(1900, 2)).toBe(28);
+  });
+
+  it("is the same in every zone", async () => {
+    for (const zone of ["America/Toronto", "Pacific/Kiritimati", "Etc/GMT+12", "Australia/Lord_Howe"]) {
+      await inZone(zone, () => {
+        expect(daysInMonth(2026, 3), zone).toBe(31);
+        expect(daysInMonth(2028, 2), zone).toBe(29);
+        expect(daysInMonth(2026, 12), zone).toBe(31);
+      });
+    }
+  });
+});
+
+describe("weekdayOf and startOfWeek", () => {
+  it("numbers the weekdays like Date.getDay(): 0 is Sunday", () => {
+    // 2026-11-01 is a Sunday
+    expect(Array.from({ length: 7 }, (_, i) => weekdayOf(shiftDay("2026-11-01", i)))).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(weekdayOf("2028-02-29")).toBe(2);   // a leap day, a Tuesday
+    expect(weekdayOf("1990-01-01")).toBe(1);
+  });
+
+  it("starts the week on Monday unless told otherwise", () => {
+    expect(WEEK_START).toBe(1);
+    expect(startOfWeek("2026-11-05")).toBe("2026-11-02");   // a Thursday
+    expect(startOfWeek("2026-11-02")).toBe("2026-11-02");
+    expect(startOfWeek("2026-11-08")).toBe("2026-11-02");   // the Sunday ends the week
+    expect(startOfWeek("2026-11-09")).toBe("2026-11-09");
+  });
+
+  it("takes any weekday as the first, crossing a year end and a leap day", () => {
+    expect(startOfWeek("2026-11-05", 0)).toBe("2026-11-01");
+    expect(startOfWeek("2026-11-05", 6)).toBe("2026-10-31");
+    expect(startOfWeek("2027-01-01", 1)).toBe("2026-12-28");
+    expect(startOfWeek("2028-03-01", 1)).toBe("2028-02-28");
+    expect(startOfWeek("2028-03-01", 3)).toBe("2028-03-01");
+    for (let first = 0; first < 7; first++) {
+      for (let i = 0; i < 14; i++) {
+        const day = shiftDay("2026-12-27", i);
+        const start = startOfWeek(day, first);
+        expect(weekdayOf(start), `${day} from ${first}`).toBe(first);
+        expect(daysBetween(start, day) >= 0 && daysBetween(start, day) < 7, `${day} from ${first}`).toBe(true);
+      }
+    }
+  });
+
+  it("is the same in every zone, including across daylight saving changes", async () => {
+    for (const zone of [...REAL_ZONES, "Etc/GMT-14", "Etc/GMT+12"]) {
+      await inZone(zone, () => {
+        expect(startOfWeek("2026-03-08"), zone).toBe("2026-03-02");   // the day clocks go forward in Toronto
+        expect(startOfWeek("2026-11-01"), zone).toBe("2026-10-26");   // the day they go back
+        expect(weekdayOf("2026-03-08"), zone).toBe(0);
+      });
+    }
+  });
+});

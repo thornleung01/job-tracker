@@ -93,10 +93,10 @@ export async function createApplication(db: JobTrackerDB, a: NewApplication): Pr
   });
 }
 
-/** The application, or MissingRecordError when it is gone. Call it inside the transaction that then writes to it. */
+/** The application, or MissingRecordError when it is gone or deleted (a deleted one is only in Recently deleted). Call it inside the transaction that then writes to it. */
 export async function requireApplication(db: JobTrackerDB, appId: number): Promise<ApplicationRow> {
   const app = await db.applications.get(appId);
-  if (!app) throw new MissingRecordError(`No application ${appId}`);
+  if (!app || app.deletedAt) throw new MissingRecordError(`No application ${appId}`);
   return app;
 }
 

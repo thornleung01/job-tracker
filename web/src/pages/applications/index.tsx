@@ -1,26 +1,39 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { BulkBar } from "../../components/bulk/BulkBar";
 import { SelectAll } from "../../components/bulk/SelectBoxes";
 import { useSelection } from "../../components/bulk/useSelection";
+import { BulkAdd } from "../../components/bulkadd/BulkAdd";
+import { CalendarView } from "../../components/calendar/CalendarView";
 import { Combobox } from "../../components/Combobox";
 import { DuplicateNotice } from "../../components/duplicates/DuplicateNotice";
 import { useDuplicates } from "../../components/duplicates/useDuplicates";
 import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
+import { GhostedToggle } from "../../components/ghosted/GhostedToggle";
+import { WeeklyGoal } from "../../components/goal/WeeklyGoal";
 import { JobLinkField } from "../../components/joblink/JobLinkField";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { realJobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
 import { Notice } from "../../components/Notice";
+import { CompareOffers } from "../../components/offers/CompareOffers";
+import { SaveViewForm } from "../../components/savedviews/SaveViewForm";
+import { useSavedViews } from "../../components/savedviews/useSavedViews";
+import { ViewChips } from "../../components/savedviews/ViewChips";
+import { ShortcutHelp } from "../../components/shortcuts/ShortcutHelp";
+import type { ShortcutAction } from "../../components/shortcuts/keys";
+import { useShortcuts } from "../../components/shortcuts/useShortcuts";
 import { ComingUp } from "../../components/upcoming/ComingUp";
 import { useAction } from "../../components/useAction";
 import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
-import { localToday } from "../../db/time";
+import { isDayString, localToday } from "../../db/time";
 import { addApplication as realAddApplication } from "../../sync/actions";
+import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
+import { gridRange, parseMonth } from "../../sync/calendarGrid";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
 import { AppRow } from "./AppRow";
@@ -33,7 +46,14 @@ interface ListState {
   sort: string;
   dir: string;
   followUp: boolean;
+  ghosted: boolean;
   open: number[];
+  /** "calendar" or the default "list" (left out of the address) */
+  view: string;
+  /** the calendar's month, YYYY-MM; "" is the current month */
+  month: string;
+  /** the calendar's chosen day, YYYY-MM-DD, or "" */
+  day: string;
 }
 
 /** The list's address, with every filter in the hash query so reload and back both land on the same view. */
@@ -45,7 +65,13 @@ export function listUrl(s: Partial<ListState>): string {
   if (s.sort) p.set("sort", s.sort);
   if (s.dir) p.set("dir", s.dir);
   if (s.followUp) p.set("followUp", "1");
+  if (s.ghosted) p.set("ghosted", "1");
   if (s.open?.length) p.set("open", s.open.join(","));
+  if (s.view === "calendar") {
+    p.set("view", "calendar");
+    if (s.month) p.set("month", s.month);
+    if (s.day) p.set("day", s.day);
+  }
   const qs = p.toString();
   return qs ? `/?${qs}` : "/";
 }
@@ -53,16 +79,25 @@ export function listUrl(s: Partial<ListState>): string {
 /** The attribute the stylesheet hangs the phone layout on: last activity is `last_activity` there. */
 const dataCol = (c: ColumnId): string => (c === "lastActivity" ? "last_activity" : c);
 
-function readState(query: URLSearchParams): ListState {
+function readState(query: URLSearchParams, today: string): ListState {
   const sort = query.get("sort") ?? "";
   const dir = query.get("dir") ?? "";
+  // A day in the address names its own month when there is none, and a day the grid doesn't show is dropped.
+  const rawDay = query.get("day") ?? "";
+  const rawMonth = query.get("month");
+  const month = rawMonth ? parseMonth(rawMonth, today) : isDayString(rawDay) ? rawDay.slice(0, 7) : "";
+  const { from, to } = gridRange(month || today.slice(0, 7));
   return {
+    view: query.get("view") === "calendar" ? "calendar" : "list",
+    month,
+    day: isDayString(rawDay) && rawDay >= from && rawDay <= to ? rawDay : "",
     stage: isStage(query.get("stage")) ? (query.get("stage") as Stage) : "",
     q: query.get("q") ?? "",
     account: Number(query.get("account")) || 0,
     sort: SORT_COLUMNS.includes(sort as SortColumn) ? sort : "",
     dir: dir === "asc" || dir === "desc" ? dir : "",
     followUp: query.get("followUp") === "1",
+    ghosted: query.get("ghosted") === "1",
     open: [...new Set((query.get("open") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0))],
   };
 }
@@ -75,39 +110,61 @@ export interface ApplicationsPageDeps extends Partial<JobLinkDeps> {
 export default function ApplicationsPage({ db, user, query, navigate, deps = {} }: PageProps & { deps?: ApplicationsPageDeps }) {
   const addApplication = deps.addApplication ?? realAddApplication;
   const local = isLocalUser(user);
-  const state = readState(query);
-  const { stage, q, account, followUp, open } = state;
+  const today = localToday();
+  const state = readState(query, today);
+  const { stage, q, account, followUp, ghosted, open, view, day } = state;
+  const calendar = view === "calendar";
+  const month = state.month || today.slice(0, 7);
+  /** the calendar's place in the address: spread into every navigation, so no link or button can drop the view */
+  const keep = { view, month: state.month, day };
+  /** the filters in the address, for every link and navigation that must keep them */
+  const filters = { stage, q, account, followUp, ghosted };
   const sort = (state.sort || "lastActivity") as SortColumn;
   const dir = state.dir || DEFAULT_DIR[sort];
 
   const data = useQuery(async () => {
-    const rows = await listApplications(db, { stage, q, account, followUp, sort, dir });
+    const rows = await listApplications(db, { stage, q, account, followUp, ghosted, sort, dir });
     const counts = await stageCounts(db);
     return {
       rows, counts, accounts: await listAccounts(db), review: await reviewCount(db),
       columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
     };
-  }, [db, stage, q, account, followUp, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
+  }, [db, stage, q, account, followUp, ghosted, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
 
   // The ticked rows live here, not in the address, and are dropped when the filters change.
-  const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp]));
+  const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp, ghosted]));
 
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
   const [draftQ, setDraftQ] = useState(q);
   const [draftStage, setDraftStage] = useState<string>(stage);
   const [draftAccount, setDraftAccount] = useState(account);
   const [draftFollowUp, setDraftFollowUp] = useState(followUp);
+  const [draftGhosted, setDraftGhosted] = useState(ghosted);
   useEffect(() => setDraftQ(q), [q]);
   useEffect(() => setDraftStage(stage), [stage]);
   useEffect(() => setDraftAccount(account), [account]);
   useEffect(() => setDraftFollowUp(followUp), [followUp]);
+  useEffect(() => setDraftGhosted(ghosted), [ghosted]);
 
   const sorting = { sort: state.sort, dir: state.dir };
   const apply = (e?: FormEvent) => {
     e?.preventDefault();
-    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ...sorting }));
+    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, ...sorting, ...keep }));
   };
-  const setOpen = (ids: number[]) => navigate(listUrl({ stage, q, account, followUp, ...sorting, open: ids }), { replace: true });
+  const setOpen = (ids: number[]) => navigate(listUrl({ ...filters, ...sorting, ...keep, open: ids }), { replace: true });
+
+  // The calendar: the page's filtered rows plus the steps logged in the grid's days. Moving around it replaces the history entry.
+  const range = useMemo(() => gridRange(month), [month]);
+  const steps = useQuery(() => (calendar ? calendarSteps(db, range.from, range.to) : []), [db, calendar, range.from, range.to], { keepPrevious: true });
+  const dataRows = data?.rows;
+  const events = useMemo<ReadonlyMap<string, readonly CalendarEvent[]>>(
+    () => (calendar && dataRows ? calendarEvents(dataRows, steps ?? [], today, range) : new Map()), [calendar, dataRows, steps, today, range]);
+  const calendarUrl = (o: { month: string; day: string }) => listUrl({ ...filters, ...sorting, ...keep, ...o });
+  const goMonth = (m: string) => {
+    const { from, to } = gridRange(m);
+    navigate(calendarUrl({ month: m, day: day >= from && day <= to ? day : "" }), { replace: true });
+  };
+  const pickDay = (d: string) => navigate(calendarUrl({ month: d.slice(0, 7), day: d }), { replace: true });
   const toggle = (id: number) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
   // Rows are memoised, so the callback they get must keep its identity: it reads the latest `toggle` through a ref.
   const toggleRef = useRef(toggle);
@@ -166,7 +223,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       setFocusAdd((n) => n + 1);
     }
     // Take the bookmarklet's parameters out of the address either way, so a reload does not open it again.
-    navigate(listUrl({ stage, q, account, followUp, ...sorting, open }), { replace: true });
+    navigate(listUrl({ ...filters, ...sorting, ...keep, open }), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
@@ -195,36 +252,134 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
     }
   };
 
+  // Saved views: the "Save this view" form opens under the filter card, the chips sit above the list.
+  const [saveOpen, setSaveOpen] = useState(false);
+  // Closing the form (Cancel, Escape, or saved) puts focus back on the button that opened it, which stays on the page.
+  const saveTrigger = useRef<HTMLButtonElement>(null);
+  const closeSave = () => {
+    saveTrigger.current?.focus();
+    setSaveOpen(false);
+  };
+  const views = useSavedViews(db);
+
+  // The row the keyboard is on. It follows focus (a click or Tab into a row makes it current), and j and k move it. Rows are
+  // memoised, so only the row that gains it and the one that loses it redraw.
+  const [current, setCurrent] = useState<number | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpFrom = useRef<HTMLElement | null>(null);
+  const helpButton = useRef<HTMLButtonElement>(null);
+  const openHelp = (from?: HTMLElement) => {
+    helpFrom.current = from ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setHelpOpen(true);
+  };
+  const listBody = useRef<HTMLTableSectionElement>(null);
+  // The calendar has no rows, so the row shortcuts find nothing to act on and leave their keys alone.
+  const rowIds = calendar ? [] : data?.rows.map((r) => r.id) ?? [];
+  const currentId = current !== null && rowIds.includes(current) ? current : null;
+  const onRowFocus = (e: FocusEvent<HTMLElement>) => {
+    const id = Number((e.target as Element).closest<HTMLElement>("tr[data-id]")?.dataset.id);
+    if (id) setCurrent((was) => (was === id ? was : id));
+  };
+  /** The row focus is in, else the current row: where j and k start from. */
+  const rowInFocus = (): number | null => {
+    const id = Number((document.activeElement as Element | null)?.closest<HTMLElement>("tr[data-id]")?.dataset.id);
+    return id && rowIds.includes(id) ? id : currentId;
+  };
+  const moveTo = (id: number) => {
+    setCurrent(id);
+    // Focus goes to the row's company link: it has the application's name, says whether it is open, and Enter on it works by itself.
+    const link = listBody.current?.querySelector<HTMLElement>(`a.expander[data-id="${id}"]`);
+    link?.focus();
+    link?.scrollIntoView?.({ block: "nearest" });
+  };
+  const onShortcut = (action: ShortcutAction): boolean | void => {
+    if (helpOpen) {
+      // The help dialog traps the keyboard; Escape (or ? again) is the only key the page answers while it is up.
+      if (action !== "clear" && action !== "help") return false;
+      setHelpOpen(false);
+      return;
+    }
+    const at = rowInFocus();
+    switch (action) {
+      case "focusSearch": {
+        const box = document.getElementById("f-q") as HTMLInputElement | null;
+        box?.focus();
+        box?.select();
+        return;
+      }
+      case "next":
+      case "prev": {
+        if (!rowIds.length) return false;
+        const i = at === null ? -1 : rowIds.indexOf(at);
+        moveTo(rowIds[action === "next" ? Math.min(i + 1, rowIds.length - 1) : i < 0 ? rowIds.length - 1 : Math.max(i - 1, 0)]);
+        return;
+      }
+      case "toggleOpen":
+        if (at === null) return false;
+        toggle(at);
+        return;
+      case "select":
+        if (at === null) return false;
+        selection.toggle(at);
+        return;
+      case "add":
+        openAdd();
+        return;
+      case "goSettings":
+        navigate("/settings");
+        return;
+      case "clear":
+        if (currentId === null) return false;
+        setCurrent(null);
+        if ((document.activeElement as Element | null)?.closest("tr[data-id]")) (document.activeElement as HTMLElement).blur();
+        return;
+      case "help":
+        openHelp();
+        return;
+    }
+  };
+  useShortcuts(onShortcut);
+
   if (!data) return <h1 className="page">Applications</h1>;
   const { rows, counts, accounts, review, columns, suggestions: suggest } = data;
   const total = STAGES.reduce((n, s) => n + counts[s], 0);
-  const today = localToday();
-  const filtered = Boolean(stage || q.trim() || account || followUp);
+  const filtered = Boolean(stage || q.trim() || account || followUp || ghosted);
   const thisAccount = accounts.find((a) => a.id === account);
+  // "Save this view" is offered only when what the form shows (or the sort) differs from the plain list: there is nothing to save otherwise.
+  const differs = Boolean(draftStage || draftQ.trim() || draftAccount || draftFollowUp || draftGhosted || state.sort || state.dir);
 
   const sortHref = (c: ColumnId) =>
-    "#" + listUrl({ stage, q, account, followUp, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
+    "#" + listUrl({ ...filters, ...keep, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
 
   return (
     <>
-      <h1 className="page">Applications</h1>
-      {filtered ? null : <ComingUp rows={rows} today={today} />}
-      <nav className="tabs" aria-label="Filter by stage">
-        <a href={"#" + listUrl({})} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
+      <div className="page-head">
+        <h1 className="page">Applications</h1>
+        <div className="page-actions">
+          <button type="button" ref={addTrigger} aria-expanded={addOpen} aria-controls="add-application" onClick={openAdd}>Add application</button>
+          <nav className="tabs view-tabs" aria-label="View">
+            <a href={"#" + listUrl({ ...filters, ...sorting })} className="tab" aria-current={!calendar ? "true" : undefined}>List</a>
+            <a href={"#" + listUrl({ ...filters, ...sorting, view: "calendar" })} className="tab" aria-current={calendar ? "true" : undefined}>Calendar</a>
+          </nav>
+        </div>
+      </div>
+      {filtered || calendar ? null : <ComingUp rows={rows} today={today} db={db} />}
+      <nav className="tabs stage-tabs" aria-label="Filter by stage">
+        <a href={"#" + listUrl({ ...keep })} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
         {STAGES.map((s) => (
-          <a key={s} href={"#" + listUrl(s === stage ? {} : { stage: s })} className="tab"
+          <a key={s} href={"#" + listUrl(s === stage ? { ...keep } : { stage: s, ...keep })} className="tab"
              aria-current={s === stage ? "true" : undefined} title={s === stage ? "Choose again to show all stages" : undefined}>
             {s} <span className="n" id={`count-${s}`}>{counts[s]}</span>
           </a>
         ))}
       </nav>
 
-      <div className="card">
+      <div className="card filter-card">
         <form className="row filters" onSubmit={apply}>
           <div className="fgroup f-search">
             <label htmlFor="f-q">Search</label>
-            <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company or role"
-                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ...sorting })); }} />
+            <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company, role, email or note"
+                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, ...sorting, ...keep })); }} />
           </div>
           <div className="fgroup">
             <label htmlFor="f-stage">Stage</label>
@@ -242,10 +397,15 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               </select>
             </div>
           ) : null}
-          <FollowUpToggle checked={draftFollowUp} onChange={setDraftFollowUp} />
+          <fieldset className="fgroup show-group">
+            <legend>Show</legend>
+            <div className="show-group-boxes">
+              <FollowUpToggle checked={draftFollowUp} onChange={setDraftFollowUp} />
+              <GhostedToggle checked={draftGhosted} onChange={setDraftGhosted} />
+            </div>
+          </fieldset>
           {/* One primary per surface: the open add form owns it, so Apply filters steps down while the form is showing. */}
           <button type="submit" className={addOpen ? undefined : "primary"}>Apply filters</button>
-          <button type="button" ref={addTrigger} aria-expanded={addOpen} aria-controls="add-application" onClick={openAdd}>Add application</button>
         </form>
       </div>
 
@@ -296,25 +456,51 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               <button type="button" onClick={closeAdd}>Cancel</button>
             </div>
           </form>
+          <BulkAdd db={db} deps={{ parseJobUrl: deps.parseJobUrl ?? realJobLinkDeps.parseJobUrl, enrichJobDraft: deps.enrichJobDraft ?? realJobLinkDeps.enrichJobDraft }} />
         </section>
       ) : add.status ? <Notice>{add.status}</Notice> : null}
 
-      <div className="result-line" role="status">
-        <span className="small muted">Showing {rows.length}{filtered ? ` of ${total}` : ""} application{rows.length !== 1 ? "s" : ""}</span>
-        {stage ? <span className="chip">Stage: {stage}</span> : null}
-        {q.trim() ? <span className="chip">Search: {q.trim()}</span> : null}
-        {followUp ? <span className="chip">Needs follow-up</span> : null}
-        {thisAccount ? <span className="chip">Account: {thisAccount.address}</span> : null}
-        {filtered ? <a className="small clear-filters" href={"#" + listUrl({})}>Clear filters</a> : null}
-      </div>
+      {views ? (
+        <ViewChips db={db} views={views} currentUrl={listUrl({ ...filters, ...sorting, ...keep })} urlFor={(v) => listUrl({ ...v, ...keep })} navigate={navigate}
+                   accountName={(id) => accounts.find((a) => a.id === id)?.address} />
+      ) : null}
+      {calendar ? null : <CompareOffers db={db} />}
 
-      {!accounts.length && !local ? <Notice>No email account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
-      {review ? (
-        <Notice>
-          <a href="#/review">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} review</a>. We weren't sure which application {review !== 1 ? "they belong" : "it belongs"} to.
-        </Notice>
+      <div className="status-row">
+        <div className="status-main">
+          <div className="result-line" role="status">
+            <span className="small muted">Showing {rows.length}{filtered ? ` of ${total}` : ""} application{rows.length !== 1 ? "s" : ""}</span>
+            {stage ? <span className="chip">Stage: {stage}</span> : null}
+            {q.trim() ? <span className="chip">Search: {q.trim()}</span> : null}
+            {followUp ? <span className="chip">Needs follow-up</span> : null}
+            {ghosted ? <span className="chip">No reply</span> : null}
+            {thisAccount ? <span className="chip">Account: {thisAccount.address}</span> : null}
+            {filtered ? <a className="small clear-filters" href={"#" + listUrl({ ...keep })}>Clear filters</a> : null}
+            {differs || saveOpen ? (
+              <button type="button" className="quiet save-view-trigger" ref={saveTrigger} aria-expanded={saveOpen} aria-controls="save-view" onClick={() => setSaveOpen(!saveOpen)}>Save this view</button>
+            ) : null}
+          </div>
+          {review ? (
+            <p className="review-link small" role="status">
+              <a href="#/review" aria-describedby="review-why">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} review</a>
+              <span className="sr-only" id="review-why">We weren't sure which application {review !== 1 ? "they belong" : "it belongs"} to.</span>
+            </p>
+          ) : null}
+        </div>
+        <WeeklyGoal db={db} />
+      </div>
+      {saveOpen ? (
+        <div id="save-view">
+          <SaveViewForm db={db} count={views?.length ?? 0} accountName={thisAccount?.address} onClose={closeSave}
+                        filters={{ stage: draftStage, q: draftQ.trim(), account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, sort: state.sort, dir: state.dir }} />
+        </div>
       ) : null}
 
+      {!accounts.length && !local ? <Notice>No email account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
+
+      {calendar ? (
+        <CalendarView month={month} today={today} day={day} events={events} onMonth={goMonth} onSelectDay={pickDay} />
+      ) : <>
       <BulkBar db={db} selection={selection} />
 
       <div className="card list-card">
@@ -329,12 +515,13 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               ))}
             </tr>
           </thead>
-          <tbody role="rowgroup">
+          <tbody role="rowgroup" ref={listBody} onFocus={onRowFocus}>
             {rows.map((r) => {
               const isOpen = open.includes(r.id);
               return (
                 <AppRow key={r.id} db={db} navigate={navigate} r={r} columns={columns} isOpen={isOpen} selected={selection.has(r.id)} today={today}
-                        href={"#" + listUrl({ stage, q, account, followUp, ...sorting, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
+                        current={r.id === currentId}
+                        href={"#" + listUrl({ ...filters, ...sorting, ...keep, open: isOpen ? open.filter((x) => x !== r.id) : [...open, r.id] })}
                         onToggleOpen={onToggleOpen} onToggleSelect={selection.toggle} />
               );
             })}
@@ -348,6 +535,12 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           </tbody>
         </table>
       </div>
+      </>}
+
+      <p className="page-foot">
+        <button type="button" className="quiet" ref={helpButton} aria-haspopup="dialog" onClick={(e) => openHelp(e.currentTarget)}>Keyboard shortcuts</button>
+      </p>
+      {helpOpen ? <ShortcutHelp onClose={() => setHelpOpen(false)} returnTo={helpFrom.current} fallback={helpButton.current} /> : null}
     </>
   );
 }

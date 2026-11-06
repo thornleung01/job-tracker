@@ -202,34 +202,37 @@ describe("merge and delete", () => {
     await click(item(m.container, "Delete application"));
     const step = $(m.container, ".inline-confirm")!;
     expect(document.activeElement).toBe(button(step, "Cancel"));
-    expect($$(step, "button").map(text)).toEqual(["Delete the application and its emails", "Delete the application, keep emails in Needs review", "Cancel"]);
+    expect(text($(step, ".inline-confirm-q"))).toBe("Delete Acme?");
+    expect(text($(step, ".help"))).toBe("You can restore it for 30 days.");
+    expect($$(step, "button").map(text)).toEqual(["Delete application", "Delete for good, keep emails in Needs review", "Cancel"]);
     expect($$(step, "button.danger")).toHaveLength(2);
     expect(window.confirm).not.toHaveBeenCalled();
     expect(await db.applications.get(acme)).toBeDefined();
   });
 
-  it("deletes with its emails and returns to the list", async () => {
+  it("deletes to Recently deleted, keeping its emails, and returns to the list", async () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
     await openMenu(m.container);
     await click(item(m.container, "Delete application"));
-    await click(button(m.container, "Delete the application and its emails"));
+    await click(button($(m.container, ".inline-confirm")!, "Delete application"));
     expect(window.confirm).not.toHaveBeenCalled();
     expect(m.visited.at(-1)).toBe("/");
-    expect(await db.applications.get(acme)).toBeUndefined();
-    const [kept] = await db.emails.toArray();   // the row stays so a sync does not read it again, but its content is erased
-    expect([kept.applicationId, kept.subject, kept.body]).toEqual([null, null, null]);
+    expect((await db.applications.get(acme))?.deletedAt).toBeDefined();
+    const [kept] = await db.emails.toArray();   // kept for 30 days, so a restore brings everything back
+    expect([kept.applicationId, kept.subject]).toEqual([acme, "We got your application"]);
   });
 
-  it("deletes but keeps the emails for review", async () => {
+  it("deletes for good but keeps the emails for review", async () => {
     const { db, account, acme } = await setup();
     await addMail(db, account, acme);
     const m = await open(db, acme);
     await openMenu(m.container);
     await click(item(m.container, "Delete application"));
-    await click(button(m.container, "Delete the application, keep emails in Needs review"));
+    await click(button(m.container, "Delete for good, keep emails in Needs review"));
     expect(m.visited.at(-1)).toBe("/");
+    expect(await db.applications.get(acme)).toBeUndefined();
     const [mail] = await db.emails.toArray();
     expect([mail.applicationId, mail.needsReview, mail.hold]).toEqual([null, true, true]);
   });
@@ -423,7 +426,8 @@ describe("the posting link", () => {
     const { db, acme } = await setup();
     const { container } = await open(db, acme);
     expect(link(container)).toBeNull();
-    expect($$(container, "a[target=_blank]")).toHaveLength(0);
+    // The only other new-tab link is Draft follow-up, which opens a message in the account's own mail service.
+    expect($$(container, "a[target=_blank]").filter((a) => !a.getAttribute("aria-label")?.startsWith("Draft follow-up"))).toHaveLength(0);
   });
 
   it.each([

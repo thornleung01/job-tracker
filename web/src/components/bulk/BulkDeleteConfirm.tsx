@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 import { InlineConfirm } from "../InlineConfirm";
+import { TRASH_DAYS } from "../../sync/trash";
 import type { ActionRunner } from "../useAction";
 
 /** The id of the question, for the Delete button that opens it to point at. */
@@ -23,8 +24,8 @@ export function BulkDeleteConfirm({ what, act, onDelete, onCancel, opener, delet
     <InlineConfirm
       id={BULK_CONFIRM_ID}
       title={`Delete ${what}?`}
-      help="Their emails, notes and steps are removed. Your mailbox isn't touched."
-      confirmLabel={`Delete ${what} and their emails`}
+      help={`You can restore ${what === "1 application" ? "it" : "them"} for ${TRASH_DAYS} days.`}
+      confirmLabel={`Delete ${what}`}
       onConfirm={onDelete}
       onCancel={onCancel}
       act={act}

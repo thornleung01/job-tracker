@@ -145,7 +145,7 @@ describe("local mode (no client IDs)", () => {
     await settle(100);
     expect(q("main")!.textContent).toContain("Pat Lee");
     expect(q("[role=alert]")).toBeNull();
-    expect(await currentDb().emails.count()).toBe(80);
+    expect(await currentDb().emails.count()).toBe(83);   // the 80 imported plus 3 demo interview invitations (see loadDemo.ts)
   });
 
   it("dates the demo data relative to today so period filters still show it", async () => {

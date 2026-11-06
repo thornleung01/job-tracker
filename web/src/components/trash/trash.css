@@ -1,0 +1,4 @@
+/* The line after a delete, with Restore beside it while there's still time (the same layout as the bulk bar's result line). */
+.trash-notice { display: flex; align-items: flex-start; gap: 8px; }
+.trash-notice .notice { flex: 1; }
+.trash-restore { min-height: var(--tap-sm); padding: 0 12px; margin-top: 10px; }

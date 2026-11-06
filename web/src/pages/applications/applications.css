@@ -10,3 +10,45 @@
 /* Top-aligned, so a hint under one field ("Guessed from the page") never pushes the others out of line. */
 .add-fields { align-items: flex-start; }
 .add-url-row { margin-top: 12px; }
+/* Why a search matched an email or a note, under the company. */
+.match-why { display: block; margin: 2px 0 0 28px; overflow-wrap: anywhere; }
+/* The row the keyboard is on: a bar down its left edge as well as a tint, so it doesn't rely on colour alone. */
+tr.app-row.is-current td { background: var(--hover); }
+tr.app-row.is-current td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
+.list-card tr.app-row.is-current { background: var(--hover); box-shadow: inset 3px 0 0 var(--ink); }
+.page-foot { margin: 0 0 var(--gap); }
+
+/* The header block: the title with its page-level actions, the stage tabs, the one-row filter card, then one status row. */
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 0 var(--pad); }
+.page-head h1.page { margin: 0; }
+.page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.page-actions .tabs.view-tabs { margin: 0; }
+.tabs.stage-tabs { margin-bottom: var(--pad); }
+/* The checkboxes sit together under one small label, level with the other fields. */
+.filters .show-group { border: 0; margin: 0; padding: 0; min-width: 0; }
+.filters .show-group > legend { padding: 0 0 6px 4px; font-size: 0.875rem; font-weight: 500; color: var(--muted); }
+.show-group-boxes { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.card.filter-card { margin-bottom: var(--gap); }
+/* One quiet status row: the count and the review link on the left, the weekly goal on the right. */
+.status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 24px; margin: 0 0 var(--pad); }
+.status-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; }
+.status-row .result-line { margin: 0; min-height: 0; }
+.review-link { margin: 0; }
+.save-view-trigger { min-height: var(--tap-sm); padding: 0 14px; font-size: 0.875rem; }
+.view-chips { margin-bottom: var(--pad); }
+.card.compare-offers { margin-bottom: var(--pad); }
+
+@media (max-width: 720px) {
+  /* Two selects side by side, so the card is four short rows instead of six. */
+  form.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .filters .f-search, .filters .show-group, .filters button[type="submit"] { grid-column: 1 / -1; }
+  .filters .show-group-boxes { gap: 0 16px; }
+  .filters > .fgroup > select { min-width: 0; width: 100%; padding: 0 14px 0 16px; gap: 8px; white-space: nowrap; }
+  /* One scrollable row of stage tabs instead of three wrapped lines. The scrollbar is hidden; arrow keys and Tab still reach every tab. */
+  .tabs.stage-tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 3px; margin: -3px -3px var(--pad); }
+  .stage-tabs::-webkit-scrollbar { display: none; }
+  .stage-tabs .tab { flex: none; white-space: nowrap; }
+  .page-actions { justify-content: flex-start; }
+  .status-row { gap: 0 16px; }
+}
+#add-application.card { margin-bottom: var(--gap); }

@@ -25,6 +25,7 @@ async function seedLocal(): Promise<void> {
   }
 }
 
+const offerText = () => document.querySelector(".carryover")?.textContent ?? "";
 const localExists = () => Dexie.exists(LOCAL_DB_NAME);
 const localNames = async () => (await indexedDB.databases()).map((d) => d.name);
 
@@ -67,6 +68,74 @@ describe("localApplicationCount", () => {
     expect(await localApplicationCount(open)).toBe(2);
     expect(open).toHaveBeenCalledWith(LOCAL_DB_NAME);
     expect(opened[0]!.isOpen()).toBe(false);
+  });
+});
+
+/** Marks an application deleted, as Delete application does (it stays in the database for 30 days). */
+const trash = (db: JobTrackerDB, id: number) => db.applications.update(id, { deletedAt: "2026-11-01T10:00:00Z" });
+
+describe("a copy with deleted applications", () => {
+  async function seedWithTrash(live: number, deleted: number): Promise<void> {
+    const local = openDatabase(LOCAL_DB_NAME);
+    try {
+      for (let i = 0; i < live; i++) await addApp(local, `Live ${i}`);
+      for (let i = 0; i < deleted; i++) await trash(local, await addApp(local, `Gone ${i}`));
+    } finally {
+      local.close();
+    }
+  }
+
+  it("counts only the applications you can see", async () => {
+    await seedWithTrash(2, 1);
+    expect(await localApplicationCount()).toBe(2);
+  });
+
+  it("counts 0 when everything in it is in Recently deleted", async () => {
+    await seedWithTrash(0, 3);
+    expect(await localApplicationCount()).toBe(0);
+  });
+
+  it("brings over the deleted ones too, and reports only the ones you can see", async () => {
+    await seedWithTrash(2, 1);
+    const target = freshDb();
+    expect(await bringOverLocalData(target)).toBe(2);
+    expect(await target.applications.count()).toBe(3);
+    expect((await target.applications.toArray()).filter((a) => a.deletedAt).map((a) => a.company)).toEqual(["Gone 0"]);
+  });
+
+  it("has nothing to bring over when everything in it is in Recently deleted", async () => {
+    await seedWithTrash(0, 2);
+    const target = freshDb();
+    await expect(bringOverLocalData(target)).rejects.toBeInstanceOf(NothingToBringOverError);
+    expect(await target.applications.count()).toBe(0);
+    expect(window.localStorage.getItem(DONE_KEY)).toBeNull();
+  });
+
+  it("the offer states the number you can see, and is not made at all for a copy with only deleted ones", async () => {
+    await seedWithTrash(2, 1);
+    await render(h(LocalDataOffer, { db: freshDb(), onResolved: vi.fn() }));
+    await waitFor(() => byText("Bring them over"));
+    expect(offerText()).toContain("You have 2 applications saved in this browser");
+    cleanupRendered();
+    await Dexie.delete(LOCAL_DB_NAME);
+    await seedWithTrash(0, 2);
+    const onResolved = vi.fn();
+    const view = await render(h(LocalDataOffer, { db: freshDb(), onResolved }));
+    await waitFor(() => onResolved.mock.calls.length === 1);
+    await settle(50);
+    expect(view.container.textContent).toBe("");
+  });
+
+  it("is not offered to an account whose only application is in Recently deleted: importing would replace it", async () => {
+    await seedLocal();
+    const db = freshDb();
+    await trash(db, await addApp(db, "Initech"));
+    const onResolved = vi.fn();
+    const view = await render(h(LocalDataOffer, { db, onResolved }));
+    await waitFor(() => onResolved.mock.calls.length === 1);
+    await settle(50);
+    expect(view.container.textContent).toBe("");
+    expect(await db.applications.count()).toBe(1);
   });
 });
 
@@ -169,8 +238,6 @@ describe("bringOverLocalData and removeLocalCopy", () => {
     expect(await localExists()).toBe(false);
   });
 });
-
-const offerText = () => document.querySelector(".carryover")?.textContent ?? "";
 
 describe("LocalDataOffer", () => {
   it("shows nothing, calls onResolved once and never creates the local database when there is no local copy", async () => {

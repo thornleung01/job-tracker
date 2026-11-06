@@ -1,0 +1,13 @@
+/* Recently deleted in Settings: one row per application, the question in place under it. */
+.trash-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.trash-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.trash-row:first-child { border-top: 0; }
+.trash-what { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+.trash-company, .trash-role { overflow-wrap: anywhere; }
+.trash-when { grid-column: 1; }
+.trash-actions { grid-column: 2; grid-row: 1 / span 2; }
+.trash-row .inline-confirm { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .trash-row { grid-template-columns: 1fr; }
+  .trash-actions { grid-column: 1; grid-row: auto; }
+}

@@ -78,6 +78,34 @@ export function stampForDay(day: string, now: Date = new Date(), timeZone?: stri
   return current.endsWith(DAY_STAMP) ? iso(now.getTime() + 1000) : current;
 }
 
+/** The YYYY-MM-DD `days` calendar days after `day` (before it when negative). UTC arithmetic on the date parts, so no time zone or daylight saving change can move a day. */
+export function shiftDay(day: string, days: number): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** The weekday of a YYYY-MM-DD: 0 is Sunday, 1 Monday ... 6 Saturday, as `Date.getDay()` numbers them. Plain calendar maths in UTC. */
+export function weekdayOf(day: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/**
+ * The weekday every week starts on, numbered like weekdayOf (0 Sunday ... 6 Saturday): Monday. This is the one place that says so:
+ * the weekly goal's week and the calendar's first column both start from it, so changing this line moves both together.
+ */
+export const WEEK_START = 1;
+
+/** The first day of the week `day` is in, as YYYY-MM-DD, for a week that starts on `weekStart` (see WEEK_START). */
+export function startOfWeek(day: string, weekStart: number = WEEK_START): string {
+  return shiftDay(day, -((weekdayOf(day) - weekStart + 7) % 7));
+}
+
+/** How many days a month has: `month` runs 1 (January) to 12, leap years included. */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /** Whole calendar days from one YYYY-MM-DD to another (negative when `to` is earlier). */
 export function daysBetween(from: string, to: string): number {
   const [fy, fm, fd] = from.split("-").map(Number);

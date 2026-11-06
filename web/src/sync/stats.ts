@@ -2,6 +2,7 @@
 import type { JobTrackerDB } from "../db/schema";
 import { STAGE_FOR_EVENT, STAGES, TERMINAL, type Stage } from "../db/stages";
 import { addDays, iso, roundHalfEven } from "../db/time";
+import { liveApplications } from "./live";
 
 export type FlowNodeId = "Applied" | "Heard back" | "No response yet" | "Assessment" | "Interview" | "Offer" | "Rejected" | "Still open";
 
@@ -71,7 +72,7 @@ export async function sankey(db: JobTrackerDB, filter: FlowFilter = {}): Promise
   const account = filter.account ?? 0;
   const days = filter.days ?? 0;
   const emails = await db.emails.toArray();
-  let apps = await db.applications.toArray();
+  let apps = await liveApplications(db);
 
   if (account) {
     const inAccount = new Set<number>();

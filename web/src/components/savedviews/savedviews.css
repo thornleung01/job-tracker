@@ -1,0 +1,16 @@
+/* Saved views: the chips above the list, the options under them, and the save form under the filter card. */
+.view-chips { margin: 0 0 12px; }
+.view-chip-list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.view-chip { display: inline-flex; align-items: center; background: var(--fog); border-radius: var(--r-pill); }
+.view-chip-link { display: inline-flex; align-items: center; min-height: var(--tap-sm); padding: 0 6px 0 16px; border-radius: var(--r-pill); color: var(--ink); text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+/* The extra class out-ranks the shared "link in running text" colour, which would otherwise paint ink on ink. */
+.view-chip .view-chip-link[aria-current="true"] { background: var(--ink); color: var(--bg); }
+.view-chip-menu { min-height: var(--tap-sm); min-width: var(--tap-sm); padding: 0 8px; background: none; box-shadow: none; color: var(--muted); }
+.view-chip-menu:hover:not(:disabled) { background: var(--hover); }
+/* Always on the page, so what arrives in it is read out; an empty line takes no room. It takes focus when the last view is deleted. */
+.view-chips-status { margin: 0 0 12px; }
+.view-chips-status:empty { margin: 0; }
+.view-chips-status:focus { outline: none; }
+.view-options { margin-top: 12px; padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.view-options .row { align-items: flex-end; }
+.save-view-form { align-items: flex-end; }

@@ -15,6 +15,7 @@ import { pipeline } from "./pipeline";
 import { recheck, removeApplicationRow } from "./recheck";
 import { MAX_ROUNDS } from "./rounds";
 import { processMessage, type Outcome } from "./sync";
+import { markDeleted } from "./trash";
 import { plural, squeeze } from "./text";
 
 export { ActionError, MissingRecordError };
@@ -123,17 +124,23 @@ export async function unlockStage(db: JobTrackerDB, appId: number): Promise<void
 }
 
 /**
- * Deletes an application. By default its saved emails are cleared too, so nothing can rebuild it from them. With
- * emails "review" they go back to Needs review instead, held there so that a sync does not re-attach them: that is for
- * when the application was a wrong grouping and its emails belong somewhere else.
+ * Deletes an application. By default it goes to Recently deleted: it is hidden everywhere, but its emails, notes and steps
+ * are kept for 30 days (see trash.ts), so you can restore it, and mail that arrives for it is kept with it, not turned into a
+ * new application. With emails "review" it is removed for good now and its emails go back to Needs review, held there so
+ * that a sync does not re-attach them: that is for when the application was a wrong grouping and its emails belong elsewhere.
+ * Throws MissingRecordError when there is no such application (a deleted one counts as none).
  */
-export async function deleteApplication(db: JobTrackerDB, appId: number, emails: "clear" | "review" = "clear"): Promise<void> {
+export async function deleteApplication(db: JobTrackerDB, appId: number, emails: "clear" | "review" = "clear", now: Date = new Date()): Promise<void> {
   // Public actions check what they are handed even when the types say it can't be wrong: the value can come from a stale page.
   if (emails !== "clear" && emails !== "review") throw new ActionError("Unknown way to delete.");
   await tx(db, async () => {
+    if (emails === "clear") {
+      await markDeleted(db, appId, now);
+      return;
+    }
+    await requireApplication(db, appId);
     for (const e of await db.emails.where("applicationId").equals(appId).toArray()) {
-      if (emails === "review") await db.emails.update(e.id, { applicationId: null, needsReview: true, hold: true });
-      else await clearEmail(db, e.id);
+      await db.emails.update(e.id, { applicationId: null, needsReview: true, hold: true });
     }
     await removeApplicationRow(db, appId);
   });
@@ -145,7 +152,7 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
   await tx(db, async () => {
     const src = await db.applications.get(appId);
     const dst = await db.applications.get(into);
-    if (!src || !dst || appId === into) throw new ActionError("Choose another application to merge into.");
+    if (!src || !dst || src.deletedAt || dst.deletedAt || appId === into) throw new ActionError("Choose another application to merge into.");
     const appliedCandidates = [src.appliedAt, dst.appliedAt].filter((x): x is string => Boolean(x)).sort();
     const lastActivity = (src.lastActivity ?? "") > (dst.lastActivity ?? "") ? src.lastActivity : dst.lastActivity;
     const fields: Partial<ApplicationRow> = { lastActivity: lastActivity || null, appliedAt: appliedCandidates[0] ?? null };
@@ -214,7 +221,8 @@ export async function resolveReview(
         appId = await createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when: email.receivedAt });
       } else {
         appId = decision.appId;
-        if (!(await db.applications.get(appId))) throw new ActionError("Choose an application.");
+        const target = await db.applications.get(appId);
+        if (!target || target.deletedAt) throw new ActionError("Choose an application.");
       }
       // Record the stage you chose, so the flow chart reflects your decision.
       await db.emails.update(emailId, { applicationId: appId, needsReview: false, hold: false, event: EVENT_FOR_STAGE[stage] });

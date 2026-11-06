@@ -4,11 +4,12 @@ main:focus, main h1:focus, h1[tabindex="-1"]:focus { outline: none; }   /* progr
 .wrap > .notice[role="alert"] + .row { margin-bottom: var(--gap); }
 /* The local-mode banner is one quiet status row: no box, no primary button. The text actions keep a full tap-height hit area
    through padding, cancelled by an equal negative margin, so the row itself stays about one line tall. */
-.local-banner { --hit: calc((var(--tap) - 1.25rem) / 2); display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 8px;
-                margin-bottom: 12px; color: var(--muted); font-size: 0.875rem; line-height: 1.25rem; }
+/* With the backup reminder after it, the two share one line (inline boxes that wrap as whole rows) instead of stacking. */
+.local-banner { --hit: calc((var(--tap) - 1.25rem) / 2); display: inline-flex; vertical-align: top; max-width: 100%; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 8px;
+                margin: 0 16px 8px 0; color: var(--muted); font-size: 0.875rem; line-height: 1.25rem; }
 .local-banner-text { flex: 0 1 auto; margin-right: 8px; }
 .local-banner button { font-size: inherit; line-height: 1.25rem; font-weight: 500; color: var(--ink); background: none; box-shadow: none;
-                       min-height: 0; padding: var(--hit) 10px; margin: calc(var(--hit) * -1) 0; }
+                       min-height: 0; padding: var(--hit) 6px; margin: calc(var(--hit) * -1) 0; }
 .local-banner button.muted { color: var(--muted); }
 .local-banner button:hover:not(:disabled) { background: var(--hover); }
 .local-banner button:focus-visible { outline-offset: 0; }

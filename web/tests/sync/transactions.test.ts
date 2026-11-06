@@ -126,7 +126,7 @@ describe("recheck with a second writer", () => {
 });
 
 describe("single-row actions", () => {
-  it("say the application is gone, rather than doing nothing, when it was deleted just before they wrote", async () => {
+  it.each(["clear", "review"] as const)("say the application is gone, rather than doing nothing, when it was deleted (%s) just before they wrote", async (mode) => {
     const { db } = await dbWithAccount();
     const id = await db.applications.add(app("A"));
     const tab = secondTab(db);
@@ -136,9 +136,12 @@ describe("single-row actions", () => {
       () => unlockStage(db, id),
     ]) {
       await db.applications.put({ ...app("A"), id });
-      beforeNextTransaction(db, () => deleteApplication(tab, id));
+      beforeNextTransaction(db, () => deleteApplication(tab, id, mode));
       await expect(act()).rejects.toBeInstanceOf(MissingRecordError);
-      expect(await db.applications.count()).toBe(0);
+      // "clear" only hides it (Recently deleted): the row is still there, and the action left it exactly as the delete did
+      expect((await db.applications.toArray()).filter((a) => !a.deletedAt)).toHaveLength(0);
+      expect(await db.applications.count()).toBe(mode === "clear" ? 1 : 0);
+      expect((await db.applications.get(id))?.stage).not.toBe("Interview");
     }
   });
 });

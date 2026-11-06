@@ -6,13 +6,16 @@ import { useQuery } from "../app/useQuery";
 import { STEP_GROUPS, addStep, deleteEntry, history, type HistoryItem } from "../sync/activity";
 import { deleteApplication, learnedNotice, notAnApplication } from "../sync/actions";
 import { titles as contactTitles } from "../sync/contacts";
+import { TRASH_DAYS } from "../sync/trash";
 import { EmailText } from "./EmailText";
+import { ApplicationActions } from "./followup/ApplicationActions";
 import { InlineConfirm } from "./InlineConfirm";
 import { MailActions } from "./MailActions";
 import { MailMeta } from "./MailMeta";
 import { Notice } from "./Notice";
 import { TimeText, dayText } from "./TimeText";
 import { setFlash } from "./flash";
+import { announceDeleted } from "./trash/deletedNotice";
 import { useAction } from "./useAction";
 import "./components.css";
 import "./applicationpanel.css";
@@ -68,6 +71,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
   const remove = () => {
     void act.run("delete", async () => {
       await deleteApplication(db, appId, "clear");
+      announceDeleted(company || "the application", [appId]);
       setAsk(null);
       onRemoved?.();
     });
@@ -165,6 +169,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
       </div>
       </div>
 
+      {includeEmails ? <ApplicationActions db={db} appId={appId} /> : null}
       {includeEmails ? (
         <div className="panel-actions">
           <a className="btn small open-full" href={`#/app/${appId}`} aria-label={company ? `Open full page for ${company}` : undefined}>
@@ -180,9 +185,9 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
       ) : null}
       {ask?.kind === "delete" ? (
         <InlineConfirm
-          title="Delete this application?"
-          help="Its notes, steps and saved emails are removed from the app. Your mailbox isn't touched."
-          confirmLabel="Delete the application and its emails"
+          title={company ? `Delete ${company}?` : "Delete this application?"}
+          help={`You can restore it for ${TRASH_DAYS} days.`}
+          confirmLabel="Delete application"
           onConfirm={remove}
           onCancel={() => setAsk(null)}
           act={act}

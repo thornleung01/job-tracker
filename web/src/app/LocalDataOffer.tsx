@@ -67,8 +67,10 @@ export function LocalDataOffer({ db, onResolved }: { db: JobTrackerDB; onResolve
     let cancelled = false;
     async function check() {
       if (carryOverDone() || readDismissed()) return false;
-      const local = await localApplicationCount();
+      const local = await localApplicationCount();   // the applications you can see; see carryOver.ts
       if (local === 0) return false;
+      // "Empty" means every table, Recently deleted applications included: importing replaces everything, so an account
+      // that holds even a deleted application is never offered the copy (nothing may be lost that could be restored).
       if (!(await isDatabaseEmpty(db))) return false;
       if (!cancelled) setPhase({ name: "offer", count: local });
       return true;

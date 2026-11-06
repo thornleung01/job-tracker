@@ -341,7 +341,12 @@
         "Settings is split into one card per section, with section links at the top that jump to each card.",
         "Every dated row in History ends at the same edge.",
         "The header has no Jobs link (the Jobs tab is local-only).",
-        "Log in page: two equal Continue with buttons; the setup guide at #/setup is numbered steps in cards."
+        "Log in page: two equal Continue with buttons; the setup guide at #/setup is numbered steps in cards.",
+        "Backup nudge: a quiet one-line status row at the top of Applications with two text actions (Export a backup, Remind me in a week). Never a card, a dialog or a primary button.",
+        "Recently deleted: a Notice with a small Restore beside it for 8 seconds after a delete, and a Settings card of hairline-divided rows with Restore and a danger Delete now that asks in place.",
+        "Calendar: List and Calendar tabs, a seven-column month grid in a hairline box (a 2px ink ring for today, an inset ring for the chosen day, up to three icon-and-word chips per day), a day panel card under it, and an agenda list instead of the grid at 720px and below. Colour is never the only signal.",
+        "Keyboard shortcuts: a quiet footer button opens a small modal dialog with a list of kbd pills and one primary Close; focus is trapped and returns on close.",
+        "Saved views are pill chips above the list (the current one filled in ink); the weekly goal is one muted sentence with a 6px bar; Compare offers is a closed-until-opened card with a hairline table; No reply in 30 days is the same label-size tag as Follow up?."
       ]
     }
   },

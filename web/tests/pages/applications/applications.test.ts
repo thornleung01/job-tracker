@@ -116,11 +116,11 @@ describe("filters", () => {
     const db = freshDb();
     await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db, "/?stage=Rejected");
-    const tabs = $$(container, "nav.tabs a.tab");
+    const tabs = $$(container, 'nav[aria-label="Filter by stage"] a.tab');
     expect(tabs.map((t) => text(t))).toEqual(["All 3", "Applied 1", "Heard back 0", "Assessment 0", "Interview 1", "Offer 0", "Rejected 1"]);
-    expect($$(container, "nav.tabs [aria-current=true]").map(text)).toEqual(["Rejected 1"]);
+    expect($$(container, 'nav[aria-label="Filter by stage"] [aria-current=true]').map(text)).toEqual(["Rejected 1"]);
     expect($(container, "#count-Interview")?.textContent).toBe("1");
-    expect($$(container, "nav.tabs a.tab")[6].getAttribute("href")).toBe("#/");        // click the current one to clear
+    expect($$(container, 'nav[aria-label="Filter by stage"] a.tab')[6].getAttribute("href")).toBe("#/");        // click the current one to clear
     expect(tabs[4].getAttribute("href")).toBe("#/?stage=Interview");
     expect(companies(container)).toEqual(["alpha"]);
   });
@@ -198,9 +198,13 @@ describe("filters", () => {
     await addMail(db, account, null, { review: true });
     await addMail(db, account, null, { review: true });
     const { container } = await mountPage(ApplicationsPage, db);
-    const notice = $(container, ".notice")!;
-    expect(text(notice)).toContain("2 emails need review.");
+    const notice = $(container, ".review-link")!;
+    expect(notice.getAttribute("role")).toBe("status");
+    expect(text($(notice, "a"))).toBe("2 emails need review");
     expect($(notice, "a")?.getAttribute("href")).toBe("#/review");
+    // the explanation stays in the page for screen readers, as the link's description
+    const why = document.getElementById($(notice, "a")!.getAttribute("aria-describedby")!)!;
+    expect(text(why)).toBe("We weren't sure which application they belong to.");
   });
 });
 
@@ -402,17 +406,19 @@ describe("expandable rows", () => {
     expect(document.activeElement).toBe($(panel, ".panel-status"));   // the Delete button is gone, so the result has focus
   });
 
-  it("deletes the application from its panel after you confirm", async () => {
+  it("deletes the application from its panel after you confirm, keeping it in Recently deleted", async () => {
     const db = freshDb();
     const { mid } = await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db, `/?open=${mid}`);
     await click(button($(container, `#panel-${mid}`)!, "Delete application"));
     expect(companies(container)).toContain("Mid");   // asked, not yet deleted
-    await click(button($(container, `#panel-${mid}`)!, "Delete the application and its emails"));
+    expect(text($(container, `#panel-${mid} .inline-confirm-q`))).toBe("Delete Mid?");
+    expect(text($(container, `#panel-${mid} .inline-confirm .help`))).toBe("You can restore it for 30 days.");
+    await click(button($(container, `#panel-${mid} .inline-confirm`)!, "Delete application"));
     await waitFor(() => !$(container, `#panel-${mid}`));
     expect(window.confirm).not.toHaveBeenCalled();
     expect(companies(container)).toEqual(["Zeta", "alpha"]);
-    expect(await db.emails.where("applicationId").equals(mid).count()).toBe(0);
+    expect(await db.emails.where("applicationId").equals(mid).count()).toBe(2);   // kept for 30 days
   });
 
   it("returns focus to the button that asked when Cancel or Escape closes a panel question", async () => {
@@ -520,7 +526,7 @@ describe("emails in the panel", () => {
 });
 
 describe("adding an application by hand", () => {
-  it("has one way in: a secondary button in the filter card, and no form until it is pressed", async () => {
+  it("has one way in: a secondary button on the title row, and no form until it is pressed", async () => {
     const db = freshDb();
     await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db);
@@ -530,7 +536,8 @@ describe("adding an application by hand", () => {
     expect($(container, "#add-application")).toBeNull();
     const entry = button(container, "Add application")!;
     expect(entry.classList.contains("primary")).toBe(false);
-    expect(entry.closest(".filters")).not.toBeNull();
+    expect(entry.closest(".page-head")).not.toBeNull();
+    expect(entry.closest(".filters")).toBeNull();
     expect(button(container, "Apply filters")?.classList.contains("primary")).toBe(true);
     expect(entry.getAttribute("aria-expanded")).toBe("false");
   });
@@ -621,7 +628,7 @@ describe("a database imported from the local edition", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     const n = await db.applications.count();
     expect($$(container, "tr.app-row")).toHaveLength(n);
-    expect(text($(container, "nav.tabs a.tab"))).toBe(`All ${n}`);
+    expect(text($(container, 'nav[aria-label="Filter by stage"] a.tab'))).toBe(`All ${n}`);
     expect(companies(container)).toContain("Hand Made Co");
     expect(text($$(container, "tr.app-row").find((r) => text(r).includes("Hand Made Co"))!)).toContain("set by you");
     await settle();

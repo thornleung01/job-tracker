@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalMode } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
+import { BackupGuard } from "../backup/BackupGuard";
 import { Notice } from "../components/Notice";
+import { TrashHost } from "../components/trash/TrashHost";
 import { PROVIDER_LABEL } from "../sync/accountLabel";
 import { SyncBanner, defaultDeps as syncBannerDefaults, type SyncBannerDeps } from "../components/SyncBanner";
 import { SignIn } from "../pages/signin/SignIn";
@@ -158,7 +160,9 @@ function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: Pa
         {auth && !isLocalUser(user) && <MailDeclinedNotice auth={auth} />}
         {/* On every page, so the first sync starts wherever the person lands and keeps going when they move. Settings has its own buttons, so there it is quiet. A signed-in user is never a local build. */}
         {!isLocalUser(user) && <SyncBanner db={db} user={user} deps={bannerDeps} autoStart={offerResolved} quiet={match.page === "settings"} />}
+        <BackupGuard db={db} page={match.page} />
         <main id="main" ref={mainRef} tabIndex={-1}>
+          <TrashHost db={db} />
           <ErrorBoundary
             resetKey={match.path}
             fallback={(_error, retry) => (

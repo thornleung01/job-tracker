@@ -1,0 +1,63 @@
+/* The calendar on the Applications page: a month grid with a panel for the chosen day, and an agenda list on a phone. */
+.cal { margin-bottom: var(--gap); }
+.cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.cal-title { flex: 1 1 10rem; margin: 0; font: 500 1.25rem/1.3 var(--font-ui); }
+.cal-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.cal-nav button, .cal-export { min-height: var(--tap); }
+/* The words for screen readers only: the same clip pattern as the Coming up heading. */
+.cal-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+.cal-grid { background: var(--surface); border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); }
+.cal-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-weekday { padding: 8px; font-size: 0.8125rem; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+.cal-row + .cal-row .cal-cell { border-top: 1px solid var(--line); }
+.cal-cell { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: max(6.5rem, var(--tap)); padding: 6px; cursor: pointer; }
+.cal-cell + .cal-cell { border-left: 1px solid var(--line); }
+.cal-cell:hover { background: var(--hover); }
+.cal-cell[aria-selected="true"] { background: var(--fog); box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-cell:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.cal-cell[data-outside] { color: var(--muted); }
+.cal-cell[data-outside] .cal-chips { opacity: 0.6; }
+/* Today: the number sits in a ring, so it doesn't rely on colour. */
+.cal-num { align-self: flex-start; display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; height: 1.75rem; padding: 0 4px; border-radius: var(--r-pill); font-size: 0.875rem; font-weight: 500; }
+.cal-cell[aria-current="date"] .cal-num { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-chips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-chip { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 1px 4px; border-radius: var(--r-seg); background: var(--fog); font-size: 0.75rem; line-height: 1.3; }
+.cal-chip svg { flex: none; }
+.cal-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { padding: 0 4px; font-size: 0.75rem; color: var(--muted); }
+
+.cal-panel { margin-top: 12px; }
+.cal-panel-title, .cal-agenda-heading { margin: 0 0 8px; font: 500 1rem/1.3 var(--font-ui); }
+.cal-panel-title:focus { outline: none; }
+.cal-empty { margin: 0 0 8px; }
+.cal-events { list-style: none; margin: 0 0 8px; padding: 0; border-top: 1px solid var(--line); }
+.cal-events li { border-bottom: 1px solid var(--line); }
+.cal-event { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-height: var(--tap); padding: 10px 8px; color: inherit; text-decoration: none; }
+.cal-event:hover { background: var(--hover); }
+.cal-event-kind { display: inline-flex; align-items: center; gap: 6px; min-width: 9rem; font-size: 0.875rem; }
+.cal-event-kind svg { flex: none; }
+.cal-event-company { font-weight: 500; }
+.cal-event-role { flex: 1 1 8rem; min-width: 0; }
+.cal-agenda-day { margin-bottom: 16px; }
+
+@media (max-width: 720px) {
+  .cal-nav { width: 100%; }
+  .cal-nav button { flex: 1 1 auto; padding: 0 12px; }
+  .cal-event-kind { min-width: 0; flex: 1 1 100%; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cal-cell, .cal-event { transition: background-color .16s ease-out; }
+}
+
+/* Forced colours drop box-shadows and backgrounds, so the marks that carry meaning become outlines and borders. */
+@media (forced-colors: active) {
+  .cal-grid { border: 1px solid CanvasText; }
+  .cal-cell[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+  .cal-cell:focus-visible { outline: 3px solid Highlight; outline-offset: -3px; }
+  .cal-cell[aria-current="date"] .cal-num { outline: 2px solid CanvasText; box-shadow: none; }
+  .cal-cell[data-outside] { color: GrayText; }
+  .cal-chip { border: 1px solid CanvasText; }
+  .cal-event:hover, .cal-cell:hover { outline: 1px solid Highlight; outline-offset: -1px; }
+}

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApplication } from "../../src/db/repo";
 import { STAGES, type Stage } from "../../src/db/stages";
 import { iso } from "../../src/db/time";
-import { FOLLOW_UP_DAYS, needsFollowUp } from "../../src/sync/followUp";
+import { FOLLOW_UP_DAYS, isWaitingStage, needsFollowUp, remindsOfInterviews } from "../../src/sync/followUp";
 import { listApplications, stageCounts } from "../../src/sync/queries";
 import { closeAll, freshDb } from "./helpers";
 
@@ -17,11 +17,14 @@ describe("needsFollowUp", () => {
     expect(FOLLOW_UP_DAYS).toBe(7);
   });
 
-  it.each(["Applied", "Heard back"] as Stage[])("%s needs one at 7 days but not at 6", (stage) => {
+  it.each(["Applied", "Heard back"] as Stage[])("%s needs one from 7 days up to 29, and not before or after", (stage) => {
+    expect(needsFollowUp(stage, 0)).toBe(false);
     expect(needsFollowUp(stage, 6)).toBe(false);
     expect(needsFollowUp(stage, 7)).toBe(true);
-    expect(needsFollowUp(stage, 30)).toBe(true);
-    expect(needsFollowUp(stage, 0)).toBe(false);
+    expect(needsFollowUp(stage, 29)).toBe(true);
+    // from 30 days it is ghosted instead (see ghosted.test.ts), and the nudge stops
+    expect(needsFollowUp(stage, 30)).toBe(false);
+    expect(needsFollowUp(stage, 400)).toBe(false);
   });
 
   it.each(["Assessment", "Interview", "Offer", "Rejected"] as Stage[])("%s never needs one", (stage) => {
@@ -110,5 +113,22 @@ describe("idle days are calendar days", () => {
     await createApplication(db, { company: "Acme", companyKey: "acme", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-11-06T12:00:00Z" });
     const [row] = await listApplications(db, { now: new Date("2026-11-05T12:00:00Z") });
     expect(row.idleDays).toBe(0);
+  });
+});
+
+describe("isWaitingStage", () => {
+  it("is true for Applied and Heard back only, the stages that are nudged", () => {
+    expect(STAGES.filter(isWaitingStage)).toEqual(["Applied", "Heard back"]);
+  });
+
+  it("agrees with needsFollowUp for every stage", () => {
+    for (const stage of STAGES) expect(needsFollowUp(stage, 10), stage).toBe(isWaitingStage(stage));
+  });
+});
+
+describe("remindsOfInterviews", () => {
+  it("is false only for a Rejected or Offer application: the one rule the list, the calendar and the actions share", () => {
+    expect(new Set(STAGES.filter((s) => !remindsOfInterviews(s)))).toEqual(new Set(["Offer", "Rejected"]));
+    for (const stage of ["Applied", "Heard back", "Assessment", "Interview"] as const) expect(remindsOfInterviews(stage), stage).toBe(true);
   });
 });
