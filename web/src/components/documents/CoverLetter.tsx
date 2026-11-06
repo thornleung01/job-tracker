@@ -6,7 +6,6 @@ import type { Contact } from "../../sync/contacts";
 import { DOCUMENT_TRASH_DAYS, deleteDocument, saveCoverLetter } from "../../sync/documents";
 import { InlineConfirm } from "../InlineConfirm";
 import type { ActionRunner } from "../useAction";
-import { guarded } from "./guard";
 import { greeting, letterSections, letterText } from "./letter";
 
 interface Props {
@@ -41,7 +40,7 @@ export function CoverLetter({ db, app, cover, people, act }: Props) {
     e.preventDefault();
     if (text === null) return;
     void act.run("cover-save", async () => {
-      await guarded(() => saveCoverLetter(db, app.id, letterSections(text, cover?.sections)));
+      await saveCoverLetter(db, app.id, letterSections(text, cover?.sections));
       focusNext.current = "[data-edit]";
       setText(null);
       return "Saved.";
@@ -50,7 +49,7 @@ export function CoverLetter({ db, app, cover, people, act }: Props) {
   const remove = () => {
     if (!cover) return;
     void act.run("cover-delete", async () => {
-      await guarded(() => deleteDocument(db, cover.id));
+      await deleteDocument(db, cover.id);
       focusNext.current = "[data-write]";
       setAsking(false);
       return `Cover letter deleted. You can restore it for ${DOCUMENT_TRASH_DAYS} days.`;

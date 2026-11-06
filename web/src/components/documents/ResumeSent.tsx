@@ -2,7 +2,6 @@ import { useId, useState } from "react";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { copyResumeForApplication, setApplicationResume, updateDocument } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
-import { guarded } from "./guard";
 import { ResumeEditor } from "./ResumeEditor";
 
 interface Props {
@@ -24,14 +23,14 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
 
   const choose = (value: string) => {
     void act.run("resume-choose", async () => {
-      await guarded(() => setApplicationResume(db, app.id, value ? Number(value) : null));
+      await setApplicationResume(db, app.id, value ? Number(value) : null);
       setEditing(false);
       return "Saved.";
     });
   };
   const copy = () => {
     void act.run("resume-copy", async () => {
-      await guarded(() => copyResumeForApplication(db, app.id));
+      await copyResumeForApplication(db, app.id);
       setEditing(true);
       return "Made a copy for this job.";
     });
@@ -39,7 +38,7 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
   const save = (sections: DocSection[]) => {
     if (!chosen) return;
     void act.run("resume-edit", async () => {
-      await guarded(() => updateDocument(db, chosen.id, { sections }));
+      await updateDocument(db, chosen.id, { sections });
       setEditing(false);
       return "Saved.";
     });

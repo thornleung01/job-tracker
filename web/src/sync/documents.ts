@@ -3,12 +3,13 @@
 // A deleted document stays in Recently deleted for TRASH_DAYS, like an application (sync/trash.ts), and is hidden everywhere else.
 import { normalizeSections } from "../db/documentShape";
 import { MAX_DOC_TITLE_CHARS, MAX_POSTING_CHARS, MAX_RESUME_VERSIONS } from "../db/limits";
-import { MissingRecordError } from "../db/errors";
+import { ActionError, MissingRecordError } from "../db/errors";
 import { requireApplication } from "../db/repo";
 import { tx, type DocSection, type DocumentRow, type JobTrackerDB } from "../db/schema";
 import { iso } from "../db/time";
 
-export class DocumentError extends Error {
+/** A request about documents that the app refuses, with a sentence that is safe to show. It is an ActionError, so the page's notice shows its own words. */
+export class DocumentError extends ActionError {
   constructor(message: string) {
     super(message);
     this.name = "DocumentError";

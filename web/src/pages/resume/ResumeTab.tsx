@@ -6,7 +6,6 @@ import { MAX_DOC_TITLE_CHARS } from "../../db/limits";
 import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { createVersion, deleteDocument, saveMaster, updateDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
-import { guard } from "./guard";
 import { Importer, type Incoming } from "./Importer";
 import { SectionsEditor } from "./SectionsEditor";
 
@@ -41,7 +40,7 @@ function EditorBlock({ db, doc, label, draft, act, onSaved, onCancel, saveLabel 
 }) {
   const save = () =>
     void act.run("save", async () => {
-      await guard(() => updateDocument(db, doc.id, { sections: draft.sections }));
+      await updateDocument(db, doc.id, { sections: draft.sections });
       draft.set(null);
       onSaved?.();
       return "Saved";
@@ -65,7 +64,7 @@ function Review({ db, incoming, existing, onDone }: { db: JobTrackerDB; incoming
   const act = useAction();
   const save = () =>
     void act.run("save", async () => {
-      await guard(() => saveMaster(db, sections, incoming.source));
+      await saveMaster(db, sections, incoming.source);
       onDone();
     });
   return (
@@ -89,7 +88,7 @@ function MasterCard({ db, doc, used, onIncoming }: Omit<CardProps, "say"> & { on
   const make = (e: FormEvent) => {
     e.preventDefault();
     void act.run("make", async () => {
-      await guard(() => createVersion(db, { title, sections: draft.sections, basedOn: doc.id, source: "copy" }));
+      await createVersion(db, { title, sections: draft.sections, basedOn: doc.id, source: "copy" });
       setMaking(false);
       return `Made ${title.trim() || "Resume"}`;
     });
@@ -132,19 +131,19 @@ function VersionCard({ db, doc, used, say }: CardProps) {
   const rename = (e: FormEvent) => {
     e.preventDefault();
     void act.run("rename", async () => {
-      await guard(() => updateDocument(db, doc.id, { title: name }));
+      await updateDocument(db, doc.id, { title: name });
       setRenaming(false);
       return "Saved";
     });
   };
   const duplicate = () =>
     void act.run("duplicate", async () => {
-      await guard(() => createVersion(db, { title: `${doc.title} copy`, sections: doc.sections, basedOn: doc.id, source: "copy" }));
+      await createVersion(db, { title: `${doc.title} copy`, sections: doc.sections, basedOn: doc.id, source: "copy" });
       return "Duplicated";
     });
   const remove = () =>
     void act.run("delete", async () => {
-      await guard(() => deleteDocument(db, doc.id));
+      await deleteDocument(db, doc.id);
       say(`Deleted ${doc.title}. It's in Recently deleted for 30 days.`, true);
     });
 

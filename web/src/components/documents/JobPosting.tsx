@@ -3,7 +3,6 @@ import { MAX_POSTING_CHARS } from "../../db/limits";
 import type { ApplicationRow, JobTrackerDB } from "../../db/schema";
 import { setPostingText } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
-import { guarded } from "./guard";
 
 /** The counter shows from this share of the limit on. */
 const NEAR_LIMIT = 0.9;
@@ -25,7 +24,7 @@ export function JobPosting({ db, app, act }: Props) {
   const save = (e: FormEvent) => {
     e.preventDefault();
     void act.run("posting", async () => {
-      await guarded(() => setPostingText(db, app.id, value));
+      await setPostingText(db, app.id, value);
       setText(null);
       return value.trim() ? "Saved." : "Job posting removed.";
     });
