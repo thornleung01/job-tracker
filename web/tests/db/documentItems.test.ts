@@ -3,7 +3,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { itemText, normalizeSections, sectionsToText } from "../../src/db/documentShape";
-import { MAX_DOC_ITEM_CHARS, MAX_DOC_LABEL_CHARS, MAX_DOC_RIGHT_CHARS } from "../../src/db/limits";
+import { MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_LABEL_CHARS, MAX_DOC_RIGHT_CHARS, MAX_DOC_SECTIONS } from "../../src/db/limits";
 import { DOC_ITEM_KINDS, isDocItemKind } from "../../src/db/schema";
 import { exportAll, importAll } from "../../src/portability";
 import { saveMaster } from "../../src/sync/documents";
@@ -33,10 +33,53 @@ describe("normalizeSections with kinds, labels and right-hand text", () => {
   });
 
   it("trims and cuts each field to its own limit", () => {
-    const item = one({ text: "y".repeat(MAX_DOC_ITEM_CHARS + 10), label: `  ${"l".repeat(MAX_DOC_LABEL_CHARS + 10)} `, right: "r".repeat(MAX_DOC_RIGHT_CHARS + 10), kind: "bullet" })!;
-    expect(item.text).toHaveLength(MAX_DOC_ITEM_CHARS);
-    expect(item.label).toHaveLength(MAX_DOC_LABEL_CHARS);
-    expect(item.right).toHaveLength(MAX_DOC_RIGHT_CHARS);
+    const bullet = one({ text: "y".repeat(MAX_DOC_ITEM_CHARS + 10), label: `  ${"l".repeat(MAX_DOC_LABEL_CHARS + 10)} `, kind: "bullet" })!;
+    expect(bullet.text).toHaveLength(MAX_DOC_ITEM_CHARS);
+    expect(bullet.label).toHaveLength(MAX_DOC_LABEL_CHARS);
+    expect(one({ text: "x", right: "r".repeat(MAX_DOC_RIGHT_CHARS + 10), kind: "org" })!.right).toHaveLength(MAX_DOC_RIGHT_CHARS);
+  });
+
+  it("drops a label unless the line is a bullet or skill, and a right-hand value unless it is an org, school or title", () => {
+    // so every path agrees with the editor: a hidden field never rides along into the text export
+    const plain = one({ text: "x", label: "L", right: "R" })!;
+    expect(Object.keys(plain).sort()).toEqual(["id", "text"]);
+    expect(one({ text: "Acme", kind: "org", label: "L", right: "Toronto" })).toMatchObject({ kind: "org", right: "Toronto" });
+    expect("label" in one({ text: "Acme", kind: "org", label: "L", right: "Toronto" })!).toBe(false);
+    expect(one({ text: "Body", kind: "bullet", label: "L", right: "R" })).toMatchObject({ kind: "bullet", label: "L" });
+    expect("right" in one({ text: "Body", kind: "bullet", label: "L", right: "R" })!).toBe(false);
+    expect("right" in one({ text: "SQL", kind: "skill", label: "Tools", right: "R" })!).toBe(false);
+    expect(one({ text: "Analyst", kind: "title", label: "L", right: "2024" })).not.toHaveProperty("label");
+    expect(one({ text: "U of T", kind: "school", label: "L", right: "Toronto" })).not.toHaveProperty("label");
+  });
+
+  it("drops a line left with nothing once the hidden fields are gone", () => {
+    expect(one({ text: "", label: "Only a label", kind: "org" })).toBeUndefined();
+    expect(one({ text: "", right: "Only a place", kind: "bullet" })).toBeUndefined();
+    expect(one({ text: "", label: "L", right: "R" })).toBeUndefined();
+  });
+
+  it("leaves a whitespace-only label or right-hand value out, not as an empty string", () => {
+    const bullet = one({ text: "x", kind: "bullet", label: "   " })!;
+    expect("label" in bullet).toBe(false);
+    const org = one({ text: "x", kind: "org", right: " \n " })!;
+    expect("right" in org).toBe(false);
+  });
+
+  it("keeps at most MAX_DOC_ITEMS kinded lines per section and MAX_DOC_SECTIONS sections", () => {
+    const items = Array.from({ length: MAX_DOC_ITEMS + 5 }, (_, n) => ({ text: `Line ${n}`, kind: "bullet", label: "L" }));
+    expect(normalizeSections([{ heading: "Experience", items }])[0].items).toHaveLength(MAX_DOC_ITEMS);
+    const many = Array.from({ length: MAX_DOC_SECTIONS + 5 }, (_, n) => ({ heading: `S${n}`, items: [{ text: "x", kind: "org", right: "R" }] }));
+    expect(normalizeSections(many)).toHaveLength(MAX_DOC_SECTIONS);
+  });
+
+  it("re-issues a repeated id on kinded lines, keeping each line's own fields", () => {
+    const [section] = normalizeSections([{ heading: "Experience", items: [
+      { id: "same", text: "Acme", kind: "org", right: "Toronto" },
+      { id: "same", text: "Did it", kind: "bullet", label: "Impact" },
+    ] }]);
+    expect(section.items[0]).toMatchObject({ id: "same", kind: "org", right: "Toronto" });
+    expect(section.items[1].id).not.toBe("same");
+    expect(section.items[1]).toMatchObject({ kind: "bullet", label: "Impact" });
   });
 
   it("drops a line only when text, label and right are all empty", () => {
@@ -74,6 +117,11 @@ describe("itemText and sectionsToText", () => {
     );
   });
 
+  it("prints a title with a label, and a title with its dates but no text", () => {
+    expect(itemText({ id: "a", text: "Analyst", kind: "title", label: "Lead", right: "2024" })).toBe("Lead: Analyst 2024");
+    expect(itemText({ id: "a", text: "", kind: "title", right: "2024 – Present" })).toBe("2024 – Present");
+  });
+
   it("handles a line that is only a label or only a right-hand value", () => {
     expect(itemText({ id: "a", text: "", kind: "bullet", label: "Reporting" })).toBe("Reporting");
     expect(itemText({ id: "a", text: "", kind: "org", right: "Toronto, ON" })).toBe("Toronto, ON");
@@ -102,19 +150,43 @@ describe("through the database and an export", () => {
     expect((await plain.documents.toArray())[0].sections[0].items[0]).toEqual({ id: "i", text: "SQL" });
   });
 
+  it("still imports a real old-format export, plain lines and all", async () => {
+    // an export from before resume lines had kinds: version 3, items with only an id and text
+    const old = {
+      format: "jobtracker-export", version: 3, exportedAt: "2026-10-01T00:00:00Z", source: "web",
+      data: { documents: [{
+        id: 1, kind: "resume", master: true, applicationId: null, title: "Master resume", source: "paste",
+        createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z",
+        sections: [
+          { id: "s1", heading: "Experience", items: [{ id: "i1", text: "Built a reporting model." }, { id: "i2", text: "Cut close time by 2 days." }] },
+          { id: "s2", heading: "Skills", items: [{ id: "i3", text: "SQL, Python" }] },
+        ],
+      }] },
+    };
+    const to = freshDb();
+    await importAll(to, old);
+    const doc = (await to.documents.get(1))!;
+    expect(doc.sections).toEqual(old.data.documents[0].sections);
+    expect(sectionsToText(doc.sections)).toBe("Experience\nBuilt a reporting model.\nCut close time by 2 days.\n\nSkills\nSQL, Python");
+  });
+
   it("drops a bad kind and cuts over-long fields when a file is imported", async () => {
     const to = freshDb();
     const file = {
       format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web",
       data: { documents: [{
         id: 1, kind: "resume", master: true, applicationId: null, title: "Master resume", createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z",
-        sections: [{ id: "s", heading: "Experience", items: [{ id: "a", text: "x", kind: "hacker", label: "l".repeat(500), right: "r".repeat(500) }] }],
+        sections: [{ id: "s", heading: "Experience", items: [
+          { id: "a", text: "x", kind: "hacker", label: "l", right: "r" },
+          { id: "b", text: "y", kind: "bullet", label: "l".repeat(500) },
+          { id: "c", text: "z", kind: "org", right: "r".repeat(500) },
+        ] }],
       }] },
     };
     await importAll(to, file);
-    const item = (await to.documents.get(1))!.sections[0].items[0];
-    expect("kind" in item).toBe(false);
-    expect(item.label).toHaveLength(MAX_DOC_LABEL_CHARS);
-    expect(item.right).toHaveLength(MAX_DOC_RIGHT_CHARS);
+    const [bad, bullet, org] = (await to.documents.get(1))!.sections[0].items;
+    expect(bad).toEqual({ id: "a", text: "x" });
+    expect(bullet.label).toHaveLength(MAX_DOC_LABEL_CHARS);
+    expect(org.right).toHaveLength(MAX_DOC_RIGHT_CHARS);
   });
 });

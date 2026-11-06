@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "../../app/useQuery";
-import { sectionsToText } from "../../db/documentShape";
-import type { DocItem, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
+import { isHeaderHeading, sectionsToText } from "../../db/documentShape";
+import type { DocItem, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { downloadText } from "../settings/actions";
 import { CLASSIC_LINE_PX, PRINTABLE_HEIGHT_PX, measureSheetHeight, pageVerdict, pageVerdictText, type PageVerdict } from "./onepage";
 import "./print.css";
@@ -26,21 +26,22 @@ const missing = (
   </>
 );
 
-const isHeader = (s: DocSection) => s.heading.trim().toLocaleLowerCase() === "header";
-
 /** "Label: text", the label bold. A line with no label is just its text. */
-const labelled = (i: DocItem): ReactNode => (
-  <>
-    {i.label ? <><strong>{i.label}:</strong> </> : null}
-    {i.text}
-  </>
-);
+function LabelledText({ item }: { item: DocItem }) {
+  return (
+    <>
+      {item.label ? <><strong>{item.label}:</strong> </> : null}
+      {item.text}
+    </>
+  );
+}
 
 /** A job or school (bold, its location on the right) or a title (italic, its dates on the right). */
 function Row({ item }: { item: DocItem }) {
-  const Tag = item.kind === "title" ? "em" : "strong";
+  const isTitle = item.kind === "title";
+  const Tag = isTitle ? "em" : "strong";
   return (
-    <div className={item.kind === "title" ? "doc-row doc-title" : "doc-row doc-org"}>
+    <div className={isTitle ? "doc-row doc-title" : "doc-row doc-org"}>
       <Tag>{item.text}</Tag>
       {item.right ? <Tag className="doc-right">{item.right}</Tag> : null}
     </div>
@@ -50,6 +51,7 @@ function Row({ item }: { item: DocItem }) {
 /**
  * One resume section's lines in the owner's template. Consecutive bullets share one list. A section of several plain lines and nothing else
  * (a resume from before kinds) stays a plain list, as it always was. A lone plain line, like a summary, is a paragraph.
+ * A legacy section shows `i.text` only: a line without a kind never carries a label (the importer and editor drop it), so there is none to show.
  */
 function classicLines(items: DocItem[]): ReactNode[] {
   const legacy = items.length > 1 && items.every((i) => !i.kind);
@@ -59,20 +61,34 @@ function classicLines(items: DocItem[]): ReactNode[] {
     if (!run.length) return;
     out.push(
       <ul key={run[0].id} className={legacy ? undefined : "doc-bullets"}>
-        {run.map((i) => <li key={i.id}>{legacy ? i.text : labelled(i)}</li>)}
+        {run.map((i) => <li key={i.id}>{legacy ? i.text : <LabelledText item={i} />}</li>)}
       </ul>,
     );
     run = [];
   };
   for (const i of items) {
-    if (legacy || i.kind === "bullet") {
+    if (legacy) {
       run.push(i);
       continue;
     }
-    flush();
-    if (i.kind === "org" || i.kind === "school" || i.kind === "title") out.push(<Row key={i.id} item={i} />);
-    else if (i.kind === "skill") out.push(<p key={i.id} className="doc-skill">{labelled(i)}</p>);
-    else out.push(<p key={i.id}>{i.text}</p>);
+    switch (i.kind) {
+      case "bullet":
+        run.push(i);
+        break;
+      case "org":
+      case "school":
+      case "title":
+        flush();
+        out.push(<Row key={i.id} item={i} />);
+        break;
+      case "skill":
+        flush();
+        out.push(<p key={i.id}><LabelledText item={i} /></p>);
+        break;
+      default:
+        flush();
+        out.push(<p key={i.id}>{i.text}</p>);
+    }
   }
   flush();
   return out;
@@ -92,10 +108,15 @@ export function PrintView({ db, id, measure = measureSheetHeight }: { db: JobTra
   useLayoutEffect(() => {
     const el = sheet.current;
     if (!resume || !el) return;
-    const check = () => setVerdict(pageVerdict(measure(el), PRINTABLE_HEIGHT_PX, CLASSIC_LINE_PX));
+    const check = () => {
+      const next = pageVerdict(measure(el), PRINTABLE_HEIGHT_PX, CLASSIC_LINE_PX);
+      // the second measurement usually agrees with the first: keep the same state so nothing re-renders
+      setVerdict((prev) => (prev && prev.fits === next.fits && prev.overByLines === next.overByLines ? prev : next));
+    };
     check();
     let live = true;
     // fonts arriving late change the line breaks
+    // (document.fonts is optional because jsdom has none)
     void document.fonts?.ready.then(() => live && check());
     return () => {
       live = false;
@@ -104,7 +125,7 @@ export function PrintView({ db, id, measure = measureSheetHeight }: { db: JobTra
   if (doc === undefined) return <h1 className="page">Resume</h1>;
   if (doc === null || doc.deletedAt) return missing;
   const letter = doc.kind === "cover";
-  const header = letter ? undefined : doc.sections.find((s) => isHeader(s) && s.items.length);
+  const header = letter ? undefined : doc.sections.find((s) => isHeaderHeading(s.heading) && s.items.length);
   const name = header ? header.items[0].text : doc.title;
   return (
     <div className="doc-print">
