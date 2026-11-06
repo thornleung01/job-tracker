@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Notice } from "../../components/Notice";
 import type { DocSection } from "../../db/schema";
-import { MESSAGES, ReadError, extractText, readPastedSections, splitSections } from "../../documents/read";
+import { MESSAGES, ReadError, extractText, normalizeText, readPastedSections, splitSections } from "../../documents/read";
 
 /** What was read: the sections the simple converter made, and the plain text they came from (the text an AI conversion would send). */
 export type Incoming = { sections: DocSection[]; text: string; source: "upload" | "paste" };
@@ -42,7 +42,7 @@ export function Importer({ fileLabel, onRead, primary = true }: Props) {
     setError(null);
     try {
       const sections = readPastedSections(text);   // throws on empty text
-      onRead({ sections, text: text.replace(/\r\n?/g, "\n").trim(), source: "paste" });
+      onRead({ sections, text: normalizeText(text), source: "paste" });
       setPasting(false);
       setText("");
     } catch (e) {

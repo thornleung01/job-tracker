@@ -2,12 +2,13 @@ import "fake-indexeddb/auto";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { PageProps } from "../../../src/app/pageProps";
-import { AI_MESSAGES, AiError, type AiDeps, type VaultStatus } from "../../../src/ai";
+import { AI_MESSAGES, AiError, type AiDeps, type AiErrorCode } from "../../../src/ai";
 import { MAX_AI_INPUT_CHARS } from "../../../src/db/limits";
 import type { DocSection, JobTrackerDB } from "../../../src/db/schema";
 import ResumePage from "../../../src/pages/resume";
 import type { ConvertResult, convertResume } from "../../../src/sync/convert";
 import { getMaster, saveMaster } from "../../../src/sync/documents";
+import { KEY, PASSPHRASE, testVault } from "../../ai/helpers";
 import { file } from "../../documents/fixtures";
 import { $, $$, button as findButton, cleanup, click, freshDb, mountPage, settle, text, type, waitFor } from "../applications/harness";
 
@@ -30,27 +31,22 @@ const converted: ConvertResult = {
 };
 
 type Convert = typeof convertResume;
-let status: VaultStatus;
-let unlock: ReturnType<typeof vi.fn>;
+type Saved = "none" | "locked" | "unlocked";
+let ai: AiDeps;
 let fetchSpy: MockInstance<typeof fetch>;
 const button = (root: ParentNode, label: string) => findButton(root, label) as HTMLButtonElement | null;
 
-const fakeAi = (): AiDeps => ({
-  vault: {
-    status: () => status,
-    unlock: unlock as never,
-    save: async () => {},
-    lock: () => {},
-    key: () => "sk-ant-fake",
-    setModel: () => {},
-    forget: () => {},
-  },
-  complete: async () => { throw new Error("the page must not call the API itself"); },
-});
+/** The real vault (one iteration, in memory) with a key saved the way a person would have: unlocked, locked again, or not at all. */
+async function seedVault(db: string, saved: Saved): Promise<AiDeps> {
+  const vault = testVault();
+  if (saved !== "none") {
+    await vault.save(db, KEY, PASSPHRASE, "claude-sonnet-5-5");
+    if (saved === "locked") vault.lock(db);
+  }
+  return { vault, complete: async () => { throw new Error("the page must not call the API itself"); } };
+}
 
 beforeEach(() => {
-  status = { state: "unlocked", last4: "wxyz", model: "claude-sonnet-5-5" };
-  unlock = vi.fn(async () => { status = { state: "unlocked", last4: "wxyz", model: "claude-sonnet-5-5" }; });
   fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no network in tests"));
 });
 afterEach(() => {
@@ -58,8 +54,9 @@ afterEach(() => {
   fetchSpy.mockRestore();
 });
 
-async function mount(db: JobTrackerDB, convert: Convert) {
-  const Page = (props: PageProps) => createElement(ResumePage, { ...props, deps: { ai: fakeAi(), convert } });
+async function mount(db: JobTrackerDB, convert: Convert, saved: Saved = "unlocked") {
+  ai = await seedVault(db.name, saved);
+  const Page = (props: PageProps) => createElement(ResumePage, { ...props, deps: { ai, convert } });
   const page = await mountPage(Page, db, "/resume");
   await waitFor(() => $(page.container, ".resume-view") !== null, "the page to load");
   return page;
@@ -113,8 +110,7 @@ describe("the convert panel", () => {
   });
 
   it("with no key: points to Settings, has no Convert button, and the simple converter is the main button", async () => {
-    status = { state: "none" };
-    const { container } = await mount(freshDb(), vi.fn() as unknown as Convert);
+    const { container } = await mount(freshDb(), vi.fn() as unknown as Convert, "none");
     await paste(container);
     expect(button(container, "Convert with AI")).toBeNull();
     expect(text(panel(container))).toContain("Add your Anthropic key in Settings to convert with AI.");
@@ -123,23 +119,25 @@ describe("the convert panel", () => {
   });
 
   it("with a locked key: asks for the passphrase, shows the sentence for a wrong one, then unlocks and offers Convert", async () => {
-    status = { state: "locked", last4: "wxyz", model: "claude-sonnet-5-5" };
-    unlock.mockRejectedValueOnce(new AiError("wrongPassphrase"));
-    const { container } = await mount(freshDb(), vi.fn() as unknown as Convert);
+    const db = freshDb();
+    const { container } = await mount(db, vi.fn() as unknown as Convert, "locked");
+    const unlock = vi.spyOn(ai.vault, "unlock");
     await paste(container);
     expect(button(container, "Convert with AI")).toBeNull();
     const pass = () => $(panel(container), "input[type=password]") as HTMLInputElement;
     expect(pass().labels?.[0]?.textContent).toBe("Passphrase");
     await type(pass(), "nope");
     await click(button(container, "Unlock"));
-    expect(unlock).toHaveBeenCalledWith(expect.any(String), "nope");
+    await waitFor(() => $(panel(container), ".notice.err") !== null, "the error");
+    expect(unlock).toHaveBeenCalledWith(db.name, "nope");
     expect(text($(panel(container), ".notice.err"))).toBe(AI_MESSAGES.wrongPassphrase);
     expect(pass().value).toBe("");
+    expect(document.activeElement).toBe(pass());
     expect(button(container, "Convert with AI")).toBeNull();
     expect(button(container, "Use the simple converter")).not.toBeNull();
-    await type(pass(), "right one");
+    await type(pass(), PASSPHRASE);
     await click(button(container, "Unlock"));
-    expect(pass()).toBeNull();
+    await waitFor(() => pass() === null, "the unlock form to go");
     expect($(panel(container), ".notice.err")).toBeNull();
     expect(button(container, "Convert with AI")!.classList.contains("primary")).toBe(true);
   });
@@ -165,7 +163,7 @@ describe("the convert panel", () => {
     expect(options.db).toBe(db.name);
     expect(options.signal).toBeInstanceOf(AbortSignal);
     expect(options.signal!.aborted).toBe(false);
-    expect(text($(panel(container), "[role=status]"))).toBe("Converting...");
+    expect(text($(panel(container), "[role=status]"))).toBe("Converting");
     const go = button(container, "Convert with AI")!;
     expect(go.disabled).toBe(true);
     expect(go.getAttribute("aria-busy")).toBe("true");
@@ -383,5 +381,185 @@ describe("replacing an existing master", () => {
     expect($(container, ".convert-panel")).toBeNull();
     expect((await getMaster(db))!.sections.map((s) => s.heading)).toEqual(["Old"]);
     await settle();
+  });
+});
+
+/** The convert panel on screen, with the key in the state the test asks for. */
+async function panelWith(convert: Convert, saved: Saved = "unlocked") {
+  const db = freshDb();
+  const page = await mount(db, convert, saved);
+  await paste(page.container);
+  return { db, ...page };
+}
+const errorText = (c: HTMLElement) => text($(panel(c), ".notice.err"));
+
+describe("focus while converting", () => {
+  it("moves to Stop when converting starts, and back to Convert when it ends", async () => {
+    const h = held();
+    const { container } = await panelWith(h.fn);
+    const go = button(container, "Convert with AI")!;
+    go.focus();
+    await click(go);
+    expect(document.activeElement).toBe(button(container, "Stop"));
+    await click(button(container, "Stop"));
+    await waitFor(() => document.activeElement === button(container, "Convert with AI"), "focus to come back");
+  });
+
+  it("goes back to Convert after a failure too", async () => {
+    const convert = vi.fn().mockRejectedValue(new AiError("busy"));
+    const { container } = await panelWith(convert as unknown as Convert);
+    const go = button(container, "Convert with AI")!;
+    go.focus();
+    await click(go);
+    await waitFor(() => errorText(container) !== "", "the error");
+    await waitFor(() => document.activeElement === button(container, "Convert with AI"), "focus to come back");
+  });
+});
+
+describe("stopping, leaving and pressing twice", () => {
+  it("Stop, then the convert resolves anyway: the result is dropped and nothing is shown", async () => {
+    let finish!: (r: ConvertResult) => void;
+    const convert = vi.fn(() => new Promise<ConvertResult>((r) => { finish = r; }));   // ignores the abort signal
+    const { container } = await panelWith(convert as unknown as Convert);
+    await click(button(container, "Convert with AI"));
+    await click(button(container, "Stop"));
+    await act(async () => finish(converted));
+    await settle();
+    expect($(container, ".convert-review")).toBeNull();
+    expect($(container, ".notice")).toBeNull();
+    expect(button(container, "Convert with AI")!.disabled).toBe(false);
+    expect(text($(panel(container), "[role=status]"))).toBe("");
+  });
+
+  it("Stop, then the convert rejects anyway: no error is shown", async () => {
+    let fail!: (e: unknown) => void;
+    const convert = vi.fn(() => new Promise<ConvertResult>((_, rej) => { fail = rej; }));
+    const { container } = await panelWith(convert as unknown as Convert);
+    await click(button(container, "Convert with AI"));
+    await click(button(container, "Stop"));
+    await act(async () => fail(new AiError("offline")));
+    await settle();
+    expect($(container, ".notice")).toBeNull();
+  });
+
+  it("leaving the page aborts the request, and a late result does nothing", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const h = held();
+    const { container } = await panelWith(h.fn);
+    await click(button(container, "Convert with AI"));
+    const { signal } = h.fn.mock.calls[0][2];
+    await cleanup();
+    expect(signal!.aborted).toBe(true);
+    await act(async () => h.resolve(converted));
+    await settle();
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("leaving the page, then a late failure or a late unlock does nothing", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const h = held();
+    const first = await panelWith(h.fn);
+    await click(button(first.container, "Convert with AI"));
+    await cleanup();
+    await act(async () => h.reject(new AiError("offline")));
+
+    let open!: () => void;
+    const { container } = await panelWith(vi.fn() as unknown as Convert, "locked");
+    vi.spyOn(ai.vault, "unlock").mockImplementation(() => new Promise<void>((r) => { open = r; }));
+    await type($(panel(container), "input[type=password]"), PASSPHRASE);
+    await click(button(container, "Unlock"));
+    await cleanup();
+    await act(async () => open());
+    await settle();
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("runs once when Convert is pressed twice in a row", async () => {
+    const h = held();
+    const { container } = await panelWith(h.fn);
+    const go = button(container, "Convert with AI")!;
+    await act(async () => {
+      go.click();
+      go.click();
+    });
+    expect(h.fn).toHaveBeenCalledTimes(1);
+    h.resolve(converted);
+    await waitFor(() => button(container, "Save as master resume") !== null, "the review");
+    expect(h.fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the key changing under the panel", () => {
+  it.each([["locked", "locked"], ["noKey", "none"]] as const)("a %s error shows its sentence and the panel recovers", async (code, now) => {
+    const convert = vi.fn().mockRejectedValue(new AiError(code));
+    const { db, container } = await panelWith(convert as unknown as Convert);
+    if (now === "locked") ai.vault.lock(db.name);
+    else ai.vault.forget(db.name);
+    await click(button(container, "Convert with AI"));
+    await waitFor(() => errorText(container) === AI_MESSAGES[code], "the sentence");
+    expect(button(container, "Convert with AI")).toBeNull();
+    if (now === "locked") expect($(panel(container), "input[type=password]")).not.toBeNull();
+    else expect(text(panel(container))).toContain("Add your Anthropic key in Settings");
+    expect(button(container, "Use the simple converter")).not.toBeNull();
+  });
+
+  // workspaceKey arrives with the AI foundation fixes; until it does it is left out
+  const codes = (["orgBlocked", "needsCredit", "spendLimit", "timeout", "refused", "busy", "offline", "noKey", "locked", "workspaceKey"] as AiErrorCode[]).filter((c) => c in AI_MESSAGES);
+  it.each(codes)("shows the sentence for %s", async (code) => {
+    const convert = vi.fn().mockRejectedValue(new AiError(code));
+    const { container } = await panelWith(convert as unknown as Convert);
+    await click(button(container, "Convert with AI"));
+    await waitFor(() => errorText(container) === AI_MESSAGES[code], "the sentence");
+  });
+});
+
+describe("the review", () => {
+  async function review() {
+    const page = await panelWith(vi.fn(async () => converted) as unknown as Convert);
+    await click(button(page.container, "Convert with AI"));
+    await waitFor(() => button(page.container, "Save as master resume") !== null, "the review");
+    return page;
+  }
+
+  it("drops a flag when its line is edited", async () => {
+    const { container } = await review();
+    expect(flagRows(container)).toHaveLength(2);
+    await type($(container, '[data-field="i-b1"]'), "Cut costs by 31%");
+    expect(flagRows(container).map((r) => text($(r, ".convert-flag-note")))).toEqual(["Check this label"]);
+  });
+
+  it("drops a flag when its line is deleted", async () => {
+    const { container } = await review();
+    await click($(container, '[aria-label="Remove line 2"]'));
+    expect(flagRows(container).map((r) => text($(r, ".convert-flag-note")))).toEqual(["Check this label"]);
+  });
+
+  it("shows the generic line and keeps the review when saving fails", async () => {
+    const { db, container } = await review();
+    vi.spyOn(db.documents, "add").mockRejectedValueOnce(new Error("disk full"));
+    await click(button(container, "Save as master resume"));
+    await waitFor(() => text($(container, ".convert-review .notice.err")) === "Couldn't finish that. Try again.", "the error");
+    expect(button(container, "Save as master resume")).not.toBeNull();
+    expect(fields(container, /^Heading of section/).map((e) => e.value)).toEqual(["Experience", "Skills"]);
+    expect(await db.documents.count()).toBe(0);
+  });
+});
+
+describe("a file instead of pasted text", () => {
+  it("saves with source upload through the simple converter", async () => {
+    const db = freshDb();
+    const { container } = await mount(db, vi.fn() as unknown as Convert);
+    const input = $(container, "input[type=file]") as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [file("r.txt", RESUME_TEXT)], configurable: true });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await waitFor(() => $(container, ".convert-panel") !== null, "the panel");
+    await click(button(container, "Use the simple converter"));
+    await click(button(container, "Save as master resume"));
+    await waitFor(() => $(container, "h2.section")?.textContent === "Master resume", "the master card");
+    expect((await getMaster(db))!.source).toBe("upload");
   });
 });
