@@ -60,7 +60,7 @@ describe("the Resume page with no master", () => {
     await click(button(container, "Paste text"));
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
-    expect(values(container, /^Heading of section/)).toEqual(["Jane Smith", "EXPERIENCE", "SKILLS"]);
+    expect(values(container, /^Heading of section/)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
     expect(values(container, /^Line \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
     expect(await db.documents.count()).toBe(0);
     await type(fields(container, /^Line 1 of SKILLS/)[0], "Writes SQL, Python and R");
@@ -68,7 +68,7 @@ describe("the Resume page with no master", () => {
     await waitFor(() => $(container, "h2.section")?.textContent === "Master resume", "the master card");
     const master = (await getMaster(db))!;
     expect(master.source).toBe("paste");
-    expect(master.sections.map((s) => s.heading)).toEqual(["Jane Smith", "EXPERIENCE", "SKILLS"]);
+    expect(master.sections.map((s) => s.heading)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
     expect(master.sections[2].items[0].text).toBe("Writes SQL, Python and R");
   });
 
