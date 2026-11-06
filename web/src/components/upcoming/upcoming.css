@@ -11,6 +11,7 @@
 .coming-up-all { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 .coming-up-company { font-weight: 500; }
 .coming-up-role { flex: 1 1 8rem; min-width: 0; }
+.coming-up-sent { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .coming-up-day { margin-left: auto; white-space: nowrap; }
 @media (max-width: 720px) {
   .list-card td[data-col="stage"] .interview-line { text-align: right; }
