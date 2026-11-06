@@ -2,7 +2,7 @@
 // a row before it writes is one transaction, so what it read is still true when it writes (a second tab, or a sync,
 // can't change the row in between).
 import { ActionError, MissingRecordError } from "../db/errors";
-import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS } from "../db/limits";
+import { MAX_COMPANY_CHARS, MAX_POSTING_CHARS, MAX_ROLE_CHARS } from "../db/limits";
 import { cleanOfferDeadline, cleanOfferSalary } from "../db/offer";
 import { cleanPostingUrl } from "../db/postingUrl";
 import { EVENT_FOR_STAGE, isStage, type Stage } from "../db/stages";
@@ -46,6 +46,10 @@ export interface AddApplicationInput {
   appliedOn?: string;
   /** the job posting's web address; optional, checked by cleanPostingUrl (throws ActionError) */
   url?: string;
+  /** the job posting's text (plain text; cut to MAX_POSTING_CHARS) */
+  postingText?: string;
+  /** the resume version sent: it must be a live resume (throws ActionError otherwise) */
+  resumeId?: number;
 }
 
 /** Changes some fields of one application, after checking in the same transaction that it still exists. */
@@ -67,9 +71,17 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   // the day you applied, so logging something from last week lands in the right place
   const day = (input.appliedOn ?? "").trim();
   const when = day ? stampForDay(day, now) : iso(now);
-  return tx(db, () =>
-    createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl }),
-  );
+  const postingText = (input.postingText ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_POSTING_CHARS);
+  return tx(db, async () => {
+    if (input.resumeId !== undefined) {
+      const resume = await db.documents.get(input.resumeId);
+      if (!resume || resume.kind !== "resume" || resume.deletedAt) throw new ActionError("That resume isn't there any more.");
+    }
+    return createApplication(db, {
+      company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl,
+      ...(postingText ? { postingText } : {}), ...(input.resumeId !== undefined ? { resumeId: input.resumeId } : {}),
+    });
+  });
 }
 
 /**

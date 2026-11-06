@@ -2,8 +2,11 @@
 import { draftFromJsonText, extractJobPostingFromJsonLd } from "./jsonld";
 import type { JobDraft } from "./types";
 import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS, MAX_PASTE_CHARS } from "../db/limits";
+import { postingText } from "./posting";
 import { cleanJobUrl, parseJobUrl, sanitizeText } from "./url";
 
+/** A paste shorter than this is a title or a place, not a posting, so no posting text is kept from it. */
+const MIN_POSTING_CHARS = 200;
 const HEAD_LINES = 15;
 const SCAN_LINES = 40;
 /** The most lines read from a paste, how many are searched for a place, and the plausible size of a role, a company and a place. */
@@ -202,6 +205,9 @@ export function parsePastedText(text: string, url?: string): JobDraft | null {
     if (structured) return { ...structured, source: "paste" };
   }
 
+  // A paste with some length to it is the posting itself. A link, a title or a place on its own is not.
+  const description = /^https?:\/\/\S+$/i.test(input.trim()) ? "" : postingText(input);
+  const posting = description.length >= MIN_POSTING_CHARS ? description : "";
   const found = readLines(toLines(input));
   const company = found.company || link?.company || "";
   const role = found.role || link?.role || "";
@@ -212,6 +218,7 @@ export function parsePastedText(text: string, url?: string): JobDraft | null {
     location: found.location,
     url: cleanedUrl,
     source: "paste",
+    ...(posting ? { description: posting } : {}),
     guessed: {
       company: company !== "",
       role: role !== "",
