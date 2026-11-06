@@ -6,23 +6,9 @@ import { flowSummary, sankey, type FlowData } from "../../sync/stats";
 import { useQuery } from "../../app/useQuery";
 import { ImageUnsupportedError, imageFileName, renderPng } from "./exportPng";
 import { layoutSankey } from "./layout";
+import { usePhone } from "./usePhone";
 import { SankeyChart, flowsFor, tipContent } from "./Sankey";
 import "./statistics.css";
-
-const PHONE = "(max-width: 720px)";
-
-/** Re-renders when the screen crosses the phone breakpoint. Absent matchMedia (tests) counts as a desktop. */
-function usePhone(): boolean {
-  const query = typeof matchMedia === "function" ? matchMedia(PHONE) : null;
-  const [phone, setPhone] = useState(query?.matches ?? false);
-  useEffect(() => {
-    if (!query) return;
-    const on = () => setPhone(query.matches);
-    query.addEventListener?.("change", on);
-    return () => query.removeEventListener?.("change", on);
-  }, [query]);
-  return phone;
-}
 
 const wholeNumber = (v: string | null): number | null => {
   if (v == null || !/^\d+$/.test(v.trim())) return null;

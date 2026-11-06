@@ -37,3 +37,13 @@
 .viz-root .lede strong { font-weight: 700; }
 .viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 @media (prefers-reduced-motion: reduce) { .viz-root .link { transition: none; } }
+
+/* The cards the new charts sit in (ChartFrame). The Sankey's own rules above are scoped to its svg and stay as they were. */
+.viz-root svg.chart { min-width: 0; }
+.viz-root .chart-wrap { position: relative; }
+.viz-root .chart-note { margin: -8px 0 12px; color: var(--ink2); font-size: 0.9375rem; }
+.viz-root .chart-table { margin-top: 12px; }
+.viz-root .mark-hit { fill: transparent; cursor: default; }
+.viz-root .mark-hit:focus-visible { outline: none; stroke: var(--ink); stroke-width: 2px; }
+.viz-root .axis text, .viz-root text.axis { fill: var(--ink2); font-size: 12px; }
+.viz-root .gridline { stroke: var(--hair); stroke-width: 1; }
