@@ -97,6 +97,50 @@ describe("coverLetterMail", () => {
     expect(query(out.link!.url).get("body")!.length).toBeLessThanOrEqual(MAX_DRAFT_BODY_CHARS);
   });
 
+  it("keeps a letter with an emoji and & = # intact, and the link encoded, for a recruiter with accents in their name", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    const id = await app(db);
+    await mail(db, account, id, "José Müller <jose.muller@acme.com>");
+    const letter = "Dear José,\n\nR&D = my #1 passion 🚀 (Q&A, a=b)";
+    const out = (await coverLetterMail(db, id, letter))!;
+    expect(out.to).toBe("jose.muller@acme.com");
+    expect(out.cut).toBe(false);
+    const q = query(out.link!.url);
+    expect(q.get("to")).toBe("jose.muller@acme.com");
+    expect(q.get("body")).toBe(letter);
+    const raw = out.link!.url;
+    expect(raw).toMatch(/^[\x21-\x7e]+$/); // printable ASCII only: no spaces, no accents, no emoji
+    expect(raw).not.toContain("#");
+    expect(raw).toContain("%26");
+    expect(raw).toContain("%3D");
+    expect(raw).toContain("%23");
+    expect(raw).toContain("%F0%9F%9A%80");
+  });
+
+  it("cuts the letter by character, so an emoji at the limit is kept whole and never half", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    const id = await app(db);
+    await mail(db, account, id, "Sam Lee <sam@acme.com>");
+    const out = (await coverLetterMail(db, id, `${"a".repeat(MAX_DRAFT_BODY_CHARS - 1)}🚀 and more text after`))!;
+    const body = query(out.link!.url).get("body")!;
+    expect(Array.from(body)).toHaveLength(MAX_DRAFT_BODY_CHARS);
+    expect(body.endsWith("🚀")).toBe(true);
+    expect(body).not.toContain("�");
+    expect(body).not.toContain("and more");
+    expect(out.cut).toBe(true);
+  });
+
+  it("drops an emoji that starts past the limit rather than splitting it", async () => {
+    const db = freshDb();
+    const account = await upsertAccount(db, "gmail", "me@gmail.com");
+    const id = await app(db);
+    await mail(db, account, id, "Sam Lee <sam@acme.com>");
+    const body = query((await coverLetterMail(db, id, `${"a".repeat(MAX_DRAFT_BODY_CHARS)}🚀`))!.link!.url).get("body")!;
+    expect(body).toBe("a".repeat(MAX_DRAFT_BODY_CHARS));
+  });
+
   it("has no link without a connected mailbox, and nothing for an application that is gone", async () => {
     const db = freshDb();
     const id = await app(db);

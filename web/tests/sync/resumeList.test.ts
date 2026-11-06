@@ -118,6 +118,25 @@ describe("bulk Set resume", () => {
     expect(await bulkSetResume(db, [], v2)).toBe(0);
   });
 
+  it("with no ids returns 0 and changes nothing, whether it sets a version or clears", async () => {
+    const { db, v2 } = await seed();
+    const before = await db.applications.toArray();
+    expect(await bulkSetResume(db, [], v2)).toBe(0);
+    expect(await bulkSetResume(db, [], null)).toBe(0);
+    expect(await db.applications.toArray()).toEqual(before);
+  });
+
+  it("changes only the live applications in a selection that also holds deleted ones", async () => {
+    const { db, master, v2, acme, beta, cora, dana } = await seed();
+    await db.applications.update(acme, { deletedAt: "2026-10-01T00:00:00Z" });
+    await db.applications.update(dana, { deletedAt: "2026-10-01T00:00:00Z" });
+    expect(await bulkSetResume(db, [acme, beta, cora, dana], v2)).toBe(2);
+    const resume = async (id: number) => (await db.applications.get(id))?.resumeId;
+    expect([await resume(acme), await resume(beta), await resume(cora), await resume(dana)]).toEqual([master, v2, v2, undefined]);
+    expect(await bulkSetResume(db, [acme, beta, dana], null)).toBe(1);
+    expect([await resume(acme), await resume(beta)]).toEqual([master, undefined]);
+  });
+
   it("refuses a resume that is deleted, gone or not a resume, and changes nothing", async () => {
     const { db, v2, acme } = await seed();
     const cover = await saveCoverLetter(db, acme, [{ heading: "", items: [{ text: "Dear team" }] }]);

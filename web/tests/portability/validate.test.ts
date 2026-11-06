@@ -2,6 +2,7 @@
 // instead. portability.test.ts covers the same code through importAll, so this file only needs hand-made rows.
 import { describe, expect, it } from "vitest";
 import { EXPORT_FORMAT, EXPORT_VERSION, ImportError } from "../../src/portability";
+import { MAX_POSTING_CHARS } from "../../src/db/limits";
 import { parseEnvelope, parseExportData } from "../../src/portability/validate";
 
 const T = "2026-10-01T09:00:00Z";
@@ -179,5 +180,75 @@ describe("the envelope", () => {
   it("defaults the source and the time when they are missing or not text", () => {
     const out = parseEnvelope(envelope({ source: 7, exportedAt: undefined }));
     expect([out.source, out.exportedAt]).toEqual(["web", ""]);
+  });
+});
+
+describe("documents", () => {
+  const doc = (over: Any = {}): Any => ({ id: 1, kind: "resume", master: false, applicationId: null, title: "Data roles", sections: [], createdAt: T, updatedAt: T, ...over });
+  const parse = (documents: Any[], apps: Any = {}) => {
+    const d = data();
+    d.documents = documents;
+    Object.assign(d.applications[0], apps);
+    return parseExportData(d);
+  };
+  const refused = (documents: Any[]) => problems((d) => (d.documents = documents));
+
+  it("drops a resume pointer to a cover letter, to a missing document and to a bad number", () => {
+    const letter = doc({ id: 2, kind: "cover", applicationId: 1 });
+    expect(parse([doc(), letter], { resumeId: 1 }).applications[0].resumeId).toBe(1);
+    expect("resumeId" in parse([doc(), letter], { resumeId: 2 }).applications[0]).toBe(false);
+    expect("resumeId" in parse([doc()], { resumeId: 9 }).applications[0]).toBe(false);
+    for (const bad of [0, -1, 1.5, "1", null]) expect("resumeId" in parse([doc()], { resumeId: bad }).applications[0]).toBe(false);
+  });
+
+  it("refuses a kind that is not resume or cover", () => {
+    expect(refused([doc({ kind: "portfolio" })])).toEqual(["documents #1: kind must be resume or cover."]);
+    expect(refused([doc({ kind: undefined })])).toEqual(["documents #1: kind must be resume or cover."]);
+  });
+
+  it("refuses two documents with the same id", () => {
+    expect(refused([doc(), doc({ title: "Other" })])).toEqual(["documents has the id 1 twice."]);
+  });
+
+  it("makes a cover letter's master flag false and a resume's application link null", () => {
+    const [cover, resume] = parse([doc({ kind: "cover", master: true, applicationId: 1 }), doc({ id: 2, applicationId: 1 })]).documents;
+    expect([cover.master, cover.applicationId]).toEqual([false, 1]);
+    expect([resume.master, resume.applicationId]).toEqual([false, null]);
+  });
+
+  it("allows a deleted extra master and refuses two live ones", () => {
+    const out = parse([doc({ master: true }), doc({ id: 2, master: true, deletedAt: T })]);
+    expect(out.documents.map((d) => [d.master, Boolean(d.deletedAt)])).toEqual([[true, false], [true, true]]);
+    expect(refused([doc({ master: true }), doc({ id: 2, master: true })])).toEqual(["documents has more than one master resume."]);
+  });
+
+  it("refuses a cover letter with no application, or one that is not in the file", () => {
+    expect(refused([doc({ kind: "cover" })])).toEqual(["documents #1: a cover letter needs an application."]);
+    expect(refused([doc({ kind: "cover", applicationId: 7 })])).toHaveLength(1);
+  });
+
+  it("drops a source, basedOn and deletedAt that make no sense instead of refusing the file", () => {
+    const [d] = parse([doc({ source: "telepathy", basedOn: "1", deletedAt: "yesterday" })]).documents;
+    expect("source" in d || "basedOn" in d || "deletedAt" in d).toBe(false);
+    const [e] = parse([doc({ source: 5, basedOn: 1.5, deletedAt: 12 })]).documents;
+    expect("source" in e || "basedOn" in e || "deletedAt" in e).toBe(false);
+    const [kept] = parse([doc({ source: "ai", basedOn: 4, deletedAt: T })]).documents;
+    expect([kept.source, kept.basedOn, kept.deletedAt]).toEqual(["ai", 4, T]);
+  });
+
+  it("gives a document with an empty title the name of its kind", () => {
+    const out = parse([doc({ title: "" }), doc({ id: 2, title: "", kind: "cover", applicationId: 1 })]).documents;
+    expect(out.map((d) => d.title)).toEqual(["Resume", "Cover letter"]);
+  });
+
+  it("refuses a document with no title field at all, like every other row", () => {
+    expect(refused([doc({ title: undefined })])).toEqual(["documents #1: title is missing."]);
+  });
+
+  it("cuts posting text to the limit and drops text that is only whitespace", () => {
+    const long = parse([], { postingText: "x".repeat(MAX_POSTING_CHARS + 50) }).applications[0].postingText!;
+    expect(long).toHaveLength(MAX_POSTING_CHARS);
+    expect("postingText" in parse([], { postingText: " \n\t " }).applications[0]).toBe(false);
+    expect(parse([], { postingText: "  We are hiring.  " }).applications[0].postingText).toBe("We are hiring.");
   });
 });
