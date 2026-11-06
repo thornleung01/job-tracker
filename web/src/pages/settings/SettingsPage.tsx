@@ -1,4 +1,4 @@
-// The Settings page: a heading, a row of links to the five cards, the result message and the cards themselves. Each
+// The Settings page: a heading, a row of links to the cards, the result message and the cards themselves. Each
 // card is its own component with its own state (AccountsSection, SyncSection, AppearanceSection, DataSection,
 // AccountSection). This file only holds what they share: the message at the top, the screen-reader confirmation, the
 // auth session and the two queries.
@@ -14,6 +14,7 @@ import { AccountsSection } from "./AccountsSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { DataSection } from "./DataSection";
 import { SyncSection } from "./SyncSection";
+import { TrashSection } from "./TrashSection";
 import { NO_AUTH, defaultDeps, type SettingsDeps } from "./deps";
 import type { NoticeState, Reporter } from "./notice";
 
@@ -74,6 +75,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
         <a href="#/settings" onClick={jumpTo("accounts")}>Email accounts</a>
         {account && <a href="#/settings" onClick={jumpTo("sync")}>Sync</a>}
         <a href="#/settings" onClick={jumpTo("appearance")}>Appearance</a>
+        <a href="#/settings" onClick={jumpTo("trash")}>Recently deleted</a>
         <a href="#/settings" onClick={jumpTo("data")}>Your data</a>
       </nav>
 
@@ -91,6 +93,7 @@ export function SettingsView({ db, user, deps: given }: PageProps & { deps?: Par
       )}
       <AppearanceSection db={db} appearance={settings?.appearance} report={report} />
       <BookmarkletCard />
+      <TrashSection db={db} />
       <DataSection db={db} isLocal={isLocalUser(user)} deps={deps} report={report} />
       {account && <AccountSection account={account} auth={auth} />}
     </>

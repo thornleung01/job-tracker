@@ -1,0 +1,15 @@
+/* The backup reminder: a quiet status row like the local banner and the carry-over offer. Tokens only. */
+.backup-nudge { --hit: calc((var(--tap) - 1.25rem) / 2); display: inline-flex; vertical-align: top; max-width: 100%; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 8px; margin: 0 0 8px;
+                color: var(--muted); font-size: 0.875rem; line-height: 1.25rem; }
+.backup-nudge-text { flex: 0 1 auto; margin-right: 8px; }
+.backup-nudge button, .backup-nudge-action { font-size: inherit; line-height: 1.25rem; font-weight: 500; color: var(--ink); background: none; box-shadow: none; min-height: 0;
+                                            padding: var(--hit) 6px; margin: calc(var(--hit) * -1) 0; border-radius: var(--r-seg); text-decoration: none; cursor: pointer; }
+.backup-nudge button.muted { color: var(--muted); }
+.backup-nudge button:hover:not(:disabled), .backup-nudge-action:hover { background: var(--hover); }
+.backup-nudge button:focus-visible, .backup-nudge-action:focus-visible { outline-offset: 0; }
+
+/* Settings > Your data: the storage status line and the optional backup file. */
+.backup-status { margin: 0 0 var(--gap); }
+.backup-status .line { margin: 0; }
+.backup-file { margin-bottom: 28px; }
+.backup-file .help { margin: 0 0 8px; overflow-wrap: anywhere; }

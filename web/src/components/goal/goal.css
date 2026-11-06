@@ -1,0 +1,9 @@
+/* The weekly goal sits at the right of the status row: this week's count, a thin bar, and a quiet text button. */
+.weekly-goal { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; }
+.weekly-goal.is-editing { flex-basis: 100%; }
+.weekly-goal-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; margin: 0; }
+.weekly-goal-edit { min-height: var(--tap-sm); padding: 0 12px; font-size: 0.875rem; }
+.weekly-goal-bar { flex: none; width: 96px; height: 6px; background: var(--fog); border-radius: var(--r-pill); overflow: hidden; }
+.weekly-goal-fill { height: 100%; background: var(--accent); border-radius: var(--r-pill); }
+.weekly-goal-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 4px 0 var(--pad); }
+.weekly-goal-form input { width: 8rem; }

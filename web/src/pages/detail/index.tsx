@@ -7,6 +7,7 @@ import { EmailText } from "../../components/EmailText";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { MailActions } from "../../components/MailActions";
 import { MailMeta } from "../../components/MailMeta";
+import { ApplicationActions } from "../../components/followup/ApplicationActions";
 import { eventLabel } from "../../components/eventLabel";
 import { MoreMenu } from "../../components/detail/MoreMenu";
 import { Notice } from "../../components/Notice";
@@ -16,6 +17,7 @@ import { InterviewRounds } from "../../components/rounds/InterviewRounds";
 import { StageBadge } from "../../components/StageBadge";
 import { TimeText, dayText } from "../../components/TimeText";
 import { setFlash } from "../../components/flash";
+import { announceDeleted } from "../../components/trash/deletedNotice";
 import { useAction } from "../../components/useAction";
 import { useNoticeFocus } from "../../components/useNoticeFocus";
 import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
@@ -27,11 +29,16 @@ import {
 } from "../../sync/actions";
 import { mailboxLink, replyLink } from "../../sync/links";
 import { applicationDetail } from "../../sync/queries";
+import { TRASH_DAYS, deletedApplication, restoreApplication } from "../../sync/trash";
+import { plural } from "../../sync/text";
 import "./detail.css";
 
 export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const id = Number(params.id);
   const data = useQuery(() => applicationDetail(db, id), [db, id]);
+  // A deleted application has no detail (it is hidden everywhere), but its page says so and offers Restore.
+  const gone = useQuery(() => deletedApplication(db, id), [db, id]);
+  const justRestored = useRef(false);
   const act = useAction();
   const [notice, setNotice] = useState<string | null>(null);
   const result = useNoticeFocus();
@@ -84,7 +91,36 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
     document.getElementById(`email-${wanted}`)?.scrollIntoView?.({ block: "start" });
   }, [wanted, data !== undefined && data !== null]);
 
-  if (data === undefined) return <a className="back" href="#/"><span className="chev" aria-hidden="true"></span>All applications</a>;
+  const restoreDeleted = () => {
+    void act.run("restore", async () => {
+      await restoreApplication(db, id);
+      justRestored.current = true;
+      setNotice(`Restored ${gone?.company ?? "the application"}.`);
+    });
+  };
+  // Once Restore has put the application back, the result notice takes focus: the Restore button is gone.
+  useEffect(() => {
+    if (app && justRestored.current) {
+      justRestored.current = false;
+      result.focus();
+    }
+  }, [app]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (data === undefined || (data === null && gone === undefined)) return <a className="back" href="#/"><span className="chev" aria-hidden="true"></span>All applications</a>;
+  if ((data === null || !app) && gone) {
+    return (
+      <>
+        <a className="back" href="#/"><span className="chev" aria-hidden="true"></span>All applications</a>
+        {act.error ? <Notice tone="err">{act.error}</Notice> : null}
+        <h1 className="page detail-missing">This application was deleted</h1>
+        <p className="muted">{gone.company}{gone.role ? ` · ${gone.role}` : ""}. It stays in Recently deleted for {plural(gone.daysLeft, "more day")}.</p>
+        <div className="row">
+          <button type="button" className="primary" onClick={restoreDeleted} {...act.button("restore")}>Restore</button>
+          <a className="btn" href="#/settings">Recently deleted</a>
+        </div>
+      </>
+    );
+  }
   if (data === null || !app) {
     return (
       <>
@@ -153,6 +189,8 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const remove = (emails: "clear" | "review") => {
     void act.run(`delete-${emails}`, async () => {
       await deleteApplication(db, id, emails);
+      // Going to the trash can be undone for a few seconds from the list; removing for good can't, so it says nothing.
+      if (emails === "clear") announceDeleted(app.company, [id]);
       navigate("/");
     });
   };
@@ -178,6 +216,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           {app.locked ? <span className="small muted">{"·"} Stage set by you. Syncs won't change it.</span> : null}
         </div>
         {data.rounds || app.stage === "Interview" ? <div className="detail-rounds"><InterviewRounds db={db} appId={id} rounds={data.rounds} /></div> : null}
+        <ApplicationActions db={db} appId={id} />
         {showsOffer(app) ? <OfferDetails db={db} app={app} /> : null}
         <details className="more detail-edit">
           <summary>Edit details</summary>
@@ -219,16 +258,16 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
         ) : null}
         {step === "delete" ? (
           <InlineConfirm
-            title="Delete this application?"
-            help="Its notes and steps are removed. Your mailbox isn't touched."
-            confirmLabel="Delete the application and its emails"
+            title={`Delete ${app.company}?`}
+            help={`You can restore it for ${TRASH_DAYS} days.`}
+            confirmLabel="Delete application"
             onConfirm={() => remove("clear")}
             onCancel={() => setStep(null)}
             act={act}
             actionKey="delete-clear"
             opener={menuButton()}
           >
-            <button type="button" className="danger" onClick={() => remove("review")} {...act.button("delete-review")}>Delete the application, keep emails in Needs review</button>
+            <button type="button" className="danger" onClick={() => remove("review")} {...act.button("delete-review")}>Delete for good, keep emails in Needs review</button>
           </InlineConfirm>
         ) : null}
         {step === "not" ? (

@@ -3,6 +3,7 @@ import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS } from "../db/limits";
 import { parsePostingUrl } from "../db/postingUrl";
 import type { JobTrackerDB } from "../db/schema";
 import type { Stage } from "../db/stages";
+import { isLive } from "./live";
 import { pipeline } from "./pipeline";
 import { squeeze } from "./text";
 
@@ -35,11 +36,11 @@ export async function findDuplicates(db: JobTrackerDB, company: string, role: st
 
   if (link) {
     // The link is not indexed, so this reads every application. The list is small and the lookup is debounced.
-    const same = await db.applications.filter((a) => a.postingUrl === link).toArray();
+    const same = await db.applications.filter((a) => isLive(a) && a.postingUrl === link).toArray();
     for (const a of same.sort((x, y) => y.id - x.id)) keep(a);
   }
   if (ckey) {
-    const ofCompany = await db.applications.where("companyKey").equals(ckey).toArray();
+    const ofCompany = (await db.applications.where("companyKey").equals(ckey).toArray()).filter(isLive);
     for (const a of ofCompany.sort((x, y) => y.id - x.id)) if (!rkey || a.roleKey === rkey) keep(a);
   }
   return [...found.values()].slice(0, DUPLICATES_MAX);

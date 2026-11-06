@@ -5,6 +5,7 @@ import Dexie from "dexie";
 import { LOCAL_DB_NAME } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
 import { exportAll, importAllIfEmpty } from "../portability";
+import { isLive, liveApplications } from "../sync/live";
 
 export type OpenDb = (name: string) => JobTrackerDB;
 
@@ -52,19 +53,24 @@ export class NothingToBringOverError extends CarryOverError {
   }
 }
 
-/** How many applications the local copy holds. Never creates the local database: a missing one counts as 0. */
+/**
+ * How many applications the local copy shows: the ones you haven't deleted, because this is the number the offer states
+ * ("You have 3 applications saved in this browser"), and a copy that only holds Recently deleted applications has nothing
+ * to offer. (A bring-over still copies the deleted ones along, like an export does.) Never creates the local database: a
+ * missing one counts as 0.
+ */
 export async function localApplicationCount(open: OpenDb = openDatabase): Promise<number> {
   if (!(await Dexie.exists(LOCAL_DB_NAME))) return 0;
   const local = open(LOCAL_DB_NAME);
   try {
-    return await local.applications.count();
+    return (await liveApplications(local)).length;
   } finally {
     local.close();
   }
 }
 
 /**
- * Copies the local database into `target` and returns how many applications came across. The local copy is left as it
+ * Copies the local database into `target` and returns how many applications came across (the ones you haven't deleted). The local copy is left as it
  * was. Throws TargetNotEmptyError if `target` holds anything at all (the check and the write are one transaction),
  * and NothingToBringOverError if the earlier copy is gone or has no applications. Opening a missing database would
  * create it, so its existence is checked right before opening.
@@ -75,7 +81,7 @@ export async function bringOverLocalData(target: JobTrackerDB, open: OpenDb = op
   let count: number;
   try {
     const envelope = await exportAll(local);
-    count = envelope.data.applications.length;
+    count = envelope.data.applications.filter(isLive).length;   // what the person will see, not the Recently deleted ones that come along
     if (count === 0) throw new NothingToBringOverError();
     if ((await importAllIfEmpty(target, envelope)) === null) throw new TargetNotEmptyError();
   } finally {

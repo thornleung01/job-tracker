@@ -1,17 +1,20 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
 import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
+import { SEARCH_MIN_CHARS } from "../db/limits";
 import { idleDaysSince, localToday } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
-import { needsFollowUp } from "./followUp";
+import { isGhosted, needsFollowUp, remindsOfInterviews } from "./followUp";
+import { liveApplications } from "./live";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
 import { deriveRounds, type Rounds } from "./rounds";
 import { byDesc } from "./compare";
 import { groupBy } from "./groupBy";
 import { roundsLookup } from "./roundsLookup";
-import { nextInterviewDay } from "./upcoming";
+import { searchApplications, type SearchMatch } from "./search";
+import { meetingDays } from "./upcoming";
 
 /** How many companies and roles the search box suggests, and how many ignored emails are listed. */
 const SUGGESTION_LIMIT = 300;
@@ -30,8 +33,10 @@ export interface ListQuery {
   account?: number;
   sort?: string;
   dir?: string;
-  /** keep only applications that need a follow-up */
+  /** keep only applications that need a follow-up (idle 7 to 29 days) */
   followUp?: boolean;
+  /** keep only ghosted applications (idle 30 days or more). With followUp, an application that is either. */
+  ghosted?: boolean;
   now?: Date;
 }
 
@@ -39,10 +44,16 @@ export interface ApplicationListRow extends ApplicationRow {
   nEmails: number;
   /** whole calendar days (your time zone) since the last activity, never negative; null when unknown. Follow-ups count these days. */
   idleDays: number | null;
-  /** still Applied or Heard back, and quiet for a week or more */
+  /** still Applied or Heard back, and quiet for 7 to 29 days */
   followUp: boolean;
+  /** still Applied or Heard back, and quiet for 30 days or more: shows "No reply" and is not nudged */
+  ghosted: boolean;
+  /** why a search matched, when it did (see sync/search.ts); absent when there was no search */
+  match?: SearchMatch;
   /** the next day an interview email says a meeting is on (YYYY-MM-DD, today or later), or null */
   nextInterview: string | null;
+  /** every interview day the emails name, past and future (YYYY-MM-DD), earliest first, each once; a cancelled meeting is left out. The calendar shows these. */
+  interviewDays: string[];
   /** interview rounds (yours, or worked out from the emails and steps); null when there is nothing to count */
   rounds: number | null;
 }
@@ -52,7 +63,7 @@ type InterviewMail = EmailRow & { applicationId: number };
 const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
 
 /** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
-type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "rounds">;
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
@@ -77,21 +88,26 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   }
   const interviews = groupBy(emails.filter(isInterviewMail), (e) => e.applicationId);
   const needle = (query.q ?? "").trim().toLowerCase();
-  let early: EarlyRow[] = (await db.applications.toArray()).map((a) => {
+  let early: EarlyRow[] = (await liveApplications(db)).map((a) => {
     const idleDays = idleDaysSince(a.lastActivity, now);
-    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays) };
+    return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays), ghosted: isGhosted(a.stage, idleDays) };
   });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) early = early.filter((a) => a.stage === query.stage);
-  if (needle) early = early.filter((a) => a.company.toLowerCase().includes(needle) || a.role.toLowerCase().includes(needle));
+  // Company and role, and (from 2 characters) the emails already loaded above plus notes and steps; sync/search.ts has the rules.
+  const hits = needle ? searchApplications(early, emails, needle.length >= SEARCH_MIN_CHARS ? await db.activity.toArray() : [], needle) : null;
+  if (hits) early = early.filter((a) => hits.has(a.id));
   if (query.account) early = early.filter((a) => inAccount.has(a.id));
-  if (query.followUp) early = early.filter((a) => a.followUp);
+  if (query.followUp || query.ghosted) early = early.filter((a) => (query.followUp && a.followUp) || (query.ghosted && a.ghosted));
 
   const today = localToday(now);
   const roundsOf = await roundsLookup(db, interviews);
   const rows: ApplicationListRow[] = early.map((a) => {
     // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
-    const remindsOfInterviews = a.stage !== "Rejected" && a.stage !== "Offer";
-    return { ...a, nextInterview: remindsOfInterviews ? nextInterviewDay(interviews.get(a.id) ?? [], today) : null, rounds: roundsOf(a) };
+    const days = meetingDays(interviews.get(a.id) ?? []);
+    return {
+      ...a, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
+      match: hits?.get(a.id),
+    };
   });
 
   const by: Record<SortColumn, Cmp> = {
@@ -111,7 +127,7 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
 /** How many applications are at each stage. */
 export async function stageCounts(db: JobTrackerDB): Promise<Record<Stage, number>> {
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>;
-  for (const a of await db.applications.toArray()) counts[a.stage]++;
+  for (const a of await liveApplications(db)) counts[a.stage]++;
   return counts;
 }
 
@@ -123,7 +139,7 @@ export interface Suggestion {
 
 /** The companies and roles you actually have, newest activity first, for the search box. */
 export async function suggestions(db: JobTrackerDB): Promise<Suggestion[]> {
-  const apps = await db.applications.toArray();
+  const apps = await liveApplications(db);
   const out: Suggestion[] = [];
   for (const [kind, field] of [["Company", "company"], ["Role", "role"]] as const) {
     const keyField = `${field}Key` as "companyKey" | "roleKey";
@@ -177,7 +193,7 @@ export async function reviewPage(db: JobTrackerDB, now: Date = new Date()): Prom
       guessStage: e.event ? STAGE_FOR_EVENT[e.event] : "Applied",
     };
   });
-  const apps = (await db.applications.toArray()).map(({ id, company, role }) => ({ id, company, role }))
+  const apps = (await liveApplications(db)).map(({ id, company, role }) => ({ id, company, role }))
     .sort((a, b) => compareText(a.company, b.company));
   const ignored = (await db.ignoredMail.toArray()).sort(byDesc((m) => m.receivedAt)).slice(0, IGNORED_LIST_LIMIT);
   return { emails, apps, learned: await learn.activeRules(db), ignored };
@@ -206,14 +222,14 @@ export interface ApplicationDetail {
 /** The application page. Returns null when there is no such application. */
 export async function applicationDetail(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<ApplicationDetail | null> {
   const application = await db.applications.get(appId);
-  if (!application) return null;
+  if (!application || application.deletedAt) return null;   // a deleted application is only in Recently deleted: see deletedApplication in trash.ts
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
   const rows = (await db.emails.where("applicationId").equals(appId).toArray())
     .sort((a, b) => byDesc<EmailRow>((e) => e.receivedAt)(a, b) || b.id - a.id);
   const emails = rows.filter((e) => accounts.has(e.accountId)).map((e) => ({ ...e, provider: accounts.get(e.accountId)!.provider, address: accounts.get(e.accountId)!.address }));
   const { items, total } = await activity.history(db, appId, undefined, false);
   const people = await contacts.derive(db, appId);
-  const others = (await db.applications.toArray()).filter((a) => a.id !== appId).map(({ id, company, role }) => ({ id, company, role }))
+  const others = (await liveApplications(db)).filter((a) => a.id !== appId).map(({ id, company, role }) => ({ id, company, role }))
     .sort((a, b) => compareText(a.company, b.company));
   return {
     application, idleDays: idleDaysSince(application.lastActivity, now), nEmails: rows.length, emails, notes: items, notesTotal: total, others, people,

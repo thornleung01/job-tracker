@@ -4,7 +4,8 @@
 .joblink-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .joblink-row input { flex: 1 1 260px; min-width: 0; }
 .joblink-line { margin: 0; }
-.joblink-line:empty { display: none; }
+/* An empty status line stays in the page (visually hidden), because a live region that is display:none is not announced when text arrives. */
+.joblink-line:empty { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
 .joblink-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; box-shadow: none; color: var(--muted); font-size: 0.875rem; font-weight: 500; padding: 0 4px; text-decoration: none; }
 .joblink-toggle:hover { color: var(--ink); }
 .joblink-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }

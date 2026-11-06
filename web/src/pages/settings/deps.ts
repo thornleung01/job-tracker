@@ -5,6 +5,7 @@ import type { Session } from "../../auth/session";
 import { createProvider, getAddress } from "../../providers";
 import type { ProviderName, TokenSource } from "../../types";
 import { signOutAndForget, type MailDeps } from "../../sync/mailbox";
+import type { BackupDeps } from "../../backup/deps";
 import { downloadText } from "./actions";
 import { downloadCsv } from "./exportCsv";
 
@@ -21,6 +22,8 @@ export interface SettingsDeps extends Pick<MailDeps, "createProvider" | "getAddr
   download(filename: string, text: string): void;
   /** saves the applications spreadsheet; its own function because it is a different file type */
   downloadCsv(filename: string, text: string): void;
+  /** the backup file and the storage status; left out, Your data uses the real browser APIs (backup/deps.ts) */
+  backup?: BackupDeps;
 }
 
 export const defaultDeps: SettingsDeps = {

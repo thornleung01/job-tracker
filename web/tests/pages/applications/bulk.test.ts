@@ -153,22 +153,56 @@ describe("the bulk bar", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("deletes the selected applications and their emails once confirmed", async () => {
+  it("deletes the selected applications to Recently deleted once confirmed, keeping their emails, with Restore for a few seconds", async () => {
     const db = freshDb();
     const { acme, beta, gamma, mail } = await seed(db);
     const { container } = await mountPage(ApplicationsPage, db);
     await click(box(container, "Acme"));
     await click(box(container, "Beta"));
     await click(button(container, "Delete"));
-    await click(button(container, "Delete 2 applications and their emails"));
+    expect(text($(container, ".inline-confirm-q"))).toBe("Delete 2 applications?");
+    expect(text($(container, ".inline-confirm .help"))).toBe("You can restore them for 30 days.");
+    await click(button(container, "Delete 2 applications"));
     await waitFor(() => $$(container, "tr.app-row").length === 1, "the rows to go");
-    expect((await db.applications.toArray()).map((a) => a.id)).toEqual([gamma]);
-    expect(await db.applications.get(acme)).toBeUndefined();
-    expect(await db.applications.get(beta)).toBeUndefined();
-    const cleared = await db.emails.get(mail);
-    expect([cleared?.applicationId, cleared?.subject]).toEqual([null, null]);
-    expect(text($(container, ".notice"))).toBe("Deleted 2 applications.");
+    expect((await db.applications.toArray()).filter((a) => !a.deletedAt).map((a) => a.id)).toEqual([gamma]);
+    expect((await db.applications.get(acme))?.deletedAt).toBeDefined();
+    expect((await db.applications.get(beta))?.deletedAt).toBeDefined();
+    const kept = await db.emails.get(mail);
+    expect([kept?.applicationId, kept?.subject]).toEqual([acme, "We got your application"]);
+    expect(text($(container, ".notice"))).toBe("Deleted 2 applications. They stay in Recently deleted for 30 days.");
     expect(bar(container)).toBeNull();
+  });
+
+  it("brings them back, with their emails, when you choose Restore", async () => {
+    const db = freshDb();
+    const { acme, beta, mail } = await seed(db);
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click(box(container, "Acme"));
+    await click(box(container, "Beta"));
+    await click(button(container, "Delete"));
+    await click(button(container, "Delete 2 applications"));
+    await waitFor(() => button(container, "Restore") !== null, "Restore");
+    expect(button(container, "Undo")).toBeNull();
+    await click(button(container, "Restore"));
+    await waitFor(() => $$(container, "tr.app-row").length === 3, "the rows to come back");
+    expect(text($(container, ".notice"))).toBe("Restored 2 applications.");
+    expect(button(container, "Restore")).toBeNull();
+    expect((await db.applications.get(acme))).not.toHaveProperty("deletedAt");
+    expect((await db.applications.get(beta))).not.toHaveProperty("deletedAt");
+    expect((await db.emails.get(mail))?.applicationId).toBe(acme);
+  });
+
+  it("takes Restore away after 8 seconds, leaving the sentence", async () => {
+    undo.ms = 150;
+    const db = freshDb();
+    await seed(db);
+    const { container } = await mountPage(ApplicationsPage, db);
+    await click(box(container, "Acme"));
+    await click(button(container, "Delete"));
+    await click(button(container, "Delete 1 application"));
+    await waitFor(() => button(container, "Restore") !== null, "Restore");
+    await waitFor(() => button(container, "Restore") === null, "Restore to go");
+    expect(text($(container, ".notice"))).toBe("Deleted 1 application. It stays in Recently deleted for 30 days.");
   });
 
   it("lets the selection grow while the question is open, and closes it when nothing is selected", async () => {
@@ -314,14 +348,14 @@ describe("the delete question", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     await click(box(container, "Acme"));
     await click(button(container, "Delete"));
-    await click(button(container, "Delete 1 application and their emails"));
+    await click(button(container, "Delete 1 application"));
     expect((button(container, "Cancel") as HTMLButtonElement).disabled).toBe(true);
     await key($(container, ".inline-confirm button"), "Escape");
     expect($(container, ".inline-confirm")).not.toBeNull();
     await act(async () => release());
     await waitFor(() => bar(container) === null, "the bar to go");
-    expect(text($(container, ".notice"))).toBe("Deleted 1 application.");
-    expect(await db.applications.count()).toBe(2);
+    expect(text($(container, ".notice"))).toBe("Deleted 1 application. It stays in Recently deleted for 30 days.");
+    expect((await db.applications.toArray()).filter((a) => !a.deletedAt)).toHaveLength(2);
   });
 
   it("puts focus back on the Delete button after a failed delete", async () => {
@@ -331,7 +365,7 @@ describe("the delete question", () => {
     const { container } = await mountPage(ApplicationsPage, db);
     await click(box(container, "Acme"));
     await click(button(container, "Delete"));
-    const confirmDelete = button(container, "Delete 1 application and their emails")!;
+    const confirmDelete = button(container, "Delete 1 application")!;
     await click(confirmDelete);
     await waitFor(() => $(container, ".bulk-bar .notice.err") !== null, "the error");
     expect(text($(container, ".bulk-bar .notice.err"))).toBe("Couldn't finish that. Try again.");
@@ -401,8 +435,8 @@ describe("Undo after a bulk stage change", () => {
     expect(button(container, "Undo")).toBeNull();
     expect($(container, ".bulk-done")).toBeNull();
     await click(button(container, "Delete"));
-    await click(button(container, "Delete 1 application and their emails"));
-    await waitFor(() => text($(container, ".notice")) === "Deleted 1 application.", "the delete");
+    await click(button(container, "Delete 1 application"));
+    await waitFor(() => text($(container, ".notice")).startsWith("Deleted 1 application."), "the delete");
     expect(button(container, "Undo")).toBeNull();
   });
 });

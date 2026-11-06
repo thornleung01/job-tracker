@@ -14,6 +14,7 @@ import { MAX_NAME_CHARS, MAX_TITLE_CHARS } from "../db/limits";
 import type { ApplicationRow, ContactEditRow, EmailRow, JobTrackerDB } from "../db/schema";
 import { tx } from "../db/schema";
 import { byDesc } from "./compare";
+import { liveApplications } from "./live";
 import { replyLink, recipient, type MailLink } from "./links";
 import { pipeline } from "./pipeline";
 import { squeeze } from "./text";
@@ -301,9 +302,9 @@ function toContacts(people: PersonMap, edits: ReadonlyMap<string, ContactEditRow
  */
 export async function derive(db: JobTrackerDB, appId?: number): Promise<Contact[]> {
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
-  const apps = new Map((await db.applications.toArray()).map((a) => [a.id, a]));
+  const apps = new Map((await liveApplications(db)).map((a) => [a.id, a]));
   const emails = (appId === undefined ? await db.emails.toArray() : await db.emails.where("applicationId").equals(appId).toArray())
-    .filter((e) => e.related && !e.needsReview && e.applicationId != null && accounts.has(e.accountId))
+    .filter((e) => e.related && !e.needsReview && e.applicationId != null && apps.has(e.applicationId) && accounts.has(e.accountId))
     .sort((a, b) => (a.receivedAt < b.receivedAt ? -1 : a.receivedAt > b.receivedAt ? 1 : a.id - b.id));
 
   const people: PersonMap = new Map();

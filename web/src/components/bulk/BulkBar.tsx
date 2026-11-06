@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
-import { bulkDelete, bulkRestoreStages, bulkSetStage, type StageBefore } from "../../sync/bulk";
+import { bulkDelete, bulkRestore, bulkRestoreStages, bulkSetStage, type StageBefore } from "../../sync/bulk";
+import { TRASH_DAYS } from "../../sync/trash";
 import { Notice } from "../Notice";
 import { UNDO_MS } from "../undo";
 import { useAction } from "../useAction";
@@ -13,8 +14,9 @@ const applicationsLabel = (count: number) => `${count} application${count === 1 
 
 /**
  * What you can do to the ticked applications, shown between the filter card and the list while at least one is ticked: set their
- * stage (which locks them, like the stage dropdown) or delete them and their emails, after a question in place. Afterwards the
- * selection is cleared and one line says what happened, with a few seconds to Undo a stage change.
+ * stage (which locks them, like the stage dropdown) or delete them (to Recently deleted, with their emails kept), after a question
+ * in place. Afterwards the selection is cleared and one line says what happened, with a few seconds to Undo a stage change or
+ * Restore what was deleted.
  */
 export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Selection }) {
   const act = useAction();
@@ -23,6 +25,8 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState("");
   const [undo, setUndo] = useState<StageBefore[] | null>(null);
+  /** the applications a delete just sent to Recently deleted, for the Restore beside the result */
+  const [restoreIds, setRestoreIds] = useState<number[] | null>(null);
   /** the button to focus once a failed action has finished, so a retry is one key away */
   const [refocus, setRefocus] = useState<"stage" | "delete" | null>(null);
   const stageButton = useRef<HTMLButtonElement>(null);
@@ -36,12 +40,14 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
     clearTimeout(undoTimer.current);
     setDone("");
     setUndo(null);
+    setRestoreIds(null);
   }, []);
-  const showResult = (text: string, undoWith: StageBefore[] | null = null) => {
+  const showResult = (text: string, undoWith: StageBefore[] | null = null, restoreWith: number[] | null = null) => {
     clearTimeout(undoTimer.current);
     setDone(text);
     setUndo(undoWith);
-    if (undoWith) undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
+    setRestoreIds(restoreWith);
+    if (undoWith || restoreWith) undoTimer.current = setTimeout(() => { setUndo(null); setRestoreIds(null); }, UNDO_MS);
   };
 
   // A result belongs to the selection that made it, so ticking something new wipes it, and so do new filters.
@@ -87,7 +93,10 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
         const deleted = await bulkDelete(db, ids);
         setConfirming(false);
         selection.clear();
-        showResult(`Deleted ${applicationsLabel(deleted)}.`);
+        showResult(
+          `Deleted ${applicationsLabel(deleted)}. ${deleted === 1 ? "It stays" : "They stay"} in Recently deleted for ${TRASH_DAYS} days.`,
+          null, deleted ? ids : null,
+        );
       })
       .then((ok) => ok || setRefocus("delete"));
   };
@@ -98,6 +107,15 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
     void act.run("undo", async () => {
       const restored = await bulkRestoreStages(db, was);
       showResult(restored ? `Put ${applicationsLabel(restored)} back.` : "Nothing to put back.");
+    });
+  };
+  const restoreDeleted = () => {
+    if (!restoreIds) return;
+    const wanted = restoreIds;
+    dismissResult();
+    void act.run("restore", async () => {
+      const back = await bulkRestore(db, wanted);
+      showResult(back ? `Restored ${applicationsLabel(back)}.` : "Nothing to restore.");
     });
   };
   const clear = () => {
@@ -112,6 +130,7 @@ export function BulkBar({ db, selection }: { db: JobTrackerDB; selection: Select
         <div ref={doneBox} className="bulk-done">
           {act.error ? <Notice tone="err">{act.error}</Notice> : <Notice>{done}</Notice>}
           {undo ? <button type="button" className="bulk-undo small" onClick={undoStage} disabled={act.busy !== null}>Undo</button> : null}
+          {restoreIds ? <button type="button" className="bulk-undo small" onClick={restoreDeleted} disabled={act.busy !== null}>Restore</button> : null}
         </div>
       ) : null}
       {selectedCount ? (

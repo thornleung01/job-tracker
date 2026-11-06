@@ -6,7 +6,7 @@ import { safeWebLink } from "../db/mailLink";
 import { applyEvent, createApplication } from "../db/repo";
 import { STAGE_FOR_EVENT } from "../db/stages";
 import { addDays, iso } from "../db/time";
-import { findApplication } from "./match";
+import { findApplicationOrDeleted } from "./match";
 import { pipeline } from "./pipeline";
 import type { Classification } from "./pipelineTypes";
 import { truncate } from "./text";
@@ -85,7 +85,11 @@ export async function decide(
   const event = cls.event;
   if (!event) throw new Error("A related email needs an event");
 
-  const match = await findApplication(db, accountId, msg.threadId, ckey, rkey, event, role);
+  // Which application, live or deleted: the rules are in sync/match.ts. Mail for a deleted application is kept with it, except
+  // a new "applied" email, which starts a new application (the person is applying again).
+  const match = await findApplicationOrDeleted(db, accountId, msg.threadId, ckey, rkey, event, role);
+  // Weak mail goes to Needs review whichever kind of application it matched: attaching it silently to a hidden application
+  // would move that application's stage on a guess nobody can see, and bring the guess back when it is restored.
   let needsReview = cls.confidence === "low" || match.kind === "ambiguous";
   // Weak wording is fine when the mail clearly belongs to a conversation already being followed (same thread, or the
   // one open application at that company): a "heard back" can only add to what is known, never invent anything.

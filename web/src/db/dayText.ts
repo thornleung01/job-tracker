@@ -1,7 +1,10 @@
 // A calendar day written for people. Plain TypeScript (no React) so the logic layer can use it; TimeText re-exports it.
 import { dayOf } from "./time";
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** The weekday names by weekday number (see weekdayOf in time.ts): 0 is Sunday. The short forms are WEEKDAYS in sync/upcoming.ts. */
+export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /**
  * A stored time or day (see dayOf in time.ts for which day a time stands for) written for people: "October 21, 2026" when

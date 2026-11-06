@@ -9,6 +9,7 @@ import { tx, type EmailRow, type JobTrackerDB } from "../db/schema";
 import { byAsc } from "./compare";
 import { decide, messageFromRow, rememberIgnored } from "./decide";
 import { loadLearned } from "./learn";
+import { isLive } from "./live";
 import { pipeline } from "./pipeline";
 
 export interface RecheckResult {
@@ -19,11 +20,12 @@ export interface RecheckResult {
   roles: number;
 }
 
-/** True when no one has edited this application: a sync made it and only a sync has moved it. */
+/** True when no one has edited this application: a sync made it and only a sync has moved it. A deleted one is not: it is yours to restore, so a recheck leaves it and its emails alone. */
 async function isUntouched(db: JobTrackerDB, appId: number | null): Promise<boolean> {
   if (appId == null) return true;
   const app = await db.applications.get(appId);
   if (!app) return true;
+  if (!isLive(app)) return false;
   const notes = await db.activity.where("applicationId").equals(appId).count();
   return !app.manual && !app.locked && notes === 0;
 }
@@ -121,7 +123,7 @@ export async function fillMissingRoles(db: JobTrackerDB): Promise<number> {
   const p = pipeline();
   return tx(db, async () => {
     let filled = 0;
-    for (const app of (await db.applications.orderBy("id").toArray()).filter((a) => a.roleKey === "" && !a.manual)) {
+    for (const app of (await db.applications.orderBy("id").toArray()).filter((a) => a.roleKey === "" && !a.manual && isLive(a))) {
       const mails = (await db.emails.where("applicationId").equals(app.id).toArray())
         .filter((e) => e.related)
         .sort((a, b) => byAsc<EmailRow>((e) => e.receivedAt)(a, b) || a.id - b.id);

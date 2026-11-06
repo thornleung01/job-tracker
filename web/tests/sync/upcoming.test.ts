@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import "fake-indexeddb/auto";
+import { afterEach, describe, expect, it } from "vitest";
 import { dayText } from "../../src/components/TimeText";
+import { createApplication } from "../../src/db/repo";
+import type { Stage } from "../../src/db/stages";
 import { daysBetween } from "../../src/db/time";
-import { comingUp, dayWhen, nextInterviewDay, shortDay } from "../../src/sync/upcoming";
+import { listApplications } from "../../src/sync/queries";
+import { comingUp, dayWhen, interviewDays, meetingDays, nextInterviewDay, shortDay, WEEKDAYS } from "../../src/sync/upcoming";
+import { closeAll, freshDb } from "./helpers";
+
+afterEach(closeAll);
 
 let n = 0;
 const mail = (o: { thread?: string | null; at: string; subject?: string; body?: string; event?: "interview" | "applied" | "rejected" }) => ({
@@ -139,5 +146,121 @@ describe("dayText plain", () => {
   it("says Unknown for a bad day", () => {
     expect(dayText("soon", "plain", now)).toBe("Unknown");
     expect(dayText(null, "plain", now)).toBe("Unknown");
+  });
+});
+
+describe("meetingDays", () => {
+  it("is empty with no interview emails or no named day", () => {
+    expect(meetingDays([])).toEqual([]);
+    expect(meetingDays([mail({ at: "2026-10-10T14:00:00Z", body: "Oct 15", event: "applied" })])).toEqual([]);
+    expect(meetingDays([mail({ at: "2026-10-10T14:00:00Z", body: "Let's find a time." })])).toEqual([]);
+  });
+
+  it("keeps past and future days, earliest first, whatever order the emails come in", () => {
+    const emails = [
+      mail({ thread: "a", at: "2026-10-09T14:00:00Z", body: "Interview on Oct 22" }),
+      mail({ thread: "b", at: "2026-10-01T14:00:00Z", body: "Interview on Oct 5" }),
+      mail({ thread: "c", at: "2026-10-10T14:00:00Z", body: "Interview on Oct 14" }),
+    ];
+    expect(meetingDays(emails)).toEqual(["2026-10-05", "2026-10-14", "2026-10-22"]);
+    expect(meetingDays([...emails].reverse())).toEqual(["2026-10-05", "2026-10-14", "2026-10-22"]);
+  });
+
+  it("lists a day once when two threads share it", () => {
+    const emails = [mail({ thread: "a", at: "2026-10-08T14:00:00Z", body: "Oct 15" }), mail({ thread: "b", at: "2026-10-09T14:00:00Z", body: "Oct 15" })];
+    expect(meetingDays(emails)).toEqual(["2026-10-15"]);
+  });
+
+  it("follows a rescheduled thread to its new day, even a past one", () => {
+    const moved = [
+      mail({ thread: "a", at: "2026-10-08T14:00:00Z", body: "Interview on Oct 15" }),
+      mail({ thread: "a", at: "2026-10-11T14:00:00Z", subject: "Rescheduled: interview", body: "Moved to Oct 20" }),
+    ];
+    expect(meetingDays(moved)).toEqual(["2026-10-20"]);
+    const back = [
+      mail({ thread: "a", at: "2026-10-01T14:00:00Z", body: "Interview on Oct 15" }),
+      mail({ thread: "a", at: "2026-10-02T14:00:00Z", subject: "Rescheduled", body: "Moved to Oct 5" }),
+    ];
+    expect(meetingDays(back)).toEqual(["2026-10-05"]);
+  });
+
+  it("drops a cancelled thread but keeps the others", () => {
+    const emails = [
+      mail({ thread: "a", at: "2026-10-08T14:00:00Z", body: "Interview on Oct 14" }),
+      mail({ thread: "a", at: "2026-10-10T14:00:00Z", subject: "Interview cancelled", body: "We have to cancel Oct 14" }),
+      mail({ thread: "b", at: "2026-10-09T14:00:00Z", body: "Interview on Oct 19" }),
+    ];
+    expect(meetingDays(emails)).toEqual(["2026-10-19"]);
+  });
+
+  it("is what nextInterviewDay and interviewDays are made from, and leaves nextInterviewDay as it was", () => {
+    const emails = [
+      mail({ thread: "a", at: "2026-10-01T14:00:00Z", body: "Interview on Oct 5" }),
+      mail({ thread: "b", at: "2026-10-09T14:00:00Z", body: "Interview on Oct 12" }),
+      mail({ thread: "c", at: "2026-10-10T14:00:00Z", body: "Interview on Oct 22" }),
+    ];
+    expect(meetingDays(emails)).toEqual(["2026-10-05", "2026-10-12", "2026-10-22"]);
+    expect(interviewDays(emails, TODAY)).toEqual(["2026-10-12", "2026-10-22"]);
+    expect(nextInterviewDay(emails, TODAY)).toBe("2026-10-12");
+    expect(nextInterviewDay(emails, "2026-10-13")).toBe("2026-10-22");
+    expect(nextInterviewDay(emails, "2026-10-23")).toBeNull();
+  });
+
+  it("exports the weekday names the calendar's header uses", () => {
+    expect(WEEKDAYS).toEqual(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  });
+});
+
+describe("interviewDays on the list rows", () => {
+  const NOW = new Date("2026-10-12T16:00:00Z");
+
+  async function seed() {
+    const db = freshDb();
+    const add = async (company: string, stage: Stage, bodies: [string, string, string?][], extra: Record<string, unknown> = {}) => {
+      const id = await createApplication(db, { company, companyKey: company.toLowerCase(), role: "Analyst", roleKey: "analyst", stage, when: "2026-10-01T12:00:00Z" });
+      if (Object.keys(extra).length) await db.applications.update(id, extra);
+      for (const [i, [thread, text, subject]] of bodies.entries()) {
+        await db.emails.add({
+          accountId: 1, providerMsgId: `${company}-${i}`, threadId: thread, receivedAt: `2026-10-0${i + 2}T14:00:00Z`, sender: "hr@acme.com", subject: subject ?? "Interview",
+          body: text, related: true, event: "interview", confidence: "high", applicationId: id, needsReview: false, webLink: null, bulk: false, hold: false, reason: null,
+        });
+      }
+      return id;
+    };
+    await add("Live", "Interview", [["a", "Interview on Oct 5"], ["b", "Interview on Oct 14"], ["c", "Interview on Oct 20"]]);
+    await add("Done", "Rejected", [["a", "Interview on Oct 5"], ["b", "Interview on Oct 20"]]);
+    await add("Won", "Offer", [["a", "Interview on Oct 8"], ["b", "Interview on Oct 25"]]);
+    await add("Quiet", "Applied", []);
+    await add("Cancelled", "Interview", [["a", "Interview on Oct 15"], ["a", "We have to cancel Oct 15", "Interview cancelled"]]);
+    await add("Deleted", "Interview", [["a", "Interview on Oct 15"]], { deletedAt: "2026-10-10T12:00:00Z" });
+    return db;
+  }
+
+  it("carries every interview day, past and future, with the next one unchanged", async () => {
+    const rows = await listApplications(await seed(), { now: NOW, sort: "company", dir: "asc" });
+    const byName = Object.fromEntries(rows.map((r) => [r.company, r]));
+    expect(byName.Live.interviewDays).toEqual(["2026-10-05", "2026-10-14", "2026-10-20"]);
+    expect(byName.Live.nextInterview).toBe("2026-10-14");
+    expect(byName.Quiet.interviewDays).toEqual([]);
+    expect(byName.Quiet.nextInterview).toBeNull();
+    expect(byName.Cancelled.interviewDays).toEqual([]);
+    expect(byName.Cancelled.nextInterview).toBeNull();
+  });
+
+  it("keeps the days for a Rejected or Offer application while its next interview stays null", async () => {
+    const rows = await listApplications(await seed(), { now: NOW });
+    const byName = Object.fromEntries(rows.map((r) => [r.company, r]));
+    expect(byName.Done.interviewDays).toEqual(["2026-10-05", "2026-10-20"]);
+    expect(byName.Done.nextInterview).toBeNull();
+    expect(byName.Won.interviewDays).toEqual(["2026-10-08", "2026-10-25"]);
+    expect(byName.Won.nextInterview).toBeNull();
+  });
+
+  it("leaves out a deleted application, and has the same days with a filter on", async () => {
+    const db = await seed();
+    const all = await listApplications(db, { now: NOW, sort: "company", dir: "asc" });
+    expect(all.map((r) => r.company)).not.toContain("Deleted");
+    const filtered = await listApplications(db, { now: NOW, stage: "Interview", sort: "company", dir: "asc" });
+    expect(filtered).toEqual(all.filter((r) => r.stage === "Interview"));
   });
 });

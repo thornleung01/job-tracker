@@ -37,6 +37,12 @@ export interface ApplicationRow {
   offerSalary?: string;
   /** the day you have to decide by, YYYY-MM-DD (a past day is allowed); absent when none. Not indexed. */
   offerDeadline?: string;
+  /**
+   * When you deleted it (ISO). A deleted application stays in "Recently deleted" with its emails and notes for 30 days, hidden
+   * everywhere else; absent means it is live. Not indexed (nothing looks rows up by it, and the table is small), so it needs no
+   * new Dexie version: older rows simply have no field. See sync/trash.ts.
+   */
+  deletedAt?: string;
 }
 
 export interface EmailRow {

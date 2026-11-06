@@ -1,0 +1,11 @@
+/* The Compare offers card above the list. */
+.compare-offers { padding: 0; }
+.compare-offers-title { margin: 0; font-size: 1rem; line-height: 1.4; }
+.compare-offers-toggle { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: flex-start; background: none; box-shadow: none; border-radius: var(--r-lg); padding: 0 var(--pad); }
+.compare-offers-toggle:hover:not(:disabled) { background: var(--hover); }
+.compare-offers-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.compare-offers-scroll { overflow-x: auto; padding: 0 var(--pad) var(--pad); }
+.compare-offers-table { width: 100%; border-collapse: collapse; }
+.compare-offers-table th, .compare-offers-table td { text-align: left; padding: 10px 12px 10px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.compare-offers-table thead th { border-top: 0; font-size: 0.875rem; font-weight: 500; color: var(--muted); }
+.compare-offers-table tbody th { font-weight: 500; }

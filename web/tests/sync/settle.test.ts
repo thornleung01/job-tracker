@@ -5,6 +5,7 @@ import {
   ActionError, addApplication, deleteApplication, editApplication, mergeApplications, resolveReview, setStage, unlockStage,
 } from "../../src/sync/actions";
 import { fillMissingRoles, recheck, settleReview } from "../../src/sync/recheck";
+import { deleteForever } from "../../src/sync/trash";
 import { processMessage, processMessages } from "../../src/sync/sync";
 import { createApplication, upsertAccount } from "../../src/db/repo";
 import { sameRole } from "../../src/sync/match";
@@ -116,10 +117,11 @@ async function deleteEnv() {
 }
 
 describe("deleting an application", () => {
-  it("sticks through rechecks and later syncs", async () => {
+  it("sticks through rechecks and later syncs once it is erased for good", async () => {
     const { db, acct } = await deleteEnv();
     expect(await db.applications.count()).toBe(1);
     await deleteApplication(db, 1);
+    await deleteForever(db, 1);
     expect(await db.applications.count()).toBe(0);
     expect((await db.emails.toArray()).filter((e) => e.related)).toHaveLength(0);
     expect(await reviewCount(db)).toBe(0);
@@ -154,6 +156,8 @@ describe("deleting an application", () => {
     await seedNote(db, app, "x");
     await db.contactEdits.put({ key: `${app}|a@b.co`, name: "A", title: "T", hidden: false });
     await deleteApplication(db, app);
+    expect(await db.activity.count()).toBe(1);   // kept for 30 days
+    await deleteForever(db, app);
     expect(await db.applications.get(app)).toBeUndefined();
     expect(await db.activity.count()).toBe(0);
     expect(await db.contactEdits.count()).toBe(0);

@@ -4,6 +4,8 @@ import { isStage, type Stage } from "../db/stages";
 import { tx, type JobTrackerDB } from "../db/schema";
 import { iso } from "../db/time";
 import { deleteApplication } from "./actions";
+import { isLive } from "./live";
+import { restoreApplication } from "./trash";
 
 /** The most applications one bulk action takes. */
 export const BULK_MAX = 500;
@@ -26,7 +28,8 @@ export async function bulkSetStage(db: JobTrackerDB, ids: readonly number[], sta
   const wanted = validIds(ids);
   if (!wanted.length) return 0;
   const fields = manualStage(stage, iso(now));
-  return tx(db, () => db.applications.where(":id").anyOf(wanted).modify(fields));
+  // A deleted application is "no such application" here, like an id that is gone.
+  return tx(db, () => db.applications.where(":id").anyOf(wanted).filter(isLive).modify(fields));
 }
 
 /** How one application's stage stood before a bulk change. */
@@ -48,23 +51,39 @@ export async function bulkRestoreStages(db: JobTrackerDB, before: readonly Stage
     let restored = 0;
     for (const id of wanted) {
       const { stage, stageAt, locked } = byId.get(id)!;
-      restored += await db.applications.update(id, { stage, stageAt, locked });
+      const app = await db.applications.get(id);
+      if (app && isLive(app)) restored += await db.applications.update(id, { stage, stageAt, locked });
     }
     return restored;
   });
 }
 
-/** Deletes each application and clears its saved emails, like Delete application on the detail page. Returns how many were deleted. Ids that no longer exist are skipped. */
-export async function bulkDelete(db: JobTrackerDB, ids: readonly number[]): Promise<number> {
+/**
+ * Deletes each application like Delete application on the detail page: it goes to Recently deleted for 30 days, with its emails,
+ * so bulkRestore can bring them back. Returns how many were deleted. Ids that no longer exist (or are already deleted) are skipped.
+ */
+export async function bulkDelete(db: JobTrackerDB, ids: readonly number[], now: Date = new Date()): Promise<number> {
   const wanted = validIds(ids);
   if (!wanted.length) return 0;
   return tx(db, async () => {
     let deleted = 0;
     for (const id of wanted) {
-      if (!(await db.applications.get(id))) continue;
-      await deleteApplication(db, id, "clear");
+      const app = await db.applications.get(id);
+      if (!app || !isLive(app)) continue;
+      await deleteApplication(db, id, "clear", now);
       deleted++;
     }
     return deleted;
+  });
+}
+
+/** Brings deleted applications back, with their emails and notes: the Undo after a bulk delete. Returns how many came back. Ids that are live, or already erased, are skipped. */
+export async function bulkRestore(db: JobTrackerDB, ids: readonly number[]): Promise<number> {
+  const wanted = validIds(ids);
+  if (!wanted.length) return 0;
+  return tx(db, async () => {
+    let restored = 0;
+    for (const id of wanted) if ((await db.applications.get(id))?.deletedAt && (await restoreApplication(db, id))) restored++;
+    return restored;
   });
 }

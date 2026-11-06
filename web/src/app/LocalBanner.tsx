@@ -16,14 +16,17 @@ function readDismissed(): boolean {
 
 /**
  * Shown in the local build (no sign-in) as one quiet line: what this copy is, a text action for the demo data, and
- * Dismiss. The demo action is only offered while the database has no applications (it follows the data live), so it
- * can never replace what is there; Settings > Your data keeps the confirmed version. Dismissing lasts for the browser
+ * Dismiss. The demo action is only offered while the database has no applications at all, Recently deleted ones included
+ * (it follows the data live), so it can never replace what is there; Settings > Your data keeps the confirmed version. Dismissing lasts for the browser
  * session. It is a plain status row, so it never blocks the page or competes with the page's own primary button.
  */
 export function LocalBanner({ db }: { db: JobTrackerDB }) {
   const [dismissed, setDismissed] = useState(readDismissed);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Counts every application, deleted ones included, on purpose: the demo data replaces everything in the database, and
+  // an application in Recently deleted is still data that could be restored, so a database holding one is not empty.
+  // (Settings > Your data offers the demo data with a confirmation instead.)
   const applications = useQuery(() => db.applications.count(), [db]);
 
   if (dismissed) return null;

@@ -12,6 +12,8 @@ import { safeOfferDeadline, safeOfferSalary } from "../db/offer";
 import { safePostingUrl } from "../db/postingUrl";
 import { isConfidence, isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
+import { sanitizeGoal } from "../sync/goal";
+import { sanitizeSavedViews } from "../sync/savedViews";
 import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
 import { truncate } from "../sync/text";
 import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData } from "./format";
@@ -156,6 +158,8 @@ const parseAccount: RowParser<AccountRow> = (r, k) => {
   };
 };
 
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
 const parseApplication: RowParser<ApplicationRow> = (r, k) => {
   const id = readId(r, "id", k);
   const stage = r.stage;
@@ -167,6 +171,8 @@ const parseApplication: RowParser<ApplicationRow> = (r, k) => {
   // Offer details that aren't plain text of 60 characters or a real day are dropped, never an error.
   const offerSalary = safeOfferSalary(r.offerSalary);
   const offerDeadline = safeOfferDeadline(r.offerDeadline);
+  // When it was deleted: a real ISO time keeps it in Recently deleted, anything else is dropped (the application is then live), never an error.
+  const deletedAt = typeof r.deletedAt === "string" && ISO_TIME.test(r.deletedAt) && !Number.isNaN(new Date(r.deletedAt).getTime()) ? iso(r.deletedAt) : undefined;
   if (!id || !isStage(stage)) return null;
   return {
     id, company, companyKey: str(r, "companyKey", k, { max: MAX.company }), role: str(r, "role", k, { max: MAX.role }),
@@ -177,6 +183,7 @@ const parseApplication: RowParser<ApplicationRow> = (r, k) => {
     ...(rounds !== undefined ? { interviewRounds: rounds } : {}),
     ...(offerSalary ? { offerSalary } : {}),
     ...(offerDeadline ? { offerDeadline } : {}),
+    ...(deletedAt ? { deletedAt } : {}),
   };
 };
 
@@ -311,6 +318,9 @@ export function parseExportData(raw: unknown): ExportData {
   else if (isRecord(d.settings)) {
     if (isRecord(d.settings.appearance)) settings.appearance = sanitizeAppearance(d.settings.appearance);
     if (isRecord(d.settings.sync)) settings.sync = sanitizeSync(d.settings.sync);
+    // Saved views and the weekly goal (sync/savedViews.ts, sync/goal.ts): kept as checked values, or not at all.
+    if (d.settings.savedViews !== undefined) settings.savedViews = { views: sanitizeSavedViews(d.settings.savedViews) };
+    if (sanitizeGoal(d.settings.weeklyGoal) !== null) settings.weeklyGoal = { perWeek: sanitizeGoal(d.settings.weeklyGoal) };
   }
 
   if (check.problems.length) throw new ImportError(check.problems);

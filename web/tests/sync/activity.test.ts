@@ -8,6 +8,7 @@ import { STAGES } from "../../src/db/stages";
 import { iso, localToday } from "../../src/db/time";
 import { processMessages } from "../../src/sync/sync";
 import { mergeApplications, deleteApplication } from "../../src/sync/actions";
+import { deleteForever } from "../../src/sync/trash";
 import { closeAll, dbWithAccount, freshDb, mk, seedNote } from "./helpers";
 import { daysAgo, pinClock } from "../support/clock";
 
@@ -151,6 +152,8 @@ describe("deleting and history", () => {
     await mergeApplications(db, a, b);
     expect(new Set((await db.activity.where("applicationId").equals(b).toArray()).map((r) => r.body))).toEqual(new Set(["on a", "on b"]));
     await deleteApplication(db, b);
+    expect(await db.activity.count()).toBe(2);   // kept for 30 days: Recently deleted
+    await deleteForever(db, b);
     expect(await db.activity.count()).toBe(0);
   });
 });

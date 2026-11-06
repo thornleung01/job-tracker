@@ -1,0 +1,14 @@
+/* "Add several links" in the add form. The toggle looks like the "paste the job text" one beside it. */
+.bulk-add { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 4px 0 16px; }
+.bulk-add-box { width: 100%; }
+.bulk-add-box[hidden] { display: none; }
+.bulk-add-box .row { margin-top: 8px; }
+.bulk-add-progress { margin: 8px 0 0; }
+/* An empty line takes no room, but stays on the page: a status that is already there when its words arrive is read out. */
+.bulk-add-progress:empty { margin: 0; }
+.bulk-add-results { list-style: none; margin: 8px 0 0; padding: 0; }
+.bulk-add-results li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line); }
+.bulk-add-link { color: var(--muted); overflow-wrap: anywhere; }
+.bulk-add-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; box-shadow: none; color: var(--muted); font-size: 0.875rem; font-weight: 500; padding: 0 4px; }
+.bulk-add-toggle:hover:not(:disabled) { background: none; color: var(--ink); }
+.bulk-add-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
