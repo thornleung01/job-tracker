@@ -13,6 +13,7 @@ import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider, type Message, type ProviderName } from "../../src/types";
 import { isSyncing, tryAcquire } from "../../src/sync/syncLock";
 import { mk } from "../sync/helpers";
+import { fakeAiDeps } from "../ai/helpers";
 import fixture from "../fixtures/python-export.json";
 import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, freshDb, q, render, settle, sleep, waitFor } from "../app/helpers";
 
@@ -55,6 +56,7 @@ async function setup(opts: { maker?: ProviderMaker; db?: JobTrackerDB } = {}): P
     getAddress: vi.fn(async (p: ProviderName) => (p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
     download,
     downloadCsv,
+    ai: fakeAiDeps().deps,
   };
   await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
   await waitFor(() => q("#appearance input[type=radio]"));
@@ -86,7 +88,7 @@ describe("page structure", () => {
   it("has the template's sections, one h1, and sentence case throughout", async () => {
     await setup();
     expect(q("h1")!.textContent).toBe("Settings");
-    expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "Save jobs from any site", "Recently deleted", "Your data", "Account"]);
+    expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "AI", "Save jobs from any site", "Recently deleted", "Your data", "Account"]);
     for (const b of Array.from(document.querySelectorAll("button, label.btn"))) {
       const t = b.textContent!.trim();
       // sentence case: only names (Gmail, Outlook) and the CSV acronym are capitalised after the first word

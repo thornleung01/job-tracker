@@ -15,7 +15,7 @@ describe("Settings section links", () => {
   it("include Recently deleted, and it jumps to that card's heading", async () => {
     await render(h(SettingsView, { db: freshDb(), user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined }));
     await waitFor(() => q("#trash"));
-    expect([...document.querySelectorAll("nav.sub a")].map((a) => a.textContent)).toEqual(["Email accounts", "Appearance", "Recently deleted", "Your data"]);
+    expect([...document.querySelectorAll("nav.sub a")].map((a) => a.textContent)).toEqual(["Email accounts", "Appearance", "AI", "Recently deleted", "Your data"]);
     Element.prototype.scrollIntoView = vi.fn();
     await click(byText("Recently deleted", "nav a")!);
     expect(document.activeElement).toBe(q("#h-trash"));
