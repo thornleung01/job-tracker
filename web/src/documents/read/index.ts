@@ -38,7 +38,8 @@ export async function readFileSections(file: Blob & { name?: string }): Promise<
 
 /** Pasted text as sections. */
 export function readPastedSections(text: string): DocSection[] {
-  const clean = tidy(text);
+  // Pasted text is read up to the same size as a file (counted in characters), and the rest is ignored without a message.
+  const clean = tidy(text.slice(0, MAX_FILE_BYTES));
   if (!clean) throw new ReadError(MESSAGES.empty);
   return splitSections(clean);
 }
