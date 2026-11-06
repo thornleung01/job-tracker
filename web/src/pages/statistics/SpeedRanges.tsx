@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { Speed, Spread, Waiting } from "../../sync/statistics";
 import { plural } from "../../sync/text";
 import { listUrl } from "../applications";
@@ -78,18 +78,29 @@ function summary(rows: readonly RowDef[]): string {
 }
 
 function WaitingNow({ waiting, account }: { waiting: Waiting; account: number }) {
+  const id = useId();
   if (waiting.fresh + waiting.followUp + waiting.ghosted === 0) return null;
-  const link = (count: number, text: string, filter: { followUp: true } | { ghosted: true }) =>
-    count > 0 ? <a href={`#${listUrl({ ...filter, account })}`}>{text}</a> : text;
+  const row = (label: string, count: number, note: string, filter?: { followUp: true } | { ghosted: true }) => {
+    const inner = (
+      <>
+        <span className="wn-text">
+          <span className="wn-label">{label}</span>
+          {note ? <span className="wn-note">{note}</span> : null}
+        </span>
+        <span className="wn-count">{count}</span>
+      </>
+    );
+    return <li>{filter && count > 0 ? <a className="wn-row" href={`#${listUrl({ ...filter, account })}`}>{inner}</a> : <span className="wn-row">{inner}</span>}</li>;
+  };
   return (
-    <div className="waiting-now" role="group" aria-label="Waiting now">
-      <p className="small">Waiting now</p>
-      <ul className="small">
-        <li>Under 7 days: {waiting.fresh}</li>
-        <li>7 to 29 days: {link(waiting.followUp, `${waiting.followUp} follow up`, { followUp: true })}</li>
-        <li>30 days or more: {link(waiting.ghosted, `${waiting.ghosted} no reply`, { ghosted: true })}</li>
+    <section className="card viz-root waiting-now" aria-labelledby={id}>
+      <h2 className="section" id={id}>Waiting now</h2>
+      <ul>
+        {row("Under 7 days", waiting.fresh, "")}
+        {row("7 to 29 days", waiting.followUp, "Follow up", { followUp: true })}
+        {row("30 days or more", waiting.ghosted, "No reply", { ghosted: true })}
       </ul>
-    </div>
+    </section>
   );
 }
 
@@ -126,36 +137,39 @@ export function SpeedRanges({ speed, waiting, account }: { speed: Speed; waiting
   );
 
   return (
-    <ChartFrame title="How fast companies reply" keys={rows.map((r) => r.key)} table={table} footer={<WaitingNow waiting={waiting} account={account} />}>
-      {(bind) => (
-        <svg className="chart speed-chart" viewBox={`0 0 ${W} ${H}`} role="group" aria-label={summary(rows)}>
-          <g aria-hidden="true" className="axis">
-            {[0, max].map((v) => (
-              <line key={v} className="gridline" x1={x(v)} x2={x(v)} y1={GRID_TOP} y2={GRID_BOTTOM} />
-            ))}
-            <text x={x(0)} y={H - 4} textAnchor="start">0</text>
-            <text x={x(max)} y={H - 4} textAnchor="end">{`${max} days`}</text>
-          </g>
-          {rows.map((r, i) => {
-            const s = r.spread;
-            const top = TOP + i * PITCH;
-            const cy = top + 32;
-            return (
-              <g key={r.key}>
-                <text className="row-label" x={X0} y={top + 14} aria-hidden="true">{r.label}</text>
-                <text className="row-text" x={X1} y={top + 14} textAnchor="end" aria-hidden="true">{medianText(s)}</text>
-                {s.median !== null && s.p25 !== null && s.p75 !== null ? (
-                  <g aria-hidden="true">
-                    {s.p25 !== s.p75 ? <rect className="range" x={x(s.p25)} y={cy - 3} width={x(s.p75) - x(s.p25)} height={6} rx={3} /> : null}
-                    <circle className="median" cx={x(s.median)} cy={cy} r={5} />
-                  </g>
-                ) : null}
-                <rect className="mark-hit" x={0} y={top} width={W} height={PITCH} {...bind(r.key, tip(r), markLabel(r))} />
-              </g>
-            );
-          })}
-        </svg>
-      )}
-    </ChartFrame>
+    <div className="stat-pair">
+      <ChartFrame title="How fast companies reply" keys={rows.map((r) => r.key)} table={table}>
+        {(bind) => (
+          <svg className="chart speed-chart" viewBox={`0 0 ${W} ${H}`} role="group" aria-label={summary(rows)}>
+            <g aria-hidden="true" className="axis">
+              {[0, max].map((v) => (
+                <line key={v} className="gridline" x1={x(v)} x2={x(v)} y1={GRID_TOP} y2={GRID_BOTTOM} />
+              ))}
+              <text x={x(0)} y={H - 4} textAnchor="start">0</text>
+              <text x={x(max)} y={H - 4} textAnchor="end">{`${max} days`}</text>
+            </g>
+            {rows.map((r, i) => {
+              const s = r.spread;
+              const top = TOP + i * PITCH;
+              const cy = top + 32;
+              return (
+                <g key={r.key}>
+                  <text className="row-label" x={X0} y={top + 14} aria-hidden="true">{r.label}</text>
+                  <text className="row-text" x={X1} y={top + 14} textAnchor="end" aria-hidden="true">{medianText(s)}</text>
+                  {s.median !== null && s.p25 !== null && s.p75 !== null ? (
+                    <g aria-hidden="true">
+                      {s.p25 !== s.p75 ? <rect className="range" x={x(s.p25)} y={cy - 3} width={x(s.p75) - x(s.p25)} height={6} rx={3} /> : null}
+                      <circle className="median" cx={x(s.median)} cy={cy} r={5} />
+                    </g>
+                  ) : null}
+                  <rect className="mark-hit" x={0} y={top} width={W} height={PITCH} {...bind(r.key, tip(r), markLabel(r))} />
+                </g>
+              );
+            })}
+          </svg>
+        )}
+      </ChartFrame>
+      <WaitingNow waiting={waiting} account={account} />
+    </div>
   );
 }

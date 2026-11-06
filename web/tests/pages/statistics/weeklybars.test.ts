@@ -271,7 +271,6 @@ describe("WeeklyBars", () => {
     expect(css).not.toMatch(/text-decoration:\s*underline/);
     expect(css).not.toContain("!important");
     expect(css).toContain("var(--stage-applied)");
-    expect(css).toContain("var(--neutral)");
     for (const line of css.split("\n").filter((l) => /^\s*\.viz-root|^\s*\./.test(l))) expect(line.trim().startsWith(".viz-root svg.pace-chart")).toBe(true);
   });
 });

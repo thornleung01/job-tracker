@@ -1,14 +1,18 @@
 /* The speed chart: three range rows on one day axis, and the "Waiting now" counts under it. Everything is scoped to the classes below. */
 .viz-root svg.speed-chart .row-label { fill: var(--ink); font-size: 13px; font-weight: 500; }
-.viz-root svg.speed-chart .row-text { fill: var(--ink2); font-size: 12px; }
-.viz-root svg.speed-chart .range { fill: var(--neutral); }
-.viz-root svg.speed-chart .median { fill: var(--ink); stroke: var(--viz-surface); stroke-width: 2px; }
+.viz-root svg.speed-chart .row-text { fill: var(--ink2); font-size: 12px; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
+.viz-root svg.speed-chart .range { fill: var(--stage-applied); fill-opacity: .55; }
+.viz-root svg.speed-chart .median { fill: var(--stage-applied); stroke: var(--viz-surface); stroke-width: 2px; }
 .viz-root svg.speed-chart .mark-hit:focus-visible { stroke: var(--ink); stroke-width: 2px; }
 
-.viz-root .waiting-now { margin-top: var(--gap); }
-.viz-root .waiting-now p { margin: 0 0 4px; color: var(--ink2); }
-.viz-root .waiting-now ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 2px var(--gap); }
-.viz-root .waiting-now a { text-decoration: none; }
+/* Waiting now: its own card, a row per age with the count on the right. A row is a link only when there is something to open. */
+.viz-root.waiting-now ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.viz-root.waiting-now .wn-row { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); padding: 14px 12px; border-radius: var(--r); color: var(--ink); text-decoration: none; }
+.viz-root.waiting-now a.wn-row:hover { background: var(--hover); }
+.viz-root.waiting-now .wn-text { display: grid; gap: 2px; min-width: 0; }
+.viz-root.waiting-now .wn-label { font-size: 0.9375rem; font-weight: 500; }
+.viz-root.waiting-now .wn-note { color: var(--ink2); font-size: 0.8125rem; }
+.viz-root.waiting-now .wn-count { font: 700 1.5625rem/1.2 var(--font-ui); letter-spacing: -0.25px; }
 
 @media (forced-colors: active) {
   .viz-root svg.speed-chart .row-label { fill: CanvasText; }
@@ -16,8 +20,8 @@
   .viz-root svg.speed-chart .range { fill: GrayText; stroke: CanvasText; stroke-width: 1px; }
   .viz-root svg.speed-chart .median { fill: CanvasText; stroke: Canvas; }
   .viz-root svg.speed-chart .mark-hit:focus-visible { stroke: Highlight; }
-  .viz-root .waiting-now a { color: LinkText; }
+  .viz-root.waiting-now a.wn-row { color: LinkText; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .viz-root svg.speed-chart *, .viz-root .waiting-now * { transition: none; }
+  .viz-root svg.speed-chart *, .viz-root.waiting-now * { transition: none; }
 }

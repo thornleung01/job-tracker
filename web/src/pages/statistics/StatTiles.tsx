@@ -28,7 +28,7 @@ export function tilesFor(flow: FlowData, speed: Speed, pace: Pace | null): Tile[
 /** A row of numbers at the top of the page: no chart, no chrome. Render it only when there are applications. */
 export function StatTiles({ flow, speed, pace }: { flow: FlowData; speed: Speed; pace: Pace | null }) {
   return (
-    <section className="card viz-root" aria-label="Summary">
+    <section className="card viz-root summary" aria-label="Summary">
       <dl className="tiles">
         {tilesFor(flow, speed, pace).map((t) => (
           <div key={t.label} className={t.quiet ? "tile quiet" : "tile"}>
