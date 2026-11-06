@@ -253,6 +253,7 @@ describe("importing the local edition's file", () => {
       accounts: golden.counts.accounts, applications: golden.counts.applications, emails: golden.counts.emails, activity: golden.counts.activity,
       feedback: golden.counts.feedback, ignoredMail: golden.counts.ignored_mail, learnedRules: golden.counts.learned_rules,
       contactEdits: golden.counts.contact_edits,
+      documents: 0,
     });
     // text from the file, with flags turned into booleans and snake_case into camelCase
     const hand = (await db.applications.toArray()).find((a) => a.company === "Hand Made Co")!;
@@ -289,5 +290,54 @@ describe("importing the local edition's file", () => {
     expect(() => convertPythonExport({ format: "something else" })).toThrow(ImportError);
     expect(() => convertPythonExport({ ...fixture, version: 7 })).toThrow(/version 7/);
     await expect(importFromPythonExport(db, await exportAll(db))).rejects.toThrow(/scripts\/export_json\.py/);
+  });
+});
+
+describe("documents in the export", () => {
+  it("round-trips resumes, a cover letter, the posting text and the resume an application points at", async () => {
+    const { createApplication } = await import("../../src/db/repo");
+    const { createVersion, saveCoverLetter, saveMaster, setApplicationResume, setPostingText } = await import("../../src/sync/documents");
+    const from = freshDb();
+    const lines = [{ id: "s1", heading: "Skills", items: [{ id: "i1", text: "SQL" }] }];
+    await saveMaster(from, lines, "paste");
+    const v = await createVersion(from, { title: "Data roles", sections: lines });
+    const appId = await createApplication(from, { company: "Acme", companyKey: "acme", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-11-01T12:00:00Z" });
+    await setApplicationResume(from, appId, v);
+    await setPostingText(from, appId, "The posting");
+    await saveCoverLetter(from, appId, lines, "paste");
+    const file = JSON.parse(await exportAllAsJson(from));
+    expect(file.version).toBe(3);
+    const to = freshDb();
+    const summary = await importAll(to, file);
+    expect(summary.documents).toBe(3);
+    expect(await to.documents.toArray()).toEqual(await from.documents.toArray());
+    expect(await to.applications.toArray()).toEqual(await from.applications.toArray());
+  });
+
+  it("still reads a version 2 file, which has no documents", async () => {
+    const to = freshDb();
+    const summary = await importAll(to, { format: "jobtracker-export", version: 2, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { applications: [] } });
+    expect(summary.documents).toBe(0);
+  });
+
+  it("drops a resume pointer to a document that isn't in the file, and refuses a cover letter for a missing application", async () => {
+    const to = freshDb();
+    const app = { id: 1, company: "A", companyKey: "a", role: "R", roleKey: "r", stage: "Applied", stageAt: null, appliedAt: null, lastActivity: null, locked: false, manual: false, resumeId: 9 };
+    const ok = await importAll(to, { format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { applications: [app] } });
+    expect(ok.applications).toBe(1);
+    expect("resumeId" in (await to.applications.get(1))!).toBe(false);
+    const letter = { id: 1, kind: "cover", master: false, applicationId: 7, title: "x", sections: [], createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z" };
+    await expect(importAll(to, { format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { documents: [letter] } })).rejects.toThrow();
+  });
+
+  it("cuts text to the limits, refuses two master resumes, and a cover letter without an application", async () => {
+    const to = freshDb();
+    const base = { kind: "resume", applicationId: null, title: "x", createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z" };
+    const one = { ...base, id: 1, master: true, sections: [{ heading: "H", items: [{ text: "y".repeat(5000) }] }] };
+    const two = { ...base, id: 2, master: true, sections: [] };
+    await importAll(to, { format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { documents: [one] } });
+    expect((await to.documents.get(1))!.sections[0].items[0].text).toHaveLength(1000);
+    await expect(importAll(to, { format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { documents: [one, two] } })).rejects.toThrow(/more than one master/);
+    await expect(importAll(to, { format: "jobtracker-export", version: 3, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { documents: [{ ...base, id: 3, kind: "cover", master: false, sections: [] }] } })).rejects.toThrow(/needs an application/);
   });
 });

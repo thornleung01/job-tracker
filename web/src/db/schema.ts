@@ -43,6 +43,10 @@ export interface ApplicationRow {
    * new Dexie version: older rows simply have no field. See sync/trash.ts.
    */
   deletedAt?: string;
+  /** the job posting's text, at most MAX_POSTING_CHARS; absent when none. Not indexed. */
+  postingText?: string;
+  /** the resume version you sent (a documents row of kind "resume"); absent when none or when that version was erased. Not indexed. */
+  resumeId?: number;
 }
 
 export interface EmailRow {
@@ -126,6 +130,41 @@ export interface ContactEditRow {
   hidden: boolean;
 }
 
+/** One line of a resume or paragraph of a cover letter. The id is stable, so a tailored line can be traced to the line it came from. */
+export interface DocItem {
+  id: string;
+  text: string;
+}
+
+export interface DocSection {
+  id: string;
+  /** "Experience", "Skills"... Empty for a cover letter. */
+  heading: string;
+  items: DocItem[];
+}
+
+/**
+ * A resume or a cover letter. Resume versions are standalone and reusable: any number of applications can point at one
+ * (ApplicationRow.resumeId), and `master` marks the one you copy from. A cover letter belongs to one application.
+ */
+export interface DocumentRow {
+  id: number;
+  kind: "resume" | "cover";
+  /** the resume you copy versions from; at most one, and never a cover letter */
+  master: boolean;
+  /** the application a cover letter was written for; null for a resume */
+  applicationId: number | null;
+  title: string;
+  sections: DocSection[];
+  /** the document it was copied or tailored from */
+  basedOn?: number;
+  source?: "upload" | "paste" | "copy" | "ai";
+  createdAt: string;
+  updatedAt: string;
+  /** when you deleted it (ISO): it stays in Recently deleted for 30 days, hidden everywhere else. Not indexed. */
+  deletedAt?: string;
+}
+
 export interface SettingRow {
   key: string;
   value: unknown;
@@ -140,6 +179,7 @@ export class JobTrackerDB extends Dexie {
   ignoredMail!: Table<IgnoredMailRow, number, Insert<IgnoredMailRow>>;
   learnedRules!: Table<LearnedRuleRow, number, Insert<LearnedRuleRow>>;
   contactEdits!: Table<ContactEditRow, string>;
+  documents!: Table<DocumentRow, number, Insert<DocumentRow>>;
   settings!: Table<SettingRow, string>;
 
   constructor(name: string) {
@@ -161,6 +201,8 @@ export class JobTrackerDB extends Dexie {
         if (typeof a.postingUrl !== "string" || !a.postingUrl) delete a.postingUrl;
       }),
     );
+    // v3: resumes and cover letters.
+    this.version(3).stores({ documents: "++id, kind, applicationId" });
   }
 }
 

@@ -2,11 +2,12 @@
 // One small parser per table (each is a list of the fields it reads, in the order problems are reported), then checks across
 // tables: ids are unique, every reference points at a row that is there.
 import { BODY_LIMIT } from "../types";
-import type { ActivityRow, ApplicationRow, ContactEditRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow } from "../db/schema";
+import type { ActivityRow, ApplicationRow, ContactEditRow, DocumentRow, EmailRow, FeedbackRow, IgnoredMailRow, LearnedRuleRow, AccountRow } from "../db/schema";
 import { isRecord } from "../db/isRecord";
 import { isRuleKind } from "../db/schema";
 import { isContactKey } from "../db/contactKey";
-import { MAX_COMPANY_CHARS, MAX_NAME_CHARS, MAX_ROLE_CHARS, MAX_ROUNDS, MAX_TITLE_CHARS } from "../db/limits";
+import { normalizeSections } from "../db/documentShape";
+import { MAX_COMPANY_CHARS, MAX_DOC_TITLE_CHARS, MAX_NAME_CHARS, MAX_POSTING_CHARS, MAX_ROLE_CHARS, MAX_ROUNDS, MAX_TITLE_CHARS } from "../db/limits";
 import { safeWebLink } from "../db/mailLink";
 import { safeOfferDeadline, safeOfferSalary } from "../db/offer";
 import { safePostingUrl } from "../db/postingUrl";
@@ -173,6 +174,9 @@ const parseApplication: RowParser<ApplicationRow> = (r, k) => {
   const offerDeadline = safeOfferDeadline(r.offerDeadline);
   // When it was deleted: a real ISO time keeps it in Recently deleted, anything else is dropped (the application is then live), never an error.
   const deletedAt = typeof r.deletedAt === "string" && ISO_TIME.test(r.deletedAt) && !Number.isNaN(new Date(r.deletedAt).getTime()) ? iso(r.deletedAt) : undefined;
+  // The posting text is cut to the limit, and an empty one dropped. A resume id is checked against the documents once those are read.
+  const postingText = typeof r.postingText === "string" && r.postingText.trim() ? r.postingText.trim().slice(0, MAX_POSTING_CHARS) : undefined;
+  const resumeId = typeof r.resumeId === "number" && Number.isInteger(r.resumeId) && r.resumeId > 0 ? r.resumeId : undefined;
   if (!id || !isStage(stage)) return null;
   return {
     id, company, companyKey: str(r, "companyKey", k, { max: MAX.company }), role: str(r, "role", k, { max: MAX.role }),
@@ -184,6 +188,8 @@ const parseApplication: RowParser<ApplicationRow> = (r, k) => {
     ...(offerSalary ? { offerSalary } : {}),
     ...(offerDeadline ? { offerDeadline } : {}),
     ...(deletedAt ? { deletedAt } : {}),
+    ...(postingText ? { postingText } : {}),
+    ...(resumeId !== undefined ? { resumeId } : {}),
   };
 };
 
@@ -269,6 +275,27 @@ const parseContactEdit: RowParser<ContactEditRow> = (r, k) => {
   return { key, name: nullableStr(r, "name", k, MAX.personName), title: nullableStr(r, "title", k, MAX.personTitle), hidden: flag(r, "hidden", k) };
 };
 
+const parseDocument: RowParser<DocumentRow> = (r, k, known) => {
+  const id = readId(r, "id", k);
+  if (r.kind !== "resume" && r.kind !== "cover") k.fail("kind must be resume or cover.");
+  const applicationId = readId(r, "applicationId", k, true);
+  mustPointAtApplication(applicationId, known, k);
+  const sections = normalizeSections(r.sections);
+  const kind = r.kind;
+  if (kind === "cover" && applicationId === null) k.fail("a cover letter needs an application.");
+  if (!id || (kind !== "resume" && kind !== "cover")) return null;
+  const source = r.source === "upload" || r.source === "paste" || r.source === "copy" || r.source === "ai" ? r.source : undefined;
+  const basedOn = typeof r.basedOn === "number" && Number.isInteger(r.basedOn) && r.basedOn > 0 ? r.basedOn : undefined;
+  const deletedAt = typeof r.deletedAt === "string" && ISO_TIME.test(r.deletedAt) && !Number.isNaN(new Date(r.deletedAt).getTime()) ? iso(r.deletedAt) : undefined;
+  return {
+    id, kind, master: kind === "resume" && r.master === true, applicationId: kind === "cover" ? applicationId : null,
+    title: str(r, "title", k, { max: MAX_DOC_TITLE_CHARS }) || (kind === "cover" ? "Cover letter" : "Resume"), sections,
+    ...(basedOn !== undefined ? { basedOn } : {}), ...(source ? { source } : {}),
+    createdAt: time(r, "createdAt", k) ?? "", updatedAt: time(r, "updatedAt", k) ?? "",
+    ...(deletedAt ? { deletedAt } : {}),
+  };
+};
+
 function checkIdsAreUnique(rows: { id: number }[], name: string, check: Check): void {
   const seen = new Set<number>();
   for (const r of rows) {
@@ -302,16 +329,24 @@ export function parseExportData(raw: unknown): ExportData {
   const ignoredMail = parseTable(d.ignoredMail, "ignoredMail", check, known, parseIgnoredMail);
   const learnedRules = parseTable(d.learnedRules, "learnedRules", check, known, parseLearnedRule);
   const contactEdits = parseTable(d.contactEdits, "contactEdits", check, known, parseContactEdit);
+  const documents = parseTable(d.documents, "documents", check, known, parseDocument);
+  // An application can only point at a resume that is in the file; a pointer to anything else is dropped.
+  const resumeIds = new Set(documents.filter((x) => x.kind === "resume").map((x) => x.id));
+  for (let i = 0; i < applications.length; i++) {
+    const { resumeId, ...rest } = applications[i];
+    if (resumeId !== undefined && !resumeIds.has(resumeId)) applications[i] = rest;
+  }
 
   for (const [name, rows] of [
     ["accounts", accounts], ["applications", applications], ["emails", emails], ["activity", activity], ["feedback", feedback],
-    ["ignoredMail", ignoredMail], ["learnedRules", learnedRules],
+    ["ignoredMail", ignoredMail], ["learnedRules", learnedRules], ["documents", documents],
   ] as const) checkIdsAreUnique(rows, name, check);
   checkNoDuplicates(accounts, (a) => `${a.provider}\u0000${a.address}`, "accounts", check);
   checkNoDuplicates(emails, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "emails", check);
   checkNoDuplicates(ignoredMail, (e) => `${e.accountId}\u0000${e.providerMsgId}`, "ignoredMail", check);
   checkNoDuplicates(learnedRules, (r) => `${r.kind}\u0000${r.value}`, "learnedRules", check);
   checkNoDuplicates(contactEdits, (e) => e.key, "contactEdits", check);
+  if (documents.filter((x) => x.master && !x.deletedAt).length > 1) check.fail("documents has more than one master resume.");
 
   const settings: Record<string, unknown> = {};
   if (d.settings !== undefined && !isRecord(d.settings)) check.fail('"settings" must be an object.');
@@ -324,7 +359,7 @@ export function parseExportData(raw: unknown): ExportData {
   }
 
   if (check.problems.length) throw new ImportError(check.problems);
-  return { accounts, applications, emails, activity, feedback, ignoredMail, learnedRules, contactEdits, settings };
+  return { accounts, applications, emails, activity, feedback, ignoredMail, learnedRules, contactEdits, documents, settings };
 }
 
 /** Checks the envelope (format and version) and the data inside it. */

@@ -27,7 +27,8 @@ async function isUntouched(db: JobTrackerDB, appId: number | null): Promise<bool
   if (!app) return true;
   if (!isLive(app)) return false;
   const notes = await db.activity.where("applicationId").equals(appId).count();
-  return !app.manual && !app.locked && notes === 0;
+  const letters = await db.documents.where("applicationId").equals(appId).count();
+  return !app.manual && !app.locked && notes === 0 && letters === 0 && app.resumeId === undefined && !app.postingText;
 }
 
 export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise<RecheckResult> {
@@ -85,9 +86,10 @@ export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise
   return { checked: rows.length, cleared, removed, settled: await settleReview(db), roles: await fillMissingRoles(db) };
 }
 
-/** Deletes an application row together with what is keyed to it: its notes and steps, people corrections, and the links from feedback and emails. */
+/** Deletes an application row together with what is keyed to it: its notes and steps, its cover letter, people corrections, and the links from feedback and emails. */
 export async function removeApplicationRow(db: JobTrackerDB, appId: number): Promise<void> {
   await db.activity.where("applicationId").equals(appId).delete();
+  await db.documents.where("applicationId").equals(appId).delete(); // its cover letter; resume versions are standalone and stay
   await db.contactEdits.where("key").startsWith(`${appId}|`).delete();
   await db.feedback.where("applicationId").equals(appId).modify({ applicationId: null });
   await db.emails.where("applicationId").equals(appId).modify({ applicationId: null });

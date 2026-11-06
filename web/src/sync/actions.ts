@@ -165,6 +165,12 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
     if (dst.interviewRounds === undefined && src.interviewRounds !== undefined) fields.interviewRounds = src.interviewRounds;
     if (!dst.offerSalary && src.offerSalary) fields.offerSalary = src.offerSalary;
     if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
+    if (!dst.postingText && src.postingText) fields.postingText = src.postingText;
+    if (dst.resumeId === undefined && src.resumeId !== undefined) fields.resumeId = src.resumeId;
+    // One cover letter per application: the target's stays, and the source's moves over only when the target has none.
+    if (!(await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt).count())) {
+      await db.documents.where("applicationId").equals(appId).modify({ applicationId: into });
+    }
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.feedback.where("applicationId").equals(appId).modify({ applicationId: into });
