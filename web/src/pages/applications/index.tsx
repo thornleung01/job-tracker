@@ -5,6 +5,7 @@ import { BulkBar } from "../../components/bulk/BulkBar";
 import { SelectAll } from "../../components/bulk/SelectBoxes";
 import { useSelection } from "../../components/bulk/useSelection";
 import { BulkAdd } from "../../components/bulkadd/BulkAdd";
+import { ResumeSelect } from "../../components/bulkadd/ResumeSelect";
 import { CalendarView } from "../../components/calendar/CalendarView";
 import { Combobox } from "../../components/Combobox";
 import { DuplicateNotice } from "../../components/duplicates/DuplicateNotice";
@@ -13,6 +14,7 @@ import { FollowUpToggle } from "../../components/followup/FollowUpToggle";
 import { GhostedToggle } from "../../components/ghosted/GhostedToggle";
 import { WeeklyGoal } from "../../components/goal/WeeklyGoal";
 import { JobLinkField } from "../../components/joblink/JobLinkField";
+import type { JobDraft } from "../../jobs/types";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { realJobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
@@ -28,10 +30,12 @@ import { ComingUp } from "../../components/upcoming/ComingUp";
 import { useAction } from "../../components/useAction";
 import { isLocalUser } from "../../app/localUser";
 import { listAccounts } from "../../db/repo";
+import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
 import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limits";
 import { isDayString, localToday } from "../../db/time";
-import { addApplication as realAddApplication } from "../../sync/actions";
+import { addApplication as realAddApplication, type AddApplicationInput } from "../../sync/actions";
+import { liveResumes } from "../../sync/documents";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
@@ -47,6 +51,8 @@ interface ListState {
   dir: string;
   followUp: boolean;
   ghosted: boolean;
+  /** a resume version's id, "none" for no resume set, or "" for any */
+  resume: string;
   open: number[];
   /** "calendar" or the default "list" (left out of the address) */
   view: string;
@@ -66,6 +72,7 @@ export function listUrl(s: Partial<ListState>): string {
   if (s.dir) p.set("dir", s.dir);
   if (s.followUp) p.set("followUp", "1");
   if (s.ghosted) p.set("ghosted", "1");
+  if (s.resume) p.set("resume", s.resume);
   if (s.open?.length) p.set("open", s.open.join(","));
   if (s.view === "calendar") {
     p.set("view", "calendar");
@@ -75,6 +82,29 @@ export function listUrl(s: Partial<ListState>): string {
   const qs = p.toString();
   return qs ? `/?${qs}` : "/";
 }
+
+/** "none" or a whole-number resume id from the address; anything else is no filter. */
+const readResume = (raw: string | null): string => (raw === "none" || (raw !== null && /^[1-9]\d{0,15}$/.test(raw)) ? raw : "");
+
+/** The last "Resume sent" choice, kept for this tab and this account's database only. */
+const lastResumeKey = (db: JobTrackerDB) => `jobtracker:lastResume:${db.name}`;
+function readLastResume(db: JobTrackerDB): string {
+  try {
+    return sessionStorage.getItem(lastResumeKey(db)) ?? "";
+  } catch {
+    return "";
+  }
+}
+function rememberResume(db: JobTrackerDB, value: string): void {
+  try {
+    sessionStorage.setItem(lastResumeKey(db), value);
+  } catch {
+    // a browser that won't keep it just starts from None next time
+  }
+}
+
+/** The job posting text a draft carries (JobDraft.description), or "". */
+const descriptionOf = (draft: JobDraft | null): string => draft?.description?.trim() ?? "";
 
 /** The attribute the stylesheet hangs the phone layout on: last activity is `last_activity` there. */
 const dataCol = (c: ColumnId): string => (c === "lastActivity" ? "last_activity" : c);
@@ -98,6 +128,7 @@ function readState(query: URLSearchParams, today: string): ListState {
     dir: dir === "asc" || dir === "desc" ? dir : "",
     followUp: query.get("followUp") === "1",
     ghosted: query.get("ghosted") === "1",
+    resume: readResume(query.get("resume")),
     open: [...new Set((query.get("open") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0))],
   };
 }
@@ -112,27 +143,28 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const local = isLocalUser(user);
   const today = localToday();
   const state = readState(query, today);
-  const { stage, q, account, followUp, ghosted, open, view, day } = state;
+  const { stage, q, account, followUp, ghosted, resume, open, view, day } = state;
   const calendar = view === "calendar";
   const month = state.month || today.slice(0, 7);
   /** the calendar's place in the address: spread into every navigation, so no link or button can drop the view */
   const keep = { view, month: state.month, day };
   /** the filters in the address, for every link and navigation that must keep them */
-  const filters = { stage, q, account, followUp, ghosted };
+  const filters = { stage, q, account, followUp, ghosted, resume };
   const sort = (state.sort || "lastActivity") as SortColumn;
   const dir = state.dir || DEFAULT_DIR[sort];
 
   const data = useQuery(async () => {
-    const rows = await listApplications(db, { stage, q, account, followUp, ghosted, sort, dir });
+    const rows = await listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir });
     const counts = await stageCounts(db);
     return {
       rows, counts, accounts: await listAccounts(db), review: await reviewCount(db),
       columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
+      resumes: (await liveResumes(db)).map(({ id, title, master }) => ({ id, title, master })),
     };
-  }, [db, stage, q, account, followUp, ghosted, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
+  }, [db, stage, q, account, followUp, ghosted, resume, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
 
   // The ticked rows live here, not in the address, and are dropped when the filters change.
-  const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp, ghosted]));
+  const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp, ghosted, resume]));
 
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
   const [draftQ, setDraftQ] = useState(q);
@@ -140,16 +172,18 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const [draftAccount, setDraftAccount] = useState(account);
   const [draftFollowUp, setDraftFollowUp] = useState(followUp);
   const [draftGhosted, setDraftGhosted] = useState(ghosted);
+  const [draftResume, setDraftResume] = useState(resume);
   useEffect(() => setDraftQ(q), [q]);
   useEffect(() => setDraftStage(stage), [stage]);
   useEffect(() => setDraftAccount(account), [account]);
   useEffect(() => setDraftFollowUp(followUp), [followUp]);
   useEffect(() => setDraftGhosted(ghosted), [ghosted]);
+  useEffect(() => setDraftResume(resume), [resume]);
 
   const sorting = { sort: state.sort, dir: state.dir };
   const apply = (e?: FormEvent) => {
     e?.preventDefault();
-    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, ...sorting, ...keep }));
+    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, ...sorting, ...keep }));
   };
   const setOpen = (ids: number[]) => navigate(listUrl({ ...filters, ...sorting, ...keep, open: ids }), { replace: true });
 
@@ -181,11 +215,36 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const [postingUrl, setPostingUrl] = useState("");
   const [addStage, setAddStage] = useState<Stage>("Applied");
   const [appliedOn, setAppliedOn] = useState(localToday());
+  // "Resume sent" starts as the one last used, and a version that has gone since reads as None.
+  const [addResume, setAddResume] = useState(() => readLastResume(db));
+  useEffect(() => setAddResume(readLastResume(db)), [db]);
   const addBox = useRef<HTMLElement>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
   const companyInput = useRef<HTMLInputElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
-  const link = useJobLink({ company, role, url: postingUrl }, { company: setCompany, role: setRole, url: setPostingUrl }, deps);
+  // The posting text a link or pasted text brought in (a draft's description), kept for the save. The job-link hook doesn't hand drafts
+  // back, so the library calls it makes are watched here.
+  const posting = useRef("");
+  const lib = { ...realJobLinkDeps, ...deps };
+  const watched: Partial<JobLinkDeps> = {
+    ...deps,
+    parseJobUrl: (url) => {
+      const draft = lib.parseJobUrl(url);
+      posting.current = descriptionOf(draft);
+      return draft;
+    },
+    enrichJobDraft: async (draft, opts) => {
+      const enriched = await lib.enrichJobDraft(draft, opts);
+      if (!opts?.signal?.aborted && descriptionOf(enriched)) posting.current = descriptionOf(enriched);
+      return enriched;
+    },
+    parsePastedText: (text, url) => {
+      const draft = lib.parsePastedText(text, url);
+      if (draft) posting.current = descriptionOf(draft);
+      return draft;
+    },
+  };
+  const link = useJobLink({ company, role, url: postingUrl }, { company: setCompany, role: setRole, url: setPostingUrl }, watched);
   const duplicates = useDuplicates(db, company, role, postingUrl, addOpen);
   const [focusAdd, setFocusAdd] = useState(0);
   const wantFocus = useRef<"company" | "save">("company");
@@ -205,6 +264,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const closeAdd = () => {
     add.clear();
     link.reset();
+    posting.current = "";
     setAddOpen(false);
     addTrigger.current?.focus();
   };
@@ -214,9 +274,10 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   useEffect(() => {
     if (query.get("add") !== "1" || arrival.current === query.toString()) return;
     arrival.current = query.toString();
-    const draft = (deps.draftFromHash ?? realJobLinkDeps.draftFromHash)(query);
+    const draft = lib.draftFromHash(query);
     if (draft) {
       add.clear();
+      posting.current = descriptionOf(draft);
       link.adopt(draft);
       wantFocus.current = draft.company.trim() && draft.role.trim() ? "save" : "company";
       setAddOpen(true);
@@ -227,12 +288,25 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // Only a master resume makes versions to choose from: without one the select offers None and "Add your resume".
+  const resumes = data?.resumes.some((r) => r.master) ? data.resumes : [];
+  const sentResume = resumes.some((r) => String(r.id) === addResume) ? addResume : "";
+  const chooseResume = (value: string) => {
+    setAddResume(value);
+    rememberResume(db, value);
+  };
   const submitAdd = (e: FormEvent) => {
     e.preventDefault();
     void add.run("add", async () => {
-      await addApplication(db, { company, role, stage: addStage, appliedOn, url: postingUrl.trim() || undefined });
+      const input: AddApplicationInput = {
+        company, role, stage: addStage, appliedOn, url: postingUrl.trim() || undefined,
+        ...(posting.current ? { postingText: posting.current } : {}),
+        ...(sentResume ? { resumeId: Number(sentResume) } : {}),
+      };
+      await addApplication(db, input);
       const added = company.trim();
       link.reset();
+      posting.current = "";
       setCompany("");
       setRole("");
       setPostingUrl("");
@@ -328,6 +402,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       case "goSettings":
         navigate("/settings");
         return;
+      case "goResume":
+        navigate("/resume");
+        return;
       case "clear":
         if (currentId === null) return false;
         setCurrent(null);
@@ -341,12 +418,13 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   useShortcuts(onShortcut);
 
   if (!data) return <h1 className="page">Applications</h1>;
-  const { rows, counts, accounts, review, columns, suggestions: suggest } = data;
+  const { rows, counts, accounts, review, columns, suggestions: suggest, resumes: allResumes } = data;
   const total = STAGES.reduce((n, s) => n + counts[s], 0);
-  const filtered = Boolean(stage || q.trim() || account || followUp || ghosted);
+  const filtered = Boolean(stage || q.trim() || account || followUp || ghosted || resume);
   const thisAccount = accounts.find((a) => a.id === account);
+  const resumeTitle = (id: string): string | undefined => allResumes.find((r) => String(r.id) === id)?.title;
   // "Save this view" is offered only when what the form shows (or the sort) differs from the plain list: there is nothing to save otherwise.
-  const differs = Boolean(draftStage || draftQ.trim() || draftAccount || draftFollowUp || draftGhosted || state.sort || state.dir);
+  const differs = Boolean(draftStage || draftQ.trim() || draftAccount || draftFollowUp || draftGhosted || draftResume || state.sort || state.dir);
 
   const sortHref = (c: ColumnId) =>
     "#" + listUrl({ ...filters, ...keep, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
@@ -378,8 +456,8 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         <form className="row filters" onSubmit={apply}>
           <div className="fgroup f-search">
             <label htmlFor="f-q">Search</label>
-            <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company, role, email or note"
-                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, ...sorting, ...keep })); }} />
+            <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company, role, email, note or posting"
+                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, ...sorting, ...keep })); }} />
           </div>
           <div className="fgroup">
             <label htmlFor="f-stage">Stage</label>
@@ -394,6 +472,17 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               <select id="f-account" name="account" value={draftAccount} onChange={(e) => setDraftAccount(Number(e.target.value))}>
                 <option value={0}>All accounts</option>
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.address}</option>)}
+              </select>
+            </div>
+          ) : null}
+          {allResumes.length || draftResume ? (
+            <div className="fgroup">
+              <label htmlFor="f-resume">Resume</label>
+              <select id="f-resume" name="resume" value={draftResume} onChange={(e) => setDraftResume(e.target.value)}>
+                <option value="">Any resume</option>
+                {allResumes.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+                <option value="none">No resume set</option>
+                {draftResume && draftResume !== "none" && !resumeTitle(draftResume) ? <option value={draftResume}>(deleted)</option> : null}
               </select>
             </div>
           ) : null}
@@ -442,6 +531,10 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
                 <label htmlFor="add-date">Date applied</label>
                 <input id="add-date" name="applied_on" type="date" value={appliedOn} max={localToday()} onChange={(e) => setAppliedOn(e.target.value)} />
               </div>
+              <div className="fgroup">
+                <label htmlFor="add-resume">Resume sent</label>
+                <ResumeSelect id="add-resume" resumes={resumes} value={sentResume} onChange={chooseResume} onAdd={() => navigate("/resume")} />
+              </div>
             </div>
             <div className="row add-url-row">
               <div className="fgroup f-grow">
@@ -456,13 +549,14 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               <button type="button" onClick={closeAdd}>Cancel</button>
             </div>
           </form>
-          <BulkAdd db={db} deps={{ parseJobUrl: deps.parseJobUrl ?? realJobLinkDeps.parseJobUrl, enrichJobDraft: deps.enrichJobDraft ?? realJobLinkDeps.enrichJobDraft }} />
+          <BulkAdd db={db} deps={{ parseJobUrl: lib.parseJobUrl, enrichJobDraft: lib.enrichJobDraft }}
+                   resumes={resumes} resume={sentResume} onResume={chooseResume} onAddResume={() => navigate("/resume")} />
         </section>
       ) : add.status ? <Notice>{add.status}</Notice> : null}
 
       {views ? (
         <ViewChips db={db} views={views} currentUrl={listUrl({ ...filters, ...sorting, ...keep })} urlFor={(v) => listUrl({ ...v, ...keep })} navigate={navigate}
-                   accountName={(id) => accounts.find((a) => a.id === id)?.address} />
+                   accountName={(id) => accounts.find((a) => a.id === id)?.address} resumeName={resumeTitle} />
       ) : null}
       {calendar ? null : <CompareOffers db={db} />}
 
@@ -475,6 +569,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             {followUp ? <span className="chip">Needs follow-up</span> : null}
             {ghosted ? <span className="chip">No reply</span> : null}
             {thisAccount ? <span className="chip">Account: {thisAccount.address}</span> : null}
+            {resume === "none" ? <span className="chip">No resume set</span> : resume ? <span className="chip">Resume: {resumeTitle(resume) ?? "(deleted)"}</span> : null}
             {filtered ? <a className="small clear-filters" href={"#" + listUrl({ ...keep })}>Clear filters</a> : null}
             {differs || saveOpen ? (
               <button type="button" className="quiet save-view-trigger" ref={saveTrigger} aria-expanded={saveOpen} aria-controls="save-view" onClick={() => setSaveOpen(!saveOpen)}>Save this view</button>
@@ -491,8 +586,8 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       </div>
       {saveOpen ? (
         <div id="save-view">
-          <SaveViewForm db={db} count={views?.length ?? 0} accountName={thisAccount?.address} onClose={closeSave}
-                        filters={{ stage: draftStage, q: draftQ.trim(), account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, sort: state.sort, dir: state.dir }} />
+          <SaveViewForm db={db} count={views?.length ?? 0} accountName={thisAccount?.address} resumeName={resumeTitle(draftResume)} onClose={closeSave}
+                        filters={{ stage: draftStage, q: draftQ.trim(), account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, sort: state.sort, dir: state.dir }} />
         </div>
       ) : null}
 
@@ -501,7 +596,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       {calendar ? (
         <CalendarView month={month} today={today} day={day} events={events} onMonth={goMonth} onSelectDay={pickDay} />
       ) : <>
-      <BulkBar db={db} selection={selection} />
+      <BulkBar db={db} selection={selection} resumes={allResumes} />
 
       <div className="card list-card">
         <table className="list" role="table">

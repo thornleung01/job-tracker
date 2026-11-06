@@ -16,12 +16,12 @@ async function withLinks() {
   return db;
 }
 
-describe("export format version 2", () => {
-  it("is version 2 and carries the link on the applications that have one", async () => {
+describe("export format version 3", () => {
+  it("is version 3 and carries the link on the applications that have one", async () => {
     const db = await withLinks();
     const file = await exportAll(db, NOW);
-    expect(EXPORT_VERSION).toBe(2);
-    expect(file.version).toBe(2);
+    expect(EXPORT_VERSION).toBe(3);
+    expect(file.version).toBe(3);
     expect(file.data.applications.map((a) => a.postingUrl)).toEqual(["https://boards.greenhouse.io/acme/jobs/1", undefined]);
   });
 
@@ -44,10 +44,10 @@ describe("export format version 2", () => {
     for (const a of await copy.applications.toArray()) expect("postingUrl" in a).toBe(false);
   });
 
-  it("refuses a version newer than 2", async () => {
+  it("refuses a version newer than 3", async () => {
     const db = await withLinks();
     const x = JSON.parse(await exportAllAsJson(db, NOW));
-    x.version = 3;
+    x.version = 4;
     await expect(importAll(freshDb(), x)).rejects.toThrow(/version 3/);
   });
 });

@@ -51,3 +51,19 @@ export const MAX_LINK_CHARS = 300;
 /** A compose link's recipient (the standard limit for an address) and subject. */
 export const MAX_ADDRESS_CHARS = 254;
 export const MAX_SUBJECT_CHARS = 250;
+
+// -- resumes, cover letters and job posting text --------------------------------------------------------------------------
+
+/** The job posting's text kept on an application. */
+export const MAX_POSTING_CHARS = 20_000;
+/** A document's title, a section heading, one line of it, and how many sections and lines it may have. */
+export const MAX_DOC_TITLE_CHARS = 100;
+export const MAX_DOC_HEADING_CHARS = 80;
+export const MAX_DOC_ITEM_CHARS = 1000;
+export const MAX_DOC_SECTIONS = 30;
+export const MAX_DOC_ITEMS = 60;
+/** The most resume versions you can keep besides the master. */
+export const MAX_RESUME_VERSIONS = 5;
+
+/** Days a deleted application, resume or cover letter waits in Recently deleted before it is erased for good. */
+export const TRASH_DAYS = 30;

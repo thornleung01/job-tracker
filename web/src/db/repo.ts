@@ -75,6 +75,8 @@ export interface NewApplication {
   locked?: boolean;
   /** an already-checked posting link (see cleanPostingUrl); empty for none */
   postingUrl?: string;
+  postingText?: string;
+  resumeId?: number;
 }
 
 export async function createApplication(db: JobTrackerDB, a: NewApplication): Promise<number> {
@@ -90,6 +92,8 @@ export async function createApplication(db: JobTrackerDB, a: NewApplication): Pr
     locked: a.locked ?? false,
     manual: a.manual ?? false,
     ...(a.postingUrl ? { postingUrl: a.postingUrl } : {}),
+    ...(a.postingText ? { postingText: a.postingText } : {}),
+    ...(a.resumeId !== undefined ? { resumeId: a.resumeId } : {}),
   });
 }
 

@@ -82,7 +82,7 @@ describe("database upgrade", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].company).toBe("Acme");
       expect("postingUrl" in rows[0]).toBe(false);
-      expect(db.verno).toBe(2);
+      expect(db.verno).toBe(3);
       // and the upgraded database takes a link
       await db.applications.update(rows[0].id, { postingUrl: "https://example.com/j" });
       expect((await db.applications.get(rows[0].id))!.postingUrl).toBe("https://example.com/j");

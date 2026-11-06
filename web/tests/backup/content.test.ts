@@ -4,8 +4,8 @@ import { applicationsInBackup, backupContent } from "../../src/backup/content";
 import type { ExportEnvelope } from "../../src/portability";
 
 const envelope = (data: Partial<ExportEnvelope["data"]> = {}): ExportEnvelope => ({
-  format: "jobtracker-export", version: 2, exportedAt: "2026-11-05T12:00:00Z", source: "web",
-  data: { accounts: [], applications: [], emails: [], activity: [], feedback: [], ignoredMail: [], learnedRules: [], contactEdits: [], settings: {}, ...data },
+  format: "jobtracker-export", version: 3, exportedAt: "2026-11-05T12:00:00Z", source: "web",
+  data: { accounts: [], applications: [], emails: [], activity: [], feedback: [], ignoredMail: [], learnedRules: [], contactEdits: [], documents: [], settings: {}, ...data },
 });
 const app = (id: number, deletedAt?: string) => ({ id, deletedAt }) as ExportEnvelope["data"]["applications"][number];
 
@@ -22,7 +22,7 @@ describe("backupContent", () => {
     expect(some.worthSaving).toBe(true);
   });
 
-  it.each([["learnedRules"], ["contactEdits"], ["feedback"]] as const)("is worth saving when only %s were made by the person", (table) => {
+  it.each([["learnedRules"], ["contactEdits"], ["feedback"], ["documents"]] as const)("is worth saving when only %s were made by the person", (table) => {
     const content = backupContent(envelope({ [table]: [{ id: 1, key: "k" } as never] }));
     expect(content.applications).toBe(0);
     expect(content.worthSaving).toBe(true);

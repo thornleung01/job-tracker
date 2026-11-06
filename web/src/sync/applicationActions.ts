@@ -1,11 +1,11 @@
 // What an application offers to do outside the app: a follow-up email to write in the person's own mail service, and the
 // interview days to put in a calendar. Reads only; nothing is sent and nothing changes.
-import type { AccountRow, EmailRow, JobTrackerDB } from "../db/schema";
+import type { AccountRow, ApplicationRow, EmailRow, JobTrackerDB } from "../db/schema";
 import { idleDaysSince, localToday } from "../db/time";
 import { pipeline } from "./pipeline";
 import { byDesc } from "./compare";
 import { derive, looksLikeAPerson, type Contact } from "./contacts";
-import { draftLink, followUpDraft, type DraftContact } from "./followUpDraft";
+import { MAX_DRAFT_BODY_CHARS, coverLetterDraft, draftLink, followUpDraft, type DraftContact } from "./followUpDraft";
 import { needsFollowUp, remindsOfInterviews } from "./followUp";
 import { groupBy } from "./groupBy";
 import { isLive, liveApplications } from "./live";
@@ -60,10 +60,9 @@ function pickAccount(contact: DraftContact | null, mails: readonly Mail[], accou
   return account ? { account, webLink: chosen?.accountId === account.id ? chosen.webLink : null } : null;
 }
 
-export async function applicationActions(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<ApplicationActions | null> {
-  const app = await db.applications.get(appId);
-  if (!app || !isLive(app)) return null;
-  const today = localToday(now);
+/** Who a message about an application goes to and which mailbox opens it, worked out the same way for every kind of draft. */
+async function mailContext(db: JobTrackerDB, app: ApplicationRow) {
+  const appId = app.id;
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
   const all = (await db.emails.where("applicationId").equals(appId).toArray()).sort((a, b) => byDesc<EmailRow>((e) => e.receivedAt)(a, b) || b.id - a.id);
   const mails = all.filter((e) => accounts.has(e.accountId));
@@ -72,12 +71,42 @@ export async function applicationActions(db: JobTrackerDB, appId: number, now: D
   const connected = new Map([...accounts].filter(([, a]) => a.active));
   const contact = pickRecipient(await derive(db, appId), mails, own);
   const picked = pickAccount(contact, mails.filter((e) => connected.has(e.accountId)), connected);
+  return { contact, picked, all };
+}
+
+export async function applicationActions(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<ApplicationActions | null> {
+  const app = await db.applications.get(appId);
+  if (!app || !isLive(app)) return null;
+  const today = localToday(now);
+  const { contact, picked, all } = await mailContext(db, app);
   const draft = followUpDraft(app, contact, today);
   return {
     draft: picked ? draftLink(picked.account.provider, picked.account.address, draft, picked.webLink) : null,
     to: draft.to,
     needsFollowUp: needsFollowUp(app.stage, idleDaysSince(app.lastActivity, now)),
     interviews: remindsOfInterviews(app.stage) ? interviewEvents(app, all.filter((e) => e.event === "interview"), today) : [],
+  };
+}
+
+export interface CoverLetterMail {
+  /** a new message in the account's own mail service, or null when there is no mail service to open it in */
+  link: MailLink | null;
+  /** who it is addressed to ("" when nobody); shown only as a tooltip */
+  to: string;
+  /** the letter is longer than a compose link can carry, so the message has only its first part */
+  cut: boolean;
+}
+
+/** The cover letter as a new, unsent message to the same person a follow-up would go to, in the same mailbox. Null when the application is gone. */
+export async function coverLetterMail(db: JobTrackerDB, appId: number, letter: string): Promise<CoverLetterMail | null> {
+  const app = await db.applications.get(appId);
+  if (!app || !isLive(app)) return null;
+  const { contact, picked } = await mailContext(db, app);
+  const draft = coverLetterDraft(app, contact, letter);
+  return {
+    link: picked ? draftLink(picked.account.provider, picked.account.address, draft, picked.webLink, "") : null,
+    to: draft.to,
+    cut: draft.body.length > MAX_DRAFT_BODY_CHARS,
   };
 }
 

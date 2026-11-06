@@ -2,12 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Stage } from "../../db/stages";
 import { BULK_MAX } from "../../sync/bulk";
 
-/** What the selection needs to know about each row in the list: its id, and its stage as it stands, for the Undo after a bulk stage change. */
+/** What the selection needs to know about each row in the list: its id, and its stage and resume as they stand, for the Undo after a bulk stage or resume change. */
 export interface SelectableRow {
   id: number;
   stage: Stage;
   stageAt: string | null;
   locked: boolean;
+  /** the resume version sent; absent when none is set */
+  resumeId?: number;
 }
 
 export interface Selection {

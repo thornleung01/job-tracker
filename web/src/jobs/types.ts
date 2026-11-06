@@ -16,6 +16,8 @@ export interface JobDraft {
    * - "paste": parsed from text the user pasted
    */
   source: "link" | "api" | "bookmarklet" | "paste";
+  /** The posting's text when the source had one: plain text, never markup, cut to MAX_POSTING_CHARS. Saved as the application's posting text. */
+  description?: string;
   /** True for a field that is a guess the user should check. Fields not listed here are treated as reliable. */
   guessed: { company: boolean; role: boolean };
 }

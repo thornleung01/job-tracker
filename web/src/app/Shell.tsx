@@ -10,6 +10,7 @@ export const PAGE_TITLES: Record<PageName, string> = {
   applications: "Applications",
   detail: "Application",
   people: "People",
+  resume: "Resume",
   statistics: "Statistics",
   review: "Needs review",
   settings: "Settings",
@@ -35,6 +36,16 @@ function ReviewCount({ db }: { db: JobTrackerDB }) {
   );
 }
 
+/** "Needs review" in full, and "Review" on a phone so five links fit one row. The short one is hidden from screen readers and the long one is only clipped on a phone, so the link's name stays "Needs review". */
+function ReviewLabel({ text }: { text: string }) {
+  return (
+    <>
+      <span className="nav-full">{text}</span>
+      <span className="nav-short" aria-hidden="true">Review</span>
+    </>
+  );
+}
+
 export function Header({ db, page }: { db: JobTrackerDB; page: PageName }) {
   const current = currentNav(page);
   const settings = ROUTES.find((r) => r.page === "settings")!;
@@ -44,7 +55,7 @@ export function Header({ db, page }: { db: JobTrackerDB; page: PageName }) {
       <nav aria-label="Main">
         {ROUTES.filter((r) => r.nav).map((r) => (
           <a key={r.page} href={hrefFor(r.path)} aria-current={current === r.page ? "page" : undefined}>
-            {r.nav}
+            {r.page === "review" ? <ReviewLabel text={r.nav!} /> : r.nav}
             {r.page === "review" && <ReviewCount db={db} />}
           </a>
         ))}

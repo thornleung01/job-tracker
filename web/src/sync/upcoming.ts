@@ -58,6 +58,8 @@ export interface UpcomingRow {
   nextInterview: string | null;
   /** named in the calendar entry; the list rows carry it */
   stage?: string;
+  /** the title of the resume sent, when it is live; a deleted or missing resume leaves it out */
+  resumeTitle?: string | null;
 }
 
 /** The interviews in the next week, soonest first (then by company, then id), at most five. */

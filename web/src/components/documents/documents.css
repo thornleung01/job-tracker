@@ -1,0 +1,25 @@
+/* The Documents section on the application detail page: three blocks (resume sent, cover letter, job posting) one under the other. */
+.documents .doc-block { margin-bottom: var(--gap); }
+.documents .doc-h { font: 500 1rem/1.375 var(--font-ui); letter-spacing: inherit; margin: 0 0 8px; }
+.documents .doc-note { margin: 8px 0 0; }
+.documents .doc-actions { margin-top: 12px; }
+
+/* The saved letter reads like a letter: paragraphs, not a box of text. */
+.documents .doc-letter { max-width: 68ch; padding: var(--pad); border-radius: var(--r); background: var(--linen); }
+.documents .doc-letter p { margin: 0 0 12px; overflow-wrap: anywhere; }
+.documents .doc-letter p:last-child { margin-bottom: 0; }
+.documents .doc-letter-form { max-width: 68ch; }
+.documents .doc-letter-form textarea { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
+
+/* The posting: closed until you want it. */
+.documents .doc-posting { margin-top: 0; }
+.documents .doc-posting-form { max-width: 68ch; }
+.documents .doc-posting-form textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+.documents .doc-posting-text { max-width: 68ch; max-height: 24rem; overflow: auto; margin: 8px 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+
+@media (forced-colors: active) {
+  .documents .doc-letter { border: 1px solid CanvasText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .documents * { transition: none; }
+}

@@ -1,10 +1,11 @@
 // Doing one thing to several applications at once. Each action is a single transaction: it all happens or none of it does.
 import { ActionError } from "../db/errors";
 import { isStage, type Stage } from "../db/stages";
-import { tx, type JobTrackerDB } from "../db/schema";
+import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
 import { iso } from "../db/time";
 import { deleteApplication } from "./actions";
 import { isLive } from "./live";
+import { isLiveDocument } from "./documents";
 import { restoreApplication } from "./trash";
 
 /** The most applications one bulk action takes. */
@@ -84,6 +85,68 @@ export async function bulkRestore(db: JobTrackerDB, ids: readonly number[]): Pro
   return tx(db, async () => {
     let restored = 0;
     for (const id of wanted) if ((await db.applications.get(id))?.deletedAt && (await restoreApplication(db, id))) restored++;
+    return restored;
+  });
+}
+
+/** How one application's resume stood before a bulk change: the version's id, or null for none. */
+export interface ResumeBefore {
+  id: number;
+  resumeId: number | null;
+}
+
+/** Writes a resume id, or takes the field off for null. Nothing here checks the application: callers have. */
+const writeResume = async (db: JobTrackerDB, app: ApplicationRow, resumeId: number | null) => {
+  if (resumeId !== null) await db.applications.update(app.id, { resumeId });
+  else {
+    const { resumeId: _gone, ...rest } = app;
+    await db.applications.put(rest);
+  }
+};
+
+/**
+ * Sets the resume sent on each application, or clears it (null). The version must be a live resume. Returns how many changed:
+ * an application that already had it counts, an id that no longer exists (or is deleted) is skipped.
+ */
+export async function bulkSetResume(db: JobTrackerDB, ids: readonly number[], resumeId: number | null): Promise<number> {
+  const wanted = validIds(ids);
+  if (!wanted.length) return 0;
+  return tx(db, async () => {
+    if (resumeId !== null) {
+      const doc = await db.documents.get(resumeId);
+      if (!doc || doc.kind !== "resume" || !isLiveDocument(doc)) throw new ActionError("That resume isn't there any more.");
+    }
+    let changed = 0;
+    for (const id of wanted) {
+      const app = await db.applications.get(id);
+      if (!app || !isLive(app)) continue;
+      await writeResume(db, app, resumeId);
+      changed++;
+    }
+    return changed;
+  });
+}
+
+/**
+ * Puts each application's resume back as it was: the Undo after a bulk Set resume. A version erased for good since can't be
+ * pointed at, so that application is left with none. Returns how many were put back.
+ */
+export async function bulkRestoreResumes(db: JobTrackerDB, before: readonly ResumeBefore[]): Promise<number> {
+  const byId = new Map<number, ResumeBefore>();
+  for (const b of before) if (Number.isInteger(b.id) && !byId.has(b.id)) byId.set(b.id, b);
+  const wanted = validIds([...byId.keys()]);
+  if (!wanted.length) return 0;
+  return tx(db, async () => {
+    // One in Recently deleted can still be pointed at (it comes back with a restore).
+    const known = new Set((await db.documents.where("kind").equals("resume").primaryKeys()) as number[]);
+    let restored = 0;
+    for (const id of wanted) {
+      const was = byId.get(id)!.resumeId;
+      const app = await db.applications.get(id);
+      if (!app || !isLive(app)) continue;
+      await writeResume(db, app, was !== null && known.has(was) ? was : null);
+      restored++;
+    }
     return restored;
   });
 }

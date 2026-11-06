@@ -2,15 +2,18 @@
 // job search. A deleted application keeps its emails, notes, steps and people corrections; it is left out of every list,
 // count and match (sync/live.ts) until you restore it or it is purged. Purging is the old delete: the application row goes
 // and every email's content is erased, so nothing can rebuild it.
+// This file also lists and erases deleted documents (resumes and cover letters), whose own moves and live check are in sync/documents.ts.
 import { MissingRecordError } from "../db/errors";
 import { clearEmail } from "../db/repo";
 import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
+import { TRASH_DAYS } from "../db/limits";
 import { DAY_MS, iso } from "../db/time";
 import type { Stage } from "../db/stages";
+import { eraseDocument, listDeletedDocuments, purgeExpiredDocuments } from "./documents";
 import { removeApplicationRow } from "./recheck";
 
 /** How long a deleted application waits before it is erased for good. */
-export const TRASH_DAYS = 30;
+export { TRASH_DAYS };
 /**
  * That is 30 x 24 hours counted on the timestamp, not 30 calendar days: a clock change (daylight saving) or a different time
  * zone can't move it by more than the hour the clocks changed, and nothing here depends on the viewer's zone.
@@ -44,6 +47,7 @@ export async function restoreApplication(db: JobTrackerDB, appId: number): Promi
 
 /** What the Recently deleted list shows for one application. */
 export interface TrashEntry {
+  kind: "application";
   id: number;
   company: string;
   role: string;
@@ -58,9 +62,54 @@ export interface TrashEntry {
 function toEntry(a: ApplicationRow & { deletedAt: string }, now: Date): TrashEntry {
   const age = Math.max(0, now.getTime() - new Date(a.deletedAt).getTime());
   return {
-    id: a.id, company: a.company, role: a.role, stage: a.stage, deletedAt: a.deletedAt,
+    kind: "application", id: a.id, company: a.company, role: a.role, stage: a.stage, deletedAt: a.deletedAt,
     daysAgo: Math.floor(age / DAY_MS), daysLeft: Math.max(0, Math.ceil((TRASH_MS - age) / DAY_MS)),
   };
+}
+
+/** What the Recently deleted list shows for one resume or cover letter. `label` is the row's text: "Resume for Acme, Analyst" or "Acme, Analyst". */
+export interface DocumentTrashEntry {
+  kind: "resume" | "cover";
+  id: number;
+  label: string;
+  deletedAt: string;
+  /** whole days since it was deleted (0 on the day) */
+  daysAgo: number;
+  /** whole days until it is erased (see listDeletedDocuments) */
+  daysLeft: number;
+}
+
+const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - new Date(at).getTime()) / DAY_MS));
+
+/** One row of Recently deleted, of any kind. */
+export type AnyTrashEntry = TrashEntry | DocumentTrashEntry;
+
+/**
+ * Deleted resumes and cover letters, most recently deleted first. A cover letter is named after its application ("Acme, Analyst"),
+ * or by its own title when the application is gone.
+ */
+export async function listDeletedDocumentEntries(db: JobTrackerDB, now: Date = new Date()): Promise<DocumentTrashEntry[]> {
+  const apps = new Map((await db.applications.toArray()).map((a) => [a.id, a]));
+  return (await listDeletedDocuments(db, now)).map((d) => {
+    const app = d.applicationId === null ? undefined : apps.get(d.applicationId);
+    const label = d.kind === "cover" && app ? [app.company, app.role].filter(Boolean).join(", ") : d.title;
+    return { kind: d.kind, id: d.id, label: label || d.title, deletedAt: d.deletedAt as string, daysAgo: daysSince(d.deletedAt as string, now), daysLeft: d.daysLeft };
+  });
+}
+
+/** Everything in Recently deleted, applications and documents together, most recently deleted first. */
+export async function listTrash(db: JobTrackerDB, now: Date = new Date()): Promise<AnyTrashEntry[]> {
+  const all: AnyTrashEntry[] = [...(await listDeleted(db, now)), ...(await listDeletedDocumentEntries(db, now))];
+  return all.sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : a.deletedAt > b.deletedAt ? -1 : 0));
+}
+
+/** Erases one deleted document now. Returns false when it isn't in Recently deleted (restored or already gone). A live one is never touched. */
+export async function deleteDocumentForever(db: JobTrackerDB, id: number): Promise<boolean> {
+  return tx(db, async () => {
+    if (!(await db.documents.get(id))?.deletedAt) return false;
+    await eraseDocument(db, id);
+    return true;
+  });
 }
 
 /** The deleted application with this id, or null when there is none (it is live, or already erased). The detail page uses it for the page of a deleted application. */
@@ -91,10 +140,16 @@ export async function deleteForever(db: JobTrackerDB, appId: number): Promise<bo
   });
 }
 
-/** Erases everything in Recently deleted. Returns how many applications went. */
+/** Erases everything in Recently deleted, deleted resumes and cover letters too. Returns how many rows went (what the list showed). */
 export async function emptyTrash(db: JobTrackerDB): Promise<number> {
   return tx(db, async () => {
     let erased = 0;
+    // Documents first, so a deleted cover letter counts once and isn't taken with its application.
+    for (const d of await db.documents.toArray()) {
+      if (!d.deletedAt) continue;
+      await eraseDocument(db, d.id);
+      erased++;
+    }
     for (const a of await db.applications.toArray()) {
       if (!a.deletedAt) continue;
       await eraseApplication(db, a.id);
@@ -108,7 +163,7 @@ export async function emptyTrash(db: JobTrackerDB): Promise<number> {
 const isInTheFuture = (deletedAt: string, now: Date): boolean => new Date(deletedAt).getTime() > now.getTime();
 
 /**
- * Erases the deleted applications that have waited TRASH_DAYS. Returns how many went.
+ * Erases the deleted applications and documents that have waited TRASH_DAYS. Returns how many went.
  *
  * Each application is its own transaction, so one that can't be erased (it fails, or is changed by another tab at that moment)
  * never holds back the others, which would keep their email text past the 30 days: the rest are erased, and then the first
@@ -133,6 +188,12 @@ export async function purgeExpired(db: JobTrackerDB, now: Date = new Date()): Pr
       console.error(error);
       failure ??= { error };
     }
+  }
+  try {
+    erased += await purgeExpiredDocuments(db, now);
+  } catch (error) {
+    console.error(error);
+    failure ??= { error };
   }
   if (failure) throw failure.error;
   return erased;

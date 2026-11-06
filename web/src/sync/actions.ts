@@ -2,7 +2,7 @@
 // a row before it writes is one transaction, so what it read is still true when it writes (a second tab, or a sync,
 // can't change the row in between).
 import { ActionError, MissingRecordError } from "../db/errors";
-import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS } from "../db/limits";
+import { MAX_COMPANY_CHARS, MAX_POSTING_CHARS, MAX_ROLE_CHARS } from "../db/limits";
 import { cleanOfferDeadline, cleanOfferSalary } from "../db/offer";
 import { cleanPostingUrl } from "../db/postingUrl";
 import { EVENT_FOR_STAGE, isStage, type Stage } from "../db/stages";
@@ -46,6 +46,10 @@ export interface AddApplicationInput {
   appliedOn?: string;
   /** the job posting's web address; optional, checked by cleanPostingUrl (throws ActionError) */
   url?: string;
+  /** the job posting's text (plain text; cut to MAX_POSTING_CHARS) */
+  postingText?: string;
+  /** the resume version sent: it must be a live resume (throws ActionError otherwise) */
+  resumeId?: number;
 }
 
 /** Changes some fields of one application, after checking in the same transaction that it still exists. */
@@ -67,9 +71,17 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
   // the day you applied, so logging something from last week lands in the right place
   const day = (input.appliedOn ?? "").trim();
   const when = day ? stampForDay(day, now) : iso(now);
-  return tx(db, () =>
-    createApplication(db, { company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl }),
-  );
+  const postingText = (input.postingText ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_POSTING_CHARS);
+  return tx(db, async () => {
+    if (input.resumeId !== undefined) {
+      const resume = await db.documents.get(input.resumeId);
+      if (!resume || resume.kind !== "resume" || resume.deletedAt) throw new ActionError("That resume isn't there any more.");
+    }
+    return createApplication(db, {
+      company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl,
+      ...(postingText ? { postingText } : {}), ...(input.resumeId !== undefined ? { resumeId: input.resumeId } : {}),
+    });
+  });
 }
 
 /**
@@ -147,7 +159,7 @@ export async function deleteApplication(db: JobTrackerDB, appId: number, emails:
 }
 
 /** Folds one application into another: emails, notes, steps and people corrections move across. */
-export async function mergeApplications(db: JobTrackerDB, appId: number, into: number): Promise<void> {
+export async function mergeApplications(db: JobTrackerDB, appId: number, into: number, now: Date = new Date()): Promise<void> {
   // Both rows are read inside the transaction that writes, so a sync's newer lastActivity or a second tab's delete can't slip in between.
   await tx(db, async () => {
     const src = await db.applications.get(appId);
@@ -165,6 +177,15 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
     if (dst.interviewRounds === undefined && src.interviewRounds !== undefined) fields.interviewRounds = src.interviewRounds;
     if (!dst.offerSalary && src.offerSalary) fields.offerSalary = src.offerSalary;
     if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
+    if (!dst.postingText && src.postingText) fields.postingText = src.postingText;
+    if (dst.resumeId === undefined && src.resumeId !== undefined) fields.resumeId = src.resumeId;
+    // One cover letter per application: the target's stays. The source's moves over, and when the target has one already it goes to
+    // Recently deleted instead of being erased with the source, so a letter you wrote is never lost without a way back.
+    const targetHasLetter = (await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt).count()) > 0;
+    await db.documents.where("applicationId").equals(appId).modify((d) => {
+      d.applicationId = into;
+      if (targetHasLetter && !d.deletedAt) d.deletedAt = iso(now);
+    });
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.feedback.where("applicationId").equals(appId).modify({ applicationId: into });

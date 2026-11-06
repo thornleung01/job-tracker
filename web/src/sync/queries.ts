@@ -2,6 +2,7 @@
 import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
 import { SEARCH_MIN_CHARS } from "../db/limits";
+import { sectionsToText } from "../db/documentShape";
 import { idleDaysSince, localToday } from "../db/time";
 import * as activity from "./activity";
 import * as contacts from "./contacts";
@@ -13,17 +14,18 @@ import { deriveRounds, type Rounds } from "./rounds";
 import { byDesc } from "./compare";
 import { groupBy } from "./groupBy";
 import { roundsLookup } from "./roundsLookup";
-import { searchApplications, type SearchMatch } from "./search";
+import { searchApplications, type SearchCover, type SearchMatch } from "./search";
+import { isLiveDocument } from "./documents";
 import { meetingDays } from "./upcoming";
 
 /** How many companies and roles the search box suggests, and how many ignored emails are listed. */
 const SUGGESTION_LIMIT = 300;
 const IGNORED_LIST_LIMIT = 50;
 
-export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds";
-export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails", "rounds"];
+export type SortColumn = "company" | "role" | "stage" | "applied" | "lastActivity" | "emails" | "rounds" | "resume";
+export const SORT_COLUMNS: readonly SortColumn[] = ["company", "role", "stage", "applied", "lastActivity", "emails", "rounds", "resume"];
 export const DEFAULT_DIR: Readonly<Record<SortColumn, "asc" | "desc">> = {
-  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc", rounds: "desc",
+  company: "asc", role: "asc", stage: "asc", applied: "desc", lastActivity: "desc", emails: "desc", rounds: "desc", resume: "asc",
 };
 
 export interface ListQuery {
@@ -37,10 +39,13 @@ export interface ListQuery {
   followUp?: boolean;
   /** keep only ghosted applications (idle 30 days or more). With followUp, an application that is either. */
   ghosted?: boolean;
+  /** a resume version's id, or "none" for applications with no resume set. An id that isn't a live resume matches nothing. */
+  resume?: string;
   now?: Date;
 }
 
-export interface ApplicationListRow extends ApplicationRow {
+/** A list row leaves out the posting text: search reads it while the rows are built, and nothing on the list needs up to 20,000 characters per row. */
+export interface ApplicationListRow extends Omit<ApplicationRow, "postingText"> {
   nEmails: number;
   /** whole calendar days (your time zone) since the last activity, never negative; null when unknown. Follow-ups count these days. */
   idleDays: number | null;
@@ -56,6 +61,8 @@ export interface ApplicationListRow extends ApplicationRow {
   interviewDays: string[];
   /** interview rounds (yours, or worked out from the emails and steps); null when there is nothing to count */
   rounds: number | null;
+  /** the title of the resume sent; null when none is set or it was deleted */
+  resumeTitle: string | null;
 }
 
 /** An interview email that belongs to an application. */
@@ -63,7 +70,7 @@ type InterviewMail = EmailRow & { applicationId: number };
 const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
 
 /** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
-type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds">;
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds" | "resumeTitle"> & Pick<ApplicationRow, "postingText">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
@@ -94,9 +101,19 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   });
   if ((STAGES as readonly string[]).includes(query.stage ?? "")) early = early.filter((a) => a.stage === query.stage);
   // Company and role, and (from 2 characters) the emails already loaded above plus notes and steps; sync/search.ts has the rules.
-  const hits = needle ? searchApplications(early, emails, needle.length >= SEARCH_MIN_CHARS ? await db.activity.toArray() : [], needle) : null;
+  // The job posting and the cover letters are read the same way, and only for a search that long.
+  const deep = needle.length >= SEARCH_MIN_CHARS;
+  const hits = needle
+    ? searchApplications(early, emails, deep ? await db.activity.toArray() : [], needle, deep ? await coverLetters(db) : [])
+    : null;
   if (hits) early = early.filter((a) => hits.has(a.id));
   if (query.account) early = early.filter((a) => inAccount.has(a.id));
+  // The resume versions you haven't deleted: a deleted one is "no resume" here, and a filter on it shows nothing.
+  const resumeTitles = new Map<number, string>();
+  for (const d of await db.documents.where("kind").equals("resume").toArray()) if (isLiveDocument(d)) resumeTitles.set(d.id, d.title);
+  const wantResume = query.resume === "none" ? "none" : Number(query.resume) > 0 ? Number(query.resume) : null;
+  if (wantResume === "none") early = early.filter((a) => a.resumeId === undefined || !resumeTitles.has(a.resumeId));
+  else if (wantResume !== null) early = early.filter((a) => a.resumeId === wantResume && resumeTitles.has(wantResume));
   if (query.followUp || query.ghosted) early = early.filter((a) => (query.followUp && a.followUp) || (query.ghosted && a.ghosted));
 
   const today = localToday(now);
@@ -104,9 +121,10 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   const rows: ApplicationListRow[] = early.map((a) => {
     // A rejected application or an offer has no interview worth reminding you of, whatever an old email said.
     const days = meetingDays(interviews.get(a.id) ?? []);
+    const { postingText: _posting, ...rest } = a;
     return {
-      ...a, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
-      match: hits?.get(a.id),
+      ...rest, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
+      match: hits?.get(a.id), resumeTitle: a.resumeId === undefined ? null : resumeTitles.get(a.resumeId) ?? null,
     };
   });
 
@@ -118,10 +136,21 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     applied: (a, b) => (a.appliedAt === null || b.appliedAt === null ? (a.appliedAt === null ? 1 : 0) - (b.appliedAt === null ? 1 : 0) : sign * nullable(a.appliedAt, b.appliedAt)),
     lastActivity: (a, b) => sign * nullable(a.lastActivity, b.lastActivity),
     emails: (a, b) => sign * (a.nEmails - b.nEmails),
+    // no resume always goes last, whichever way you sort
+    resume: (a, b) => (a.resumeTitle === null || b.resumeTitle === null ? (a.resumeTitle === null ? 1 : 0) - (b.resumeTitle === null ? 1 : 0) : sign * compareText(a.resumeTitle, b.resumeTitle)),
     // no count always goes last, whichever way you sort
     rounds: (a, b) => (a.rounds === null || b.rounds === null ? (a.rounds === null ? 1 : 0) - (b.rounds === null ? 1 : 0) : sign * (a.rounds - b.rounds)),
   };
   return rows.sort((a, b) => by[sort](a, b) || a.id - b.id);
+}
+
+/** The text of each live cover letter, for search. */
+async function coverLetters(db: JobTrackerDB): Promise<SearchCover[]> {
+  const out: SearchCover[] = [];
+  for (const d of await db.documents.where("kind").equals("cover").toArray()) {
+    if (isLiveDocument(d) && d.applicationId !== null) out.push({ applicationId: d.applicationId, text: sectionsToText(d.sections) });
+  }
+  return out;
 }
 
 /** How many applications are at each stage. */

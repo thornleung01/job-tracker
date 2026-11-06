@@ -40,6 +40,7 @@ export function ComingUp({ rows, today, db }: { rows: readonly UpcomingRow[]; to
               <strong className="coming-up-company">{r.company}</strong>{" "}
               {r.role ? <><span className="coming-up-role muted">{r.role}</span>{" "}</> : null}
               <span className="coming-up-day">{dayWhen(r.nextInterview!, today).text}</span>
+              {r.resumeTitle ? <span className="coming-up-sent small muted">Sent: {r.resumeTitle}</span> : null}
             </a>
             <AddToCalendar
               label={`Add ${r.company} interview to calendar`}

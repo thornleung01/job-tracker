@@ -1,5 +1,6 @@
 // Which applications count. A deleted application stays in the database for 30 days (see trash.ts), so every read that
 // lists, counts or matches applications goes through here and leaves it out.
+// Documents (resumes and cover letters) have the same rule: see isLiveDocument in sync/documents.ts.
 import type { ApplicationRow, JobTrackerDB } from "../db/schema";
 
 /** True unless you deleted it. */

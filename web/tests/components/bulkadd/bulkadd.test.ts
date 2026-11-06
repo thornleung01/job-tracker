@@ -31,7 +31,7 @@ async function render(deps: BulkAddDeps) {
   box = document.createElement("div");
   document.body.append(box);
   root = createRoot(box);
-  await act(async () => root!.render(h(BulkAdd, { db, deps })));
+  await act(async () => root!.render(h(BulkAdd, { db, deps, resumes: [], resume: "", onResume: () => {}, onAddResume: () => {} })));
   return { db, c: box };
 }
 const click = async (el: Element | null) => { await act(async () => (el as HTMLElement).click()); await act(async () => { await settle(30); }); };

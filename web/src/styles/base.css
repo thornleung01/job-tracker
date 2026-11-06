@@ -104,6 +104,7 @@
                      border-radius: var(--r-pill); font-weight: 500; }
   header.top nav a:hover { color: var(--ink); background: var(--hover); }
   header.top nav a.icon-link { padding: 0 10px; }
+  header.top nav a .nav-short { display: none; }
   header.top nav a.icon-link svg { display: block; }
   header.top nav a[aria-current="page"] { color: var(--ink); background: var(--fog); }
   header.top nav a .count { margin-left: 8px; min-width: 22px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
@@ -215,12 +216,14 @@
   .tab[aria-current="true"] { background: var(--fog); color: var(--ink); font-weight: 500; }
   .tab[aria-current="true"] .n { color: inherit; }
   @media (max-width: 720px) { .tab { padding: 0 12px; gap: 6px; } .tabs { gap: 2px; } }
-  /* Four nav items fit one row at phone width instead of orphaning the last one. */
+  /* Five nav items fit one row at phone width instead of orphaning the last one. "Needs review" shortens to "Review". */
   @media (max-width: 520px) {
     header.top nav { width: 100%; gap: 0; justify-content: space-between; }
     header.top nav a { padding: 0 5px; font-size: 0.875rem; }
+    header.top nav a .nav-short { display: inline; }
+    header.top nav a .nav-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     header.top nav a .count { margin-left: 5px; min-width: 20px; padding: 1px 6px; }
-    /* The Settings icon sits in the title row, so the four words get the whole row below. */
+    /* The Settings icon sits in the title row, so the five words get the whole row below. */
     header.top { position: relative; }
     header.top nav a.icon-link { position: absolute; top: -4px; right: -8px; padding: 0 10px; }
     header.top nav a:not(.icon-link) { padding: 0 4px; }
@@ -301,11 +304,12 @@
     .list-card table.list tr.panel-row { display: block; }
     .list-card table.list tr.panel-row[hidden] { display: none; }
     .list-card table.list tr.panel-row > td { display: block; }
-    /* Role, Applied, Emails and Rounds make way for the stacked layout (the role shows under the company name). */
+    /* Role, Applied, Emails, Rounds and Resume make way for the stacked layout (the role shows under the company name). */
     .list-card table.list th[data-col="role"], .list-card table.list tr.app-row > td[data-col="role"],
     .list-card table.list th[data-col="applied"], .list-card table.list tr.app-row > td[data-col="applied"],
     .list-card table.list th[data-col="emails"], .list-card table.list tr.app-row > td[data-col="emails"],
-    .list-card table.list th[data-col="rounds"], .list-card table.list tr.app-row > td[data-col="rounds"] { display: none; }
+    .list-card table.list th[data-col="rounds"], .list-card table.list tr.app-row > td[data-col="rounds"],
+    .list-card table.list th[data-col="resume"], .list-card table.list tr.app-row > td[data-col="resume"] { display: none; }
   }
 
   /* Expandable application rows */

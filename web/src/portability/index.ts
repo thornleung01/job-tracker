@@ -23,6 +23,7 @@ export async function exportAll(db: JobTrackerDB, now: Date = new Date()): Promi
       ignoredMail: byId(await db.ignoredMail.toArray()),
       learnedRules: byId(await db.learnedRules.toArray()),
       contactEdits: (await db.contactEdits.toArray()).sort((a, b) => (a.key < b.key ? -1 : 1)),
+      documents: byId(await db.documents.toArray()),
       settings,
     };
     return { format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: iso(now), source: "web" as const, data };
@@ -37,7 +38,7 @@ export async function exportAllAsJson(db: JobTrackerDB, now: Date = new Date()):
 function summary(data: ExportData): ImportSummary {
   return {
     accounts: data.accounts.length, applications: data.applications.length, emails: data.emails.length, activity: data.activity.length,
-    feedback: data.feedback.length, ignoredMail: data.ignoredMail.length, learnedRules: data.learnedRules.length, contactEdits: data.contactEdits.length,
+    feedback: data.feedback.length, ignoredMail: data.ignoredMail.length, learnedRules: data.learnedRules.length, contactEdits: data.contactEdits.length, documents: data.documents.length,
   };
 }
 
@@ -52,6 +53,7 @@ async function writeAll(db: JobTrackerDB, data: ExportData): Promise<void> {
   await db.ignoredMail.bulkAdd(data.ignoredMail);
   await db.learnedRules.bulkAdd(data.learnedRules);
   await db.contactEdits.bulkAdd(data.contactEdits);
+  await db.documents.bulkAdd(data.documents);
   await db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
 }
 

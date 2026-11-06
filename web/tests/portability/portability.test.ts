@@ -10,6 +10,8 @@ import { addStep } from "../../src/sync/activity";
 import { saveSettings, loadSettings } from "../../src/sync/settings";
 import { processMessages, processMessage } from "../../src/sync/sync";
 import { mergeApplications } from "../../src/sync/actions";
+import { createApplication } from "../../src/db/repo";
+import { createVersion, saveCoverLetter, saveMaster, setApplicationResume, setPostingText } from "../../src/sync/documents";
 import * as contacts from "../../src/sync/contacts";
 import { sankey } from "../../src/sync/stats";
 import { statistics } from "../../src/sync/statistics";
@@ -253,6 +255,7 @@ describe("importing the local edition's file", () => {
       accounts: golden.counts.accounts, applications: golden.counts.applications, emails: golden.counts.emails, activity: golden.counts.activity,
       feedback: golden.counts.feedback, ignoredMail: golden.counts.ignored_mail, learnedRules: golden.counts.learned_rules,
       contactEdits: golden.counts.contact_edits,
+      documents: 0,
     });
     // text from the file, with flags turned into booleans and snake_case into camelCase
     const hand = (await db.applications.toArray()).find((a) => a.company === "Hand Made Co")!;
@@ -289,5 +292,85 @@ describe("importing the local edition's file", () => {
     expect(() => convertPythonExport({ format: "something else" })).toThrow(ImportError);
     expect(() => convertPythonExport({ ...fixture, version: 7 })).toThrow(/version 7/);
     await expect(importFromPythonExport(db, await exportAll(db))).rejects.toThrow(/scripts\/export_json\.py/);
+  });
+});
+
+describe("documents in the export", () => {
+  it("round-trips resumes, a cover letter, the posting text and the resume an application points at", async () => {
+    const from = freshDb();
+    const lines = [{ id: "s1", heading: "Skills", items: [{ id: "i1", text: "SQL" }] }];
+    await saveMaster(from, lines, "paste");
+    const v = await createVersion(from, { title: "Data roles", sections: lines });
+    const appId = await createApplication(from, { company: "Acme", companyKey: "acme", role: "Analyst", roleKey: "analyst", stage: "Applied", when: "2026-11-01T12:00:00Z" });
+    await setApplicationResume(from, appId, v);
+    await setPostingText(from, appId, "The posting");
+    await saveCoverLetter(from, appId, lines, "paste");
+    const file = JSON.parse(await exportAllAsJson(from));
+    expect(file.version).toBe(3);
+    const to = freshDb();
+    const summary = await importAll(to, file);
+    expect(summary.documents).toBe(3);
+    expect(await to.documents.toArray()).toEqual(await from.documents.toArray());
+    expect(await to.applications.toArray()).toEqual(await from.applications.toArray());
+  });
+
+  it("still reads a version 2 file, which has no documents", async () => {
+    const to = freshDb();
+    const summary = await importAll(to, { format: "jobtracker-export", version: 2, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { applications: [] } });
+    expect(summary.documents).toBe(0);
+  });
+
+  it("still reads a version 2 file with applications: posting links stay, nothing has a resume, and there are no documents", async () => {
+    const to = freshDb();
+    const row = { company: "A", companyKey: "a", role: "R", roleKey: "r", stage: "Applied", stageAt: null, appliedAt: null, lastActivity: null, locked: false, manual: false };
+    const applications = [{ ...row, id: 1, postingUrl: "https://example.com/a" }, { ...row, id: 2, company: "B", companyKey: "b" }, { ...row, id: 3, company: "C", companyKey: "c", postingUrl: "https://example.com/c" }];
+    const summary = await importAll(to, { format: "jobtracker-export", version: 2, exportedAt: "2026-10-01T00:00:00Z", source: "web", data: { applications } });
+    expect([summary.applications, summary.documents]).toEqual([3, 0]);
+    const rows = await to.applications.orderBy("id").toArray();
+    expect(rows.map((a) => [a.company, a.postingUrl])).toEqual([["A", "https://example.com/a"], ["B", undefined], ["C", "https://example.com/c"]]);
+    expect(rows.some((a) => "resumeId" in a || "postingText" in a)).toBe(false);
+    expect(await to.documents.count()).toBe(0);
+  });
+
+  const at = "2026-11-01T00:00:00Z";
+  const file = (data: object) => ({ format: "jobtracker-export", version: 3, exportedAt: at, source: "web", data });
+  const resume = { id: 1, kind: "resume", master: true, applicationId: null, title: "x", createdAt: at, updatedAt: at };
+
+  it("drops a resume pointer to a document that isn't in the file and keeps the application", async () => {
+    const to = freshDb();
+    const app = { id: 1, company: "A", companyKey: "a", role: "R", roleKey: "r", stage: "Applied", stageAt: null, appliedAt: null, lastActivity: null, locked: false, manual: false, resumeId: 9 };
+    expect((await importAll(to, file({ applications: [app] }))).applications).toBe(1);
+    expect("resumeId" in (await to.applications.get(1))!).toBe(false);
+  });
+
+  it("refuses a cover letter for an application that isn't in the file", async () => {
+    const letter = { ...resume, kind: "cover", master: false, applicationId: 7, sections: [] };
+    await expect(importAll(freshDb(), file({ documents: [letter] }))).rejects.toThrow(/documents #1: applicationId 7 is not in applications/);
+  });
+
+  it("cuts the text of a resume item to the limit", async () => {
+    const to = freshDb();
+    await importAll(to, file({ documents: [{ ...resume, sections: [{ heading: "H", items: [{ text: "y".repeat(5000) }] }] }] }));
+    expect((await to.documents.get(1))!.sections[0].items[0].text).toHaveLength(1000);
+  });
+
+  it("refuses two master resumes", async () => {
+    const two = [{ ...resume, sections: [] }, { ...resume, id: 2, sections: [] }];
+    await expect(importAll(freshDb(), file({ documents: two }))).rejects.toThrow(/more than one master resume/);
+  });
+
+  it("refuses a cover letter without an application", async () => {
+    const letter = { ...resume, id: 3, kind: "cover", master: false, sections: [] };
+    await expect(importAll(freshDb(), file({ documents: [letter] }))).rejects.toThrow(/a cover letter needs an application/);
+  });
+
+  it("replaces the documents a database already has", async () => {
+    const db = freshDb();
+    await saveMaster(db, [{ id: "", heading: "Old", items: [{ id: "", text: "old text" }] }], "paste");
+    await createVersion(db, { title: "Old version", sections: [{ id: "", heading: "Old", items: [{ id: "", text: "old" }] }] });
+    expect(await db.documents.count()).toBe(2);
+    const summary = await importAll(db, file({ documents: [{ ...resume, id: 7, title: "Imported", sections: [] }] }));
+    expect(summary.documents).toBe(1);
+    expect((await db.documents.toArray()).map((d) => [d.id, d.title])).toEqual([[7, "Imported"]]);
   });
 });

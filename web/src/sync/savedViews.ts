@@ -21,6 +21,8 @@ export interface ViewFilters {
   account: number;
   followUp: boolean;
   ghosted: boolean;
+  /** a resume version's id as text, "none" for no resume set, or "" or missing for any (views saved before resumes have no value) */
+  resume?: string;
   sort: string;
   dir: string;
 }
@@ -51,12 +53,17 @@ export function cleanFilters(raw: unknown): ViewFilters {
     account: typeof r.account === "number" && Number.isInteger(r.account) && r.account > 0 ? r.account : 0,
     followUp: r.followUp === true,
     ghosted: r.ghosted === true,
+    resume: cleanResume(r.resume),
     sort,
     dir: sort && (r.dir === "asc" || r.dir === "desc") ? r.dir : "",
   };
 }
 
-const isEmpty = (f: ViewFilters) => !f.stage && !f.q && !f.account && !f.followUp && !f.ghosted && !f.sort;
+/** "none", or a resume id written as a whole number above 0; anything else is no filter. */
+const cleanResume = (raw: unknown): string =>
+  raw === "none" ? "none" : typeof raw === "string" && /^[1-9]\d{0,15}$/.test(raw) ? raw : typeof raw === "number" && Number.isSafeInteger(raw) && raw > 0 ? String(raw) : "";
+
+const isEmpty = (f: ViewFilters) => !f.stage && !f.q && !f.account && !f.followUp && !f.ghosted && !f.resume && !f.sort;
 
 /** The stored list, checked: bad entries, repeated ids and anything past SAVED_VIEWS_MAX are dropped. Used when reading and when importing. */
 export function sanitizeSavedViews(raw: unknown): SavedView[] {
@@ -119,13 +126,14 @@ export async function deleteView(db: JobTrackerDB, id: number): Promise<void> {
 }
 
 /** "Stage: Interview, Search: acme, Needs follow-up": what a view keeps, for the save form and a chip's tooltip. */
-export function describeFilters(f: ViewFilters, accountName?: string): string {
+export function describeFilters(f: ViewFilters, accountName?: string, resumeName?: string): string {
   const parts: string[] = [];
   if (f.stage) parts.push(`Stage: ${f.stage}`);
   if (f.q) parts.push(`Search: ${f.q}`);
   if (f.account) parts.push(`Account: ${accountName ?? f.account}`);
   if (f.followUp) parts.push("Needs follow-up");
   if (f.ghosted) parts.push("No reply");
+  if (f.resume) parts.push(`Resume: ${f.resume === "none" ? "none set" : resumeName ?? "(deleted)"}`);
   if (f.sort) parts.push(`Sorted by ${COLUMNS[f.sort as ColumnId].toLowerCase()}`);
   return parts.join(", ");
 }
