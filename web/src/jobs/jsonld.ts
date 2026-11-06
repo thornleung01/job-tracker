@@ -2,6 +2,7 @@
 import type { JobDraft } from "./types";
 import { isRecord } from "../db/isRecord";
 import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS } from "../db/limits";
+import { postingText } from "./posting";
 import { cleanJobUrl, sanitizeText } from "./url";
 
 const MAX_HTML_CHARS = 2_000_000;
@@ -113,12 +114,14 @@ export function draftFromJobPosting(job: Obj, source: JobDraft["source"], fallba
   const company = nameOf(job.hiringOrganization, GUESS_COMPANY_CHARS);
   if (!role && !company) return null;
   const url = typeof job.url === "string" ? cleanJobUrl(job.url) : "";
+  const description = postingText(job.description);
   return {
     company,
     role,
     location: locationOf(job),
     url: url || cleanJobUrl(fallbackUrl),
     source,
+    ...(description ? { description } : {}),
     guessed: { company: false, role: false },
   };
 }

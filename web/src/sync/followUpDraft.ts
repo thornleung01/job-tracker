@@ -1,6 +1,6 @@
-// A follow-up email to write in the person's own mail service. The app only reads mail: this builds the text and a link that
-// opens a new, unsent message in Gmail or Outlook, and the person sends it themselves. The text goes to Gmail or Outlook
-// only when they open the link.
+// A follow-up email or a cover letter to write in the person's own mail service. The app only reads mail: this builds the text
+// and a link that opens a new, unsent message in Gmail or Outlook, and the person sends it themselves. The text goes to Gmail
+// or Outlook only when they open the link.
 import { MAX_ADDRESS_CHARS, MAX_COMPANY_CHARS, MAX_NAME_CHARS, MAX_ROLE_CHARS, MAX_SUBJECT_CHARS } from "../db/limits";
 import { dayOf } from "../db/time";
 import { dayText } from "../db/dayText";
@@ -31,7 +31,7 @@ export interface FollowUpDraft {
 const NAME_WORD = /^[\p{L}\p{M}][\p{L}\p{M}'\u2019.-]*$/u;
 
 /** The first name to greet, or "" when there is no name that looks like one. */
-function firstName(name: string): string {
+export function firstName(name: string): string {
   const first = oneLine(name, MAX_NAME_CHARS).replace(/,/g, " ").trim().split(" ")[0] ?? "";
   return NAME_WORD.test(first) ? first : "";
 }
@@ -92,6 +92,22 @@ export function followUpDraft(app: DraftApp, contact: DraftContact | null, today
   return { to: contact ? safeAddress(contact.email) : "", subject, body };
 }
 
+/**
+ * The mail for a cover letter: "Application for <role>" (or "Application to <company>" when the role isn't known) with the letter
+ * as the text, written for `contact` like a follow-up. The recipient and the line breaks are checked in draftLink, which also
+ * cuts the text to MAX_DRAFT_BODY_CHARS.
+ */
+export function coverLetterDraft(app: Pick<DraftApp, "company" | "role">, contact: DraftContact | null, letter: string): FollowUpDraft {
+  const company = plain(app.company, MAX_COMPANY_CHARS);
+  const role = plain(app.role, MAX_ROLE_CHARS);
+  const knownRole = role && role !== pipeline().UNKNOWN_ROLE ? role : "";
+  const subject = oneLine(knownRole ? `Application for ${knownRole}` : company ? `Application to ${company}` : "Application", MAX_SUBJECT_CHARS);
+  return { to: contact ? safeAddress(contact.email) : "", subject, body: String(letter) };
+}
+
+/** The most characters of the text that go into a compose link. Longer text is cut, because mail services refuse very long links. */
+export const MAX_DRAFT_BODY_CHARS = 3000;
+
 // The mail services a draft may be opened in, and the only hosts a link to them may have.
 const HOSTS: ReadonlySet<string> = new Set(["mail.google.com", "outlook.office.com", "outlook.live.com"]);
 // Same split as pipeline/links.ts replyLink: personal Outlook addresses use outlook.live.com, work and school ones outlook.office.com.
@@ -99,18 +115,21 @@ const CONSUMER_OUTLOOK = ["outlook.com", "hotmail.com", "live.com", "msn.com"];
 
 /**
  * (button label, https URL) that opens `draft` as a new message in the account's own mail service, or null when the service
- * is unknown. Built like replyLink in pipeline/links.ts (same hosts, same account rules), with the body filled in and no "Re:".
+ * is unknown. The label is "Draft <what> in Gmail" ("Draft in Gmail" when `what` is empty). Built like replyLink in pipeline/links.ts (same hosts, same account rules), with the body filled in and no "Re:".
  * Only an https link to Gmail or Outlook is ever returned.
  */
-export function draftLink(provider: string, account: string | null | undefined, draft: FollowUpDraft, webLink: string | null | undefined = null): MailLink | null {
+export function draftLink(
+  provider: string, account: string | null | undefined, draft: FollowUpDraft, webLink: string | null | undefined = null, what = "follow-up",
+): MailLink | null {
   const to = safeAddress(draft.to);
   const subject = oneLine(draft.subject, MAX_SUBJECT_CHARS);
-  const body = String(draft.body).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ");
+  const body = String(draft.body).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ").slice(0, MAX_DRAFT_BODY_CHARS);
+  const named = (service: string) => (what ? `Draft ${what} in ${service}` : `Draft in ${service}`);
   const query = (...pairs: [string, string][]) => pairs.filter(([, v]) => v !== "").map(([k, v]) => `${k}=${encode(v)}`).join("&");
   let label: string;
   let url: string;
   if (provider === "gmail" && account) {
-    label = "Draft follow-up in Gmail";
+    label = named("Gmail");
     url = `https://mail.google.com/mail/?authuser=${encode(account)}&view=cm&fs=1&${query(["to", to], ["su", subject], ["body", body])}`;
   } else if (provider === "outlook") {
     const acct = account || "";
@@ -118,7 +137,7 @@ export function draftLink(provider: string, account: string | null | undefined, 
       Boolean(webLink && webLink.startsWith("https://outlook.office")) ||
       (acct.includes("@") && !CONSUMER_OUTLOOK.some((d) => acct.toLowerCase().endsWith(d)));
     const host = work ? "outlook.office.com/mail" : "outlook.live.com/mail/0";
-    label = "Draft follow-up in Outlook";
+    label = named("Outlook");
     url = `https://${host}/deeplink/compose?${query(["to", to], ["subject", subject], ["body", body])}`;
   } else {
     return null;

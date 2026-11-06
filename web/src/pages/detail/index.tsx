@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
+import { DocumentsSection } from "../../components/documents/DocumentsSection";
 import { EmailText } from "../../components/EmailText";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { MailActions } from "../../components/MailActions";
@@ -44,6 +45,11 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   const result = useNoticeFocus();
 
   const app = data?.application;
+  // The resume sent, for the header line before an interview. A deleted resume has no line.
+  const sentTitle = useQuery(async () => {
+    const doc = app?.resumeId !== undefined ? await db.documents.get(app.resumeId) : undefined;
+    return doc && doc.kind === "resume" && !doc.deletedAt ? doc.title : "";
+  }, [db, app?.resumeId]);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [postingUrl, setPostingUrl] = useState("");
@@ -214,6 +220,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           <StageBadge stage={app.stage} />
           <span className="small muted">Applied {dayText(app.appliedAt)} {"·"} last activity {dayText(app.lastActivity)}</span>
           {app.locked ? <span className="small muted">{"·"} Stage set by you. Syncs won't change it.</span> : null}
+          {app.stage === "Interview" && sentTitle ? <span className="small muted">{"·"} You sent: {sentTitle}</span> : null}
         </div>
         {data.rounds || app.stage === "Interview" ? <div className="detail-rounds"><InterviewRounds db={db} appId={id} rounds={data.rounds} /></div> : null}
         <ApplicationActions db={db} appId={id} />
@@ -296,6 +303,8 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
           <p className="muted flush-p">No people yet. A recruiter or interviewer shows up here once their email belongs to this application.</p>
         )}
       </section>
+
+      <DocumentsSection db={db} app={app} people={data.people} act={act} />
 
       <section className="detail-section" aria-labelledby="h-notes">
         <h2 id="h-notes" className="section">Notes and steps</h2>

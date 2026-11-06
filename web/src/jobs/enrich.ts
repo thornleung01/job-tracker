@@ -3,6 +3,7 @@
 import type { EnrichOptions, JobDraft } from "./types";
 import { isRecord } from "../db/isRecord";
 import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS } from "../db/limits";
+import { joinPostingParts, postingText } from "./posting";
 import { detectBoard, isSafeId, isSafeSlug, sanitizeText, slugToName } from "./url";
 import type { BoardRef } from "./url";
 
@@ -26,6 +27,8 @@ interface Found {
   /** Empty when the API does not name the employer. */
   company: string;
   location: string;
+  /** The posting's text, "" when the API sent none. */
+  description: string;
 }
 
 type FetchFn = typeof fetch;
@@ -36,7 +39,7 @@ const enc = encodeURIComponent;
 const ASHBY_GRAPHQL = "https://jobs.ashbyhq.com/api/non-user-graphql";
 const ASHBY_JOB_OP = "ApiJobPosting";
 const ASHBY_JOB_QUERY =
-  "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id title locationName workplaceType employmentType } }";
+  "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id title locationName workplaceType employmentType descriptionHtml } }";
 const ASHBY_ORG_OP = "ApiOrganizationFromHostedJobsPageName";
 const ASHBY_ORG_QUERY =
   "query ApiOrganizationFromHostedJobsPageName($organizationHostedJobsPageName: String!, $searchContext: OrganizationSearchContext) { organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $organizationHostedJobsPageName, searchContext: $searchContext) { name } }";
@@ -151,7 +154,7 @@ async function fromGreenhouse(f: FetchFn, ref: BoardRef, opts: EnrichOptions): P
     if (isRecord(board)) company = org(board.name);
   }
   const loc = isRecord(job.location) ? place(job.location.name) : "";
-  return { role, company, location: loc };
+  return { role, company, location: loc, description: postingText(job.content) };
 }
 
 /** "Remote" or "Hybrid" from a board's workplace field, only when the location text does not already say so. */
@@ -170,7 +173,9 @@ async function fromLever(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promis
   const cats = isRecord(job.categories) ? job.categories : {};
   const extra = Array.isArray(cats.allLocations) ? cats.allLocations : Array.isArray(job.allLocations) ? job.allLocations : [];
   const many = extra.map(place).filter(Boolean).slice(0, 2).join(", ");
-  return { role, company: "", location: withWorkplace(place(cats.location) || place(many), job.workplaceType) };
+  const lists = Array.isArray(job.lists) ? job.lists.filter(isRecord).flatMap((l) => [l.text, l.content]) : [];
+  const description = joinPostingParts([job.descriptionPlain ?? job.description, ...lists, job.additionalPlain ?? job.additional]);
+  return { role, company: "", location: withWorkplace(place(cats.location) || place(many), job.workplaceType), description };
 }
 
 async function ashbyGraphql(f: FetchFn, op: string, query: string, variables: Record<string, string>, opts: EnrichOptions): Promise<Record<string, unknown> | null> {
@@ -189,7 +194,7 @@ async function fromAshbyGraphql(f: FetchFn, ref: BoardRef, opts: EnrichOptions):
   if (!isRecord(job) || (typeof job.id === "string" && job.id.toLowerCase() !== ref.id.toLowerCase())) return { found: null, company };
   const role = title(job.title);
   if (!role) return { found: null, company };
-  return { found: { role, company, location: withWorkplace(place(job.locationName), job.workplaceType) }, company };
+  return { found: { role, company, location: withWorkplace(place(job.locationName), job.workplaceType), description: postingText(job.descriptionHtml) }, company };
 }
 
 /** The REST board listing: every job with its description, so it is large. Used only when the GraphQL answer is missing. */
@@ -202,7 +207,7 @@ async function fromAshbyListing(f: FetchFn, ref: BoardRef, opts: EnrichOptions, 
   const role = title(job.title);
   if (!role) return null;
   const orgName = org(board.organizationName) || (isRecord(board.organization) ? org(board.organization.name) : "") || knownCompany;
-  return { role, company: orgName, location: place(job.location) };
+  return { role, company: orgName, location: place(job.location), description: postingText(job.descriptionHtml ?? job.descriptionPlain) };
 }
 
 async function fromAshby(f: FetchFn, ref: BoardRef, opts: EnrichOptions): Promise<Found | null> {
@@ -244,7 +249,10 @@ async function fromSmartRecruiters(f: FetchFn, ref: BoardRef, opts: EnrichOption
   const role = title(job.name);
   if (!role) return null;
   const company = isRecord(job.company) ? org(job.company.name) : "";
-  return { role, company, location: isRecord(job.location) ? smartRecruitersLocation(job.location) : "" };
+  const sections = isRecord(job.jobAd) && isRecord(job.jobAd.sections) ? job.jobAd.sections : {};
+  const part = (k: string) => (isRecord(sections[k]) ? sections[k].text : undefined);
+  const description = joinPostingParts(["companyDescription", "jobDescription", "qualifications", "additionalInformation"].map(part));
+  return { role, company, location: isRecord(job.location) ? smartRecruitersLocation(job.location) : "", description };
 }
 
 const LOOKUPS: Record<BoardRef["board"], (f: FetchFn, ref: BoardRef, opts: EnrichOptions) => Promise<Found | null>> = {
@@ -266,6 +274,7 @@ function merge(draft: JobDraft, ref: BoardRef, found: Found): JobDraft {
     role: found.role,
     location: found.location || draft.location,
     source: "api",
+    ...(found.description ? { description: found.description } : {}),
     guessed: { company: guessedCompany, role: false },
   };
 }
