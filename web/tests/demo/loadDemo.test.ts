@@ -21,19 +21,34 @@ const summaryOf = async (db: JobTrackerDB) => {
 };
 
 describe("demo resumes", () => {
-  it("adds a master resume with four sections and two versions of it", async () => {
+  it("adds a master resume in the template (a header and four sections) and two versions of it", async () => {
     const db = pool.open();
     await loadDemoData(db, NOW);
     const { master, versions } = await summaryOf(db);
     expect(master.title).toBe("Master resume");
-    expect(master.sections.map((s) => s.heading)).toEqual(["Summary", "Experience", "Skills", "Education"]);
+    expect(master.sections.map((s) => s.heading)).toEqual(["Header", "Professional summary", "Skills and qualifications", "Work experience", "Education"]);
+    const kinds = (d: { sections: { heading: string; items: { kind?: string }[] }[] }, heading: string) => d.sections.find((s) => s.heading === heading)!.items.map((i) => i.kind);
+    expect(kinds(master, "Header")).toEqual([undefined, undefined]);
+    expect(kinds(master, "Skills and qualifications")).toEqual(["skill", "skill", "skill"]);
+    expect(kinds(master, "Work experience").filter((k) => k === "org")).toHaveLength(2);
+    expect(kinds(master, "Work experience").filter((k) => k === "title")).toHaveLength(3);
+    expect(kinds(master, "Education")).toEqual(["school", undefined]);
+    const jobs = master.sections[3].items;
+    expect(jobs.filter((i) => i.kind === "org" || i.kind === "title").every((i) => i.right)).toBe(true);
+    expect(jobs.filter((i) => i.kind === "bullet").every((i) => i.label)).toBe(true);
     expect(versions.map((v) => v.title)).toEqual(["Resume for data roles", "Resume for product roles"]);
     expect(versions.every((v) => v.basedOn === master.id && v.source === "copy")).toBe(true);
     expect(versions.length).toBeLessThanOrEqual(MAX_RESUME_VERSIONS);
-    // a version is the master's own text with one line first, nothing invented
-    const lines = (d: { sections: { items: { text: string }[] }[] }) => d.sections.flatMap((s) => s.items.map((i) => i.text)).sort();
-    for (const v of versions) expect(lines(v)).toEqual(lines(master));
-    expect(versions[0].sections[1].items[0].text).not.toBe(versions[1].sections[1].items[0].text);
+    // a version is the master's own lines (nothing invented) with every header, organization, title and school kept and only some bullets
+    type Doc = { sections: { items: { text: string; kind?: string }[] }[] };
+    const lines = (d: Doc, bullets: boolean) => d.sections.flatMap((s) => s.items.filter((i) => (i.kind === "bullet") === bullets).map((i) => i.text));
+    for (const v of versions) {
+      expect(lines(v, false)).toEqual(lines(master, false));
+      expect(lines(v, true).length).toBeGreaterThan(0);
+      expect(lines(v, true).length).toBeLessThan(lines(master, true).length);
+      for (const b of lines(v, true)) expect(lines(master, true)).toContain(b);
+    }
+    expect(lines(versions[0], true)).not.toEqual(lines(versions[1], true));
   });
 
   it("points applications at each version, spread across stages so both have replies", async () => {
