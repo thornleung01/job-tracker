@@ -20,6 +20,8 @@ describe("the privacy page", () => {
     ["a resume, a cover letter and the posting text stay on the device", "your resume and its versions, cover letters, the text of a job posting"],
     ["a job board's description is kept as the posting text on the device", "kept on the application as the job posting text, on your device only"],
     ["the export carries resumes and the CSV leaves their text out", "no email text, no resume text and no job posting text"],
+    ["a resume file is read on the device and not uploaded", "the app reads it on your device only. The file isn't uploaded"],
+    ["the last resume chosen is a session storage note", "jobtracker:lastResume: followed by the name of your database: the id of the resume you last chose"],
     ["the offer counts only what you can see but copies the rest", "The offer counts only the applications you haven't deleted"],
   ])("says that %s", (_what, words) => {
     expect(page).toContain(words);

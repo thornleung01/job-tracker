@@ -101,6 +101,7 @@ In Add application, paste a job link and the form fills in what it can.
 - **Other sites:** the company and role are guessed from the link and marked "Guessed from the link".
 - **LinkedIn, Indeed, Workday and company career pages:** use the "Save to Job Tracker" bookmarklet in Settings. It reads the page you are viewing in your own browser and opens the app with the details filled in. It never saves by itself.
 - **Fallback:** "Or paste the job text instead" reads text you copied off the page.
+- **Description:** when the page or board API has one (JSON-LD, or Greenhouse, Lever, Ashby and SmartRecruiters), or the pasted text is long enough to be one, it is kept as the application's job posting text (see "Resume and cover letters").
 
 One more case sends a request. A career page on another site that carries a `gh_jid` parameter (a Greenhouse job number) makes the app guess the Greenhouse board from the page's own domain and ask `boards-api.greenhouse.io` for that job. `public/privacy.html` says so. A wrong guess just finds nothing.
 
@@ -112,14 +113,14 @@ The link is stored on the application and shown as "Open posting". The local Pyt
 - **Interview rounds:** the application page counts rounds from your emails (one round per interview day, following reschedules and dropping cancelled ones, raised by named rounds such as "second round") and from the interview steps you log. It is an estimate until you type a number, and "Use estimate" takes you back. The number you type is saved in exports and kept when you merge applications.
 - **Coming up:** interviews in the next 7 days show in a short list above the applications (up to five, soonest first), and "Interview Thu, Oct 15" shows under the stage of each application that has one. It comes from your interview emails, follows reschedules, drops cancelled ones, and skips Rejected and Offer. The list hides while any filter is on, and in the calendar view. Each row has "Add to calendar" (see "Add to calendar" below).
 - **Follow-ups:** an Applied or Heard back application with no activity for 7 to 29 days gets a "Follow up?" tag. Tick "Needs follow-up" in the filters and choose Apply filters to see only those. After 30 days it gets "No reply in 30 days" instead, and the "No reply" filter shows those (see "More on the Applications page" below).
-- **Rounds column:** in Settings, Appearance, choose Rounds as a table column (off by default). It sorts, stays blank where nothing is counted, and is hidden at phone widths like Role, Applied and Emails.
+- **Rounds column:** in Settings, Appearance, choose Rounds as a table column (off by default). It sorts, stays blank where nothing is counted, and is hidden at phone widths like Role, Applied, Emails and Resume.
 - **Offer details:** the application page has a Salary (up to 60 characters of free text) and a Decision deadline at the Offer stage. The list shows "Decision by Oct 15" under an Offer. Both are saved in exports and kept when you merge applications.
-- **Several at once:** tick rows, or the box in the header for every row shown, to set a stage on all of them (which locks it, like the stage dropdown) or delete them. Deleted applications go to Settings, Recently deleted for 30 days (see "Recently deleted" below). Your mailbox isn't touched. Changing a filter clears the ticks. Up to 500 at a time.
+- **Several at once:** tick rows, or the box in the header for every row shown, to set a stage on all of them (which locks it, like the stage dropdown), set the resume sent (Set resume, with Undo) or delete them. Deleted applications go to Settings, Recently deleted for 30 days (see "Recently deleted" below). Your mailbox isn't touched. Changing a filter clears the ticks. Up to 500 at a time.
 - **Duplicate warning:** the Add application form says "You already have ..." with a link when the posting link, or the company and role, match an existing application. It never blocks Save.
 
 ## Export a spreadsheet
 
-Settings, Your data, Export CSV saves every application, ignoring any filters on the list, as `job-tracker-applications-YYYY-MM-DD.csv` for Excel, Numbers or Google Sheets. Columns: Company, Role, Stage, Applied, Last activity, Emails, Interview rounds, Posting link, Offer salary, Offer deadline. It leaves out applications in Recently deleted, has no email text and can't be imported back. It doesn't count as a backup. Use Export data for a full copy.
+Settings, Your data, Export CSV saves every application, ignoring any filters on the list, as `job-tracker-applications-YYYY-MM-DD.csv` for Excel, Numbers or Google Sheets. Columns: Company, Role, Stage, Applied, Last activity, Emails, Interview rounds, Posting link, Offer salary, Offer deadline, Resume sent (the resume's title). It leaves out applications in Recently deleted, has no email text, resume text or job posting text, and can't be imported back. It doesn't count as a backup. Use Export data for a full copy. That file is format version 3: a `documents` table (resumes and cover letters) and, on applications, `postingText` and `resumeId`. Older files are still read, and a file without `documents` has none.
 
 ## Your data, backups and installing
 
@@ -131,13 +132,27 @@ All of these live in `src/backup/` and `src/pages/settings/DataSection.tsx`. Tes
 - **Backup file (Chrome and Edge only).** Under the Your data buttons: "Choose a backup file" opens the browser's save dialog (`showSaveFilePicker`), writes the JSON export there and remembers the file. Then "Back up now" overwrites the same file with a fresh export, "Choose a different file" picks another, and "Stop using this file" forgets it (the file itself stays where it is). The browser may ask for permission again after the tab was closed. The write goes to a temporary copy and replaces the file only when it finishes, so a failure leaves the old backup. What the app keeps is the file handle (a reference to the file, not your data) in its own IndexedDB database, `jobtracker-backup-files`, keyed by account database name. It isn't in the export, and "Delete all my data" removes it. The option isn't shown in Firefox or Safari.
 - **Install as an app.** `public/manifest.webmanifest` and the icons in `public/icons/` let a browser offer "Install" or "Add to Home Screen". There is deliberately no service worker: the app needs the network for mail and job boards, and a worker that cached the bundle could keep serving an old version after a fix. So an installed copy opens in its own window but still needs the network and keeps no offline copy. The paths in the manifest are relative, so they follow `base` in `vite.config.ts` when you host a fork. The PNG icons are committed. To redraw them from `public/favicon.svg`, run `node web/scripts/make-icons.mjs` from the repository root (it uses headless Chrome at the macOS default path, or set `CHROME`).
 
+## Resume and cover letters
+
+Code: `src/documents/read/` (reading files), `src/sync/documents.ts`, `src/sync/documentLine.ts`, `src/db/documentShape.ts`, `src/pages/resume/`, `src/components/documents/`, `src/jobs/posting.ts`. Tests: `tests/documents/`, `tests/sync/documents.test.ts`, `tests/sync/addApplicationDocuments.test.ts`, `tests/sync/coverLetterMail.test.ts`, `tests/sync/resumeList.test.ts`, `tests/sync/sentResume.test.ts`, `tests/pages/resume/`, `tests/pages/detail/documents.test.ts`, `tests/pages/applications/resume.test.ts`, `tests/components/documents/`, `tests/components/upcoming/sent.test.ts`, `tests/jobs/posting.test.ts`, `tests/app/resumenav.test.ts`.
+
+- **Master resume.** The Resume page (`#/resume`, `g` then `r`) takes your resume from a PDF, Word (.docx) or text file, or from pasted text, splits it into headed sections and shows them to check and edit before anything is saved. The file is read on the device and never uploaded. The PDF reader is big, so it loads only when a PDF is chosen, as its own chunk, and its worker file is served from the same origin as the app.
+- **Versions.** "Make a version" copies the master into a standalone resume version with its own name, at most 5 besides the master. Any number of applications can use one version. Deleting a version sends it to Recently deleted, and an application that used it reads "(deleted)".
+- **Cover letters.** One per application, written on the application page or listed on the Resume page's Cover letters tab. The greeting is "Dear Jane," from the newest recruiter, hiring or people contact the application has, else "Dear hiring team,". Each letter has Copy text, Draft in Gmail or Outlook (a compose window in the same mailbox, like Draft follow-up) and Print.
+- **Job posting text.** Kept on the application, up to 20,000 characters. It is captured when you add from a link (JSON-LD on the page, or the Greenhouse, Lever, Ashby and SmartRecruiters board APIs) or from pasted text, and you can paste or edit it on the application page.
+- **Resume sent.** A choice on the Add application form, "Add several links" and the application page. The Add forms start with the one you used last. The list has a `resume=` filter (a version's id, or `none`) that saved views keep, an optional Resume column (Settings, Appearance) that sorts, and a bulk Set resume. Interviews show "Sent: Resume title" on Coming up and the calendar.
+- **Print.** "Print" opens `#/resume/print/:id`, one document in a single column. The browser's print dialog also saves it as a PDF. Printing hides everything but the document.
+- **Limits.** `src/db/limits.ts`: `MAX_POSTING_CHARS`, the `MAX_DOC_*` limits and `MAX_RESUME_VERSIONS`. Files up to 5 MB and PDFs up to 12 pages (`src/documents/read/errors.ts`).
+- **Export and search.** Export data and the backup file carry resumes and cover letters. Export CSV carries only the title of the resume sent. Search reads the job posting and the cover letter.
+
 ## Recently deleted
 
-Code: `src/sync/trash.ts`, `src/sync/live.ts`, `src/pages/settings/TrashSection.tsx`, `src/components/trash/`. Tests: `tests/sync/trash.test.ts`, `tests/pages/settings/trash.test.ts`, `tests/pages/detail/trash.test.ts`, `tests/app/trash.test.ts`.
+Code: `src/sync/trash.ts`, `src/sync/live.ts`, `src/sync/documents.ts`, `src/pages/settings/TrashSection.tsx`, `src/components/trash/`. Tests: `tests/sync/trash.test.ts`, `tests/sync/trashDocuments.test.ts`, `tests/settings/trashDocuments.test.ts`, `tests/pages/settings/trash.test.ts`, `tests/pages/detail/trash.test.ts`, `tests/app/trash.test.ts`.
 
 - **What happens.** "Delete application" (on the list panel, the detail page's More menu, and the bulk Delete) doesn't erase anything. It marks the application deleted (`deletedAt`) and keeps its emails, notes, steps and people edits. For 8 seconds a line says "Deleted Acme. It stays in Recently deleted for 30 days." with Restore.
 - **Where it is.** Settings, Recently deleted (a card just above Your data) lists each one with when it was deleted and the days left. Restore brings it back with the same id. "Delete now" and "Empty recently deleted" ask in place, then erase for good: every email's content is cleared and only its id and date stay, so the email isn't fetched again, and the application row, notes and steps go. The page of a deleted application says it was deleted and offers Restore.
 - **30 days is 30 x 24 hours,** counted on the timestamp, not calendar days. Expired entries are erased when the app starts, once per page load (`purgeOncePerSession`).
+- **Resumes and cover letters** wait here for 30 days too. Their rows read "Resume · Resume for Acme, Analyst" and "Cover letter · Acme, Analyst", with the same Restore and Delete now. `isLiveDocument` in `src/sync/documents.ts` is the live check for documents. Restoring a cover letter needs its application restored first.
 - **Hidden everywhere.** A deleted application is left out of the list, counts, Statistics, People, Coming up, follow-ups, offers, the weekly goal, duplicate checks and Export CSV. Lists and matches go through `src/sync/live.ts`; the two places that read deleted applications on purpose are `src/sync/trash.ts` and the mail matcher (`src/sync/match.ts`).
 - **Still included in Export data and the backup file,** with `deletedAt`, until it is erased. Importing such a file brings them back into Recently deleted.
 - **New mail.** Mail for a deleted application is kept with it, not turned into a new application, until you restore it or it is erased (`findDeletedApplication` in `src/sync/match.ts`).
@@ -147,9 +162,9 @@ Code: `src/sync/trash.ts`, `src/sync/live.ts`, `src/pages/settings/TrashSection.
 
 Code: `src/sync/search.ts`, `src/sync/savedViews.ts`, `src/components/savedviews/`, `src/components/shortcuts/`. Tests: `tests/sync/search.test.ts`, `tests/pages/applications/search.test.ts`, `tests/sync/savedViews.test.ts`, `tests/components/savedviews/`, `tests/pages/applications/savedviews.test.ts`, `tests/components/shortcuts/keys.test.ts`, `tests/pages/applications/shortcuts.test.ts`.
 
-- **Search** matches company and role, and also email subjects and bodies, notes and steps. Every word must match, in any order, ignoring accents and case. A search of 1 character looks at company and role only, and at most 8 words count. When a row matched in an email, note or step instead of its company or role, a "Matched in an email" line (or note, or step) with a short snippet shows under the company. Searches only read what is already stored on the device.
+- **Search** matches company and role, and also email subjects and bodies, notes, steps, the job posting and the cover letter. Every word must match, in any order, ignoring accents and case. A search of 1 character looks at company and role only, and at most 8 words count. When a row matched in an email, note, step, job posting or cover letter instead of its company or role, a "Matched in an email" line (or note, step, "the job posting", "the cover letter") with a short snippet shows under the company. Searches only read what is already stored on the device.
 - **Saved views.** "Save this view" on the Applications page (it shows once the filters or sort differ from the plain list) stores the stage, search, account, follow-up and no-reply filters and the sort under a name of 1 to 40 characters, up to 12 views. They show as chips above the list. A chip is a link to the same address the filters make, so Back and reload work. Each chip has Rename and Delete view (which asks first). They are stored in the IndexedDB settings table under the key `savedViews`, so Export data and the backup file carry them.
-- **Keyboard shortcuts** on the Applications page: `/` search, `j` and `k` next and previous application, `Enter` or `o` open or close, `x` tick, `n` add, `g` then `s` Settings, `Esc` clear, `?` this list. They are ignored while you type in a field and when Ctrl, Meta or Alt is held, and they work with Caps Lock on. The "Keyboard shortcuts" button at the bottom of the Applications page opens the same list in a dialog.
+- **Keyboard shortcuts** on the Applications page: `/` search, `j` and `k` next and previous application, `Enter` or `o` open or close, `x` tick, `n` add, `g` then `s` Settings, `g` then `r` Resume, `Esc` clear, `?` this list. They are ignored while you type in a field and when Ctrl, Meta or Alt is held, and they work with Caps Lock on. The "Keyboard shortcuts" button at the bottom of the Applications page opens the same list in a dialog.
 
 ## More on the Applications page
 
@@ -207,7 +222,7 @@ Everything the hosted app keeps in the browser, apart from tokens (those are in 
 
 | Where | Name | What |
 |---|---|---|
-| IndexedDB | `jobtracker:<iss>:<sub>` (one per logged-in user), or `jobtracker:local` in demo mode | All your data. Tables: accounts, applications (a deleted one has `deletedAt`), emails, activity, feedback, ignoredMail, learnedRules, contactEdits, settings. The settings table also holds `appearance`, `sync`, `savedViews` and `weeklyGoal` |
+| IndexedDB | `jobtracker:<iss>:<sub>` (one per logged-in user), or `jobtracker:local` in demo mode | All your data. Tables: accounts, applications (a deleted one has `deletedAt`), emails, activity, feedback, ignoredMail, learnedRules, contactEdits, documents (resumes and cover letters, a deleted one has `deletedAt`), settings. The settings table also holds `appearance`, `sync`, `savedViews` and `weeklyGoal` |
 | IndexedDB | `jobtracker-backup-files` | The handle of the chosen backup file, per account database name |
 | Local storage | `jobtracker:lastProvider` | The provider you last logged in with |
 | Local storage | `jobtracker:carryover-done` | You have already brought earlier applications into an account |
@@ -217,6 +232,7 @@ Everything the hosted app keeps in the browser, apart from tokens (those are in 
 | Session storage | `jobtracker:carryover-dismissed` | You chose Not now on the carry-over offer |
 | Session storage | `jobtracker:persist-asked` | The app has already asked the browser to keep its storage this session |
 | Session storage | `jobtracker:offers-open:<database name>` | Whether the Compare offers card is open |
+| Session storage | `jobtracker:lastResume:<database name>` | The id of the resume last chosen in "Resume sent" on the Add forms (set in `pages/applications/index.tsx`) |
 
 `public/privacy.html` lists the same names. When you add one, update both and the "Privacy" note in the root README.
 
@@ -229,10 +245,11 @@ Replying from the app, the Jobs tab (resume matching, Adzuna, Windows pop-ups), 
 - `src/auth` login, token handling, per-user database name
 - `src/providers` Gmail and Graph readers
 - `src/pipeline` the classifier, ported from Python and checked against golden fixtures (see "Changing the classifier" below)
-- `src/db`, `src/sync`, `src/portability` Dexie storage, sync, stats, import and export. `src/sync` also holds the pure logic behind search, saved views, the weekly goal, the calendar, `.ics` files, follow-up drafts and Recently deleted (`trash.ts`, `live.ts`)
+- `src/db`, `src/sync`, `src/portability` Dexie storage, sync, stats, import and export. `src/sync` also holds the pure logic behind resumes and cover letters (`documents.ts`), search, saved views, the weekly goal, the calendar, `.ics` files, follow-up drafts and Recently deleted (`trash.ts`, `live.ts`)
 - `src/backup` the storage request, backup reminder and optional backup file
 - `src/jobs` paste a job link (board lookups, the bookmarklet, pasted text)
-- `src/app`, `src/pages`, `src/components` the UI (one folder per feature in `src/components`, each with its own css: `calendar`, `trash`, `shortcuts`, `savedviews`, `goal`, `offers`, `followup`, `upcoming`, `bulkadd`, and more). `src/styles/base.css` is the shared stylesheet, kept in step with `jobtracker/templates/base.html`
+- `src/documents` reading a resume from a PDF, Word or text file (`read/`), on the device
+- `src/app`, `src/pages`, `src/components` the UI (`src/pages/resume` is the Resume page and its print view, `src/components/documents` the Documents section of the application page; one folder per feature in `src/components`, each with its own css: `calendar`, `trash`, `shortcuts`, `savedviews`, `goal`, `offers`, `followup`, `upcoming`, `bulkadd`, and more). `src/styles/base.css` is the shared stylesheet, kept in step with `jobtracker/templates/base.html`
 - `src/config.ts`, `src/site.ts` the OAuth client IDs and the repository links, both public by design
 - `src/demo` the demo data behind "Load demo data"
 - `site-config.json` the two app IDs the setup page writes
