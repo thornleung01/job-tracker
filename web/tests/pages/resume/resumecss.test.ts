@@ -22,10 +22,21 @@ describe.each(SHEETS)("%s", (sheet) => {
 });
 
 describe("the print stylesheet", () => {
-  it("scopes its block rules under .doc-sheet and uses no uppercase, so it can't reach the detail page after a visit", async () => {
+  it("scopes its block rules under .doc-sheet, and allows uppercase only in the classic template", async () => {
     const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(text).not.toMatch(/(^|\n)\s*\.doc-block/);
-    expect(text).not.toMatch(/text-transform:\s*uppercase/);
+    const rules = [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
+    const upper = rules.filter((r) => /text-transform:\s*uppercase/.test(r.body));
+    expect(upper.length).toBeGreaterThan(0);
+    for (const r of upper) expect(r.selector.startsWith(".doc-sheet.classic"), r.selector).toBe(true);
+  });
+
+  it("sets a serif letter page with half-inch margins for the classic template only", async () => {
+    const text = await css("pages/resume/print.css");
+    expect(text).toMatch(/@page classic \{ size: letter; margin: 0\.5in; \}/);
+    expect(text).toMatch(/\.doc-sheet\.classic \{[^}]*page: classic/);
+    expect(text).toMatch(/\.doc-sheet\.classic \{[^}]*"Times New Roman"[^}]*serif/);
+    expect(text).toMatch(/\.doc-sheet\.classic \.doc-row \{[^}]*display: flex; justify-content: space-between/);
   });
 
 

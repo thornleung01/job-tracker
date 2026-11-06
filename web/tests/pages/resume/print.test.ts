@@ -1,7 +1,10 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ResumePage from "../../../src/pages/resume";
-import { documentText, textFilename } from "../../../src/pages/resume/PrintView";
+import { createElement } from "react";
+import { documentText, PrintView, textFilename } from "../../../src/pages/resume/PrintView";
+import { PRINTABLE_HEIGHT_PX, PRINT_WIDTH_PX, pageVerdict, pageVerdictText } from "../../../src/pages/resume/onepage";
+import type { PageProps } from "../../../src/app/pageProps";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { createVersion, deleteDocument, saveCoverLetter, saveMaster } from "../../../src/sync/documents";
 import { $, $$, addApp, button, cleanup, click, freshDb, mountPage, text, waitFor } from "../applications/harness";
@@ -91,6 +94,123 @@ describe("the print view", () => {
     await waitFor(() => $$(container, "p").some((p) => text(p) === "That document isn't there any more."), "the message");
     expect($(container, ".doc-sheet")).toBeNull();
     expect($$(container, "button")).toHaveLength(0);
+  });
+});
+
+const TEMPLATE = [
+  { heading: "Header", items: lines("JORDAN LEE", "Toronto, Ontario | (416) 555-0100", "jordan.lee@example.com") },
+  { heading: "Professional summary", items: lines("Analyst with 5 years of experience.") },
+  { heading: "Skills and qualifications", items: [{ text: "SQL, Python", kind: "skill" as const, label: "Analytics" }] },
+  {
+    heading: "Work experience",
+    items: [
+      { text: "Northfield Bank", kind: "org" as const, right: "Toronto, Ontario" },
+      { text: "Senior Analyst", kind: "title" as const, right: "2025 – Present" },
+      { text: "Built a model.", kind: "bullet" as const, label: "Reporting" },
+      { text: "Led a rollout.", kind: "bullet" as const, label: "Dashboards" },
+      { text: "Analyst", kind: "title" as const, right: "2023 – 2025" },
+      { text: "Wrote pipelines.", kind: "bullet" as const },
+    ],
+  },
+  { heading: "Education", items: [{ text: "Demo University", kind: "school" as const, right: "Toronto, Ontario" }, ...lines("Bachelor of Commerce, 2021")] },
+];
+
+describe("the classic template", () => {
+  const show = async (sections: unknown, measure?: (el: HTMLElement) => number) => {
+    const db = freshDb();
+    const id = await createVersion(db, { title: "Resume for data roles", sections });
+    const Page = (p: PageProps) => createElement(PrintView, { db: p.db, id: String(id), measure });
+    const { container } = await mountPage(Page, db, `/resume/print/${id}`);
+    await waitFor(() => $(container, ".doc-sheet") !== null, "the document");
+    return container;
+  };
+
+  it("is only on a resume, so a cover letter keeps the plain layout", async () => {
+    const container = await show(TEMPLATE);
+    expect($(container, ".doc-sheet")!.classList.contains("classic")).toBe(true);
+    const db = freshDb();
+    const app = await addApp(db, "Acme");
+    const letter = await saveCoverLetter(db, app, [{ heading: "", items: lines("Dear team,") }], "paste");
+    const other = await open(db, letter);
+    await waitFor(() => $(other.container, ".doc-sheet") !== null);
+    expect($(other.container, ".doc-sheet")!.classList.contains("classic")).toBe(false);
+  });
+
+  it("centers the header: the first line is the name, the rest are the contact lines", async () => {
+    const container = await show(TEMPLATE);
+    expect(text($(container, "h1"))).toBe("JORDAN LEE");
+    expect($$(container, ".doc-contact p").map(text)).toEqual(["Toronto, Ontario | (416) 555-0100", "jordan.lee@example.com"]);
+    expect($$(container, ".doc-sheet h2").map(text)).toEqual(["Professional summary", "Skills and qualifications", "Work experience", "Education"]);
+    expect($$(container, "h1")).toHaveLength(1);
+  });
+
+  it("lays out summary, skills, jobs, titles, bullets and schools", async () => {
+    const container = await show(TEMPLATE);
+    expect($$(container, ".doc-block p").filter((p) => !p.classList.contains("doc-skill")).map(text)).toEqual(["Analyst with 5 years of experience.", "Bachelor of Commerce, 2021"]);
+    const skill = $(container, ".doc-skill")!;
+    expect(text(skill)).toBe("Analytics: SQL, Python");
+    expect(text($(skill, "strong"))).toBe("Analytics:");
+    const orgs = $$(container, ".doc-org");
+    expect(orgs.map((o) => $$(o, "strong").map(text))).toEqual([["Northfield Bank", "Toronto, Ontario"], ["Demo University", "Toronto, Ontario"]]);
+    const titles = $$(container, ".doc-title");
+    expect(titles.map((t) => $$(t, "em").map(text))).toEqual([["Senior Analyst", "2025 – Present"], ["Analyst", "2023 – 2025"]]);
+    expect($$(container, ".doc-bullets li").map(text)).toEqual(["Reporting: Built a model.", "Dashboards: Led a rollout.", "Wrote pipelines."]);
+    expect($$(container, ".doc-bullets li strong").map(text)).toEqual(["Reporting:", "Dashboards:"]);
+    expect($$(container, ".doc-bullets")).toHaveLength(2);
+  });
+
+  it("leaves a row's right side out when it has none, and keeps several plain lines as a list", async () => {
+    const container = await show([
+      { heading: "Work experience", items: [{ text: "Acme", kind: "org" }] },
+      { heading: "Other", items: lines("One", "Two") },
+    ]);
+    expect($$(container, ".doc-org strong")).toHaveLength(1);
+    expect($$(container, ".doc-sheet li").map(text)).toEqual(["One", "Two"]);
+  });
+
+  it("says it fits one page when the measured height does", async () => {
+    const fits = await show(TEMPLATE, () => 900);
+    await waitFor(() => $(fits, ".doc-fit") !== null, "the status");
+    expect(text($(fits, ".doc-fit"))).toBe("Fits one page");
+  });
+
+  it("says how many lines it runs over one page", async () => {
+    const over = await show(TEMPLATE, () => 960 + 17.5 * 3);
+    await waitFor(() => $(over, ".doc-fit") !== null, "the status");
+    expect(text($(over, ".doc-fit"))).toBe("About 3 lines over one page");
+  });
+
+  it("says nothing about pages for a cover letter", async () => {
+    const db = freshDb();
+    const app = await addApp(db, "Acme");
+    const letter = await saveCoverLetter(db, app, [{ heading: "", items: lines("Dear team,") }], "paste");
+    const Page = (p: PageProps) => createElement(PrintView, { db: p.db, id: String(letter), measure: () => 5000 });
+    const { container } = await mountPage(Page, db, `/resume/print/${letter}`);
+    await waitFor(() => $(container, ".doc-sheet") !== null);
+    expect($(container, ".doc-fit")).toBeNull();
+  });
+});
+
+describe("the one-page verdict", () => {
+  it("fits when the content is no taller than the page", () => {
+    expect(pageVerdict(960, 960, 17.5)).toEqual({ fits: true, overByLines: 0 });
+    expect(pageVerdict(0, 960, 17.5)).toEqual({ fits: true, overByLines: 0 });
+    expect(pageVerdict(Number.NaN, 960, 17.5)).toEqual({ fits: true, overByLines: 0 });
+  });
+  it("counts the overflow in lines, rounding up and never saying 0 lines over", () => {
+    expect(pageVerdict(961, 960, 17.5)).toEqual({ fits: false, overByLines: 1 });
+    expect(pageVerdict(960 + 35, 960, 17.5)).toEqual({ fits: false, overByLines: 2 });
+    expect(pageVerdict(960 + 36, 960, 17.5)).toEqual({ fits: false, overByLines: 3 });
+    expect(pageVerdict(1100, 960, 0).overByLines).toBe(140);
+  });
+  it("uses letter minus half-inch margins", () => {
+    expect(PRINTABLE_HEIGHT_PX).toBe(960);
+    expect(PRINT_WIDTH_PX).toBe(720);
+  });
+  it("words the result", () => {
+    expect(pageVerdictText({ fits: true, overByLines: 0 })).toBe("Fits one page");
+    expect(pageVerdictText({ fits: false, overByLines: 1 })).toBe("About 1 line over one page");
+    expect(pageVerdictText({ fits: false, overByLines: 4 })).toBe("About 4 lines over one page");
   });
 });
 
