@@ -69,10 +69,18 @@ describe("Restore after deleting from a list row's panel", () => {
     undo.ms = 150;
     const { db, acme } = await setup();
     const { container, host } = await mountWithHost(ApplicationsPage, db, `/?open=${acme}`);
+    // On a slow machine the line can come and go between two polls, so watch for it instead of polling.
+    let shown = false;
+    const watcher = new MutationObserver(() => {
+      if (noticeText(host) !== "") shown = true;
+    });
+    watcher.observe(host, { childList: true, subtree: true, characterData: true });
     await click(button($(container, `#panel-${acme}`)!, "Delete application"));
     await click(button($(container, `#panel-${acme} .inline-confirm`)!, "Delete application"));
-    await waitFor(() => noticeText(host) !== "");
+    await waitFor(() => shown || noticeText(host) !== "");
     await waitFor(() => $(host, ".trash-notice") === null, "the line to go");
+    watcher.disconnect();
+    expect(shown).toBe(true);
     expect((await db.applications.get(acme))?.deletedAt).toBeDefined();
   });
 
