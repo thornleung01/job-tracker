@@ -16,13 +16,15 @@ interface Props {
   urlFor(view: SavedView): string;
   navigate(to: string): void;
   accountName(id: number): string | undefined;
+  /** the title of a resume version, for the chip's tooltip */
+  resumeName?(id: string): string | undefined;
 }
 
 /**
  * The saved views as chips above the list. A chip is a link to the view's address (so the back button and a reload work). Each
  * has an options button that opens Rename and Delete in place; Delete asks first.
  */
-export function ViewChips({ db, views, currentUrl, urlFor, navigate, accountName }: Props) {
+export function ViewChips({ db, views, currentUrl, urlFor, navigate, accountName, resumeName }: Props) {
   const [menu, setMenu] = useState<number | null>(null);
   // What was just deleted, said in the status line under the chips, and the place focus goes (a chip's options button or the line itself).
   const [deleted, setDeleted] = useState("");
@@ -62,7 +64,7 @@ export function ViewChips({ db, views, currentUrl, urlFor, navigate, accountName
               const active = urlFor(v) === currentUrl;
               return (
                 <li className="view-chip" key={v.id}>
-                  <a className="view-chip-link" href={"#" + urlFor(v)} aria-current={active ? "true" : undefined} title={describeFilters(v, accountName(v.account))} onClick={(e) => onChoose(e, v)}>{v.name}</a>
+                  <a className="view-chip-link" href={"#" + urlFor(v)} aria-current={active ? "true" : undefined} title={describeFilters(v, accountName(v.account), resumeName?.(v.resume ?? ""))} onClick={(e) => onChoose(e, v)}>{v.name}</a>
                   <button type="button" className="view-chip-menu" id={`view-menu-${v.id}`} aria-label={`Options for ${v.name}`} aria-expanded={menu === v.id} aria-controls={`view-options-${v.id}`}
                           onClick={() => { setDeleted(""); setMenu(menu === v.id ? null : v.id); }}>
                     <span aria-hidden="true">…</span>

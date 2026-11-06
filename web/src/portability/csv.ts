@@ -4,13 +4,15 @@ import type { ApplicationRow } from "../db/schema";
 import { dayOf, localToday } from "../db/time";
 
 export const CSV_HEADERS = [
-  "Company", "Role", "Stage", "Applied", "Last activity", "Emails", "Interview rounds", "Posting link", "Offer salary", "Offer deadline",
+  "Company", "Role", "Stage", "Applied", "Last activity", "Emails", "Interview rounds", "Posting link", "Offer salary", "Offer deadline", "Resume sent",
 ] as const;
 
 /** What one row needs: an application list row (see listApplications) has all of it. */
 export type CsvRow = Pick<ApplicationRow, "company" | "role" | "stage" | "appliedAt" | "lastActivity" | "postingUrl" | "offerSalary" | "offerDeadline"> & {
   nEmails: number;
   rounds: number | null;
+  /** the title of the resume sent; left out, null, or empty when none is set or it was deleted */
+  resumeTitle?: string | null;
 };
 
 /** Lets Excel know the file is UTF-8, so accents survive. */
@@ -32,7 +34,7 @@ export function applicationsToCsv(rows: readonly CsvRow[]): string {
   const lines = [CSV_HEADERS.map(csvField).join(",")];
   for (const r of rows) {
     lines.push([
-      r.company, r.role, r.stage, dayOf(r.appliedAt), dayOf(r.lastActivity), r.nEmails, r.rounds, r.postingUrl, r.offerSalary, r.offerDeadline,
+      r.company, r.role, r.stage, dayOf(r.appliedAt), dayOf(r.lastActivity), r.nEmails, r.rounds, r.postingUrl, r.offerSalary, r.offerDeadline, r.resumeTitle,
     ].map(csvField).join(","));
   }
   return BOM + lines.join(EOL) + EOL;

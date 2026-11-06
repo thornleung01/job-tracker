@@ -76,6 +76,7 @@ export const AppRow = memo(function AppRow({ db, navigate, r, columns, isOpen, s
       case "lastActivity":
         return <td role="cell" data-col="last_activity" key={c} id={`last-${r.id}`} className="small muted"><LastActivity iso={r.lastActivity} idleDays={r.idleDays} />{r.ghosted ? <> <GhostedTag /></> : r.followUp ? <> <FollowUpTag /></> : null}</td>;
       case "emails": return <td role="cell" data-col="emails" key={c} className="small muted">{r.nEmails}</td>;
+      case "resume": return <td role="cell" data-col="resume" key={c} className="small muted">{r.resumeTitle ? <span className="resume-cell" title={r.resumeTitle}>{r.resumeTitle}</span> : null}</td>;
       case "rounds": return <td role="cell" data-col="rounds" key={c} className="small muted">{r.rounds ?? ""}</td>;
     }
   };

@@ -14,7 +14,7 @@ const el = (html: string): HTMLElement => {
 describe("the key table", () => {
   const cases: [string[], ShortcutAction | null][] = [
     [["/"], "focusSearch"], [["j"], "next"], [["k"], "prev"], [["Enter"], "toggleOpen"], [["o"], "toggleOpen"], [["n"], "add"],
-    [["x"], "select"], [["g", "s"], "goSettings"], [["Escape"], "clear"], [["?"], "help"],
+    [["x"], "select"], [["g", "s"], "goSettings"], [["g", "r"], "goResume"], [["Escape"], "clear"], [["?"], "help"],
     [["g"], null], [["g", "x"], null], [["s"], null], [["z"], null], [["Z"], null], [["Tab"], null], [[" "], null], [["ArrowDown"], null],
   ];
   it.each(cases)("%j means %s", (keys, action) => {
@@ -28,7 +28,7 @@ describe("the key table", () => {
   it("lists every action once in the table the help shows, each with at least one key", () => {
     const actions = SHORTCUTS.map((s) => s.action);
     expect(new Set(actions).size).toBe(actions.length);
-    expect(actions.sort()).toEqual(["add", "clear", "focusSearch", "goSettings", "help", "next", "prev", "select", "toggleOpen"]);
+    expect(actions.sort()).toEqual(["add", "clear", "focusSearch", "goResume", "goSettings", "help", "next", "prev", "select", "toggleOpen"]);
     expect(SHORTCUTS.every((s) => s.sequences.length > 0 && s.label)).toBe(true);
   });
 });

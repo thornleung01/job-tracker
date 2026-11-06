@@ -4,6 +4,8 @@ import type { JobTrackerDB } from "../../db/schema";
 import { bulkAdd, parseLinkLines, summarize, type BulkAddDeps, type LinkResult } from "../../sync/bulkAdd";
 import { messageFor } from "../useAction";
 import { Notice } from "../Notice";
+import type { ResumeChoice } from "../bulk/BulkBar";
+import { ResumeSelect } from "./ResumeSelect";
 import "./bulkadd.css";
 
 /** The words after each link in the result list. Everything the job board sent is shown as text, never as markup. */
@@ -21,11 +23,22 @@ function lineStatus(r: LinkResult): string {
   }
 }
 
+interface BulkAddProps {
+  db: JobTrackerDB;
+  deps: BulkAddDeps;
+  /** the versions to choose from, master first; empty when there is no master resume */
+  resumes: readonly ResumeChoice[];
+  /** the resume sent with every link in the batch: a version's id as text, or "" for none */
+  resume: string;
+  onResume(value: string): void;
+  onAddResume(): void;
+}
+
 /**
  * "Add several links" in the Add application form: a box for up to 10 job links, one per line, and a result for each. The page stays
  * usable while it works, and Stop ends it after the links already being read.
  */
-export function BulkAdd({ db, deps }: { db: JobTrackerDB; deps: BulkAddDeps }) {
+export function BulkAdd({ db, deps, resumes, resume, onResume, onAddResume }: BulkAddProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -72,6 +85,7 @@ export function BulkAdd({ db, deps }: { db: JobTrackerDB; deps: BulkAddDeps }) {
     controller.current = ask;
     bulkAdd(db, links, deps, {
       signal: ask.signal,
+      resumeId: resume ? Number(resume) : undefined,
       onResult: (_r, done, total) => {
         if (mounted.current) setRunning({ done, total });
       },
@@ -110,6 +124,10 @@ export function BulkAdd({ db, deps }: { db: JobTrackerDB; deps: BulkAddDeps }) {
               <label htmlFor={areaId}>Job links, one on each line (up to {BULK_ADD_MAX})</label>
               <textarea id={areaId} name="job_links" rows={5} spellCheck={false} autoCapitalize="off" autoComplete="off" value={text}
                         disabled={working} aria-describedby={`${areaId}-status`} onChange={(e) => setText(e.target.value)} />
+            </div>
+            <div className="fgroup bulk-add-resume">
+              <label htmlFor={`${areaId}-resume`}>Resume sent</label>
+              <ResumeSelect id={`${areaId}-resume`} resumes={resumes} value={resume} onChange={onResume} onAdd={onAddResume} />
             </div>
             {error ? <Notice tone="err">{error}</Notice> : null}
             <div className="row">

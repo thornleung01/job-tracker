@@ -76,6 +76,6 @@ describe("search across everything", () => {
 
   it("says in the box what it looks through", async () => {
     const { container } = await mountPage(ApplicationsPage, await seed());
-    expect(($(container, "#f-q") as HTMLInputElement).placeholder).toBe("Company, role, email or note");
+    expect(($(container, "#f-q") as HTMLInputElement).placeholder).toBe("Company, role, email, note or posting");
   });
 });

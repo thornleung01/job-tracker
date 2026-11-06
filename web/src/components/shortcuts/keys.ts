@@ -1,7 +1,7 @@
 // The Applications page's keyboard shortcuts as plain logic: which key (or two keys in a row) means what, and when a key is
 // to be ignored. No React and no page here, so the table and the rules are tested on their own (tests/components/shortcuts).
 
-export type ShortcutAction = "focusSearch" | "next" | "prev" | "toggleOpen" | "add" | "select" | "goSettings" | "clear" | "help";
+export type ShortcutAction = "focusSearch" | "next" | "prev" | "toggleOpen" | "add" | "select" | "goSettings" | "goResume" | "clear" | "help";
 
 export interface Shortcut {
   action: ShortcutAction;
@@ -22,6 +22,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { action: "select", label: "Tick or untick the application", sequences: [["x"]] },
   { action: "add", label: "Add an application", sequences: [["n"]] },
   { action: "goSettings", label: "Go to Settings", sequences: [["g", "s"]] },
+  { action: "goResume", label: "Go to Resume", sequences: [["g", "r"]] },
   { action: "clear", label: "Clear the current application, or close this", sequences: [["Escape"]] },
   { action: "help", label: "Show this list", sequences: [["?"]] },
 ];
@@ -62,7 +63,7 @@ export function answersEnter(target: EventTarget | null): boolean {
 const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock"]);
 
 /**
- * Turns key presses into actions. It remembers a pending `g` for SEQUENCE_TIMEOUT_MS, so `g` then `s` is "go to Settings" and `g`
+ * Turns key presses into actions. It remembers a pending `g` for SEQUENCE_TIMEOUT_MS, so `g` then `s` is "go to Settings" (and `r`, Resume) and `g`
  * then anything else (or a pause) is nothing, and that other key does nothing either. Keys are ignored while typing and when Ctrl, Meta or Alt is down. A modifier key
  * pressed on its own (the Shift before `?`) neither counts nor cancels a pending `g`.
  */

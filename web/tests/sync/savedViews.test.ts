@@ -7,7 +7,7 @@ import { closeAll, freshDb } from "./helpers";
 
 afterEach(closeAll);
 
-const f = (o: Partial<ViewFilters> = {}): ViewFilters => ({ stage: "Interview", q: "", account: 0, followUp: false, ghosted: false, sort: "", dir: "", ...o });
+const f = (o: Partial<ViewFilters> = {}): ViewFilters => ({ stage: "Interview", q: "", account: 0, followUp: false, ghosted: false, resume: "", sort: "", dir: "", ...o });
 
 describe("names", () => {
   it("tidies spaces and refuses empty, long and hostile names", () => {
@@ -26,9 +26,9 @@ describe("names", () => {
 describe("filters", () => {
   it("keeps known values and empties the rest", () => {
     expect(cleanFilters({ stage: "Nope", q: "  a   b ", account: -3, followUp: "yes", sort: "evil", dir: "asc" }))
-      .toEqual({ stage: "", q: "a b", account: 0, followUp: false, ghosted: false, sort: "", dir: "" });
+      .toEqual({ stage: "", q: "a b", account: 0, followUp: false, ghosted: false, resume: "", sort: "", dir: "" });
     expect(cleanFilters({ stage: "Offer", sort: "company", dir: "desc", ghosted: true, account: 2 }))
-      .toEqual({ stage: "Offer", q: "", account: 2, followUp: false, ghosted: true, sort: "company", dir: "desc" });
+      .toEqual({ stage: "Offer", q: "", account: 2, followUp: false, ghosted: true, resume: "", sort: "company", dir: "desc" });
     expect(cleanFilters("junk")).toEqual(f({ stage: "" }));
   });
   it("describes what a view keeps", () => {

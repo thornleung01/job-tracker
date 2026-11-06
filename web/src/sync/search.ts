@@ -1,6 +1,6 @@
 // Search on the Applications page: company and role, plus the subjects and bodies of an application's emails and the text of its
-// notes and steps. Pure: the caller hands over what it has already loaded, and nothing here touches the database.
-import { MAX_NOTE_CHARS, SEARCH_MAX_CHARS, SEARCH_MAX_WORDS, SEARCH_MIN_CHARS, SUBJECT_READ_CHARS } from "../db/limits";
+// notes and steps, and the job posting and cover letter. Pure: the caller hands over what it has already loaded, and nothing here touches the database.
+import { MAX_NOTE_CHARS, MAX_POSTING_CHARS, SEARCH_MAX_CHARS, SEARCH_MAX_WORDS, SEARCH_MIN_CHARS, SUBJECT_READ_CHARS } from "../db/limits";
 import { BODY_LIMIT } from "../types";
 
 /** How much of the text around a hit is shown. */
@@ -11,6 +11,13 @@ export interface SearchRow {
   id: number;
   company: string;
   role: string;
+  /** the job posting's text, when one was kept */
+  postingText?: string;
+}
+/** The text of an application's cover letter. */
+export interface SearchCover {
+  applicationId: number;
+  text: string;
 }
 export interface SearchEmail {
   applicationId: number | null;
@@ -27,7 +34,7 @@ export interface SearchActivity {
 
 /** Why an application matched. "name" is the company or role, which the row already shows, so it has no snippet. */
 export interface SearchMatch {
-  via: "name" | "email" | "note" | "step";
+  via: "name" | "email" | "note" | "step" | "posting" | "cover";
   /** the text around the first hit, on one line; empty for "name" */
   snippet: string;
 }
@@ -83,18 +90,22 @@ export function snippetAround(text: string, words: readonly string[]): string {
  * Erased emails (no subject, no body) and emails that belong to another application never match.
  */
 export function searchApplications(
-  rows: readonly SearchRow[], emails: readonly SearchEmail[], activity: readonly SearchActivity[], query: string,
+  rows: readonly SearchRow[], emails: readonly SearchEmail[], activity: readonly SearchActivity[], query: string, covers: readonly SearchCover[] = [],
 ): Map<number, SearchMatch> {
   const hits = new Map<number, SearchMatch>();
   const words = searchWords(query.trim());
   if (!words.length) return hits;
 
   const rest = new Map<number, string[]>();
+  const postingOf = new Map<number, string>();
   for (const r of rows) {
     const name = foldText(`${r.company} ${r.role}`);
     const missing = words.filter((w) => !name.includes(w));
     if (!missing.length) hits.set(r.id, { via: "name", snippet: "" });
-    else rest.set(r.id, missing);
+    else {
+      rest.set(r.id, missing);
+      if (r.postingText) postingOf.set(r.id, r.postingText);
+    }
   }
   if (!rest.size || query.trim().length < SEARCH_MIN_CHARS) return hits;
 
@@ -113,6 +124,9 @@ export function searchApplications(
     if (list) list.push(a);
     else notesOf.set(a.applicationId, [a]);
   }
+
+  const coverOf = new Map<number, string>();
+  for (const c of covers) if (rest.has(c.applicationId)) coverOf.set(c.applicationId, c.text);
 
   for (const [id, missing] of rest) {
     const holds = (text: string) => {
@@ -140,13 +154,24 @@ export function searchApplications(
         break;
       }
     }
+    if (hits.has(id)) continue;
+    // The posting and the cover letter come last: they are long, and a hit in your own words about this application says more.
+    const posting = (postingOf.get(id) ?? "").slice(0, MAX_POSTING_CHARS);
+    if (posting && holds(posting)) {
+      hits.set(id, { via: "posting", snippet: snippetAround(posting, missing) });
+      continue;
+    }
+    const cover = coverOf.get(id);
+    if (cover && holds(cover)) hits.set(id, { via: "cover", snippet: snippetAround(cover, missing) });
   }
   return hits;
 }
 
+const WHERE = { email: "an email", note: "a note", step: "a step", posting: "the job posting", cover: "the cover letter" } as const;
+
 /** "Matched in an email: …" for a row that matched on text other than its company or role, or "" for a name match. */
 export function whyMatched(match: SearchMatch | undefined): string {
   if (!match || match.via === "name") return "";
-  const where = match.via === "email" ? "an email" : match.via === "note" ? "a note" : "a step";
+  const where = WHERE[match.via];
   return match.snippet ? `Matched in ${where}: ${match.snippet}` : `Matched in ${where}`;
 }

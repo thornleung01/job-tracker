@@ -15,6 +15,7 @@ export const COLUMNS = {
   lastActivity: "Last activity",
   emails: "Emails",
   rounds: "Rounds",
+  resume: "Resume",
 } as const;
 export type ColumnId = keyof typeof COLUMNS;
 export const LOOKBACKS = [30, 60, 90, 180, 365] as const;

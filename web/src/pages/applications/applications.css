@@ -11,6 +11,8 @@
 .add-fields { align-items: flex-start; }
 .add-url-row { margin-top: 12px; }
 /* Why a search matched an email or a note, under the company. */
+/* The optional Resume column: a long title is cut short, with the whole of it in the tooltip. */
+.resume-cell { display: block; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .match-why { display: block; margin: 2px 0 0 28px; overflow-wrap: anywhere; }
 /* The row the keyboard is on: a bar down its left edge as well as a tint, so it doesn't rely on colour alone. */
 tr.app-row.is-current td { background: var(--hover); }

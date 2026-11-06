@@ -13,17 +13,18 @@ interface Props {
   /** how many views are kept already, so a full list says so before anything is typed */
   count: number;
   accountName?: string;
+  resumeName?: string;
   onClose(): void;
 }
 
 /** The small form under the filter card that names the current filters and keeps them. Escape or Cancel closes it. */
-export function SaveViewForm({ db, filters, count, accountName, onClose }: Props) {
+export function SaveViewForm({ db, filters, count, accountName, resumeName, onClose }: Props) {
   const act = useAction();
   const [name, setName] = useState("");
   const field = useRef<HTMLInputElement>(null);
   const id = useId();
   useEffect(() => field.current?.focus(), []);
-  const summary = describeFilters(filters, accountName);
+  const summary = describeFilters(filters, accountName, resumeName);
   const full = count >= SAVED_VIEWS_MAX;
 
   const submit = (e: FormEvent) => {
