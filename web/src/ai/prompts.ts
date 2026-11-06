@@ -1,9 +1,6 @@
 // The requests the app sends to the model. Pure: no network, no storage. The resume text is untrusted, so it only ever travels inside a JSON
 // string in the user turn, and the system prompt says to treat it as data.
-import type { AiModel, AiRequest } from "./deps";
-
-/** Bump when the prompt or the schema changes in a way that changes what a reply looks like. */
-export const CONVERT_SCHEMA_VERSION = 1;
+import { DEFAULT_MAX_TOKENS, type AiModel, type AiRequest } from "./deps";
 
 /** The line kinds the model may use. `line` becomes a plain line with no kind. */
 export const CONVERT_KINDS = ["line", "org", "title", "bullet", "skill", "school"] as const;
@@ -48,6 +45,10 @@ export const CONVERT_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
 };
 
+/**
+ * The system prompt is advisory: a model can be talked out of it by text in the resume, so nothing relies on it alone. `verify.ts` checks the
+ * reply in code (shape, ids, and every line against the source).
+ */
 export const CONVERT_SYSTEM = [
   "You convert one person's resume into a fixed template. You never change a word of substance.",
   "",
@@ -74,13 +75,18 @@ export const CONVERT_SYSTEM = [
   "Write nothing but the JSON that matches the schema.",
 ].join("\n");
 
-/** The request that converts `text` (a resume's extracted text) into the template. */
+/**
+ * The request that converts `text` (a resume's extracted text) into the template.
+ *
+ * The user turn is `JSON.stringify({ task, resumeText })` so quotes, newlines and fake "system:" lines in the resume become plain string
+ * content: they can't close a data field or pose as an instruction. That lowers the risk of prompt injection and doesn't remove it.
+ */
 export function convertRequest(text: string, model: AiModel): AiRequest {
   return {
     model,
     system: CONVERT_SYSTEM,
     user: JSON.stringify({ task: "convert", resumeText: text }),
     schema: CONVERT_SCHEMA,
-    maxTokens: 8000,
+    maxTokens: DEFAULT_MAX_TOKENS,
   };
 }

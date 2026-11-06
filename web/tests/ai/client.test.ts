@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AI_URL, AI_VERSION, MAX_RETRY_AFTER_MS, createClient } from "../../src/ai/client";
-import type { AiRequest } from "../../src/ai/deps";
+import { DEFAULT_MAX_TOKENS, type AiRequest } from "../../src/ai/deps";
 import { AiError } from "../../src/ai/errors";
 import type { AiErrorCode } from "../../src/ai/errors";
 import { MAX_AI_INPUT_CHARS, MAX_AI_OUTPUT_CHARS } from "../../src/db/limits";
@@ -74,7 +74,7 @@ describe("the request", () => {
     const b = body(calls[0]);
     expect(b).toEqual({
       model: "claude-sonnet-5-5",
-      max_tokens: 8000,
+      max_tokens: DEFAULT_MAX_TOKENS,
       system: "sys",
       messages: [{ role: "user", content: "hello" }],
       output_config: { format: { type: "json_schema", schema: request.schema } },
@@ -149,6 +149,14 @@ describe("status mapping", () => {
     ["spend limit by code", 429, "x", { details: { error_code: "enforced_spend_limit_reached" } }, "spendLimit", 1],
     ["spend limit by message", 429, "You have reached your workspace spending limit", {}, "spendLimit", 1],
     ["400", 400, "bad", {}, "badReply", 1],
+    ["400 about a workspace", 400, "This key requires the anthropic-workspace-id header", {}, "workspaceKey", 1],
+    ["400 about a workspace, in capitals", 400, "WORKSPACE required", {}, "workspaceKey", 1],
+    ["400 about a spending limit", 400, "You have reached your spending limit", {}, "spendLimit", 1],
+    ["400 about a workspace spend limit", 400, "workspace spend limit reached", {}, "spendLimit", 1],
+    ["408", 408, "timeout", {}, "badReply", 1],
+    ["409", 409, "conflict", {}, "badReply", 1],
+    ["422", 422, "unprocessable", {}, "badReply", 1],
+    ["501", 501, "not implemented", {}, "badReply", 1],
     ["413", 413, "too big", {}, "tooLong", 1],
     ["404", 404, "nope", {}, "badReply", 1],
     ["plain 429", 429, "slow down", {}, "rateLimited", 3],

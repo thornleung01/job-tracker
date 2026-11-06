@@ -8,6 +8,7 @@ export const AI_MESSAGES = {
   wrongPassphrase: "That passphrase didn't unlock your key.",
   badKey: "That key was refused. Check it in Settings.",
   orgBlocked: "Your Anthropic organization doesn't allow use from a browser.",
+  workspaceKey: "That key isn't tied to a workspace. Create one inside a workspace in the Anthropic console.",
   needsCredit: "Your Anthropic account needs credit.",
   rateLimited: "Too many requests right now. Try again in a minute.",
   spendLimit: "Your Anthropic spending limit is reached.",

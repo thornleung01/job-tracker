@@ -9,6 +9,10 @@ export const AI_MODELS = [
 ] as const;
 export type AiModel = (typeof AI_MODELS)[number]["id"];
 export const DEFAULT_MODEL: AiModel = AI_MODELS[0].id;
+/** The cheapest model (the second in the list), for a quick check of a key. */
+export const CHECK_MODEL: AiModel = AI_MODELS[1].id;
+/** The reply budget of one request: enough for a long resume as JSON. A request may ask for less. */
+export const DEFAULT_MAX_TOKENS = 8000;
 export const isAiModel = (value: unknown): value is AiModel => AI_MODELS.some((m) => m.id === value);
 
 /** One request: the system prompt, the user turn (the untrusted text is JSON-encoded inside it) and the JSON schema the reply must match. */

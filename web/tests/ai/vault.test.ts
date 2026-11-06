@@ -128,7 +128,8 @@ describe("the key vault", () => {
     for (const [key, passphrase, text] of [
       ["   ", PASSPHRASE, "Enter your Anthropic key."],
       ["sk-openai-123", PASSPHRASE, "That doesn't look like an Anthropic key."],
-      [KEY, "short", "Use a passphrase of at least 8 characters."],
+      [KEY, "short", "Use a passphrase of at least 12 characters."],
+      [KEY, "elevenchars", "Use a passphrase of at least 12 characters."],
     ] as const) {
       const error = await refusal(key, passphrase);
       expect(error).toBeInstanceOf(ActionError);
