@@ -1,12 +1,15 @@
 import { TRASH_DAYS } from "../../db/limits";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { realAiDeps, type AiDeps } from "../../ai";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { Notice } from "../../components/Notice";
 import { useAction } from "../../components/useAction";
 import { MAX_DOC_TITLE_CHARS } from "../../db/limits";
 import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
+import { convertResume, type ConvertResult } from "../../sync/convert";
 import { createVersion, deleteDocument, saveMaster, updateDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
+import { ConvertPanel, FlagList, type ConvertFn } from "./ConvertPanel";
 import { Importer, type Incoming } from "./Importer";
 import { SectionsEditor } from "../../components/documents/SectionsEditor";
 
@@ -59,22 +62,47 @@ function EditorBlock({ db, doc, label, draft, act, onSaved, onCancel, saveLabel 
   );
 }
 
+/** What the review shows: the sections to check, where they came from, and for an AI conversion what it wasn't sure about. */
+interface Draft {
+  sections: DocSection[];
+  source: "upload" | "paste" | "ai";
+  ai?: ConvertResult;
+}
+
 /** A new master resume to check: the split text is editable, and Save as master resume is the only thing that stores it. */
-function Review({ db, incoming, existing, onDone }: { db: JobTrackerDB; incoming: Incoming; existing: boolean; onDone(): void }) {
-  const [sections, setSections] = useState(incoming.sections);
+function Review({ db, draft, existing, onDone, onAgain, onSimple }: {
+  db: JobTrackerDB; draft: Draft; existing: boolean; onDone(): void; onAgain(): void; onSimple(): void;
+}) {
+  const [sections, setSections] = useState(draft.sections);
   const act = useAction();
+  const card = useRef<HTMLDivElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const save = () =>
     void act.run("save", async () => {
-      await saveMaster(db, sections, incoming.source);
+      await saveMaster(db, sections, draft.source);
       onDone();
     });
   return (
-    <div className="card doc-card">
-      <h2 className="section">{existing ? "Replace your master resume" : "Check your resume"}</h2>
+    <div className="card doc-card convert-review" ref={card}>
+      <h2 className="section" ref={title} tabIndex={-1}>{existing ? "Replace your master resume" : "Check your resume"}</h2>
+      {draft.ai ? (
+        <>
+          <p className="muted small convert-summary">Converted with AI. Check each line before you save.</p>
+          <FlagList flags={draft.ai.flags} sections={sections} root={card} heading={title} />
+        </>
+      ) : null}
       <SectionsEditor sections={sections} onChange={setSections} label="Resume text to check" />
+      {draft.ai?.unused.length ? (
+        <details className="convert-unused">
+          <summary className="disclosure"><span className="chev" aria-hidden="true"></span>Not used from your file</summary>
+          <p className="muted small">{draft.ai.unused.join(", ")}</p>
+        </details>
+      ) : null}
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       <div className="row doc-save">
         <button type="button" className="primary" onClick={save} {...act.button("save")}>Save as master resume</button>
+        {draft.ai ? <button type="button" onClick={onAgain} disabled={act.busy !== null}>Convert again</button> : null}
+        {draft.ai ? <button type="button" onClick={onSimple} disabled={act.busy !== null}>Use the simple converter</button> : null}
         <button type="button" onClick={onDone} disabled={act.busy !== null}>Cancel</button>
       </div>
     </div>
@@ -185,15 +213,38 @@ interface TabProps {
   resumes: DocumentRow[];
   usage: ReadonlyMap<number, number>;
   say(message: string, removed?: boolean): void;
+  /** the AI key and the conversion, replaced in tests */
+  deps?: Partial<{ ai: AiDeps; convert: ConvertFn }>;
 }
 
-export function ResumeTab({ db, resumes, usage, say }: TabProps) {
+export function ResumeTab({ db, resumes, usage, say, deps }: TabProps) {
   const master = resumes.find((d) => d.master);
   const versions = resumes.filter((d) => !d.master);
+  const ai = deps?.ai ?? realAiDeps;
+  const convert = deps?.convert ?? convertResume;
+  // A file or pasted text goes to the convert panel first, then to the review. `round` gives the review a fresh start each time its sections are swapped.
   const [incoming, setIncoming] = useState<Incoming | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [round, setRound] = useState(0);
+  const review = (next: Draft) => {
+    setDraft(next);
+    setRound((r) => r + 1);
+  };
+  const done = () => {
+    setIncoming(null);
+    setDraft(null);
+  };
   return (
     <>
-      {incoming ? <Review db={db} incoming={incoming} existing={Boolean(master)} onDone={() => setIncoming(null)} /> : null}
+      {incoming && !draft ? (
+        <ConvertPanel db={db} incoming={incoming} ai={ai} convert={convert} onCancel={done}
+                      onSimple={() => review({ sections: incoming.sections, source: incoming.source })}
+                      onConverted={(result) => review({ sections: result.sections, source: "ai", ai: result })} />
+      ) : null}
+      {incoming && draft ? (
+        <Review key={`review-${round}`} db={db} draft={draft} existing={Boolean(master)} onDone={done} onAgain={() => setDraft(null)}
+                onSimple={() => review({ sections: incoming.sections, source: incoming.source })} />
+      ) : null}
       {!master && !incoming ? (
         <div className="card doc-card doc-empty">
           <Importer fileLabel="Upload a file" onRead={setIncoming} />

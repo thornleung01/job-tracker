@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { Notice } from "../../components/Notice";
 import type { DocSection } from "../../db/schema";
-import { MESSAGES, ReadError, readFileSections, readPastedSections } from "../../documents/read";
+import { MESSAGES, ReadError, extractText, readPastedSections, splitSections } from "../../documents/read";
 
-export type Incoming = { sections: DocSection[]; source: "upload" | "paste" };
+/** What was read: the sections the simple converter made, and the plain text they came from (the text an AI conversion would send). */
+export type Incoming = { sections: DocSection[]; text: string; source: "upload" | "paste" };
 
 interface Props {
   /** the text of the file button: "Upload a file" or "Replace with a file" */
@@ -28,7 +29,8 @@ export function Importer({ fileLabel, onRead, primary = true }: Props) {
     setError(null);
     setReading(true);
     try {
-      onRead({ sections: await readFileSections(file), source: "upload" });
+      const read = await extractText(file);
+      onRead({ sections: splitSections(read), text: read, source: "upload" });
     } catch (e) {
       setError(messageOf(e));
     } finally {
@@ -39,7 +41,8 @@ export function Importer({ fileLabel, onRead, primary = true }: Props) {
   const usePasted = () => {
     setError(null);
     try {
-      onRead({ sections: readPastedSections(text), source: "paste" });
+      const sections = readPastedSections(text);   // throws on empty text
+      onRead({ sections, text: text.replace(/\r\n?/g, "\n").trim(), source: "paste" });
       setPasting(false);
       setText("");
     } catch (e) {

@@ -38,7 +38,8 @@ async function choose(container: HTMLElement, f: File) {
   await act(async () => {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  await waitFor(() => $(container, ".notice.err") !== null || button(container, "Save as master resume") !== null, "the file to be read");
+  await waitFor(() => $(container, ".notice.err") !== null || button(container, "Use the simple converter") !== null, "the file to be read");
+  if (button(container, "Use the simple converter")) await click(button(container, "Use the simple converter"));   // no AI key here: the rule-based sections
 }
 
 describe("the Resume page with no master", () => {
@@ -60,6 +61,7 @@ describe("the Resume page with no master", () => {
     await click(button(container, "Paste text"));
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
+    await click(button(container, "Use the simple converter"));
     expect(values(container, /^Heading of section/)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
     expect(values(container, /^Bullet \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
     expect(await db.documents.count()).toBe(0);
@@ -224,6 +226,7 @@ describe("the master resume editor", () => {
     await click(button(container, "Paste text"));
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
+    await click(button(container, "Use the simple converter"));
     expect(text($(container, "h2.section"))).toBe("Replace your master resume");
     expect((await getMaster(db))!.sections.map((s) => s.heading)).toEqual(["Experience", "Skills"]);
     await click(button(container, "Save as master resume"));
