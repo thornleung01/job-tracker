@@ -77,6 +77,97 @@ describe("PDF text joining (a stand-in for pdf.js)", () => {
     expect(joinItems([item("One", 700, true), item("Two", 700)])).toBe("One\nTwo");
   });
 
+  describe("gaps", () => {
+    /** A text item at an x position with a width of 6 per character (an average character is 6). */
+    const at = (str: string, x: number, y = 700, width = str.length * 6) => ({ str, width, transform: [12, 0, 0, 12, x, y] });
+
+    it("keeps a tab where two items on a line are more than 3 characters apart", () => {
+      expect(joinItems([at("Northwind Traders", 72), at("Toronto, ON", 400)])).toBe("Northwind Traders\tToronto, ON");
+      // items that touch, or sit a word apart, stay joined by a space
+      expect(joinItems([at("Built", 72), at("a model", 72 + 30 + 6)])).toBe("Built a model");
+      // exactly 3 characters (18) is not yet a gap, a little more is
+      expect(joinItems([at("Ab", 0), at("cd", 12 + 18)])).toBe("Ab cd");
+      expect(joinItems([at("Ab", 0), at("cd", 12 + 19)])).toBe("Ab\tcd");
+    });
+
+    it("ignores the spaces between items when it measures a gap, and puts no tab on a new line", () => {
+      expect(joinItems([at("Left", 72), at(" ", 96), at("Right", 100)]).replace(/ +/g, " ")).toBe("Left Right");
+      expect(joinItems([at("Left", 72), at(" ", 96), at("Right", 400)])).toBe("Left\tRight");
+      expect(joinItems([at("Left", 72, 700), at("Right", 400, 686)])).toBe("Left\nRight");
+    });
+
+    it("falls back to half the font size when an item has no width, and adds no tab without positions", () => {
+      const noWidth = (str: string, x: number) => ({ str, transform: [12, 0, 0, 12, x, 700] });
+      expect(joinItems([noWidth("One", 72), noWidth("Two", 400)])).toBe("One Two");
+      expect(joinItems([{ str: "One", width: 18, transform: [12, 0, 0, 12, 72, 700] }, noWidth("Two", 400)])).toBe("One\tTwo");
+      expect(joinItems([{ str: "One" }, { str: "Two" }])).toBe("One Two");
+    });
+
+    it("adds no tab for items that overlap or come out of order, and keeps one tab per column on a multi-column line", () => {
+      expect(joinItems([at("Ab", 0), at("cd", 6)])).toBe("Ab cd");
+      expect(joinItems([at("Right", 400), at("Left", 72)])).toBe("Right Left");
+      expect(joinItems([at("Name", 72), at("Role", 250), at("Dates", 450)])).toBe("Name\tRole\tDates");
+    });
+
+    it("ends the line at a blank item that has hasEOL, and keeps a blank line for an empty one", () => {
+      const eol = (str: string) => ({ str, hasEOL: true, width: 0, transform: [12, 0, 0, 12, 100, 700] });
+      expect(joinItems([at("One", 72), eol(" "), at("Two", 72)])).toBe("One\nTwo");
+      expect(joinItems([at("One", 72), eol(""), eol(""), at("Two", 72)])).toBe("One\n\nTwo");
+      // the first item on the next line is not measured against the end of the line before
+      expect(joinItems([at("One", 72), eol(" "), at("Two", 400)])).toBe("One\nTwo");
+    });
+
+    it("measures an item with a width of 0 by half its font size, and ends it where it starts", () => {
+      const zero = (str: string, x: number) => ({ str, width: 0, transform: [12, 0, 0, 12, x, 700] });
+      expect(joinItems([zero("One", 72), zero("Two", 400)])).toBe("One\tTwo");
+      expect(joinItems([zero("One", 72), zero("Two", 80)])).toBe("One Two");
+    });
+
+    it("puts no tab at an ordinary word space, whatever the font size", () => {
+      expect(joinItems([at("Built", 72), at(" ", 102), at("a", 108), at(" ", 114), at("model", 120)]).replace(/ +/g, " ")).toBe("Built a model");
+      expect(joinItems([at("Built", 72, 700, 40), at("model", 72 + 40 + 4, 700, 40)])).toBe("Built model");
+    });
+
+    it("reads a line of 100,000 items in linear time", () => {
+      const line = Array.from({ length: 100_000 }, (_, i) => at("ab", i * 14));
+      const start = performance.now();
+      const text = joinItems(line);
+      expect(performance.now() - start).toBeLessThan(1000);
+      expect(text.startsWith("ab ab ab")).toBe(true);
+      expect(text.split(" ")).toHaveLength(100_000);
+      // with a gap before every item the page string is trimmed each time
+      const columns = Array.from({ length: 100_000 }, (_, i) => at("ab", i * 100));
+      const columnStart = performance.now();
+      expect(joinItems(columns).split("\t")).toHaveLength(100_000);
+      expect(performance.now() - columnStart).toBeLessThan(1000);
+    });
+
+    it("hands the gap on as text: through a fake document, tidy and the splitter", async () => {
+      const page = [at("Northwind Traders", 72, 700), at("Toronto, ON", 400, 700), at("Senior Analyst", 72, 686), at("Aug 2024 – Present", 400, 686), at("Plans the season for the stores", 72, 672)];
+      const d: PdfDocumentLike = { numPages: 1, getPage: async () => ({ getTextContent: async () => ({ items: page }) }) };
+      const text = await readPdf(new Uint8Array(), async () => d);
+      expect(text).toBe("Northwind Traders\tToronto, ON\nSenior Analyst\tAug 2024 – Present\nPlans the season for the stores");
+      const sections = readPastedSections(`WORK EXPERIENCE\n${text}`);
+      expect(sections[0].items.map(({ id: _id, ...rest }) => rest)).toEqual([
+        { kind: "org", text: "Northwind Traders", right: "Toronto, ON" },
+        { kind: "title", text: "Senior Analyst", right: "Aug 2024 – Present" },
+        { text: "Plans the season for the stores" },
+      ]);
+    });
+
+    it("keeps one tab for a gap in pasted text, and turns 3 or more spaces into one", () => {
+      const pasted = (t: string) => readPastedSections(`WORK EXPERIENCE\n${t}`)[0].items.map(({ id: _id, ...rest }) => rest);
+      expect(pasted("Acme \t\t Toronto, ON")).toEqual([{ kind: "org", text: "Acme", right: "Toronto, ON" }]);
+      expect(pasted("Acme      Toronto, ON")).toEqual([{ kind: "org", text: "Acme", right: "Toronto, ON" }]);
+      expect(pasted("Ran  the   desk")).toEqual([{ text: "Ran the desk" }]);
+    });
+
+    it("counts a gap as one character in the scanned check and keeps a plain TXT file the same", async () => {
+      await expect(extractText(file("a.txt", "a\tb"))).rejects.toThrow(MESSAGES.scanned);
+      expect(await extractText(file("a.txt", "Plain words on one line, nothing to split here at all"))).toBe("Plain words on one line, nothing to split here at all");
+    });
+  });
+
   it("reads the first 12 pages only", async () => {
     const seen: number[] = [];
     const text = await pdfText(doc(Array.from({ length: 20 }, (_, i) => [`Page ${i + 1}`]), seen));

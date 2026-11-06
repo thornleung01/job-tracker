@@ -62,6 +62,9 @@ export const MAX_DOC_HEADING_CHARS = 80;
 export const MAX_DOC_ITEM_CHARS = 1000;
 export const MAX_DOC_SECTIONS = 30;
 export const MAX_DOC_ITEMS = 60;
+/** The bold lead-in of a bullet or skill, and the right-hand text of a job or school line (a location, or dates). */
+export const MAX_DOC_LABEL_CHARS = 60;
+export const MAX_DOC_RIGHT_CHARS = 80;
 /** The most resume versions you can keep besides the master. */
 export const MAX_RESUME_VERSIONS = 5;
 

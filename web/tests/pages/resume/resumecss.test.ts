@@ -1,6 +1,7 @@
 // @vitest-environment node
 // The test runner empties imported CSS, so this reads the stylesheets as text.
 import { describe, expect, it } from "vitest";
+import { PRINTABLE_HEIGHT_PX, PRINT_WIDTH_PX } from "../../../src/pages/resume/onepage";
 
 const NODE_FS = "node:fs";
 
@@ -22,12 +23,42 @@ describe.each(SHEETS)("%s", (sheet) => {
 });
 
 describe("the print stylesheet", () => {
-  it("scopes its block rules under .doc-sheet and uses no uppercase, so it can't reach the detail page after a visit", async () => {
+  it("scopes its block rules under .doc-sheet, and allows uppercase only in the classic template", async () => {
     const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(text).not.toMatch(/(^|\n)\s*\.doc-block/);
-    expect(text).not.toMatch(/text-transform:\s*uppercase/);
+    const rules = [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
+    const upper = rules.filter((r) => /text-transform:\s*uppercase/.test(r.body));
+    expect(upper.length).toBeGreaterThan(0);
+    for (const r of upper) expect(r.selector.startsWith(".doc-sheet.classic"), r.selector).toBe(true);
   });
 
+  it("sets a serif letter page with half-inch margins for the classic template only", async () => {
+    const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
+    const body = (selector: string) => rules.filter((r) => r.selector === selector).map((r) => r.body).join(" ");
+    expect(body("@page classic")).toMatch(/size:\s*letter/);
+    expect(body("@page classic")).toMatch(/margin:\s*0\.5in/);
+    expect(body(".doc-sheet.classic")).toMatch(/page:\s*classic/);
+    expect(text).toMatch(/--classic-font:[^;}]*"Times New Roman"[^;}]*serif/);
+    expect(body(".doc-sheet.classic")).toMatch(/font:[^;}]*var\(--classic-font\)/);
+    expect(body(".doc-sheet.classic .doc-row")).toMatch(/display:\s*flex/);
+    expect(body(".doc-sheet.classic .doc-row")).toMatch(/justify-content:\s*space-between/);
+  });
+
+  it("agrees with onepage.ts on the page: letter minus the @page classic margin", async () => {
+    const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    const margin = /@page classic\s*\{[^}]*margin:\s*([\d.]+)in/.exec(text);
+    expect(margin).not.toBeNull();
+    const inches = Number(margin![1]);
+    expect(PRINTABLE_HEIGHT_PX).toBe((11 - 2 * inches) * 96);
+    expect(PRINT_WIDTH_PX).toBe((8.5 - 2 * inches) * 96);
+  });
+
+  it("scopes the one-page status under .doc-print", async () => {
+    const text = (await css("pages/resume/print.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(text).not.toMatch(/(^|\n)\s*\.doc-fit/);
+    expect(text).toMatch(/\.doc-print \.doc-fit\s*\{/);
+  });
 
   it("hides the app's header, banners and buttons only while a document is shown", async () => {
     const text = await css("pages/resume/print.css");

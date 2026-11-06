@@ -61,9 +61,9 @@ describe("the Resume page with no master", () => {
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
     expect(values(container, /^Heading of section/)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
-    expect(values(container, /^Line \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
+    expect(values(container, /^Bullet \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
     expect(await db.documents.count()).toBe(0);
-    await type(fields(container, /^Line 1 of SKILLS/)[0], "Writes SQL, Python and R");
+    await type(fields(container, /^Bullet 1 of SKILLS/)[0], "Writes SQL, Python and R");
     await click(button(container, "Save as master resume"));
     await waitFor(() => $(container, "h2.section")?.textContent === "Master resume", "the master card");
     const master = (await getMaster(db))!;
@@ -163,6 +163,28 @@ describe("the master resume editor", () => {
     const saved = (await getMaster(db))!.sections;
     expect(saved.map((s) => s.heading)).toEqual(["Experience", "Education"]);
     expect(saved[0].items.map((i) => i.text)).toEqual(["Led a rollout", "Cut close time"]);
+  });
+
+  it("saves a bullet's label, a line changed to Job with its location, and clears them again", async () => {
+    const { db, container } = await withMaster();
+    const master = card(container, "Master resume");
+    await type(master.querySelector("[aria-label='Type of line 1 of Experience']"), "bullet");
+    await type(fields(master, /^Label of line 1 of Experience/)[0], "Reporting");
+    await type(master.querySelector("[aria-label='Type of line 2 of Experience']"), "org");
+    await type(fields(master, /^Location of line 2 of Experience/)[0], "Toronto, ON");
+    await click(button(master, "Save"));
+    await waitFor(() => text($(master, ".doc-status")) === "Saved", "Saved");
+    const saved = (await getMaster(db))!.sections[0].items;
+    expect(saved[0]).toMatchObject({ text: "Built a model", kind: "bullet", label: "Reporting" });
+    expect(saved[1]).toMatchObject({ text: "Cut close time", kind: "org", right: "Toronto, ON" });
+    await type(master.querySelector("[aria-label='Type of line 2 of Experience']"), "");
+    expect(button(master, "Save")!.hasAttribute("disabled")).toBe(false);
+    await click(button(master, "Save"));
+    await waitFor(() => button(master, "Save")!.hasAttribute("disabled"), "Save to finish");
+    const cleared = (await getMaster(db))!.sections[0].items[1];
+    expect(cleared.kind).toBeUndefined();
+    expect(cleared.right).toBeUndefined();
+    expect(cleared.text).toBe("Cut close time");
   });
 
   it("can discard what you changed", async () => {

@@ -1,6 +1,6 @@
 // "Load demo data": replaces what is in this browser with a bundled, seeded demo set (no real people or mail).
 // The JSON is loaded on demand so it stays out of the main bundle.
-import type { JobTrackerDB } from "../db/schema";
+import type { DocItemKind, JobTrackerDB } from "../db/schema";
 import { iso, localToday, shiftDay } from "../db/time";
 import { importFromPythonExport, type ImportSummary } from "../portability";
 import { createVersion, saveCoverLetter, saveMaster } from "../sync/documents";
@@ -50,28 +50,52 @@ async function addDemoInterviews(db: JobTrackerDB, now: Date): Promise<void> {
 const DAY_MS = 86_400_000;
 const lines = (...texts: string[]) => texts.map((text) => ({ text }));
 
-/** The demo master resume: a made-up analyst's, in four sections. */
-const DEMO_RESUME = [
-  { heading: "Summary", items: lines("Analyst with 5 years of experience turning messy data into decisions for finance and product teams.") },
+interface DemoLine { text: string; kind?: DocItemKind; label?: string; right?: string }
+const org = (text: string, right: string): DemoLine => ({ kind: "org", text, right });
+const title = (text: string, right: string): DemoLine => ({ kind: "title", text, right });
+const bullet = (label: string, text: string): DemoLine => ({ kind: "bullet", label, text });
+const skill = (label: string, text: string): DemoLine => ({ kind: "skill", label, text });
+
+const B = {
+  close: bullet("Reporting automation", "Built a weekly reporting model that cut month-end close time by 2 days."),
+  dashboards: bullet("Dashboards", "Led a dashboard rollout used by 40 people across 3 teams."),
+  tests: bullet("Experimentation", "Ran A/B tests on the onboarding flow and shared the results with product."),
+  pipelines: bullet("Data pipelines", "Wrote SQL pipelines that replaced 12 hours of manual spreadsheet work each week."),
+  reports: bullet("Sales reporting", "Maintained 15 weekly sales reports for 6 store regions."),
+  quality: bullet("Data quality", "Found and fixed a stock-count error that was overstating inventory by 4%."),
+};
+
+/** The demo master resume: a made-up analyst's, laid out in the classic template (a header, then four sections). */
+const DEMO_RESUME: { heading: string; items: DemoLine[] }[] = [
+  { heading: "Header", items: lines("JORDAN LEE", "Toronto, Ontario | (416) 555-0100 | LinkedIn | jordan.lee@example.com") },
+  { heading: "Professional summary", items: lines("Analyst with 5 years of experience turning messy data into decisions for finance and product teams. Comfortable owning a metric from the first query to the last slide.") },
   {
-    heading: "Experience",
-    items: lines(
-      "Senior Analyst, Northfield Bank (2022 to now)",
-      "Built a weekly reporting model that cut month-end close time by 2 days.",
-      "Led a dashboard rollout used by 40 people across 3 teams.",
-      "Ran A/B tests on the onboarding flow and shared the results with product.",
-      "Analyst, Harbour Retail (2019 to 2022)",
-      "Wrote SQL pipelines that replaced 12 hours of manual spreadsheet work each week.",
-    ),
+    heading: "Skills and qualifications",
+    items: [skill("Analytics", "SQL, Python, Tableau, Excel"), skill("Methods", "Experiment design, forecasting, stakeholder reporting"), skill("Languages", "English (native), French (conversational)")],
   },
-  { heading: "Skills", items: lines("SQL, Python, Tableau, Excel", "Experiment design, forecasting, stakeholder reporting") },
-  { heading: "Education", items: lines("B.Com in Economics, Demo University (2019)") },
+  {
+    heading: "Work experience",
+    items: [
+      org("Northfield Bank", "Toronto, Ontario"),
+      title("Senior Analyst", "Feb 2025 – Present"),
+      B.close, B.dashboards, B.tests,
+      title("Analyst", "Mar 2023 – Jan 2025"),
+      B.pipelines,
+      org("Harbour Retail", "Mississauga, Ontario"),
+      title("Business Analyst", "Sep 2021 – Feb 2023"),
+      B.reports, B.quality,
+    ],
+  },
+  {
+    heading: "Education",
+    items: [{ kind: "school", text: "Demo University", right: "Toronto, Ontario" }, ...lines("Bachelor of Commerce in Economics, 2021")],
+  },
 ];
 
-/** Each version is the master with the line that fits its kind of role moved to the top of Experience. The roles it was sent for follow the role's name. */
+/** Each version is the master with only the bullets that fit its kind of role (the header, organizations, titles and education stay). The roles it was sent for follow the role's name. */
 const DEMO_VERSIONS = [
-  { title: "Resume for data roles", roles: /data/i, first: "Wrote SQL pipelines that replaced 12 hours of manual spreadsheet work each week." },
-  { title: "Resume for product roles", roles: /product|business/i, first: "Ran A/B tests on the onboarding flow and shared the results with product." },
+  { title: "Resume for data roles", roles: /data/i, keep: [B.pipelines, B.close, B.reports, B.quality] },
+  { title: "Resume for product roles", roles: /product|business/i, keep: [B.tests, B.dashboards, B.pipelines, B.reports] },
 ];
 
 /**
@@ -85,9 +109,8 @@ async function addDemoDocuments(db: JobTrackerDB, now: Date): Promise<void> {
   const apps = (await db.applications.toArray()).sort((a, b) => a.id - b.id);
   const taken = new Set<number>();
   for (const [i, v] of DEMO_VERSIONS.entries()) {
-    const sections = DEMO_RESUME.map((s) =>
-      s.heading === "Experience" ? { ...s, items: [...s.items.filter((x) => x.text === v.first), ...s.items.filter((x) => x.text !== v.first)] } : s,
-    );
+    const kept = new Set(v.keep.map((b) => b.text));
+    const sections = DEMO_RESUME.map((s) => ({ ...s, items: s.items.filter((x) => x.kind !== "bullet" || kept.has(x.text)) }));
     const id = await createVersion(db, { title: v.title, sections, basedOn: masterId, source: "copy" }, ago(30 - i * 10));
     for (const a of apps.filter((x) => !taken.has(x.id) && v.roles.test(x.role))) {
       taken.add(a.id);
