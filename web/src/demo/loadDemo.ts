@@ -7,7 +7,7 @@ import { loadSettings, saveSettings } from "../sync/settings";
 
 const ISO_UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 
-/** Moves every timestamp by `ms`, so the newest one lands on today and the Flow period filters still show it. */
+/** Moves every timestamp by `ms`, so the newest one lands on today and the Statistics period filters still show it. */
 function shiftTimestamps(value: unknown, ms: number): unknown {
   if (typeof value === "string") return ISO_UTC.test(value) ? new Date(Date.parse(value) + ms).toISOString().replace(/\.\d{3}Z$/, "Z") : value;
   if (Array.isArray(value)) return value.map((v) => shiftTimestamps(v, ms));

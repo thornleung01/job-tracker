@@ -22,7 +22,7 @@
     --raise: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08);
     --raise-btn: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.10);
     --btn-hi: rgba(255,255,255,.12); --btn-lo: rgba(0,0,0,.5); --btn-drop: rgba(0,0,0,.35);
-    /* One stage colour map, used by the list badges, the detail page and Flow. -stage-X is the graphic (dots, Flow nodes and links, 3:1 or better on the page except the pale light-theme hues, which sit beside the stage word); -stage-X-text is the same hue held to 4.5:1 for any text. */
+    /* One stage colour map, used by the list badges, the detail page and Statistics. -stage-X is the graphic (dots, funnel nodes and links, 3:1 or better on the page except the pale light-theme hues, which sit beside the stage word); -stage-X-text is the same hue held to 4.5:1 for any text. */
     --stage-applied: #5b88d9;     --stage-applied-text: #2b5fbb;
     --stage-heard-back: #b27ee4;  --stage-heard-back-text: #8634d4;
     --stage-assessment: #e47eca;  --stage-assessment-text: #ae248b;
@@ -131,7 +131,7 @@
 
   /* Stage badges. A plain badge is a quiet tonal pill ("Open now", the jobs score). A stage badge is the point of the list row, so it is a
      14px/500 word in the stage's text colour with a dot in its graphic colour; the word carries the meaning, colour only supports it.
-     One map, defined in :root: --stage-X (dots, Flow) and --stage-X-text (words). */
+     One map, defined in :root: --stage-X (dots, funnel) and --stage-X-text (words). */
   .badge { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 3px 12px; border-radius: var(--r-pill);
            background: var(--fog); white-space: nowrap; letter-spacing: 0.18px; }
   .Applied { --st: var(--stage-applied); --st-text: var(--stage-applied-text); }
@@ -427,7 +427,7 @@
       <a href="/jobs" {% if path.startswith('/jobs') %}aria-current="page"{% endif %}>Jobs{% if jobs_new %}<span class="count" aria-label="{{ jobs_new }} new matches">{{ jobs_new }}</span>{% endif %}</a>
       <a href="/" {% if path == '/' or path.startswith('/app') %}aria-current="page"{% endif %}>Applications</a>
       <a href="/contacts" {% if path.startswith('/contacts') %}aria-current="page"{% endif %}>People</a>
-      <a href="/flow" {% if path == '/flow' %}aria-current="page"{% endif %}>Flow</a>
+      <a href="/statistics" {% if path == '/statistics' %}aria-current="page"{% endif %}>Statistics</a>
       <a href="/review" {% if path == '/review' %}aria-current="page"{% endif %}>Needs review</a>
       <a href="/settings" class="icon-link" aria-label="Settings" title="Settings" {% if path == '/settings' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>

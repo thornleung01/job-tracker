@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Flow · Job Tracker{% endblock %}
+{% block title %}Statistics · Job Tracker{% endblock %}
 {% block content %}
 <style>
   /* Text, surface and hairlines come from the app tokens, and the stage colours come from the one stage map in the shared stylesheet
@@ -41,7 +41,7 @@
   .viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 </style>
 
-<h1 class="page">Application flow</h1>
+<h1 class="page">Statistics</h1>
 <p class="muted" style="margin:0 0 var(--gap);max-width:60ch">Where your applications went.</p>
 
 <form method="get" class="row" style="margin-bottom:var(--gap)">
@@ -313,7 +313,7 @@
 
   const fileName = () => {   // your local date, the same one the image footer shows
     const d = new Date(), two = n => String(n).padStart(2, '0');
-    return `job-search-flow-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}.png`;
+    return `job-search-statistics-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}.png`;
   };
   async function run(button, work) {
     button.disabled = true; button.setAttribute('aria-busy', 'true'); say('Preparing the image');

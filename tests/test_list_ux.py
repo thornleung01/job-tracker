@@ -145,13 +145,13 @@ def test_shared_styles_have_touch_targets_states_and_scalable_type(env):
     assert "--tap: 44px" in css and "(pointer: coarse)" in css and "min-height: var(--tap)" in css
     assert "button:disabled" in css and "font: 400 1rem/1.4" in css and "tabular-nums" not in css   # proportional figures everywhere
     assert "font-size: 16px" in css            # stops iOS zooming into fields on focus
-    flow = client.get("/flow").text
+    flow = client.get("/statistics").text
     assert 'rel="icon"' in flow and 'name="color-scheme"' in flow
     assert "z-index: 5" not in flow and "var(--z-tip)" in flow
 
 
 def test_flow_chart_works_on_touch_screens(env):
     _, client = env
-    html = client.get("/flow").text
+    html = client.get("/statistics").text
     assert "Swipe sideways" in html
     assert "matchMedia('(max-width: 720px)')" in html and "tip.hidden = true" in html

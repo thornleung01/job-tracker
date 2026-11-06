@@ -1,4 +1,4 @@
-// Draws the sentence and the chart into one PNG, in the page, so nothing is uploaded anywhere. Ported from renderPng in flow.html.
+// Draws the sentence and the chart into one PNG, in the page, so nothing is uploaded anywhere. Ported from renderPng in the local edition's statistics.html.
 import fontUrl from "../../assets/fonts/Figtree-latin-wght.woff2?url";
 
 export interface SummaryPart {
@@ -122,5 +122,5 @@ export async function renderPng({ svg, viz, parts, period }: PngInput): Promise<
 /** Your local date, the same one the image footer shows. */
 export function imageFileName(d: Date = new Date()): string {
   const two = (n: number) => String(n).padStart(2, "0");
-  return `job-search-flow-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}.png`;
+  return `job-search-statistics-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}.png`;
 }

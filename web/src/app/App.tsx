@@ -15,7 +15,7 @@ import { LocalDataOffer } from "./LocalDataOffer";
 import { dbNameForUser, isLocalUser, LOCAL_USER, type PageUser } from "./localUser";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { focusHeading } from "./focus";
-import { matchRoute, navigate, type RouteMatch } from "./router";
+import { matchRoute, movedTo, navigate, type RouteMatch } from "./router";
 import { defaultLoaders, type PageLoaders } from "./pages";
 import { Header, PAGE_TITLES, SkipLink } from "./Shell";
 import { useHash } from "./useHash";
@@ -124,6 +124,12 @@ function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: Pa
   useLayoutEffect(() => {
     document.title = `${PAGE_TITLES[match.page]} · Job Tracker`;
   }, [match.page]);
+
+  // An old address (#/flow) is rewritten in place, so Back doesn't land on it again.
+  useLayoutEffect(() => {
+    const to = movedTo(hash);
+    if (to) navigate(to, { replace: true });
+  }, [hash]);
 
   // The saved look is read from the database, which opens after the first paint. Until then use the copy kept for this user.
   const dbName = dbNameForUser(user);

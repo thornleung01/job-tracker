@@ -296,7 +296,7 @@
     </div>
 
     <div class="field-block">
-      <label class="field" for="flow_days">Default period on the Flow page</label>
+      <label class="field" for="flow_days">Default period on the Statistics page</label>
       <select id="flow_days" name="flow_days">
         {% for v, label in flow_periods %}<option value="{{ v }}" {{ 'selected' if v == s.appearance.flow_days }}>{{ label }}</option>{% endfor %}
       </select>

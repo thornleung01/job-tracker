@@ -2,7 +2,7 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { StageBadge, stageClass } from "../../../src/components/StageBadge";
-import { COLORS } from "../../../src/pages/flow/layout";
+import { COLORS } from "../../../src/pages/statistics/layout";
 
 // vitest blanks stylesheets on import, so read the files themselves. (No @types/node here, hence the computed specifier.)
 async function read(rel: string): Promise<string> {
@@ -73,7 +73,7 @@ describe("stage colour map", () => {
     for (const m of [light, forced]) for (const s of STAGES) expect(Math.abs(hue(m[`stage-${slug(s)}`]) - hue(m[`stage-${slug(s)}-text`])), s).toBeLessThan(12);
   });
 
-  it("gives Flow the same variables the list uses", () => {
+  it("gives Statistics the same variables the list uses", () => {
     for (const s of STAGES) expect(COLORS[s]).toBe(`var(--stage-${slug(s)})`);
   });
 

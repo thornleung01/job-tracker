@@ -312,7 +312,7 @@ def test_new_job_routes_are_protected_like_the_rest(env):
 
 def test_the_resume_text_is_never_put_in_a_page_for_other_tabs_or_the_nav(env):
     upload(env, "jordan.docx", make_docx(RESUME_LINES))
-    for path in ("/", "/jobs", "/flow", "/settings", "/jobs?tab=sources"):
+    for path in ("/", "/jobs", "/statistics", "/settings", "/jobs?tab=sources"):
         assert "Globex Inc, 2022 to present" not in env.c.get(path).text
 
 

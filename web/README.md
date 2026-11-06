@@ -138,7 +138,7 @@ Code: `src/sync/trash.ts`, `src/sync/live.ts`, `src/pages/settings/TrashSection.
 - **What happens.** "Delete application" (on the list panel, the detail page's More menu, and the bulk Delete) doesn't erase anything. It marks the application deleted (`deletedAt`) and keeps its emails, notes, steps and people edits. For 8 seconds a line says "Deleted Acme. It stays in Recently deleted for 30 days." with Restore.
 - **Where it is.** Settings, Recently deleted (a card just above Your data) lists each one with when it was deleted and the days left. Restore brings it back with the same id. "Delete now" and "Empty recently deleted" ask in place, then erase for good: every email's content is cleared and only its id and date stay, so the email isn't fetched again, and the application row, notes and steps go. The page of a deleted application says it was deleted and offers Restore.
 - **30 days is 30 x 24 hours,** counted on the timestamp, not calendar days. Expired entries are erased when the app starts, once per page load (`purgeOncePerSession`).
-- **Hidden everywhere.** A deleted application is left out of the list, counts, Flow, People, Coming up, follow-ups, offers, the weekly goal, duplicate checks and Export CSV. Lists and matches go through `src/sync/live.ts`; the two places that read deleted applications on purpose are `src/sync/trash.ts` and the mail matcher (`src/sync/match.ts`).
+- **Hidden everywhere.** A deleted application is left out of the list, counts, Statistics, People, Coming up, follow-ups, offers, the weekly goal, duplicate checks and Export CSV. Lists and matches go through `src/sync/live.ts`; the two places that read deleted applications on purpose are `src/sync/trash.ts` and the mail matcher (`src/sync/match.ts`).
 - **Still included in Export data and the backup file,** with `deletedAt`, until it is erased. Importing such a file brings them back into Recently deleted.
 - **New mail.** Mail for a deleted application is kept with it, not turned into a new application, until you restore it or it is erased (`findDeletedApplication` in `src/sync/match.ts`).
 - **Still immediate and permanent:** "Delete for good, keep emails in Needs review" (the application goes, its emails go to Needs review) and "Not an application".
@@ -184,6 +184,22 @@ Plan and decisions: [docs/plans/calendar-view.md](../docs/plans/calendar-view.md
 - **Keyboard.** One day has the tab stop. Arrows move by a day or a week, Home and End go to the ends of the week, Page Up and Page Down change month, Enter or Space opens the day, and Escape goes back to the day from its panel.
 - **Day panel** under the grid: the day's events, each a link to its application, and "Download interviews (.ics)". "Download this month's interviews" is beside the month heading.
 - **Phone.** At 720 px wide or less an agenda list of the month's days replaces the grid.
+
+## Statistics
+
+Code: `src/sync/statistics.ts` (the numbers), `src/sync/stats.ts` (the funnel and `loadCohort`), `src/pages/statistics/` (the page, `ChartFrame`, `StatTiles`, `WeeklyBars`, `SpeedRanges`, `MonthlyRates`, the funnel's `Sankey`). Tests: `tests/sync/statistics.test.ts`, `tests/sync/stats.test.ts`, `tests/pages/statistics/`. The page was called Flow before. An old `#/flow` address still works: it is rewritten to `#/statistics` with its filters. The saved default period keeps its old name (`flowDays`, `flow_days` in a Python export), so exports and imports are unchanged.
+
+It answers three questions, top to bottom: four headline numbers, then **Pace** (am I keeping up), **How fast companies reply**, **Where applications went** (the funnel), and **Reply rate by month sent** (is my search working).
+
+- **Filters.** Account and period apply to the headline numbers, the speed chart, the funnel and the monthly chart, which all count the same applications (`loadCohort`). Pace and Waiting now ignore the period: pace shows as many weeks as the period (30 days is 5, 90 is 13, 180 is 26, all time up to 52) and counts every application in the account, so the oldest week is never partial, and Waiting now describes today.
+- **No stage history.** The app stores only the current stage, so timings come from dated evidence: a classified email's date or a step you logged that names a stage. An application with no applied day, or whose stage you set by hand with no step, adds nothing to the timings. A stage dated before the applied day counts as day 0.
+- **Timings.** First reply is the first sign of any stage past Applied, interview is the first Interview email or step, and outcome is the first Offer or Rejected for an application that is at Offer or Rejected now. Each is shown as a median with the middle half (25th to 75th percentile, nearest rank, whole days) and needs at least 3 applications, otherwise it says "Not enough yet".
+- **Pace.** Weeks run Monday to Sunday (`WEEK_START`). The average is over weeks that are over, so an unfinished week doesn't pull it down. The goal line, "Goal met 3 weeks in a row" and "Best week" use the weekly goal from the Applications page.
+- **Waiting now** counts Applied and Heard back applications by how long they have been quiet. The follow-up and no-reply counts link to the matching filters on the list and match its numbers.
+- **Reply rate by month sent** appears once applications span two months. Months where even the last application is under 30 days old are hatched ("Still coming in"), because replies are still arriving.
+- **Every chart** has a heading, a tooltip on hover or focus (a tap pins it on a phone), arrow keys between marks, a "Table view" with the same numbers, and works in dark mode and forced-colors mode.
+- **Image.** Save as image, Copy image and Share still make a picture of the funnel only, named `job-search-statistics-YYYY-MM-DD.png`, with totals and no names.
+- **The Python edition** has the renamed Statistics page with the funnel only. `/flow` there answers with a redirect.
 
 ## Browser storage
 

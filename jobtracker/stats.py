@@ -1,4 +1,4 @@
-"""The numbers behind the Flow page: how many applications reached each stage, and the paths between stages."""
+"""The numbers behind the Statistics page: how many applications reached each stage, and the paths between stages."""
 from __future__ import annotations
 
 import sqlite3

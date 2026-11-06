@@ -224,7 +224,7 @@ export async function resolveReview(
         const target = await db.applications.get(appId);
         if (!target || target.deletedAt) throw new ActionError("Choose an application.");
       }
-      // Record the stage you chose, so the flow chart reflects your decision.
+      // Record the stage you chose, so the funnel reflects your decision.
       await db.emails.update(emailId, { applicationId: appId, needsReview: false, hold: false, event: EVENT_FOR_STAGE[stage] });
       await applyEvent(db, appId, EVENT_FOR_STAGE[stage], email.receivedAt);
       await recordFeedback(db, "job", email, appId, now);

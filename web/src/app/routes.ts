@@ -5,7 +5,7 @@ export const ROUTES = [
   { path: "/", page: "applications", nav: "Applications" },
   { path: "/app/:id", page: "detail", nav: null },
   { path: "/people", page: "people", nav: "People" },
-  { path: "/flow", page: "flow", nav: "Flow" },
+  { path: "/statistics", page: "statistics", nav: "Statistics" },
   { path: "/review", page: "review", nav: "Needs review" },
   { path: "/settings", page: "settings", nav: null },
   { path: "/setup", page: "setup", nav: null },

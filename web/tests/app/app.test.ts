@@ -22,7 +22,7 @@ function loaders(extra: PageLoaders = {}): PageLoaders {
     applications: page("Applications page"),
     detail: page("Application page"),
     people: page("People page"),
-    flow: page("Flow page"),
+    statistics: page("Statistics page"),
     review: page("Review page"),
     settings: page("Settings page"),
     ...extra,
@@ -236,7 +236,7 @@ describe("signed in shell", () => {
     await signedIn();
     expect(q(".brand")!.textContent).toBe("Job Tracker");
     const links = Array.from(document.querySelectorAll("header.top nav a")).map((a) => a.textContent);
-    expect(links).toEqual(["Applications", "People", "Flow", "Needs review", ""]);
+    expect(links).toEqual(["Applications", "People", "Statistics", "Needs review", ""]);
     expect(document.body.textContent).not.toContain("Jobs");
     const gear = q("a.icon-link")!;
     expect(gear.getAttribute("aria-label")).toBe("Settings");
@@ -275,10 +275,20 @@ describe("signed in shell", () => {
   it("moves focus to the page heading after navigation, but not on first load", async () => {
     await signedIn();
     expect(document.activeElement).toBe(document.body);
-    await go("#/flow");
-    await waitFor(() => q("h1")?.textContent === "Flow page");
+    await go("#/statistics");
+    await waitFor(() => q("h1")?.textContent === "Statistics page");
     await waitFor(() => document.activeElement === q("h1"));
-    expect(document.activeElement!.textContent).toBe("Flow page");
+    expect(document.activeElement!.textContent).toBe("Statistics page");
+  });
+
+  it("sends an old #/flow bookmark to Statistics with its filters, replacing the entry so Back doesn't return to it", async () => {
+    await signedIn();
+    const before = window.history.length;
+    await go("#/flow?account=1&days=90");
+    await waitFor(() => q("h1")?.textContent === "Statistics page");
+    expect(window.location.hash).toBe("#/statistics?account=1&days=90");
+    expect(q("nav a[aria-current=page]")!.textContent).toBe("Statistics");
+    expect(window.history.length).toBeLessThanOrEqual(before + 1);
   });
 
   it("skips to the main area without touching the hash", async () => {
@@ -319,13 +329,13 @@ describe("signed in shell", () => {
   it("catches a page that throws, and recovers when you move on", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     await signedIn({
-      flow: async () => ({
+      statistics: async () => ({
         default: () => {
           throw new Error("boom");
         },
       }),
     });
-    await go("#/flow");
+    await go("#/statistics");
     const note = await waitFor(() => q(".notice.err"));
     expect(note.textContent).toBe("Something went wrong on this page. Try again, or go back to Applications.");
     expect(q("header.top")).not.toBeNull();
@@ -485,7 +495,7 @@ describe("sync banner in the signed-in shell", () => {
     await waitFor(() => /Couldn't connect Gmail/.test(banner.textContent ?? ""));
 
     await go("#/people");
-    await go("#/flow");
+    await go("#/statistics");
     await go("#/");
     await settle(60);
     expect(auth.takePendingSync).toHaveBeenCalledTimes(1);

@@ -27,7 +27,7 @@ from . import db, joblink, links, mailtext
 from .jobs import resume
 from .jobs_web import register as register_jobs
 from .profiles import DEFAULT_ID, Profiles
-from .routes import accounts, applications, flow, people, profiles as profile_routes, reply, review, syncing
+from .routes import accounts, applications, people, profiles as profile_routes, reply, review, statistics, syncing
 from .routes.common import PROFILE_COOKIE, set_profile_cookie
 from .routes.state import AppState, get_conn, ui_context
 
@@ -127,7 +127,7 @@ def create_app(db_path=db.DEFAULT_PATH, get_provider=None, http_get=None, toast=
         _harden(response, nonce)
         return response
 
-    for module in (applications, review, people, flow, accounts, reply, profile_routes, syncing):
+    for module in (applications, review, people, statistics, accounts, reply, profile_routes, syncing):
         app.include_router(module.router)
     register_jobs(app, state.templates, get_conn, http_get, toast, state.who)
     return app

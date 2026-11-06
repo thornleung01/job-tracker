@@ -1,5 +1,5 @@
-// Flow (Sankey) data and the sentence summary (jobtracker/stats.py, plus the lede in templates/flow.html).
-import type { JobTrackerDB } from "../db/schema";
+// Funnel (Sankey) data and the sentence summary (jobtracker/stats.py, plus the lede in templates/statistics.html).
+import type { ApplicationRow, JobTrackerDB } from "../db/schema";
 import { STAGE_FOR_EVENT, STAGES, TERMINAL, type Stage } from "../db/stages";
 import { addDays, iso, roundHalfEven } from "../db/time";
 import { liveApplications } from "./live";
@@ -68,17 +68,40 @@ export interface FlowFilter {
   now?: Date;
 }
 
-export async function sankey(db: JobTrackerDB, filter: FlowFilter = {}): Promise<FlowData> {
+/** One dated stage an application showed: a classified email's event, or a step you logged that names a stage. */
+export interface StageEvent {
+  stage: string;
+  /** the stored time: an email's receivedAt or a step's occurredAt (read it with dayOf) */
+  at: string;
+}
+
+export interface Cohort {
+  /** live applications in the account asked for, whatever their age */
+  inAccount: ApplicationRow[];
+  /** the ones inside the period too: what the funnel and the rates count */
+  apps: ApplicationRow[];
+  /** the dated stages of each application in `apps` */
+  events: Map<number, StageEvent[]>;
+}
+
+/**
+ * The applications a Statistics filter keeps, and the dated stages each one showed. One read of the emails and one of the steps,
+ * shared by the funnel and every other statistic, so they always count the same applications. The period is a rolling cutoff on the
+ * stored instant (as it always was for the funnel), while the other statistics read each time as the viewer's calendar day, so an
+ * application right at the edge can sit in the funnel and fall in the neighbouring week or month.
+ */
+export async function loadCohort(db: JobTrackerDB, filter: FlowFilter = {}): Promise<Cohort> {
   const account = filter.account ?? 0;
   const days = filter.days ?? 0;
   const emails = await db.emails.toArray();
-  let apps = await liveApplications(db);
+  let inAccount = await liveApplications(db);
 
   if (account) {
-    const inAccount = new Set<number>();
-    for (const e of emails) if (e.accountId === account && e.applicationId != null) inAccount.add(e.applicationId);
-    apps = apps.filter((a) => inAccount.has(a.id));
+    const withMail = new Set<number>();
+    for (const e of emails) if (e.accountId === account && e.applicationId != null) withMail.add(e.applicationId);
+    inAccount = inAccount.filter((a) => withMail.has(a.id));
   }
+  let apps = inAccount;
   if (days) {
     const cutoff = iso(addDays(filter.now ?? new Date(), -days));
     apps = apps.filter((a) => {
@@ -87,19 +110,31 @@ export async function sankey(db: JobTrackerDB, filter: FlowFilter = {}): Promise
     });
   }
 
-  const seen = new Map<number, Set<string>>();
-  const mark = (id: number, stage: string) => {
-    if (!seen.has(id)) seen.set(id, new Set());
-    seen.get(id)!.add(stage);
+  const kept = new Set(apps.map((a) => a.id));
+  const events = new Map<number, StageEvent[]>();
+  const add = (id: number, stage: string, at: string) => {
+    if (!kept.has(id)) return;
+    const list = events.get(id);
+    if (list) list.push({ stage, at });
+    else events.set(id, [{ stage, at }]);
   };
-  for (const e of emails) if (e.applicationId != null && !e.needsReview && e.event != null) mark(e.applicationId, STAGE_FOR_EVENT[e.event]);
+  for (const e of emails) if (e.applicationId != null && !e.needsReview && e.event != null) add(e.applicationId, STAGE_FOR_EVENT[e.event], e.receivedAt);
   // Steps you logged that name a stage count too. Custom labels (e.g. "Phone screen") don't.
-  for (const r of await db.activity.toArray()) if (r.kind === "step" && r.label && (STAGES as readonly string[]).includes(r.label)) mark(r.applicationId, r.label);
+  for (const r of await db.activity.toArray()) if (r.kind === "step" && r.label && (STAGES as readonly string[]).includes(r.label)) add(r.applicationId, r.label, r.occurredAt);
+  return { inAccount, apps, events };
+}
 
+export async function sankey(db: JobTrackerDB, filter: FlowFilter = {}): Promise<FlowData> {
+  const { apps, events } = await loadCohort(db, filter);
+  return buildFlow(apps, events);
+}
+
+/** The funnel for these applications: every stage each one reached, counted, and the paths between them. */
+export function buildFlow(apps: readonly ApplicationRow[], events: ReadonlyMap<number, readonly StageEvent[]>): FlowData {
   const nodeCounts = new Map<FlowNodeId, number>();
   const linkCounts = new Map<string, number>();
   for (const a of apps) {
-    const path = applicationPath(a.stage, seen.get(a.id) ?? []);
+    const path = applicationPath(a.stage, (events.get(a.id) ?? []).map((e) => e.stage));
     for (const n of path) nodeCounts.set(n, (nodeCounts.get(n) ?? 0) + 1);
     for (let i = 0; i + 1 < path.length; i++) {
       const key = `${path[i]}\u0000${path[i + 1]}`;

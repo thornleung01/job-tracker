@@ -1,28 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
-import { accountSummaries } from "../../sync/queries";
 import { FLOW_PERIODS, PERIODS, loadSettings } from "../../sync/settings";
-import { flowSummary, sankey, type FlowData } from "../../sync/stats";
+import { flowSummary, type FlowData } from "../../sync/stats";
+import { statistics, type Statistics } from "../../sync/statistics";
 import { useQuery } from "../../app/useQuery";
 import { ImageUnsupportedError, imageFileName, renderPng } from "./exportPng";
 import { layoutSankey } from "./layout";
+import { usePhone } from "./usePhone";
 import { SankeyChart, flowsFor, tipContent } from "./Sankey";
-import "./flow.css";
-
-const PHONE = "(max-width: 720px)";
-
-/** Re-renders when the screen crosses the phone breakpoint. Absent matchMedia (tests) counts as a desktop. */
-function usePhone(): boolean {
-  const query = typeof matchMedia === "function" ? matchMedia(PHONE) : null;
-  const [phone, setPhone] = useState(query?.matches ?? false);
-  useEffect(() => {
-    if (!query) return;
-    const on = () => setPhone(query.matches);
-    query.addEventListener?.("change", on);
-    return () => query.removeEventListener?.("change", on);
-  }, [query]);
-  return phone;
-}
+import { MonthlyRates } from "./MonthlyRates";
+import { SpeedRanges } from "./SpeedRanges";
+import { StatTiles } from "./StatTiles";
+import { WeeklyBars } from "./WeeklyBars";
+import "./statistics.css";
 
 const wholeNumber = (v: string | null): number | null => {
   if (v == null || !/^\d+$/.test(v.trim())) return null;
@@ -30,7 +20,7 @@ const wholeNumber = (v: string | null): number | null => {
 };
 
 interface View {
-  data: FlowData;
+  stats: Statistics;
   accounts: { id: number; address: string }[];
   account: number;
   days: number;
@@ -73,8 +63,7 @@ interface Tip {
   y: number;
 }
 
-function Results({ view }: { view: View }) {
-  const { data } = view;
+function Results({ view, data }: { view: View; data: FlowData }) {
   const layout = useMemo(() => layoutSankey(data), [data]);
   const summary = flowSummary(data)!;
   const phone = usePhone();
@@ -194,6 +183,7 @@ function Results({ view }: { view: View }) {
 
   return (
     <div className="card viz-root" style={{ position: "relative" }} ref={vizRef}>
+      <h2 className="section">Where applications went</h2>
       <p className="lede">
         {summary.parts.map((p, i) => (p.strong ? <strong key={i}>{p.text}</strong> : p.text))}
       </p>
@@ -271,28 +261,34 @@ function Results({ view }: { view: View }) {
   );
 }
 
-export default function FlowPage({ db, query, navigate }: PageProps) {
+export default function StatisticsPage({ db, query, navigate }: PageProps) {
   const accountParam = wholeNumber(query.get("account")) ?? 0;
   const daysRaw = wholeNumber(query.get("days"));
   const daysParam = daysRaw !== null && (FLOW_PERIODS as readonly number[]).includes(daysRaw) ? daysRaw : null;
 
   const view = useQuery<View>(async () => {
-    const [settings, accounts] = await Promise.all([loadSettings(db), accountSummaries(db)]);
+    const [settings, accounts] = await Promise.all([loadSettings(db), db.accounts.orderBy("id").toArray()]); // not accountSummaries: that reads every email just to count them
     const days = daysParam ?? settings.appearance.flowDays; // the period in Settings is the default
-    const data = await sankey(db, { account: accountParam, days });
-    return { data, accounts: accounts.map((a) => ({ id: a.id, address: a.address })), account: accountParam, days };
+    const stats = await statistics(db, { account: accountParam, days });
+    return { stats, accounts: accounts.map((a) => ({ id: a.id, address: a.address })), account: accountParam, days };
   }, [db, accountParam, daysParam], { keepPrevious: true });
 
-  const apply = (account: number, days: number) => navigate(`/flow?account=${account}&days=${days}`);
+  const apply = (account: number, days: number) => navigate(`/statistics?account=${account}&days=${days}`);
 
   return (
     <>
-      <h1 className="page">Flow</h1>
+      <h1 className="page">Statistics</h1>
       {view ? (
         <>
           <Filters key={`${view.account}-${view.days}`} view={view} onApply={apply} />
-          {view.data.total ? (
-            <Results view={view} />
+          {view.stats.flow.total ? (
+            <>
+              <StatTiles flow={view.stats.flow} speed={view.stats.speed} pace={view.stats.pace} />
+              {view.stats.pace ? <WeeklyBars pace={view.stats.pace} /> : null}
+              <SpeedRanges speed={view.stats.speed} waiting={view.stats.waiting} account={view.account} />
+              <Results view={view} data={view.stats.flow} />
+              <MonthlyRates months={view.stats.monthly} />
+            </>
           ) : (
             <div className="card viz-root">
               <p className="muted" style={{ margin: "8px 0" }}>

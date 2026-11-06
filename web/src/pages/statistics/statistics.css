@@ -37,3 +37,29 @@
 .viz-root .lede strong { font-weight: 700; }
 .viz-root .share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 @media (prefers-reduced-motion: reduce) { .viz-root .link { transition: none; } }
+
+/* The cards the new charts sit in (ChartFrame). The Sankey's own rules above are scoped to its svg and stay as they were. */
+.viz-root svg.chart { min-width: 0; }
+.viz-root .chart-wrap { position: relative; }
+.viz-root .chart-note { margin: -8px 0 12px; color: var(--ink2); font-size: 0.9375rem; }
+.viz-root .chart-table { margin-top: 12px; }
+.viz-root .mark-hit { fill: transparent; cursor: default; }
+.viz-root .mark-hit:focus-visible { outline: none; stroke: var(--ink); stroke-width: 2px; }
+.viz-root .axis text, .viz-root text.axis { fill: var(--ink2); font-size: 12px; }
+.viz-root .gridline { stroke: var(--hair); stroke-width: 1; }
+
+/* The headline numbers (StatTiles): a value, a label and one line of context, with no boxes around them. */
+.viz-root .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 24px; margin: 0; }
+.viz-root .tile { min-width: 0; }
+.viz-root .tile dt { color: var(--ink2); font-size: 0.875rem; }
+.viz-root .tile dd { margin: 4px 0 0; }
+.viz-root .tile-value { display: block; font: 500 clamp(1.5rem, 3vw, 2rem)/1.2 var(--font-ui); letter-spacing: -0.5px; overflow-wrap: anywhere; }
+.viz-root .tile.quiet .tile-value { color: var(--ink2); font-size: 1rem; line-height: 2.4; font-weight: 400; letter-spacing: 0; }
+.viz-root .tile-sub { display: block; margin-top: 2px; color: var(--ink2); font-size: 0.875rem; }
+@media (max-width: 720px) { .viz-root .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* A chart is drawn in a small coordinate space, so on a wide screen it would scale up and its text with it. Cap each at about 1.25 times
+   its drawn width: text stays near its normal size, and on a phone the chart simply shrinks to fit. */
+.viz-root svg.pace-chart { max-width: 600px; }
+.viz-root svg.speed-chart { max-width: 475px; }
+.viz-root svg.monthly-chart { max-width: 600px; }

@@ -10,7 +10,7 @@ export const PAGE_TITLES: Record<PageName, string> = {
   applications: "Applications",
   detail: "Application",
   people: "People",
-  flow: "Flow",
+  statistics: "Statistics",
   review: "Needs review",
   settings: "Settings",
   setup: "Set up",

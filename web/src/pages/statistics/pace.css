@@ -1,0 +1,17 @@
+/* Pace chart: past weeks in the quiet grey, this week in the Applied colour. Everything comes from the app tokens. */
+.viz-root svg.pace-chart .pace-bar { fill: var(--neutral); }
+.viz-root svg.pace-chart .pace-bar.now { fill: var(--stage-applied); }
+.viz-root svg.pace-chart .goal-line { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; fill: none; }
+.viz-root svg.pace-chart .goal-label, .viz-root svg.pace-chart .y-label, .viz-root svg.pace-chart .x-label { fill: var(--ink2); font-size: 12px; }
+.viz-root svg.pace-chart .mark-hit:focus-visible { stroke: var(--ink); stroke-width: 2px; }
+@media (forced-colors: active) {
+  .viz-root svg.pace-chart .pace-bar { fill: GrayText; stroke: CanvasText; stroke-width: 1px; }
+  .viz-root svg.pace-chart .pace-bar.now { fill: Highlight; stroke: CanvasText; }
+  .viz-root svg.pace-chart .goal-line { stroke: CanvasText; }
+  .viz-root svg.pace-chart .gridline { stroke: GrayText; }
+  .viz-root svg.pace-chart .goal-label, .viz-root svg.pace-chart .y-label, .viz-root svg.pace-chart .x-label { fill: CanvasText; }
+  .viz-root svg.pace-chart .mark-hit:focus-visible { stroke: Highlight; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .viz-root svg.pace-chart * { transition: none; animation: none; }
+}

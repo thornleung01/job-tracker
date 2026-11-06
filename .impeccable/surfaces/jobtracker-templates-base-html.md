@@ -2,7 +2,7 @@
 version: 1
 slug: "jobtracker-templates-base-html"
 primary_target: "jobtracker/templates/base.html"
-related_targets: ["jobtracker/templates/index.html","jobtracker/templates/flow.html","jobtracker/templates/settings.html","jobtracker/templates/detail.html","jobtracker/templates/review.html"]
+related_targets: ["jobtracker/templates/index.html","jobtracker/templates/statistics.html","jobtracker/templates/settings.html","jobtracker/templates/detail.html","jobtracker/templates/review.html"]
 ---
 
 # Surface brief: Job Tracker (whole app)

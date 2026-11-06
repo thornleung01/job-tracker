@@ -23,7 +23,7 @@
   [
    "GET",
    "/flow",
-   "flow"
+   "flow_moved"
   ],
   [
    "GET",
@@ -39,6 +39,11 @@
    "GET",
    "/settings",
    "settings_page"
+  ],
+  [
+   "GET",
+   "/statistics",
+   "statistics"
   ],
   [
    "GET",
@@ -482,13 +487,15 @@
    "status": 303,
    "type": ""
   },
-  "flow": {
-   "status": 200,
-   "type": "text/html"
+  "flow moved": {
+   "location": "/statistics",
+   "status": 307,
+   "type": ""
   },
-  "flow days": {
-   "status": 200,
-   "type": "text/html"
+  "flow moved with filters": {
+   "location": "/statistics?days=30&account=1",
+   "status": 307,
+   "type": ""
   },
   "foreign host": {
    "status": 403,
@@ -714,7 +721,7 @@
    "type": ""
   },
   "profile switch": {
-   "location": "/flow",
+   "location": "/statistics",
    "set_cookie": [
     "HttpOnly",
     "Max-Age=31536000",
@@ -904,6 +911,14 @@
    ],
    "status": 404,
    "type": "application/json"
+  },
+  "statistics": {
+   "status": 200,
+   "type": "text/html"
+  },
+  "statistics days": {
+   "status": 200,
+   "type": "text/html"
   },
   "step": {
    "location": "/app/1",
