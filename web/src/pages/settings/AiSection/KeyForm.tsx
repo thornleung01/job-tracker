@@ -1,13 +1,17 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { DEFAULT_MODEL, type AiModel } from "../../../ai";
 import { ModelSelect, type CardPart } from "./shared";
 
 /** No key yet: the key, the passphrase to lock it with and the model. Both secrets are cleared the moment they are handed over. */
-export function KeyForm({ db, vault, act, run, refresh }: CardPart) {
+export function KeyForm({ db, vault, act, run, refresh, focusOnMount }: CardPart & { focusOnMount?: boolean }) {
   const [keyInput, setKeyInput] = useState("");
   const [passphraseInput, setPassphraseInput] = useState("");
   const [model, setModel] = useState<AiModel>(DEFAULT_MODEL);
   const keyField = useRef<HTMLInputElement>(null);
+  // The Set up key button that revealed this form is gone, so the key field takes focus.
+  useEffect(() => {
+    if (focusOnMount) keyField.current?.focus();
+  }, [focusOnMount]);
 
   const save = (e: FormEvent) => {
     e.preventDefault();

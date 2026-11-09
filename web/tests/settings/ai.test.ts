@@ -17,7 +17,8 @@ afterEach(() => {
 
 type Saved = "none" | "locked" | "unlocked";
 
-async function setup(opts: { saved?: Saved; db?: JobTrackerDB; storage?: MemoryStorage } = {}) {
+/** `reveal: false` leaves the "Set up key" button alone; by default it is pressed so the form is there. */
+async function setup(opts: { saved?: Saved; db?: JobTrackerDB; storage?: MemoryStorage; reveal?: boolean; section?: "ai" | "data" } = {}) {
   const db = opts.db ?? freshDb();
   const storage = opts.storage ?? new MemoryStorage();
   const { deps: ai, complete } = fakeAiDeps(storage);
@@ -34,8 +35,9 @@ async function setup(opts: { saved?: Saved; db?: JobTrackerDB; storage?: MemoryS
     downloadCsv: vi.fn(),
     ai,
   };
-  await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
-  await waitFor(() => q("#appearance input[type=radio]"));
+  await render(h(SettingsView, { db, user: ada, params: { section: opts.section ?? "ai" }, query: new URLSearchParams(), navigate: () => undefined, deps }));
+  await waitFor(() => q(opts.section === "data" ? "#data" : "#ai"));
+  if (opts.section !== "data" && (!opts.saved || opts.saved === "none") && opts.reveal !== false) await click(byText("Set up key")!);
   return { db, storage, ai, complete, deps };
 }
 
@@ -50,12 +52,30 @@ async function fillAndSave(key: string, passphrase: string) {
 }
 
 describe("the AI card", () => {
-  it("sits between Appearance and the other cards, with a jump link", async () => {
-    await setup();
-    const ids = Array.from(document.querySelectorAll("section.card")).map((s) => s.id);
-    expect(ids.indexOf("ai")).toBe(ids.indexOf("appearance") + 1);
-    expect(byText("AI", "nav a")).not.toBeNull();
+  it("is the AI section, with the intro and its link marked as the open section", async () => {
+    await setup({ reveal: false });
+    expect(q("nav[aria-label='Settings sections'] a[aria-current=page]")!.textContent).toBe("AI");
     expect(card().textContent).toContain("Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.");
+  });
+
+  it("shows only the description and a Set up key button when there is no key", async () => {
+    await setup({ reveal: false });
+    expect(byText("Set up key", "button")).not.toBeNull();
+    expect(q("#ai-key")).toBeNull();
+    expect(byText("Save key")).toBeNull();
+  });
+
+  it("reveals the form, with focus on the key field, when Set up key is pressed", async () => {
+    await setup({ reveal: false });
+    await click(byText("Set up key")!);
+    expect(byText("Set up key")).toBeNull();
+    expect(q("#ai-key")).not.toBeNull();
+    expect(document.activeElement).toBe(input("ai-key"));
+  });
+
+  it("never shows Set up key once a key exists", async () => {
+    await setup({ saved: "locked" });
+    expect(byText("Set up key")).toBeNull();
   });
 
   it("shows the form when there is no key", async () => {
@@ -198,7 +218,7 @@ describe("the AI card", () => {
 
     await click(byText("Forget key", "button")!);
     await click(await waitFor(() => q(".inline-confirm button.danger")));
-    await waitFor(() => q("#ai-key"));
+    await waitFor(() => byText("Set up key"));
     expect(ai.vault.status(db.name)).toEqual({ state: "none" });
     expect(noticeText()).toBe("Your key was removed from this browser.");
   });
@@ -207,25 +227,24 @@ describe("the AI card", () => {
     const { ai, db } = await setup({ saved: "unlocked" });
     await click(byText("Forget key", "button")!);
     await click(await waitFor(() => q(".inline-confirm button.danger")));
-    await waitFor(() => q("#ai-key"));
+    await waitFor(() => byText("Set up key"));
     expect(ai.vault.key(db.name)).toBeNull();
   });
 });
 
 describe("clearing the key", () => {
   it("forgets it when you delete all your data, and the card goes back to the form", async () => {
-    const { ai, db, storage } = await setup({ saved: "unlocked" });
+    const { ai, db, storage } = await setup({ saved: "unlocked", section: "data" });
     await click(byText("Delete all my data")!);
     await click(await waitFor(() => byText("Delete everything")));
     await waitFor(() => noticeText().startsWith("All your data"));
     expect(ai.vault.status(db.name)).toEqual({ state: "none" });
     expect(ai.vault.key(db.name)).toBeNull();
     expect(storage.length).toBe(0);
-    await waitFor(() => q("#ai-key"));
   });
 
   it("keeps the key when you cancel the delete", async () => {
-    const { ai, db } = await setup({ saved: "unlocked" });
+    const { ai, db } = await setup({ saved: "unlocked", section: "data" });
     await click(byText("Delete all my data")!);
     await click(await waitFor(() => byText("Cancel")));
     expect(ai.vault.status(db.name).state).toBe("unlocked");
@@ -299,7 +318,7 @@ describe("where focus goes", () => {
     expect(focused()).toBe(opener);
     await click(byText("Forget key", "button")!);
     await click(await waitFor(() => q(".inline-confirm button.danger")));
-    await waitFor(() => q("#ai-key"));
+    await waitFor(() => byText("Set up key"));
     expect(focused()).toBe(q(".notice"));
   });
 });

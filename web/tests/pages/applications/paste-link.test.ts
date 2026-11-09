@@ -178,10 +178,10 @@ describe("paste a job link", () => {
     expect(second.aborted).toBe(true);
   });
 
-  it("says plainly when nothing could be read, and points at the bookmarklet in Settings", async () => {
+  it("says plainly when nothing could be read, and points at the bookmarklet below", async () => {
     const db = freshDb();
     const { Page } = withFakes({ parseJobUrl: vi.fn((_raw: string) => draft({ url: "https://www.linkedin.com/jobs/view/1" })) });
-    const { container, visited } = await mountPage(Page, db);
+    const { container } = await mountPage(Page, db);
     await openForm(container);
     expect(text($(container, "#add-link-slot"))).not.toContain("bookmarklet");
     await type(field(container, "add-link"), "https://www.linkedin.com/jobs/view/1");
@@ -189,9 +189,8 @@ describe("paste a job link", () => {
     expect(result(container)).toBe("We couldn't read details from this link. Add them below.");
     expect(field(container, "add-company").value).toBe("");
     const slot = $(container, "#add-link-slot")!;
-    expect(text(slot)).toContain("LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in Settings.");
-    await click($(slot, "a[href='#/settings']"));
-    expect(visited.at(-1)).toBe("/settings");
+    expect(text(slot)).toContain("LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet under Save jobs from any site, below.");
+    expect($(slot, "a")).toBeNull();
   });
 
   it("says so when the text is not a web address at all", async () => {

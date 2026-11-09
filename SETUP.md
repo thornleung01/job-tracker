@@ -132,7 +132,7 @@ If you'd rather not allow sending, each email still has **Reply in Gmail** or **
 
 ## How to read the dashboard
 
-- **Needs review** holds emails the rules weren't sure about. They never change a stage until you decide. Check it after the first sync.
+- Emails the rules weren't sure about wait in Needs review. They never change a stage until you decide. After the first sync, check the banner at the top of Applications ("N emails need a look", then Review emails).
 - Setting a stage by hand **locks** that application, so later syncs can't undo it. Use *Unlock* to hand it back.
 - Wording the rules miss can be added to `jobtracker\rules.yaml`. Then run `sync --days N` to pick up older mail; emails already stored aren't reclassified. If you also use the hosted edition, there are two more commands to run so it classifies the same way (see the project [README.md](README.md), "One classifier, two editions").
 - Newsletters, digests and marketing mail are ignored on purpose: mail with unsubscribe or tracking links (or a mailing-list header) only counts when its **subject** is about your application, and a stage word alone (interview, offer) with nothing to attach it to goes to **Needs review** instead of making an application. If an earlier version made applications out of such mail, press **Settings → Sync → Re-check saved emails** (or run `python -m jobtracker recheck`). It never changes applications you made, locked or added notes to.

@@ -1,6 +1,7 @@
-// "Your data": export a copy (JSON or CSV), import one, load the demo data in a local build, and delete everything.
-// Each of the three actions that replace the data asks first, in place, with the shared InlineConfirm.
-import { useCallback, useEffect, useRef, useState } from "react";
+// The Data section: Back up (export JSON or CSV, the backup file), Restore (import), the Recently deleted card (handed in as
+// children), a small Demo data line in a local build, and a separate danger area that deletes everything.
+// Each of the actions that replace the data asks first, in place, with the shared InlineConfirm.
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { realBackupDeps } from "../../backup/deps";
 import { backupContent } from "../../backup/content";
 import { backUpToFile, backupFileName, chooseBackupFile, forgetBackupFile, isFileBackupSupported, type BackupOptions } from "../../backup/fileBackup";
@@ -27,6 +28,8 @@ interface Props {
   report: Reporter;
   /** called after the AI key is forgotten, so the AI card shows "no key" */
   onKeyForgotten?: () => void;
+  /** shown between Restore and the demo line: the Recently deleted card */
+  children?: ReactNode;
 }
 
 /** The most import problems listed one by one before "And n more problems." */
@@ -35,7 +38,7 @@ const PROBLEMS_SHOWN = 8;
 /** The real browser APIs, used when a caller hands in no fakes. */
 const realBackup = realBackupDeps();
 
-export function DataSection({ db, isLocal, deps, report, onKeyForgotten }: Props) {
+export function DataSection({ db, isLocal, deps, report, onKeyForgotten, children }: Props) {
   const { say } = report;
   const act = useAction();
   const [pendingImport, setPendingImport] = useState<{ name: string; parsed: ParsedImport } | null>(null);
@@ -234,53 +237,64 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten }: Props
     });
 
   return (
-    <section className="card" id="data" aria-labelledby="h-data">
-      <h2 className="sec" id="h-data" tabIndex={-1}>Your data</h2>
-      <p className="help">Everything is stored in this browser. Export a copy to keep it safe or move it.</p>
-      {storage && describeStorage(storage).length > 0 && (
-        <div className="help backup-status" id="storage-status">{describeStorage(storage).map((line) => <p key={line} className="line">{line}</p>)}</div>
-      )}
-      <div className="row field-block">
-        <button onClick={() => void exportData()}>Export data</button>
-        <button onClick={() => void exportCsv()}>Export CSV</button>
+    <>
+      <section className="card" id="data" aria-labelledby="h-data">
+        <h2 className="sec" id="h-data" tabIndex={-1}>Back up</h2>
+        <p className="help">Everything is stored in this browser. Export a copy to keep it safe or move it.</p>
+        {storage && describeStorage(storage).length > 0 && (
+          <div className="help backup-status" id="storage-status">{describeStorage(storage).map((line) => <p key={line} className="line">{line}</p>)}</div>
+        )}
+        <div className="row field-block">
+          <button onClick={() => void exportData()}>Export data</button>
+          <button onClick={() => void exportCsv()}>Export CSV</button>
+        </div>
+        {fileBackup && (
+          <div className="row backup-file">
+            {fileName && <p className="help" id="backup-file-name">Backup file: {fileName}</p>}
+            {fileName && <button ref={backUpButton} {...act.button("backup")} onClick={() => void backUpNow()}>Back up now</button>}
+            <button ref={chooseButton} {...act.button("choose")} onClick={() => void chooseTarget()}>{fileName ? "Choose a different file" : "Choose a backup file"}</button>
+            {fileName && <button onClick={() => void stopUsingFile()}>Stop using this file</button>}
+          </div>
+        )}
+        {confirmSmaller && (
+          <InlineConfirm
+            title={`Replace the backup in ${confirmSmaller.name} with one that has fewer applications?`}
+            help={`The file has ${plural(confirmSmaller.inFile, "application")}. This backup has ${confirmSmaller.inBackup}. This can't be undone.`}
+            confirmLabel="Replace the backup"
+            act={act}
+            actionKey="replace-backup"
+            opener={confirmSmaller.opener}
+            onConfirm={() => void replaceBackup()}
+            onCancel={() => setConfirmSmaller(null)}
+          />
+        )}
+      </section>
+      <section className="card" id="restore" aria-labelledby="h-restore">
+        <h2 className="sec" id="h-restore" tabIndex={-1}>Restore</h2>
+        <p className="help">Replace everything in this browser with a copy you exported.</p>
         <label className="btn file-pick">
           Import data
           <input ref={fileInput} type="file" accept=".json,application/json" className="sr" onChange={(e) => void chooseFile(e.target.files?.[0])} />
         </label>
-        {isLocal && <button ref={demoButton} disabled={act.busy !== null} onClick={() => void startDemo()}>Load demo data</button>}
-        <button ref={deleteButton} className="danger" onClick={() => setConfirmDelete(true)}>Delete all my data</button>
-      </div>
-      {fileBackup && (
-        <div className="row backup-file">
-          {fileName && <p className="help" id="backup-file-name">Backup file: {fileName}</p>}
-          {fileName && <button ref={backUpButton} {...act.button("backup")} onClick={() => void backUpNow()}>Back up now</button>}
-          <button ref={chooseButton} {...act.button("choose")} onClick={() => void chooseTarget()}>{fileName ? "Choose a different file" : "Choose a backup file"}</button>
-          {fileName && <button onClick={() => void stopUsingFile()}>Stop using this file</button>}
+        {pendingImport && (
+          <InlineConfirm
+            title={`Replace everything in this browser with ${pendingImport.name}${pendingImport.parsed.kind === "python" ? " (from the local edition)" : ""}?`}
+            help="This can't be undone."
+            confirmLabel="Replace my data"
+            act={act}
+            actionKey="import"
+            opener={fileInput.current}
+            onConfirm={() => void confirmImport()}
+            onCancel={() => setPendingImport(null)}
+          />
+        )}
+      </section>
+      {children}
+      {isLocal && (
+        <div className="demo-line">
+          <span className="help">Demo data</span>
+          <button ref={demoButton} className="small" disabled={act.busy !== null} onClick={() => void startDemo()}>Load demo data</button>
         </div>
-      )}
-      {confirmSmaller && (
-        <InlineConfirm
-          title={`Replace the backup in ${confirmSmaller.name} with one that has fewer applications?`}
-          help={`The file has ${plural(confirmSmaller.inFile, "application")}. This backup has ${confirmSmaller.inBackup}. This can't be undone.`}
-          confirmLabel="Replace the backup"
-          act={act}
-          actionKey="replace-backup"
-          opener={confirmSmaller.opener}
-          onConfirm={() => void replaceBackup()}
-          onCancel={() => setConfirmSmaller(null)}
-        />
-      )}
-      {pendingImport && (
-        <InlineConfirm
-          title={`Replace everything in this browser with ${pendingImport.name}${pendingImport.parsed.kind === "python" ? " (from the local edition)" : ""}?`}
-          help="This can't be undone."
-          confirmLabel="Replace my data"
-          act={act}
-          actionKey="import"
-          opener={fileInput.current}
-          onConfirm={() => void confirmImport()}
-          onCancel={() => setPendingImport(null)}
-        />
       )}
       {confirmDemo && (
         <InlineConfirm
@@ -294,18 +308,23 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten }: Props
           onCancel={() => setConfirmDemo(false)}
         />
       )}
-      {confirmDelete && (
-        <InlineConfirm
-          title="Delete your applications, emails and settings from this device?"
-          help="This can't be undone."
-          confirmLabel="Delete everything"
-          act={act}
-          actionKey="delete"
-          opener={deleteButton.current}
-          onConfirm={() => void deleteEverything()}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
-    </section>
+      <section className="card danger-zone" id="danger" aria-labelledby="h-danger">
+        <h2 className="sec" id="h-danger" tabIndex={-1}>Delete everything</h2>
+        <p className="help">Removes your applications, emails and settings from this device. Back up first if you may want them again.</p>
+        <button ref={deleteButton} className="danger" onClick={() => setConfirmDelete(true)}>Delete all my data</button>
+        {confirmDelete && (
+          <InlineConfirm
+            title="Delete your applications, emails and settings from this device?"
+            help="This can't be undone."
+            confirmLabel="Delete everything"
+            act={act}
+            actionKey="delete"
+            opener={deleteButton.current}
+            onConfirm={() => void deleteEverything()}
+            onCancel={() => setConfirmDelete(false)}
+          />
+        )}
+      </section>
+    </>
   );
 }

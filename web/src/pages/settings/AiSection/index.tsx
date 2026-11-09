@@ -23,6 +23,8 @@ export function AiSection({ db, deps, report }: Props) {
   const [status, setStatus] = useState<VaultStatus>(() => vault.status(db.name));
   // Lock removes the button that was pressed, so the passphrase field that appears takes focus.
   const [justLocked, setJustLocked] = useState(false);
+  // With no key saved only the description and a Set up key button show; the button reveals the form.
+  const [setup, setSetup] = useState(false);
 
   const refresh = () => setStatus(vault.status(db.name));
 
@@ -48,6 +50,7 @@ export function AiSection({ db, deps, report }: Props) {
   const forget = () =>
     void run("forget", async () => {
       vault.forget(db.name);
+      setSetup(false);
       refresh();
       return "Your key was removed from this browser.";
     });
@@ -56,7 +59,8 @@ export function AiSection({ db, deps, report }: Props) {
     <section className="card" id="ai" aria-labelledby="h-ai">
       <h2 className="sec" id="h-ai" tabIndex={-1}>AI</h2>
       <p className="help">Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.</p>
-      {status.state === "none" && <KeyForm {...part} />}
+      {status.state === "none" && !setup && <button onClick={() => setSetup(true)}>Set up key</button>}
+      {status.state === "none" && setup && <KeyForm {...part} focusOnMount />}
       {status.state === "locked" && <UnlockForm {...part} last4={status.last4} model={status.model} onForget={forget} focusOnMount={justLocked} />}
       {status.state === "unlocked" && <UnlockedActions {...part} last4={status.last4} model={status.model} complete={deps.complete} onLock={lock} onForget={forget} />}
     </section>

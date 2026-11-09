@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent } from "react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
+import { BookmarkletCard } from "../../components/BookmarkletCard";
+import { ReviewBanner } from "../../components/ReviewBanner";
 import { BulkBar } from "../../components/bulk/BulkBar";
 import { SelectAll } from "../../components/bulk/SelectBoxes";
 import { useSelection } from "../../components/bulk/useSelection";
@@ -38,7 +40,7 @@ import { addApplication as realAddApplication, type AddApplicationInput } from "
 import { liveResumes } from "../../sync/documents";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
-import { DEFAULT_DIR, SORT_COLUMNS, listApplications, reviewCount, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
+import { DEFAULT_DIR, SORT_COLUMNS, listApplications, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
 import { AppRow } from "./AppRow";
 import "./applications.css";
@@ -157,7 +159,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
     const rows = await listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir });
     const counts = await stageCounts(db);
     return {
-      rows, counts, accounts: await listAccounts(db), review: await reviewCount(db),
+      rows, counts, accounts: await listAccounts(db),
       columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
       resumes: (await liveResumes(db)).map(({ id, title, master }) => ({ id, title, master })),
     };
@@ -418,7 +420,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   useShortcuts(onShortcut);
 
   if (!data) return <h1 className="page">Applications</h1>;
-  const { rows, counts, accounts, review, columns, suggestions: suggest, resumes: allResumes } = data;
+  const { rows, counts, accounts, columns, suggestions: suggest, resumes: allResumes } = data;
   const total = STAGES.reduce((n, s) => n + counts[s], 0);
   const filtered = Boolean(stage || q.trim() || account || followUp || ghosted || resume);
   const thisAccount = accounts.find((a) => a.id === account);
@@ -441,6 +443,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           </nav>
         </div>
       </div>
+      <ReviewBanner db={db} />
       {filtered || calendar ? null : <ComingUp rows={rows} today={today} db={db} />}
       <nav className="tabs stage-tabs" aria-label="Filter by stage">
         <a href={"#" + listUrl({ ...keep })} className="tab" aria-current={!stage ? "true" : undefined}>All <span className="n">{total}</span></a>
@@ -505,7 +508,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           {add.error ? <Notice tone="err">{add.error}</Notice> : null}
           <form onSubmit={submitAdd}>
             <div className="add-link-slot" id="add-link-slot">
-              <JobLinkField link={link} navigate={navigate} />
+              <JobLinkField link={link} />
             </div>
             <div className="row add-fields">
               <div className="fgroup f-grow">
@@ -549,6 +552,10 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               <button type="button" onClick={closeAdd}>Cancel</button>
             </div>
           </form>
+          <details className="add-bookmarklet">
+            <summary>Save jobs from any site</summary>
+            <BookmarkletCard embedded />
+          </details>
           <BulkAdd db={db} deps={{ parseJobUrl: lib.parseJobUrl, enrichJobDraft: lib.enrichJobDraft }}
                    resumes={resumes} resume={sentResume} onResume={chooseResume} onAddResume={() => navigate("/resume")} />
         </section>
@@ -575,12 +582,6 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
               <button type="button" className="quiet save-view-trigger" ref={saveTrigger} aria-expanded={saveOpen} aria-controls="save-view" onClick={() => setSaveOpen(!saveOpen)}>Save this view</button>
             ) : null}
           </div>
-          {review ? (
-            <p className="review-link small" role="status">
-              <a href="#/review" aria-describedby="review-why">{review} email{review !== 1 ? "s" : ""} need{review !== 1 ? "" : "s"} review</a>
-              <span className="sr-only" id="review-why">We weren't sure which application {review !== 1 ? "they belong" : "it belongs"} to.</span>
-            </p>
-          ) : null}
         </div>
         <WeeklyGoal db={db} />
       </div>

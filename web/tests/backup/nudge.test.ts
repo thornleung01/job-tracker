@@ -129,14 +129,14 @@ describe("backup nudge", () => {
     expect(nudge()).toBeNull();
   });
 
-  it("goes to Settings > Your data from the Export a backup link", async () => {
+  it("goes to Settings > Data from the Export a backup link", async () => {
     const db = freshDb();
     await withApplications(db, 1);
     window.location.hash = "#/";
     await render(h(BackupNudge, { db, now: clock() }));
     await shown();
     await click(byText("Export a backup")!);
-    expect(window.location.hash).toBe("#/settings");
+    expect(window.location.hash).toBe("#/settings/data");
   });
 
   it("keeps each account's snooze apart", async () => {
