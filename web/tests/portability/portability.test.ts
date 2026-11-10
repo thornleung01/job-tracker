@@ -314,6 +314,25 @@ describe("documents in the export", () => {
     expect(await to.applications.toArray()).toEqual(await from.applications.toArray());
   });
 
+  it("round-trips a master made from the blank template, and drops a source it does not know", async () => {
+    const from = freshDb();
+    await saveMaster(from, [
+      { id: "h", heading: "Header", items: [{ id: "n", text: "Jordan Lee" }, { id: "c", text: "Toronto, ON" }] },
+      { id: "w", heading: "Work experience", items: [{ id: "o", text: "Acme", kind: "org", right: "Toronto, ON" }] },
+    ], "template");
+    const file = JSON.parse(await exportAllAsJson(from));
+    expect(file.data.documents[0].source).toBe("template");
+    expect(file.version).toBe(3);
+    const to = freshDb();
+    await importAll(to, file);
+    expect(await to.documents.toArray()).toEqual(await from.documents.toArray());
+    expect((await to.documents.toArray())[0].source).toBe("template");
+    file.data.documents[0].source = "other";
+    const again = freshDb();
+    await importAll(again, file);
+    expect((await again.documents.toArray())[0].source).toBeUndefined();
+  });
+
   it("still reads a version 2 file, which has no documents", async () => {
     const to = freshDb();
     const summary = await importAll(to, { format: "jobtracker-export", version: 2, exportedAt: "2026-11-01T00:00:00Z", source: "web", data: { applications: [] } });
