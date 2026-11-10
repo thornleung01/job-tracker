@@ -179,8 +179,8 @@ describe("local mode (no client IDs)", () => {
     expect(q("#sync")).toBeNull();
     expect(q("#account")).toBeNull();
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up on this site.");
-    expect(q("#accounts a")?.getAttribute("href")).toBe("#/setup");
-    expect(q("#accounts a")?.textContent).toBe("Set it up");
+    expect(q("#accounts a")).toBeNull();
+    expect(document.body.innerHTML).not.toContain("#/setup");
     expect(byText("Connect Gmail")).toBeNull();
     expect(byText("Connect Outlook")).toBeNull();
     expect(byText("Log out")).toBeNull();
@@ -225,7 +225,7 @@ describe("local mode (no client IDs)", () => {
   it("settings in local mode never reads the auth module", async () => {
     const db = freshDb();
     const auth = untouchableAuth() as unknown as never;
-    await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps: { auth } }));
+    await render(h(SettingsView, { db, user: LOCAL_USER, params: { section: "mail" }, query: new URLSearchParams(), navigate: () => undefined, deps: { auth } }));
     await waitFor(() => q("#accounts"));
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up");
   });

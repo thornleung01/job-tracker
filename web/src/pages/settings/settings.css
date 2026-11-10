@@ -60,3 +60,7 @@ h2 + h3.subhead { margin-top: 8px; }
 .review-line .what { min-width: 0; overflow-wrap: anywhere; }
 .review-line .what b { font-weight: 700; }
 .review-line .who { display: block; }
+/* "Get a key from Anthropic": an ordinary link with a full tap height, readable on its own line on a phone. */
+.get-key-link { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 8px; margin-left: -8px; color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; border-radius: var(--r-pill); }
+.get-key-link:hover { background: var(--hover); }
+p.help .get-key-link { padding: 0; margin: 0; min-height: 0; display: inline; }
