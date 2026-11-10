@@ -1,0 +1,100 @@
+/* The Resume page: three sections (Resume, Job, the tailored split) and the action bar. Cards, buttons and fields come from the shared stylesheet; this
+   file lays them out. The split gets a wider container than the page (about 1360px), two columns above 1100px, one under it, and on a phone one
+   document at a time behind the two-tab switch (.doc-switch). The bar's state reads from its words, never from colour alone. */
+.rs { margin: 0 0 var(--section); }
+.rs-section { margin: 0 0 var(--gap); }
+.rs-h { font-size: 1.25rem; line-height: 1.4; margin: 0 0 12px; }
+.rs-h:focus { outline: none; }
+.rs-h:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: var(--r-seg); }
+.rs-card { margin: 0; }
+.rs-wait { margin: 0; }
+.rs-gone { margin: 0 0 var(--gap); }
+
+/* Resume: the master as one compact row. */
+.rs-master { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0; }
+.rs-master-sum { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.rs-based { flex-direction: row; align-items: center; gap: 8px; }
+.rs-based > label { padding: 0; }
+.rs-based select { min-height: var(--tap-sm); }
+button.rs-edit { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875rem; }
+
+/* Job: the posting on the left, the link, company, role and words on the right. */
+.rs-job { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 24px; align-items: stretch; }
+.rs-posting { min-width: 0; }
+.rs-posting textarea { flex: 1 1 auto; min-height: 14rem; }
+.rs-side { min-width: 0; }
+.rs-link { display: flex; align-items: flex-end; gap: 12px; margin: 0 0 var(--gap); }
+.rs-link .fgroup { flex: 1 1 0; min-width: 0; }
+.rs-link input { width: 100%; }
+.rs-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; }
+.rs-fields input { width: 100%; }
+.rs-check { min-height: 1.4em; margin: 6px 0 12px; padding-left: 4px; }
+.rs-side .posting-terms { margin: 0; }
+.rs-actions { margin-top: 12px; }
+.rs-why { margin: 8px 0 0; }
+.rs-unlock { align-items: flex-end; margin: var(--gap) 0 0; }
+.rs-card > .tailor-ai { margin: var(--gap) 0 0; }
+.rs-card > .tailor-ai + .rs-actions { margin-top: 12px; }
+.rs-card .inline-confirm { margin-top: var(--gap); }
+.rs-card > .notice { margin: var(--gap) 0 0; }
+.rs-card > .small[role="status"] { margin: 12px 0 0; }
+
+/* The split, in a container wider than the page. */
+.rs-wide { width: min(1360px, calc(100vw - 32px)); margin-left: calc(50% - min(1360px, 100vw - 32px) / 2); margin-top: var(--section); }
+.rs-split { position: relative; }
+.rs-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 var(--gap); }
+.rs-strip button { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875rem; }
+.rs-split > .tailor-ai, .rs-split > .inline-confirm { margin: 0 0 var(--gap); }
+.rs-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
+.rs-col { min-width: 0; }
+.rs-h-doc { font-size: 1rem; line-height: 1.375; margin: 0 0 8px; }
+.rs-sheet { min-width: 0; }
+.rs-sheet .page-editor .pe-status { margin: 0 0 8px; }
+.rs-sheet .page-editor .pe-add-section { margin-bottom: 0; }
+.rs-letter { max-width: 68ch; }
+.rs-letter .doc-letter-text { width: 100%; margin-bottom: 12px; min-height: 24rem; }
+.rs-changes { margin: 16px 0 0; max-width: 68ch; }
+.rs-changes-body { padding-top: 8px; }
+
+/* The action bar: sticky to the bottom of the screen while the split is on it. */
+.rs-bar { position: sticky; bottom: 12px; z-index: var(--z-tip); margin-top: var(--gap); padding: 12px 16px; background: var(--surface); box-shadow: var(--raise); border-radius: var(--r-lg); }
+.rs-bar-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.rs-where { flex: 1 1 320px; min-width: 0; margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 0 16px; overflow-wrap: anywhere; }
+.rs-where a { display: inline-flex; align-items: center; min-height: var(--tap-sm); padding: 0 8px; }
+button.rs-inline { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875rem; }
+.rs-pick { gap: 8px 12px; }
+.rs-pick label { font-weight: 500; }
+.rs-pick select { min-height: var(--tap-sm); flex: 1 1 220px; min-width: 0; }
+.rs-bar-btns { display: flex; gap: 8px; flex: none; }
+.rs-bar .inline-confirm { margin: 0 0 12px; }
+.rs-bar .notice { margin: 12px 0 0; }
+.rs-note { margin: 8px 0 0; }
+.rs-saved { margin: 0; font-weight: 500; }
+.rs-saved:not(:empty) { margin-bottom: 8px; }
+.rs-saved:focus { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+/* The sticky bar covers the foot of the page: a focused field scrolls clear of it (its height is set by ActionBar), and the page leaves room under it. */
+html:has(.rs-bar) { scroll-padding-bottom: calc(var(--rs-bar-h, 96px) + 24px); }
+.rs-wide { padding-bottom: 12px; }
+
+@media (max-width: 1100px) {
+  .rs-cols { grid-template-columns: minmax(0, 1fr); }
+  .rs-letter, .rs-changes { max-width: 8.5in; margin-inline: auto; }
+  .rs-col-resume > h2, .rs-col-letter > h2 { max-width: 8.5in; margin-inline: auto; }
+}
+@media (max-width: 720px) {
+  .rs-job { grid-template-columns: minmax(0, 1fr); }
+  .rs-fields { grid-template-columns: minmax(0, 1fr); }
+  .rs-posting textarea { min-height: 12rem; }
+  .rs-link { flex-wrap: wrap; }
+  .rs-link .fgroup { flex-basis: 100%; }
+  .rs-strip button, .rs-card .row button, button.rs-edit, button.rs-inline, .rs-based select, .rs-pick select, .rs-where a { min-height: var(--tap); }
+  .rs-bar { bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .rs-bar-btns { width: 100%; }
+  .rs-bar-btns button { flex: 1 1 0; }
+}
+@media (forced-colors: active) {
+  .rs-bar { border: 1px solid CanvasText; }
+}
+
+/* Your documents, under the sections. */
+h2.docs-h { font-size: 1.25rem; line-height: 1.4; margin: 0 0 16px; }

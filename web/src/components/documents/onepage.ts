@@ -6,6 +6,8 @@ const PX_PER_INCH = 96;
 export const PRINTABLE_HEIGHT_PX = (11 - 2 * 0.5) * PX_PER_INCH;
 /** The printed text column: 8.5in wide minus the same margins. Keep in sync with the `@page classic` margin in pages/resume/print.css (the classic sheet rules themselves are in resumesheet.css). */
 export const PRINT_WIDTH_PX = (8.5 - 2 * 0.5) * PX_PER_INCH;
+/** The sheet's own width, US letter at 96 px per inch: what a sheet scaled into a narrower column is drawn at. */
+export const SHEET_WIDTH_PX = 8.5 * PX_PER_INCH;
 /** The classic template's body text: 10.5pt (14px) on a 1.25 line height. */
 const CLASSIC_FONT_PX = 14;
 /* The sheet height is measured from the DOM, so section spacing and bullet size need no constant here: CLASSIC_LINE_PX only turns the overflow into a number of lines. */

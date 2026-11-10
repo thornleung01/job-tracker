@@ -1,5 +1,5 @@
 /* The tailor review's lists (what changed, what was left out, the AI's lines to tick) and Words from the posting. Shared by the Tailor workspace
-   and the Resume page's steps, so it loads with the components rather than with either page. */
+   and the Resume page, so it loads with the components rather than with either page. */
 .tailor-list .doc-h, .posting-terms .doc-h { font: 500 1rem/1.375 var(--font-ui); margin: 0 0 8px; }
 
 /* Words from the posting: each term with a mark and its words, so found or not is never colour alone. */

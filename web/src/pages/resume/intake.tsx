@@ -1,5 +1,5 @@
 // Bringing a master resume in: a file or pasted text goes to the convert panel, then to the review, and only "Save as master resume" stores it;
-// or a blank copy of the template to type into. The Resume page's first step uses all of it before there is a master, and the master card
+// or a blank copy of the template to type into. The Resume section of the page uses all of it before there is a master, and the master card
 // under Your documents uses the same review for "Replace with a file" and the re-read offer.
 import { useRef, useState } from "react";
 import type { AiDeps } from "../../ai";

@@ -10,6 +10,13 @@ async function css(path: string): Promise<string> {
   return fs.readFileSync(new URL(`../../../src/${path}`, import.meta.url), "utf8");
 }
 
+describe("the split's stylesheet", () => {
+  it("keeps focused content clear of the sticky bar with scroll padding the bar's own height sets", async () => {
+    const text = await css("pages/resume/split.css");
+    expect(text).toMatch(/html:has\(\.rs-bar\)\s*\{[^}]*scroll-padding-bottom:\s*calc\(var\(--rs-bar-h/);
+  });
+});
+
 const SHEETS = ["pages/resume/resume.css", "pages/resume/print.css", "components/documents/resumesheet.css", "components/documents/sectionseditor.css", "components/documents/documents.css", "pages/resume/convert.css"];
 
 describe.each(SHEETS)("%s", (sheet) => {

@@ -1,6 +1,6 @@
 // The steps' work in progress: the reducer's fill rules and the session-storage copy, which must survive bad data.
 import { afterEach, describe, expect, it } from "vitest";
-import { emptyFlow, flowKey, flowReducer, loadFlow, storeFlow } from "../../../src/pages/resume/flowState";
+import { deriveStep, emptyFlow, flowKey, flowReducer, loadFlow, storeFlow } from "../../../src/pages/resume/flowState";
 
 afterEach(() => sessionStorage.clear());
 
@@ -14,8 +14,47 @@ describe("flowReducer", () => {
     expect(s).toMatchObject({ company: "Acme Corp", role: "Analyst", guessed: { company: false, role: true } });
   });
 
-  it("won't open Review or Add without a draft", () => {
-    expect(flowReducer(emptyFlow(), { type: "go", step: "add" }).step).toBe("job");
+  const section = { id: "s1", heading: "SUMMARY", items: [{ id: "i1", text: "Analyst" }] };
+  const draft = { baselineId: 3, resume: [section], lines: [], cover: [section], coverFlags: [], unused: [] };
+  const drafted = () => flowReducer(emptyFlow(), { type: "drafted", draft, resume: [section], ticks: {}, byHand: true });
+  const saved = { appId: 4, resumeId: 5, company: "Acme", letter: "Hi" };
+
+  it("derives what the page shows: the way in, the job, the split, then the saved split until an edit", () => {
+    expect(deriveStep(emptyFlow(), false)).toBe("resume");
+    expect(deriveStep(emptyFlow(), true)).toBe("job");
+    let s = drafted();
+    expect(deriveStep(s, true)).toBe("split");
+    s = flowReducer(s, { type: "saved", saved });
+    expect(deriveStep(s, true)).toBe("saved");
+    expect(s.draft).not.toBeNull();
+    expect(s.target).toBe(4);
+    s = flowReducer(s, { type: "letter", text: "Hello" });
+    expect(deriveStep(s, true)).toBe("split");
+    expect(s.target).toBe(4);
+    expect(deriveStep(flowReducer(s, { type: "reset" }), true)).toBe("job");
+  });
+
+  it("keeps the saved mark across a reload", () => {
+    const s = flowReducer(drafted(), { type: "saved", saved });
+    storeFlow("db1", s);
+    expect(loadFlow("db1")).toMatchObject({ saved, dirty: false, draft: { baselineId: 3 } });
+    storeFlow("db1", flowReducer(s, { type: "letter", text: "x" }));
+    expect(loadFlow("db1")).toMatchObject({ saved, dirty: true });
+  });
+
+  it("makes the draft unsaved again when the application it was saved to is gone, and Save then goes by the default", () => {
+    const s = flowReducer(drafted(), { type: "saved", saved });
+    expect(s.target).toBe(4);
+    const gone = flowReducer(s, { type: "savedGone" });
+    expect(gone).toMatchObject({ saved: null, dirty: false, target: "default" });
+    expect(deriveStep(gone, true)).toBe("split");
+    expect(flowReducer(flowReducer(s, { type: "target", target: "new" }), { type: "savedGone" }).target).toBe("new");
+    expect(flowReducer(gone, { type: "savedGone" })).toBe(gone);
+  });
+
+  it("does not store or need a cover letter id on the saved mark", () => {
+    storeFlow("db1", flowReducer(drafted(), { type: "saved", saved: { ...saved, coverId: 6 } as typeof saved }));
+    expect(loadFlow("db1").saved).toEqual(saved);
   });
 });
 
@@ -24,7 +63,7 @@ describe("the stored flow", () => {
     storeFlow("db1", { ...emptyFlow(), posting: "A posting", company: "Acme" });
     expect(sessionStorage.getItem(flowKey("db1"))).not.toBeNull();
     expect(flowKey("db1")).toBe("jobtracker:resume-steps:db1");
-    expect(loadFlow("db1")).toMatchObject({ posting: "A posting", company: "Acme", step: "job" });
+    expect(loadFlow("db1")).toMatchObject({ posting: "A posting", company: "Acme" });
     expect(loadFlow("db2")).toEqual(emptyFlow());
   });
 
@@ -43,7 +82,7 @@ describe("the stored flow", () => {
 
   it("reads back a draft stored with its version", () => {
     sessionStorage.setItem(flowKey("db1"), JSON.stringify(good));
-    expect(loadFlow("db1")).toMatchObject({ step: "review", company: "Acme", draft: { baselineId: 3 }, resume: [section], letter: { text: "Hi" } });
+    expect(loadFlow("db1")).toMatchObject({ company: "Acme", draft: { baselineId: 3 }, resume: [section], letter: { text: "Hi" } });
   });
 
   it("starts fresh, and never throws, for another version or the wrong types anywhere in the draft", () => {

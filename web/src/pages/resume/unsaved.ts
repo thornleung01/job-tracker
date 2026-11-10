@@ -1,10 +1,10 @@
-// The Resume page's unsaved work: the master and version cards, the review of a new master, the template and the steps' draft each report
+// The Resume page's unsaved work: the master and version cards, the review of a new master, the template and the job in progress (the flow) each report
 // whether they hold something typed and not saved. Leaving the page with any of it asks first, like the Tailor workspace does: closing or
-// reloading the tab (not for the steps' draft, which a reload keeps), and a move to another page in the app (app/leaveGuard.ts, one guard for the whole page).
+// reloading the tab (not for the flow, which a reload keeps), and a move to another page in the app (app/leaveGuard.ts, one guard for the whole page).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { registerLeaveGuard } from "../../app/leaveGuard";
 
-/** The key the steps report their draft under. */
+/** The key the flow (the job in progress) reports under. */
 export const FLOW_KEY = "flow";
 
 /** Tells the page whether the part `key` has unsaved text. */
@@ -27,7 +27,7 @@ export function useLeaveWhenUnsaved(navigate: (to: string) => void, onDiscard?: 
   const report = useCallback<ReportUnsaved>((key, on) => {
     if (on) unsaved.current.add(key);
     else unsaved.current.delete(key);
-    // The steps' draft is kept in session storage, so closing or reloading the tab loses nothing and the browser needn't ask. Leaving the
+    // The flow is kept in session storage, so closing or reloading the tab loses nothing and the browser needn't ask. Leaving the
     // page inside the app still asks (the leave guard below counts it).
     setAny([...unsaved.current].some((k) => k !== FLOW_KEY));
   }, []);

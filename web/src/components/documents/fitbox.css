@@ -1,0 +1,10 @@
+/* The sheet scaled into its column: the inner box is the sheet's real width, and the transform shrinks what is drawn. Nothing here changes the sheet's own rules. */
+.fit-box { width: 100%; min-width: 0; }
+.fit-inner { width: 100%; }
+.fit-inner.is-scaled { width: 8.5in; transform-origin: top left; }
+.fit-inner > .doc-sheet { margin-inline: auto; }
+
+/* Scaled down, the margin the move and remove chips would float in is not there, so they sit over the line's right end (as in a narrow editor). */
+.page-editor.fit .doc-sheet.classic.page-edit { margin-right: 0; }
+.page-editor.fit .doc-sheet.classic.page-edit .pe-controls { right: 0; left: auto; }
+.page-editor.fit .doc-sheet.classic.page-edit .pe-controls::before { right: 100%; left: auto; }

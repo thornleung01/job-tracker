@@ -213,7 +213,7 @@ interface TabProps {
   deps?: Partial<{ ai: AiDeps; convert: ConvertFn }>;
 }
 
-/** The master and version editors. Before there is a master the page's first step brings one in, so this tab has only a line. */
+/** The master and version editors. Before there is a master the Resume section at the top of the page brings one in, so this tab has only a line. */
 export function ResumeTab({ db, resumes, usage, say, report, deps }: TabProps) {
   const master = resumes.find((d) => d.master);
   const versions = resumes.filter((d) => !d.master);
