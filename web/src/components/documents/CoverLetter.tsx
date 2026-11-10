@@ -27,11 +27,14 @@ export function CoverLetter({ db, app, cover, people, act, startLabel = "Write a
   const [asking, setAsking] = useState(false);
   const [copied, setCopied] = useState("");
   const box = useRef<HTMLDivElement>(null);
-  // The control that is gone after an action (Write, Save, Delete) hands focus on to the one that replaces it.
+  // The control that is gone after an action (Write, Save, Delete) hands focus on to the one that replaces it. The replacement can arrive a
+  // moment later (it comes with the letter's next read from the database), so the request stays until the control is there.
   const focusNext = useRef<string | null>(null);
   useEffect(() => {
     if (!focusNext.current) return;
-    box.current?.querySelector<HTMLElement>(focusNext.current)?.focus();
+    const target = box.current?.querySelector<HTMLElement>(focusNext.current);
+    if (!target) return;
+    target.focus();
     focusNext.current = null;
   });
 

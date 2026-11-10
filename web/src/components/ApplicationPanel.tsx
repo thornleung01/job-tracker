@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import type { JobTrackerDB } from "../db/schema";
 import { MAX_NOTE_CHARS } from "../db/limits";
@@ -182,9 +183,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
         <div className="panel-actions">
           <a className="btn small open-full" href={`#/app/${appId}`} aria-label={company ? `Open full page for ${company}` : undefined}>
             Open full page
-            <svg className="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-              <path d="M7 7h10v10" /><path d="M7 17 17 7" />
-            </svg>
+            <ArrowUpRight className="ico" size={16} strokeWidth={3} aria-hidden="true" focusable="false" />
           </a>
           <button type="button" className="danger small" aria-label={company ? `Delete application ${company}` : undefined} onClick={(e) => setAsk({ kind: "delete", opener: e.currentTarget })} {...act.button("delete")}>Delete application</button>
           <button type="button" className="danger small" aria-label={company ? `Not an application: ${company}` : undefined} title="Removes it and learns to ignore emails like the ones that made it."

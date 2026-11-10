@@ -11,7 +11,6 @@
 import { isContactKey } from "../db/contactKey";
 import { ActionError } from "../db/errors";
 import { MAX_NAME_CHARS, MAX_TITLE_CHARS } from "../db/limits";
-import { UNKNOWN_ROLE } from "../pipeline/extract";
 import type { ApplicationRow, ContactEditRow, EmailRow, JobTrackerDB } from "../db/schema";
 import { tx } from "../db/schema";
 import { byDesc } from "./compare";
@@ -357,7 +356,7 @@ export function suggestionsFor(people: readonly Contact[]): Suggestion[] {
     const key = c.name.toLocaleLowerCase();
     if (c.name && !named.has(key)) named.set(key, { kind: "Person", text: c.name, n: 1, note: c.company });
     if (c.company) count("Company", c.company);
-    if (c.role && c.role !== UNKNOWN_ROLE) count("Role", c.role);
+    if (c.role && c.role !== pipeline().UNKNOWN_ROLE) count("Role", c.role);
     if (c.title) count("Title", c.title);
   }
   const out = [...named.values()].slice(0, PEOPLE_SUGGESTION_LIMIT);

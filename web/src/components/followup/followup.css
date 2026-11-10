@@ -2,7 +2,7 @@
 .followup-tag { display: inline-block; margin-left: 4px; padding: 1px 10px; background: var(--fog); color: var(--muted); border-radius: var(--r-pill); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
 /* Sits level with the inputs beside it, and the whole label is the tap target. */
 .followup-field { justify-content: center; min-height: var(--tap); }
-.fgroup > label.followup-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; color: var(--ink); font-size: 1rem; font-weight: 500; cursor: pointer; }
+.fgroup > label.followup-toggle { display: inline-flex; align-items: center; min-height: var(--tap); gap: 8px; padding: 0 4px; color: var(--ink); font-size: 1rem; font-weight: 500; cursor: pointer; }
 /* Under an application's facts: the interview days with Add to calendar, then Draft follow-up. */
 .app-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 14px; }
 .app-interview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

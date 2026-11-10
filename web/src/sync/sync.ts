@@ -131,7 +131,7 @@ export interface SyncOptions {
   now?: Date;
 }
 
-const isAbort = (err: unknown): boolean => err instanceof DOMException && err.name === "AbortError";
+export const isAbort = (err: unknown): boolean => err instanceof DOMException && err.name === "AbortError";
 
 /** What to tell the person when an account's sync failed: a plain sentence with what to do next, never a status code or class name. */
 export function syncFailureText(err: unknown, provider: ProviderName): string {

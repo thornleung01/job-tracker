@@ -119,6 +119,8 @@ describe("the Restore line", () => {
     }) as never);
     await click(byText("Restore", "button")!);
     await waitFor(() => q(".trash-notice .notice")?.textContent === "Couldn't finish that. Try again.");
+    expect(q(".trash-notice .notice")!.classList.contains("err")).toBe(true);   // a problem is read out at once and stays
+    expect(q(".trash-notice .notice")!.getAttribute("role")).toBe("alert");
     expect([await stateOf(db, acme), await stateOf(db, other)]).toEqual(["deleted", "deleted"]);
     vi.restoreAllMocks();
     dismissNotice();

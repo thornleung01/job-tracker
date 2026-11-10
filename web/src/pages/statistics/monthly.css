@@ -3,7 +3,7 @@
 .viz-root svg.monthly-chart .col.hatched, .viz-root .monthly-legend .col.hatched { stroke: var(--stage-heard-back); stroke-width: 1; }
 .viz-root .monthly-legend .col.hatched { fill-opacity: 1; }
 .viz-root svg.monthly-chart .hatch-line { stroke: var(--stage-heard-back); }
-.viz-root svg.monthly-chart .count-label { font-size: 11px; }
+.viz-root svg.monthly-chart .count-label { font-size: 12px; }
 .viz-root .monthly-legend { display: flex; align-items: center; gap: 8px; margin: var(--gap, 8px) 0 0; color: var(--ink2); font-size: 0.8125rem; }
 .viz-root .monthly-legend svg { min-width: 0; width: 12px; flex: none; }
 .viz-root .monthly-legend .hatch-line { stroke: var(--stage-heard-back); }

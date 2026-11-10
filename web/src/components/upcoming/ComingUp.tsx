@@ -4,7 +4,7 @@ import { upcomingInterviewEvents } from "../../sync/applicationActions";
 import { icsForInterviews } from "../../sync/ics";
 import { plural } from "../../sync/text";
 import { comingUp, dayWhen, type UpcomingRow } from "../../sync/upcoming";
-import { downloadText } from "../../pages/settings/actions";
+import { downloadText } from "../../app/download";
 import { useAction } from "../useAction";
 import { Notice } from "../Notice";
 import { AddToCalendar, ICS_TYPE } from "./AddToCalendar";

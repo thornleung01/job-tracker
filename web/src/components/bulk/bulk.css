@@ -9,7 +9,8 @@ tr.app-row.is-selected td { background: var(--fog); }
 
 /* On a phone the checkbox is a narrow first column of each card (the card grid itself is in styles/base.css). */
 @media (max-width: 720px) {
-  .list-card table.list tr.app-row > td[data-col="select"] { grid-column: 1; grid-row: 1; width: auto; margin-left: -6px; }
+  .list-card table.list tr.app-row > td[data-col="select"] { grid-column: 1; grid-row: 1; width: auto; margin-left: -13px; }
+  .list-card table.list td[data-col="select"] .bulk-pick { min-width: var(--tap); }
   .list-card table.list tr.app-row.is-selected { background: var(--fog); }
   .list-card table.list th[data-col="select"] { width: auto; padding: 0; }
   .list-card table.list th[data-col="select"] .bulk-pick { background: var(--fog); border-radius: var(--r-pill); min-width: var(--tap); }

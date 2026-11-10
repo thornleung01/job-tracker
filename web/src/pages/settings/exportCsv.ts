@@ -2,7 +2,7 @@
 import type { JobTrackerDB } from "../../db/schema";
 import { applicationsToCsv } from "../../portability/csv";
 import { listApplications } from "../../sync/queries";
-import { downloadText } from "./actions";
+import { downloadText } from "../../app/download";
 
 export async function exportApplicationsCsv(db: JobTrackerDB): Promise<string> {
   return applicationsToCsv(await listApplications(db));

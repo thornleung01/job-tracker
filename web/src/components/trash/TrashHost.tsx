@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { tx, type JobTrackerDB } from "../../db/schema";
-import { purgeOncePerSession, restoreApplication } from "../../sync/trash";
+import type { JobTrackerDB } from "../../db/schema";
+import { purgeOncePerSession, restoreApplications } from "../../sync/trash";
 import { Notice } from "../Notice";
 import { messageFor, useAction } from "../useAction";
 import { useNoticeFocus } from "../useNoticeFocus";
@@ -27,20 +27,17 @@ export function TrashHost({ db }: { db: JobTrackerDB }) {
   const restore = () =>
     act.run("restore", async () => {
       try {
-        const back = await tx(db, async () => {
-          let n = 0;
-          for (const id of notice.ids) if (await restoreApplication(db, id)) n++;
-          return n;
-        });
+        const back = await restoreApplications(db, notice.ids);
         announce(back ? `Restored ${notice.name}.` : "It was already restored.");
       } catch (e) {
-        announce(messageFor(e));
+        announce(messageFor(e), "err");
       }
       result.focus();
     });
   return (
     <div className="trash-notice" ref={result.box}>
-      <Notice>{notice.text}</Notice>
+      <Notice tone={notice.tone}>{notice.text}</Notice>
+      {notice.tone === "err" ? <button type="button" className="small trash-restore" onClick={dismissNotice}>Dismiss</button> : null}
       {notice.ids.length ? <button type="button" className="small trash-restore" {...act.button("restore")} onClick={() => void restore()}>Restore</button> : null}
     </div>
   );
