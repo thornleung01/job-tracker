@@ -76,6 +76,7 @@ export function AppearanceSection({ db, appearance, report }: Props) {
   return (
     <section className="card" id="appearance" aria-labelledby="h-appearance">
       <h2 className="sec" id="h-appearance" tabIndex={-1}>Appearance</h2>
+      <h3 className="subhead">Look</h3>
       <Segmented id="l-theme" label="Theme" name="theme" options={THEMES} value={shown.theme} onChange={(theme) => void save({ theme })} />
       <div className="field-block">
         <div className="field" id="l-accent">Accent colour</div>
@@ -93,6 +94,7 @@ export function AppearanceSection({ db, appearance, report }: Props) {
         <Segmented id="l-density" label="Density" name="density" options={DENSITIES} value={shown.density} onChange={(density) => void save({ density })} />
         <Segmented id="l-corners" label="Corners" name="corners" options={CORNERS} value={shown.corners} onChange={(corners) => void save({ corners })} />
       </div>
+      <h3 className="subhead">Lists</h3>
       <div className="field-block">
         <div className="field" id="l-cols">Columns in the applications list</div>
         <p className="help">Company and Stage always show.</p>

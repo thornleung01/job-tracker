@@ -3,7 +3,7 @@ import { strToU8, zipSync } from "fflate";
 
 const esc = (s: string) => s.replace(/[\\()]/g, (c) => "\\" + c);
 
-/** A valid PDF with one page per entry. A page is its lines of text, or null for a page with no text (a scan has only a picture). */
+/** A valid PDF with one page per entry. A page is its lines of text, or null for a page with no text (a scan has only a picture). A "\t" in a line starts a second piece of text at x 400, the way right-aligned text sits. */
 export function makePdf(pages: (string[] | null)[], extra: { encrypt?: boolean } = {}): Uint8Array {
   const objects: string[] = [];
   const add = (body: string) => objects.push(body) && objects.length;
@@ -11,7 +11,8 @@ export function makePdf(pages: (string[] | null)[], extra: { encrypt?: boolean }
   const pageIds: number[] = [];
   const pagesId = objects.length + 1 + pages.length * 2;
   for (const lines of pages) {
-    const stream = lines ? `BT /F1 12 Tf 14 TL 72 720 Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(" ")} ET` : "q 10 0 0 10 0 0 cm Q";
+    const place = (l: string, i: number) => l.split("\t").map((piece, n) => `1 0 0 1 ${n ? 400 : 72} ${720 - 14 * i} Tm (${esc(piece)}) Tj`).join(" ");
+    const stream = lines ? `BT /F1 12 Tf ${lines.map(place).join(" ")} ET` : "q 10 0 0 10 0 0 cm Q";
     const content = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
     pageIds.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Contents ${content} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >>`));
   }
@@ -60,3 +61,34 @@ export function file(name: string, data: Uint8Array | string): File {
 }
 
 export const RESUME_LINES = ["Jane Smith", "Analyst with five years in finance and data work.", "EXPERIENCE", "- Built a weekly reporting model", "- Cut close time by two days"];
+
+/** The layout of a one-page resume, with invented content: a centered name and contact line, labelled skills, jobs (an organization and location, a title and dates, labelled bullets), schools. A "\t" is a right-aligned gap. */
+export const TEMPLATE_RESUME_LINES = [
+  "JORDAN LEE",
+  "Toronto, Ontario | (416) 555-0100 | LinkedIn | jordan@example.com",
+  "PROFESSIONAL SUMMARY",
+  "Operations analyst with 3+ years in retail and logistics. Leads reporting and",
+  "planning work that reduces manual effort across teams.",
+  "SKILLS AND QUALIFICATIONS",
+  "Programming/Database SQL (Redshift), Python, R",
+  "Analytics Microsoft Excel · Tableau · Power BI",
+  "Languages: English, French",
+  "WORK EXPERIENCE",
+  "Northwind Traders\tToronto, ON",
+  "Senior Analyst, Planning\tAug 2024 – Present",
+  "● Planning: Own the seasonal plan for 60+ brands across 70 stores, refining demand",
+  "forecasts and markdown decisions with category teams.",
+  "● Reporting: Automated the weekly report, reclaiming ~500 hours a year.",
+  "Associate, Data and Analytics",
+  "● Controls: Built reconciliations for the finance team.",
+  "Analyst, Reporting\tJan 2020 - Dec 2022",
+  "● Reviewed vendor files before each close.",
+  "Contoso Retail\tNew York, NY",
+  "Planner\t2019 – 2022",
+  "● Forecasting: Cut stock-outs by 12% with a weekly review.",
+  "EDUCATION",
+  "City University | School of Business\tKingston, ON",
+  "Master of Analytics",
+  "Lakeside College\tOttawa, ON",
+  "Bachelor of Commerce",
+];

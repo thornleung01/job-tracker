@@ -4,7 +4,6 @@ import ReviewPage from "../../../src/pages/review";
 import { clearFlash, setFlash } from "../../../src/components/flash";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
-import { iso } from "../../../src/db/time";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -55,8 +54,10 @@ describe("the Needs review page", () => {
   it("says when there is nothing to review", async () => {
     const { container } = await open(freshDb());
     expect(text(container)).toContain("Nothing to review.");
-    expect(text($(container, "#learned"))).toContain("Nothing yet.");
-    expect($(container, "#ignored")).toBeNull();
+    const link = $(container, "a[href='#/settings/mail']")!;
+    expect(text(link)).toBe("Settings");
+    expect(text(link.parentElement)).toBe("Rules the app has learned are in Settings.");
+    expect($(container, "#learned")).toBeNull();   // the rules live in Settings > Mail now
   });
 
   it("adds an email to an existing application at the stage you choose", async () => {
@@ -123,37 +124,6 @@ describe("the Needs review page", () => {
     expect(text($(container, ".notice"))).toMatch(/Marked as not job mail\./);
   });
 
-  it("lists learned rules and undoes one", async () => {
-    const { db } = await setup();
-    await db.learnedRules.add({ kind: "block_domain", value: "coachco.io", evidence: 3, active: true, createdAt: iso(new Date()) });
-    const { container } = await open(db);
-    const line = $(container, "#learned .review-line")!;
-    expect(text(line)).toContain("coachco.io");
-    await click(button(line, "Undo"));
-    await waitFor(() => !$(container, "#learned .review-line"));
-    expect(text($(container, ".notice"))).toBe("Rule removed. New emails are judged without it. Emails it already cleared stay cleared.");
-    expect(document.activeElement).toBe($(container, ".notice"));
-    expect((await db.learnedRules.toArray())[0].active).toBe(false);
-  });
-
-  it("restores ignored mail that was a real job email", async () => {
-    const { db, account } = await setup();
-    await db.ignoredMail.add({
-      accountId: account, providerMsgId: "ign-1", threadId: "t9", receivedAt: iso(new Date(Date.now() - 86_400_000)), sender: "Hiring <hr@initech.com>",
-      subject: "Your application to Initech", body: "Thank you for applying to Initech. We received your application for the Data Analyst role.", webLink: null,
-      reason: "learned: ignoring hr@initech.com", createdAt: iso(new Date()), bulk: false,
-    });
-    const { container } = await open(db);
-    const section = $(container, "#ignored")!;
-    expect(text($(section, "h2"))).toBe("Ignored because of what the app learned");
-    expect(text($(section, ".review-line"))).toContain("Your application to Initech");
-    expect(text($(section, ".review-line"))).toContain("hr@initech.com");
-    await click(button(section, "Restore email"));
-    await waitFor(() => !$(container, "#ignored") && !!$(container, ".notice"));
-    expect(await db.ignoredMail.count()).toBe(0);
-    expect($(container, ".notice")).not.toBeNull();
-  });
-
   it("shows a message carried over from another page", async () => {
     const { db } = await setup();
     setFlash("Removed Acme.");
@@ -168,10 +138,6 @@ describe("the Needs review page", () => {
     await addMail(db, account, null, {
       review: true, subject: "<script>alert(1)</script> hi", sender: "<img src=x onerror=alert(2)> <evil@x.com>", body: "<script>alert(3)</script> see https://evil.example/path",
     });
-    await db.ignoredMail.add({
-      accountId: account, providerMsgId: "i2", threadId: null, receivedAt: iso(new Date()), sender: "<b>x</b> <x@y.com>", subject: "<script>alert(4)</script>",
-      body: "", webLink: null, reason: "", createdAt: iso(new Date()), bulk: false,
-    });
     const { container } = await open(db);
     expect($(container, "script")).toBeNull();
     expect($(container, "img")).toBeNull();
@@ -179,6 +145,5 @@ describe("the Needs review page", () => {
     expect(text($(container, "article .mail-subject"))).toBe("<script>alert(1)</script> hi");
     expect($(container, "article .mail-text .url")?.textContent).toBe("evil.example");
     expect($$(container, "article .mail-text a")).toHaveLength(0);
-    expect(text($(container, "#ignored"))).toContain("<script>alert(4)</script>");
   });
 });

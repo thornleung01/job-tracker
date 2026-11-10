@@ -127,7 +127,7 @@ describe("the page of a deleted application", () => {
     const { container } = await mountPage(DetailPage, db, `/app/${acme}`, { id: String(acme) });
     expect(text($(container, "h1"))).toBe("This application was deleted");
     expect(text($(container, "p.muted"))).toBe("Acme · Analyst. It stays in Recently deleted for 30 more days.");
-    expect($(container, "a.btn[href='#/settings']")).not.toBeNull();
+    expect($(container, "a.btn[href='#/settings/data']")).not.toBeNull();
     expect($(container, "h2#h-notes")).toBeNull();   // none of the application's own page
     await click(button(container, "Restore"));
     await waitFor(() => text($(container, "h1")) === "Acme", "the page to come back");

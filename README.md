@@ -1,6 +1,6 @@
 # Job Tracker
 
-Follow your job applications from the emails in your own mailbox. Job Tracker reads Gmail and Outlook (read-only by default), recognizes application emails with editable rules (no AI), and turns them into a list of applications with a stage, a history, and a Sankey chart of where they went. Everything stays on your own device. Nothing is sent to a server run by the developer.
+Follow your job applications from the emails in your own mailbox. Job Tracker reads Gmail and Outlook (read-only by default), recognizes application emails with editable rules (no AI reads your mail; AI is opt-in for resumes, with your own key), and turns them into a list of applications with a stage, a history, and a Sankey chart of where they went. Everything stays on your own device. Nothing is sent to a server run by the developer.
 
 There are two editions that share one visual system and one classifier.
 
@@ -10,7 +10,7 @@ There are two editions that share one visual system and one classifier.
 | Runs on | Your PC, bound to `127.0.0.1`. Made for Windows 10 or 11 | Your browser, no server |
 | Mail login | A desktop-app OAuth client you create ([SETUP.md](SETUP.md)) | Google or Microsoft login in the page ([web/README.md](web/README.md)) |
 | Data | `data\tracker.db`. Login tokens are encrypted with Windows DPAPI | IndexedDB in your browser, one database per logged-in user. Tokens are kept in memory only |
-| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters, bulk actions, Recently deleted, backups, CSV export, a guided setup page |
+| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters (resumes print in a one-page classic template), optional AI to convert an uploaded resume into your template with your own Anthropic key, bulk actions, Recently deleted, backups, CSV export, a guided setup page |
 | Docs | [SETUP.md](SETUP.md) | [web/README.md](web/README.md) and the [privacy page](web/public/privacy.html) |
 
 Product and design decisions for both are in [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md).
@@ -136,7 +136,7 @@ From the repository root, `python scripts/export_json.py data/tracker.db export.
 
 ## Privacy
 
-Nothing is sent to a server run by the developer. See [web/public/privacy.html](web/public/privacy.html) for the hosted edition and "Where your data lives" in [SETUP.md](SETUP.md) for the local one.
+Nothing is sent to a server run by the developer. In the hosted edition, if you add your own Anthropic key and press Convert, your browser sends the resume text shown to Anthropic when you press Convert, and one short test message ("ping", no resume text) when you press Check key. Nothing else is sent. See [web/public/privacy.html](web/public/privacy.html) for the hosted edition and "Where your data lives" in [SETUP.md](SETUP.md) for the local one.
 
 ## Reviews
 

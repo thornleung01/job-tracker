@@ -237,7 +237,7 @@ describe("signed in shell", () => {
     await signedIn();
     expect(q(".brand")!.textContent).toBe("Job Tracker");
     const links = Array.from(document.querySelectorAll("header.top nav a")).map((a) => nameOf(a));
-    expect(links).toEqual(["Applications", "People", "Resume", "Statistics", "Needs review", ""]);
+    expect(links).toEqual(["Applications", "People", "Resume", "Statistics", ""]);
     expect(document.body.textContent).not.toContain("Jobs");
     const gear = q("a.icon-link")!;
     expect(gear.getAttribute("aria-label")).toBe("Settings");
@@ -360,19 +360,18 @@ describe("signed in shell", () => {
     await waitFor(() => q("h1")?.textContent === "People page");
   });
 
-  it("shows the needs-review count and keeps it live", async () => {
+  it("keeps Needs review out of the nav, even with mail waiting, and marks Applications current on the queue", async () => {
     const { db } = await signedIn();
-    expect(q(".count")).toBeNull();
     const acct = await upsertAccount(db(), "gmail", "me@gmail.com");
-    const base = {
+    await db().emails.add({
       accountId: acct, threadId: null, receivedAt: "2026-10-01T00:00:00Z", sender: "A <a@x.com>", subject: "s", body: "b", related: true, event: null,
-      confidence: null, applicationId: null, needsReview: true, webLink: null, bulk: false, hold: false, reason: null,
-    };
-    await db().emails.bulkAdd([{ ...base, providerMsgId: "1" }, { ...base, providerMsgId: "2" }]);
-    const badge = await waitFor(() => q(".count"));
-    expect(badge.textContent).toBe("2");
-    expect(nameOf(q("nav a[href='#/review']")!)).toBe("Needs review, 2 emails");   // the number is hidden from screen readers, the words are not
-    expect(badge.getAttribute("aria-hidden")).toBe("true");
+      confidence: null, applicationId: null, needsReview: true, webLink: null, bulk: false, hold: false, reason: null, providerMsgId: "1",
+    });
+    await settle();
+    expect(q("nav a[href='#/review']")).toBeNull();
+    await go("#/review");
+    await waitFor(() => q("h1")?.textContent === "Review page");
+    expect(q("nav a[aria-current=page]")!.textContent).toBe("Applications");
   });
 
   it("opens each user's own database and switches when the user changes", async () => {

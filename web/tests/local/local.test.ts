@@ -167,17 +167,15 @@ describe("local mode (no client IDs)", () => {
     expect([a.theme, a.accent, a.density, a.corners]).toEqual(["light", "clay", "comfortable", "soft"]);
   });
 
-  async function openLocalSettings() {
+  async function openLocalSettings(section: "mail" | "appearance" | "data" = "mail") {
     await openLocalApp();
-    await go("#/settings");
+    await go(`#/settings/${section}`);
     await waitFor(() => q("h1")?.textContent === "Settings");
-    await waitFor(() => q("#appearance input[type=radio]"));
+    await waitFor(() => q(section === "mail" ? "#accounts" : section === "appearance" ? "#appearance input[type=radio]" : "#data"));
   }
 
   it("keeps Appearance and Your data in Settings, replaces mail sync with one plain line, and has no sign-out", async () => {
     await openLocalSettings();
-    expect(q("#h-appearance")).not.toBeNull();
-    expect(q("#h-data")).not.toBeNull();
     expect(q("#sync")).toBeNull();
     expect(q("#account")).toBeNull();
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up on this site.");
@@ -186,15 +184,23 @@ describe("local mode (no client IDs)", () => {
     expect(byText("Connect Gmail")).toBeNull();
     expect(byText("Connect Outlook")).toBeNull();
     expect(byText("Log out")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/VITE_/);
+    await go("#/settings/appearance");
+    await waitFor(() => q("#h-appearance"));
+    expect(q("#appearance input[type=radio]")).not.toBeNull();
+    await go("#/settings/data");
+    await waitFor(() => q("#h-data"));
+    expect(q("#account")).toBeNull();
     for (const label of ["Export data", "Import data", "Delete all my data", "Load demo data"]) expect(byText(label)).not.toBeNull();
+    expect(byText("Log out")).toBeNull();
     expect(document.body.textContent).not.toMatch(/VITE_/);
   });
 
   it("loads demo data and then deletes everything from Settings", async () => {
-    await openLocalSettings();
+    await openLocalSettings("data");
     const banner = q(".local-banner")!;
     await click(byText("Dismiss", "button", banner)!);
-    await click(byText("Load demo data", "button", q("#data")!)!);
+    await click(byText("Load demo data", "button", q(".demo-line")!)!);
     await waitFor(() => q(".notice")?.textContent?.startsWith("Imported 39 applications and 80 emails"));
     expect(await currentDb().applications.count()).toBe(39);
     await click(byText("Delete all my data")!);
@@ -205,22 +211,22 @@ describe("local mode (no client IDs)", () => {
   });
 
   it("asks before replacing data when loading demo data from Settings", async () => {
-    await openLocalSettings();
+    await openLocalSettings("data");
     await click(byText("Dismiss")!);
-    await click(byText("Load demo data", "button", q("#data")!)!);
-    await waitFor(() => q("#data .notice, .notice")?.textContent?.startsWith("Imported"));
-    await click(byText("Load demo data", "button", q("#data")!)!);
-    const confirm = await waitFor(() => q("#data .inline-confirm"));
+    await click(byText("Load demo data", "button", q(".demo-line")!)!);
+    await waitFor(() => q(".notice")?.textContent?.startsWith("Imported"));
+    await click(byText("Load demo data", "button", q(".demo-line")!)!);
+    const confirm = await waitFor(() => q(".inline-confirm"));
     expect(confirm.textContent).toContain("Replace everything in this browser with the demo data?");
     await click(byText("Cancel", "button", confirm)!);
-    expect(q("#data .inline-confirm")).toBeNull();
+    expect(q(".inline-confirm")).toBeNull();
   });
 
   it("settings in local mode never reads the auth module", async () => {
     const db = freshDb();
     const auth = untouchableAuth() as unknown as never;
     await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps: { auth } }));
-    await waitFor(() => q("#appearance input[type=radio]"));
+    await waitFor(() => q("#accounts"));
     expect(q("#accounts")!.textContent).toContain("Mail sync isn't set up");
   });
 });

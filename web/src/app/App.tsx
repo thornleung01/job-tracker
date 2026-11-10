@@ -160,7 +160,7 @@ function SignedIn({ user, loaders, openDb, auth }: { user: PageUser; loaders: Pa
       <AppearanceSync db={db} />
       <SkipLink target={mainRef} />
       <div className="wrap">
-        <Header db={db} page={match.page} />
+        <Header page={match.page} />
         {isLocalUser(user) && <LocalBanner db={db} />}
         {!isLocalUser(user) && <LocalDataOffer db={db} onResolved={resolveOffer} />}
         {auth && !isLocalUser(user) && <MailDeclinedNotice auth={auth} />}

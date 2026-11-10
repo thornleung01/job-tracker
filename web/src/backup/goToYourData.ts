@@ -3,12 +3,12 @@ import { navigate } from "../app/router";
 const LOOK_EVERY_MS = 50;
 const GIVE_UP_AFTER_MS = 3000;
 
-/** Opens Settings and brings the "Your data" card into view with focus on its heading, as the section links on that page do. */
+/** Opens Settings, Data and brings the "Back up" card into view with focus on its heading. */
 export function goToYourData(): void {
-  navigate("/settings");
+  navigate("/settings/data");
   const started = Date.now();
   const look = () => {
-    if (!window.location.hash.startsWith("#/settings")) return;
+    if (!window.location.hash.startsWith("#/settings/data")) return;
     const card = document.getElementById("data");
     if (card) {
       const reduceMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

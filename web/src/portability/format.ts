@@ -12,6 +12,7 @@ export const EXPORT_FORMAT = "jobtracker-export";
  * Likewise `deletedAt` (an ISO time): an application with it is in Recently deleted, and a value that is not a time is dropped.
  * 3 added `documents` (resumes and cover letters) and, on applications, `postingText` and `resumeId`.
  * Older files are still read: a file without `documents` has none.
+ * A resume line may also carry `kind`, `label` and `right` (see DocItem): additive, so they needed no new version, and a kind that isn't known is dropped.
  */
 export const EXPORT_VERSION = 3;
 

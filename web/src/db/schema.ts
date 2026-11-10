@@ -130,10 +130,25 @@ export interface ContactEditRow {
   hidden: boolean;
 }
 
-/** One line of a resume or paragraph of a cover letter. The id is stable, so a tailored line can be traced to the line it came from. */
+/** What a resume line is, so it can be laid out the way a resume is: a job, its title, a bullet, a skill, a school. A line with no kind is plain text. */
+export const DOC_ITEM_KINDS = ["org", "title", "bullet", "skill", "school"] as const;
+export type DocItemKind = (typeof DOC_ITEM_KINDS)[number];
+export const isDocItemKind = (value: unknown): value is DocItemKind => typeof value === "string" && (DOC_ITEM_KINDS as readonly string[]).includes(value);
+
+/**
+ * One line of a resume or paragraph of a cover letter. The id is stable, so a tailored line can be traced to the line it came from.
+ * `kind`, `label` and `right` are optional and additive: they need no new database or export version, and a line without them is plain text.
+ * A label belongs only on a bullet or skill and `right` only on an org, school or title: normalizeSections drops them elsewhere.
+ */
 export interface DocItem {
   id: string;
+  /** the line: an organization, a job title, a bullet's body, a skill's values, a school, or plain text */
   text: string;
+  kind?: DocItemKind;
+  /** the bold lead-in of a bullet ("Reporting & Automation") or a skill ("Analytics"); only those kinds keep one */
+  label?: string;
+  /** shown on the right: the location of an org or school, the dates of a title; only those kinds keep one */
+  right?: string;
 }
 
 export interface DocSection {
@@ -158,7 +173,7 @@ export interface DocumentRow {
   sections: DocSection[];
   /** the document it was copied or tailored from */
   basedOn?: number;
-  /** how it was made. "ai" is reserved for tailoring with your own key (a later step): nothing sets it yet. */
+  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, and tailoring will use it too) */
   source?: "upload" | "paste" | "copy" | "ai";
   createdAt: string;
   updatedAt: string;

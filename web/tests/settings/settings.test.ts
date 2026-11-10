@@ -1,3 +1,4 @@
+import { focusRequest } from "../../src/pages/settings/SectionSwitcher";
 import "fake-indexeddb/auto";
 import { createElement as h } from "react";
 import { act } from "react";
@@ -13,7 +14,10 @@ import { ProviderHttpError } from "../../src/providers/backoff";
 import { NotConnected, type MailProvider, type Message, type ProviderName } from "../../src/types";
 import { isSyncing, tryAcquire } from "../../src/sync/syncLock";
 import { mk } from "../sync/helpers";
+import { fakeAiDeps } from "../ai/helpers";
+import type { SectionId } from "../../src/pages/settings/sections";
 import fixture from "../fixtures/python-export.json";
+import { LOCAL_USER } from "../../src/app/localUser";
 import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, freshDb, q, render, settle, sleep, waitFor } from "../app/helpers";
 
 beforeEach(() => forgetConnections());
@@ -32,6 +36,11 @@ interface Setup {
 }
 
 type ProviderMaker = (name: ProviderName) => MailProvider;
+
+/** The section a test looks at: each describe block sets it with useSection(). */
+let section: SectionId = "mail";
+const useSection = (id: SectionId) => beforeEach(() => { section = id; });
+beforeEach(() => { section = "mail"; }); // runs before the describe-level ones, so Mail is the default
 
 async function setup(opts: { maker?: ProviderMaker; db?: JobTrackerDB } = {}): Promise<Setup> {
   const db = opts.db ?? freshDb();
@@ -55,9 +64,10 @@ async function setup(opts: { maker?: ProviderMaker; db?: JobTrackerDB } = {}): P
     getAddress: vi.fn(async (p: ProviderName) => (p === "gmail" ? "me@gmail.com" : "me@outlook.com")),
     download,
     downloadCsv,
+    ai: fakeAiDeps().deps,
   };
-  await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
-  await waitFor(() => q("#appearance input[type=radio]"));
+  await render(h(SettingsView, { db, user: ada, params: { section }, query: new URLSearchParams(), navigate: () => undefined, deps }));
+  await waitFor(() => q("section.card h2"));
   return { db, deps, fake, download, downloadCsv, createProvider };
 }
 
@@ -83,31 +93,70 @@ async function withApplications(db: JobTrackerDB, n = 2) {
 }
 
 describe("page structure", () => {
-  it("has the template's sections, one h1, and sentence case throughout", async () => {
-    await setup();
-    expect(q("h1")!.textContent).toBe("Settings");
-    expect(Array.from(document.querySelectorAll("h2")).map((e) => e.textContent)).toEqual(["Email accounts", "Sync", "Appearance", "Save jobs from any site", "Recently deleted", "Your data", "Account"]);
+  const headings = () => Array.from(document.querySelectorAll("h2")).map((e) => e.textContent);
+  const expectSentenceCase = () => {
     for (const b of Array.from(document.querySelectorAll("button, label.btn"))) {
       const t = b.textContent!.trim();
       // sentence case: only names (Gmail, Outlook) and the CSV acronym are capitalised after the first word
       if (t) expect(t.replace(/Gmail|Outlook|CSV/g, "x")).not.toMatch(/ [A-Z]/);
     }
     expect(document.body.textContent).not.toMatch(/[–—]/);
-    expect(byText("Log out")).not.toBeNull();
+  };
+
+  it("shows one section at a time, Mail first, with one h1 and sentence case throughout", async () => {
+    await setup();
+    expect(q("h1")!.textContent).toBe("Settings");
+    expect(headings()).toEqual(["Email accounts", "Sync", "What the app has learned"]);
+    expect(q("nav[aria-label='Settings sections'] a[aria-current=page]")!.textContent).toBe("Mail");
+    expectSentenceCase();
   });
 
-  it("section links scroll instead of changing the hash", async () => {
+  it("Appearance has the look and the lists as two subheads", async () => {
+    section = "appearance";
     await setup();
-    window.location.hash = "#/settings";
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
-    await click(byText("Appearance", "nav a")!);
-    expect(scroll).toHaveBeenCalled();
-    expect(window.location.hash).toBe("#/settings");
+    expect(headings()).toEqual(["Appearance"]);
+    expect(Array.from(document.querySelectorAll("h3.subhead")).map((e) => e.textContent)).toEqual(["Look", "Lists"]);
+    expectSentenceCase();
+  });
+
+  it("Data runs Back up, Restore, Recently deleted, danger area, Account, and no bookmarklet card", async () => {
+    section = "data";
+    await setup();
+    expect(headings()).toEqual(["Back up", "Restore", "Recently deleted", "Delete everything", "Account"]);
+    expect(byText("Save jobs from any site", "h2")).toBeNull();
+    expect(byText("Log out")).not.toBeNull();
+    expectSentenceCase();
+  });
+
+  it("the Delete all my data button lives only in the danger area", async () => {
+    section = "data";
+    await setup();
+    expect(q("#danger button.danger")!.textContent).toBe("Delete all my data");
+    expect(q("#data button.danger")).toBeNull();
+  });
+
+  it("the section switcher is made of real links with the open one marked", async () => {
+    section = "ai";
+    await setup();
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("nav[aria-label='Settings sections'] a"));
+    expect(links.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current")])).toEqual([
+      ["Mail", "#/settings", null],
+      ["Appearance", "#/settings/appearance", null],
+      ["AI", "#/settings/ai", "page"],
+      ["Data", "#/settings/data", null],
+    ]);
+  });
+
+  it("an unknown section shows Mail", async () => {
+    section = "nonsense" as SectionId;
+    await setup();
+    expect(headings()).toEqual(["Email accounts", "Sync", "What the app has learned"]);
+    expect(q("nav a[aria-current=page]")!.textContent).toBe("Mail");
   });
 });
 
 describe("appearance", () => {
+  useSection("appearance");
   it("shows the saved choices and saves each change straight away", async () => {
     const db = freshDb();
     await saveSettings(db, "appearance", { theme: "light", accent: "forest", density: "compact" });
@@ -145,7 +194,7 @@ describe("appearance", () => {
     expect((await loadSettings(db)).appearance.columns).toEqual(["company", "stage", "applied", "lastActivity", "emails"]);
   });
 
-  it("saves the default flow period and the first-sync lookback", async () => {
+  it("saves the default flow period", async () => {
     const { db } = await setup();
     const flow = q<HTMLSelectElement>("#flow_days")!;
     expect(Array.from(flow.options).map((o) => o.textContent)).toEqual(["All time", "Last 30 days", "Last 90 days", "Last 180 days"]);
@@ -154,6 +203,13 @@ describe("appearance", () => {
       flow.dispatchEvent(new Event("change", { bubbles: true }));
       await sleep(20);
     });
+    await waitFor(async () => (await loadSettings(db)).appearance.flowDays === 90);
+  });
+});
+
+describe("sync lookback", () => {
+  it("saves the first-sync lookback in the Mail section", async () => {
+    const { db } = await setup();
     const lookback = q<HTMLSelectElement>("#lookback")!;
     await act(async () => {
       lookback.value = "180";
@@ -161,7 +217,6 @@ describe("appearance", () => {
       await sleep(20);
     });
     await waitFor(async () => (await loadSettings(db)).sync.lookbackDays === 180);
-    expect((await loadSettings(db)).appearance.flowDays).toBe(90);
   });
 });
 
@@ -378,6 +433,7 @@ describe("sync", () => {
 });
 
 describe("your data", () => {
+  useSection("data");
   it("exports everything as a JSON file", async () => {
     const { db, download } = await setup();
     await withApplications(db, 2);
@@ -535,6 +591,7 @@ describe("your data", () => {
 });
 
 describe("account", () => {
+  useSection("data");
   it("names who is logged in and logs out", async () => {
     const { deps } = await setup();
     expect(q("#account")!.textContent).toContain("Logged in as Ada Lovelace (ada@example.com) with Google.");
@@ -543,34 +600,45 @@ describe("account", () => {
   });
 });
 
-describe("section links", () => {
-  const yourDataLink = () => byText("Your data", "nav a")!;
+describe("section switcher", () => {
+  it("asks the router to go to the section (a plain click)", async () => {
+    const nav = vi.fn();
+    const db = freshDb();
+    await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: nav }));
+    await click(byText("Data", "nav a")!);
+    expect(nav).toHaveBeenCalledWith("/settings/data");
+    await click(byText("Mail", "nav a")!);
+    expect(nav).toHaveBeenLastCalledWith("/settings");
+  });
 
-  it("move focus to the card's heading", async () => {
-    await setup();
-    Element.prototype.scrollIntoView = vi.fn();
-    await click(yourDataLink());
+  it("moves focus to the new section's heading once it is shown", async () => {
+    const db = freshDb();
+    const view = await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined }));
+    await click(byText("Data", "nav a")!);
+    await view.rerender(h(SettingsView, { db, user: LOCAL_USER, params: { section: "data" }, query: new URLSearchParams(), navigate: () => undefined }));
     expect(document.activeElement).toBe(q("#h-data"));
   });
 
-  it("scroll without animation when the person prefers reduced motion", async () => {
-    await setup();
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
-    const original = window.matchMedia;
-    window.matchMedia = ((query: string) => ({ matches: query.includes("reduce"), media: query })) as typeof window.matchMedia;
-    try {
-      await click(yourDataLink());
-      expect(scroll).toHaveBeenLastCalledWith({ behavior: "auto" });
-    } finally {
-      window.matchMedia = original;
-    }
-    await click(yourDataLink());
-    expect(scroll).toHaveBeenLastCalledWith({ behavior: "smooth" });
+  it("clicking the section that is already open leaves no focus request behind", async () => {
+    const db = freshDb();
+    const view = await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined }));
+    await click(byText("Mail", "nav a")!);
+    expect(focusRequest.pending).toBe(false);
+    await view.rerender(h(SettingsView, { db, user: LOCAL_USER, params: { section: "data" }, query: new URLSearchParams(), navigate: () => undefined }));
+    expect(document.activeElement).not.toBe(q("#h-data"));
+  });
+
+  it("does not take over a modified click", async () => {
+    const nav = vi.fn();
+    await render(h(SettingsView, { db: freshDb(), user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: nav }));
+    const link = byText("Data", "nav a")!;
+    await act(async () => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true })); });
+    expect(nav).not.toHaveBeenCalled();
   });
 });
 
 describe("appearance saving", () => {
+  useSection("appearance");
   it("keeps both changes when two columns are ticked before the page has caught up", async () => {
     const { db } = await setup();
     const box = (label: string) => byText(label, ".checks label")!.querySelector<HTMLInputElement>("input")!;
@@ -602,6 +670,7 @@ describe("appearance saving", () => {
 });
 
 describe("confirmations", () => {
+  useSection("data");
   it("Escape cancels a delete and puts focus back on the button that opened it", async () => {
     const db = freshDb();
     await withApplications(db, 2);
@@ -640,7 +709,7 @@ describe("confirmations", () => {
   it("names the question for assistive technology", async () => {
     await setup();
     await click(byText("Delete all my data")!);
-    const group = await waitFor(() => q("#data .inline-confirm"));
+    const group = await waitFor(() => q("#danger .inline-confirm"));
     expect(group.getAttribute("role")).toBe("group");
     expect(document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent).toBe("Delete your applications, emails and settings from this device?");
   });

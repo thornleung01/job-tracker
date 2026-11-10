@@ -38,7 +38,8 @@ async function choose(container: HTMLElement, f: File) {
   await act(async () => {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  await waitFor(() => $(container, ".notice.err") !== null || button(container, "Save as master resume") !== null, "the file to be read");
+  await waitFor(() => $(container, ".notice.err") !== null || button(container, "Use the simple converter") !== null, "the file to be read");
+  if (button(container, "Use the simple converter")) await click(button(container, "Use the simple converter"));   // no AI key here: the rule-based sections
 }
 
 describe("the Resume page with no master", () => {
@@ -60,15 +61,16 @@ describe("the Resume page with no master", () => {
     await click(button(container, "Paste text"));
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
-    expect(values(container, /^Heading of section/)).toEqual(["Jane Smith", "EXPERIENCE", "SKILLS"]);
-    expect(values(container, /^Line \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
+    await click(button(container, "Use the simple converter"));
+    expect(values(container, /^Heading of section/)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
+    expect(values(container, /^Bullet \d of EXPERIENCE/)).toEqual(["Built a weekly reporting model", "Cut close time by two days"]);
     expect(await db.documents.count()).toBe(0);
-    await type(fields(container, /^Line 1 of SKILLS/)[0], "Writes SQL, Python and R");
+    await type(fields(container, /^Bullet 1 of SKILLS/)[0], "Writes SQL, Python and R");
     await click(button(container, "Save as master resume"));
     await waitFor(() => $(container, "h2.section")?.textContent === "Master resume", "the master card");
     const master = (await getMaster(db))!;
     expect(master.source).toBe("paste");
-    expect(master.sections.map((s) => s.heading)).toEqual(["Jane Smith", "EXPERIENCE", "SKILLS"]);
+    expect(master.sections.map((s) => s.heading)).toEqual(["Summary", "EXPERIENCE", "SKILLS"]);
     expect(master.sections[2].items[0].text).toBe("Writes SQL, Python and R");
   });
 
@@ -165,6 +167,28 @@ describe("the master resume editor", () => {
     expect(saved[0].items.map((i) => i.text)).toEqual(["Led a rollout", "Cut close time"]);
   });
 
+  it("saves a bullet's label, a line changed to Job with its location, and clears them again", async () => {
+    const { db, container } = await withMaster();
+    const master = card(container, "Master resume");
+    await type(master.querySelector("[aria-label='Type of line 1 of Experience']"), "bullet");
+    await type(fields(master, /^Label of line 1 of Experience/)[0], "Reporting");
+    await type(master.querySelector("[aria-label='Type of line 2 of Experience']"), "org");
+    await type(fields(master, /^Location of line 2 of Experience/)[0], "Toronto, ON");
+    await click(button(master, "Save"));
+    await waitFor(() => text($(master, ".doc-status")) === "Saved", "Saved");
+    const saved = (await getMaster(db))!.sections[0].items;
+    expect(saved[0]).toMatchObject({ text: "Built a model", kind: "bullet", label: "Reporting" });
+    expect(saved[1]).toMatchObject({ text: "Cut close time", kind: "org", right: "Toronto, ON" });
+    await type(master.querySelector("[aria-label='Type of line 2 of Experience']"), "");
+    expect(button(master, "Save")!.hasAttribute("disabled")).toBe(false);
+    await click(button(master, "Save"));
+    await waitFor(() => button(master, "Save")!.hasAttribute("disabled"), "Save to finish");
+    const cleared = (await getMaster(db))!.sections[0].items[1];
+    expect(cleared.kind).toBeUndefined();
+    expect(cleared.right).toBeUndefined();
+    expect(cleared.text).toBe("Cut close time");
+  });
+
   it("can discard what you changed", async () => {
     const { db, container } = await withMaster();
     const master = card(container, "Master resume");
@@ -202,6 +226,7 @@ describe("the master resume editor", () => {
     await click(button(container, "Paste text"));
     await type($(container, "#resume-paste"), RESUME_TEXT);
     await click(button(container, "Use this text"));
+    await click(button(container, "Use the simple converter"));
     expect(text($(container, "h2.section"))).toBe("Replace your master resume");
     expect((await getMaster(db))!.sections.map((s) => s.heading)).toEqual(["Experience", "Skills"]);
     await click(button(container, "Save as master resume"));

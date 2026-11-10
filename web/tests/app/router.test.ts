@@ -28,6 +28,12 @@ describe("matchRoute", () => {
     expect(matchRoute("#/settings").page).toBe("settings");
   });
 
+  it("routes #/settings/:section to the Settings page and keeps the section as a param", () => {
+    expect(matchRoute("#/settings/data")).toMatchObject({ page: "settings", params: { section: "data" }, known: true });
+    expect(matchRoute("#/settings/ai").params.section).toBe("ai");
+    expect(matchRoute("#/settings").params).toEqual({});
+  });
+
   it("treats an empty hash as the home page without calling it unknown", () => {
     for (const h of ["", "#", "#/"]) expect(matchRoute(h)).toMatchObject({ page: "applications", path: "/", known: true });
   });

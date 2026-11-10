@@ -23,10 +23,19 @@
 h2.sec { font-size: 1.25rem; line-height: 1.4; margin: 0 0 6px; }
 h2.sec:focus { outline: none; } /* focused by the section links, not a control */
 .status-ok { color: var(--offer); } .status-bad { color: var(--rejected); }
-nav.sub { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 var(--gap); }
-nav.sub a { color: var(--muted); text-decoration: none; padding: 0 16px; min-height: var(--tap); display: inline-flex; align-items: center;
-            border-radius: var(--r-seg); font-weight: 400; }
-nav.sub a:hover { color: var(--ink); background: var(--hover); }
+/* The section switcher: a pill track with a grey indicator on the open section. Scrolls sideways when it doesn't fit (phones). */
+.section-switcher { display: flex; width: max-content; max-width: 100%; gap: 2px; padding: 4px; margin: 0 0 var(--gap); overflow-x: auto;
+                    background: var(--surface); box-shadow: var(--raise); border-radius: var(--r-pill); scrollbar-width: none; }
+.section-switcher::-webkit-scrollbar { display: none; }
+.section-switcher a { flex: none; color: var(--muted); text-decoration: none; padding: 0 20px; min-height: calc(var(--tap) - 8px); display: inline-flex;
+                      align-items: center; border-radius: var(--r-pill); font-weight: 400; }
+.section-switcher a:hover { color: var(--ink); background: var(--hover); }
+.section-switcher a[aria-current="page"] { background: var(--fog); color: var(--ink); font-weight: 500; }
+.section-switcher a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+h3.subhead { font: 500 1rem/1.4 var(--font-ui); margin: 20px 0 12px; }
+h2 + h3.subhead { margin-top: 8px; }
+.demo-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 var(--gap); }
+.demo-line .help { margin: 0; }
 .prof { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
 .prof:first-child { border-top: 0; }
 .prof .name { font-weight: 700; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
@@ -40,3 +49,10 @@ nav.sub a:hover { color: var(--ink); background: var(--hover); }
 .progress-card .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 700; margin-bottom: 10px; }
 .file-pick { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
 .file-pick:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
+#ai .row .inline-confirm { flex: 1 0 100%; margin-top: 0; }
+#ai .key-ending { margin: 0 0 12px; }
+/* Rule and ignored-mail lines in Mail. */
+.review-line { justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
+.review-line .what { min-width: 0; overflow-wrap: anywhere; }
+.review-line .what b { font-weight: 700; }
+.review-line .who { display: block; }

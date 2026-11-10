@@ -5,6 +5,7 @@ import { MAX_PDF_PAGES, MESSAGES, ReadError } from "./errors";
 interface TextItem {
   str?: string;
   hasEOL?: boolean;
+  width?: number;
   transform?: readonly number[];
 }
 export interface PdfPageLike {
@@ -18,20 +19,69 @@ export interface PdfDocumentLike {
 /** The one place pdf.js is touched, so a test can hand in a small stand-in. */
 export type PdfOpener = (data: Uint8Array) => Promise<PdfDocumentLike>;
 
-/** One page's text items as lines: a new line where pdf.js says the line ends or the text moves down the page. */
+/** A gap wider than this many average characters between two items on a line is where text was right-aligned or put in a column. */
+const GAP_CHARS = 3;
+/** An item with no width is measured as if its characters were half the font size wide, which is typical. */
+const FALLBACK_CHAR_WIDTH_EM = 0.5;
+
+/** True when the next item starts more than GAP_CHARS average characters after the previous one stopped. */
+const isWideGap = (x: number, lastEnd: number, charWidth: number) => charWidth > 0 && x - lastEnd > GAP_CHARS * charWidth;
+
+/** Takes the spaces off the end of a line that is held as pieces of text. */
+function trimEndSpaces(line: string[]): void {
+  while (line.length) {
+    const trimmed = line[line.length - 1].replace(/ +$/, "");
+    if (trimmed) {
+      line[line.length - 1] = trimmed;
+      return;
+    }
+    line.pop();
+  }
+}
+
+/**
+ * One page's text items as lines: a new line where pdf.js says the line ends or the text moves down the page. Where two items on the same
+ * line are far apart, a tab is kept between them, so right-aligned text (a location, dates) can be told from the text beside it.
+ * The line being built is a list of pieces that is joined once, when the line ends, so a page of any size is read in one pass.
+ */
 export function joinItems(items: readonly object[]): string {
-  let out = "";
+  const lines: string[] = [];
+  let line: string[] = [];
+  let hasText = false; // the current line has had something added to it
   let lastY: number | null = null;
+  let lastEnd: number | null = null; // where the previous item on this line stopped
+  let charWidth = 0; // the average character width of the last item that had text
+  const endLine = () => {
+    lines.push(line.join(""));
+    line = [];
+    hasText = false;
+    lastEnd = null;
+  };
   for (const item of items as readonly TextItem[]) {
     const y = item.transform?.[5];
-    if (out && y !== undefined && lastY !== null && Math.abs(y - lastY) > 2 && !out.endsWith("\n")) out += "\n";
-    if (y !== undefined) lastY = y;
+    const x = item.transform?.[4];
     const str = item.str ?? "";
-    out += str;
-    if (item.hasEOL) out += "\n";
-    else if (str && !str.endsWith(" ")) out += " ";
+    if (hasText && y !== undefined && lastY !== null && Math.abs(y - lastY) > 2) endLine();
+    if (y !== undefined) lastY = y;
+    if (str.trim() !== "") {
+      if (hasText && x !== undefined && lastEnd !== null && isWideGap(x, lastEnd, charWidth)) {
+        trimEndSpaces(line);
+        line.push("\t");
+      }
+      // pdf.js puts a space item across a wide gap, so a gap is measured from the end of the last item with text, not from the space.
+      lastEnd = x !== undefined && item.width !== undefined ? x + item.width : null;
+      if (item.width && item.width > 0) charWidth = item.width / str.length;
+      else if (item.transform?.[0]) charWidth = Math.abs(item.transform[0]) * FALLBACK_CHAR_WIDTH_EM;
+    }
+    if (str) {
+      line.push(str);
+      hasText = true;
+    }
+    if (item.hasEOL) endLine();
+    else if (str && !str.endsWith(" ")) line.push(" ");
   }
-  return out.split("\n").map((l) => l.trim()).join("\n");
+  lines.push(line.join(""));
+  return lines.map((l) => l.trim()).join("\n");
 }
 
 /** The text of the first MAX_PDF_PAGES pages, a blank line between pages. */

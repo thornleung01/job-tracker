@@ -8,7 +8,7 @@ import "./joblink.css";
  * and one plain line saying what happened. It owns no form state: `link` comes from useJobLink. Everything the library
  * returns reaches the page as React text, never HTML.
  */
-export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(to: string): void }) {
+export function JobLinkField({ link }: { link: JobLinkFill }) {
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     // Enter here reads the link. It must not submit the form: the person has not finished.
@@ -31,12 +31,7 @@ export function JobLinkField({ link, navigate }: { link: JobLinkFill; navigate(t
       <p className="joblink-line small muted" id="add-link-checking" role="status">{link.checking ? "Checking the job board" : ""}</p>
       {link.unreadable ? (
         <p className="joblink-line small muted">
-          LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in{" "}
-          <a href="#/settings" onClick={(e) => {
-            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-            e.preventDefault();
-            navigate("/settings");
-          }}>Settings</a>.
+          LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet under Save jobs from any site, below.
         </p>
       ) : null}
       <button type="button" className="joblink-toggle" aria-expanded={link.pasteOpen} aria-controls="add-paste-box" onClick={() => link.setPasteOpen(!link.pasteOpen)}>
