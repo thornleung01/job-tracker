@@ -11,6 +11,7 @@ import { decide, messageFromRow, rememberIgnored } from "./decide";
 import { loadLearned } from "./learn";
 import { isLive } from "./live";
 import { pipeline } from "./pipeline";
+import { CLASSIFY_CHUNK, yieldToMain } from "./yieldToMain";
 
 export interface RecheckResult {
   checked: number;
@@ -40,10 +41,13 @@ export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise
   const p = pipeline();
   // Classifying is the slow part and needs no database, so it runs outside the transaction. What to do about each email
   // is decided inside it, from what is stored at that moment: a note or a stage lock added while this ran is still respected.
-  const unbelieved = rows.flatMap((row) => {
-    const cls = p.classify(messageFromRow(row), learned);
-    return cls.related ? [] : [{ row, reason: cls.reason }];
-  });
+  // It runs in chunks with a yield between them, so the page stays responsive.
+  const unbelieved: { row: EmailRow; reason: string }[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (i && i % CLASSIFY_CHUNK === 0) await yieldToMain();
+    const cls = p.classify(messageFromRow(rows[i]), learned);
+    if (!cls.related) unbelieved.push({ row: rows[i], reason: cls.reason });
+  }
 
   let cleared = 0;
   let removed = 0;
@@ -103,24 +107,47 @@ export async function removeApplicationRow(db: JobTrackerDB, appId: number): Pro
  * Re-judge the emails waiting in Needs review with today's rules and today's applications. Many were unsure when they
  * arrived (there was no application for them yet) but belong to one now. Returns how many were settled.
  */
-export async function settleReview(db: JobTrackerDB): Promise<number> {
+export async function settleReview(db: JobTrackerDB, opts: { skipIfUnchanged?: boolean } = {}): Promise<number> {
+  if (opts.skipIfUnchanged && (await db.settings.get(SETTLE_MARK))?.value === (await settleFingerprint(db))) return 0;
   const learned = await loadLearned(db);
   const p = pipeline();
-  return tx(db, async () => {
-    let settled = 0;
-    const waiting = (await db.emails.orderBy("receivedAt").toArray()).filter((e) => e.needsReview && e.related && !e.hold);
-    for (const row of waiting) {
-      const msg = messageFromRow(row);
-      const cls = p.classify(msg, learned);
-      if (!cls.related) continue;
+  // Only the waiting mail is read (the `review` index), and it is classified outside the transaction, in chunks that yield.
+  const waiting = (await db.emails.where("review").equals(1).toArray())
+    .filter((e) => e.needsReview && e.related && !e.hold)
+    .sort((a, b) => byAsc<EmailRow>((e) => e.receivedAt)(a, b) || a.id - b.id);
+  const judged: { row: EmailRow; msg: ReturnType<typeof messageFromRow>; cls: ReturnType<typeof p.classify> }[] = [];
+  for (let i = 0; i < waiting.length; i++) {
+    if (i && i % CLASSIFY_CHUNK === 0) await yieldToMain();
+    const msg = messageFromRow(waiting[i]);
+    const cls = p.classify(msg, learned);
+    if (cls.related) judged.push({ row: waiting[i], msg, cls });
+  }
+  const settled = await tx(db, async () => {
+    let n = 0;
+    for (const { row: seen, msg, cls } of judged) {
+      const row = await db.emails.get(seen.id);
+      if (!row?.needsReview || !row.related || row.hold) continue; // you settled it while this ran
       const { appId, needsReview } = await decide(db, row.accountId, msg, cls, row.receivedAt);
       // Only a row that changed is written: every write makes the open pages read their data again.
       const same = row.event === cls.event && row.confidence === cls.confidence && row.reason === cls.reason && row.applicationId === appId && row.needsReview === needsReview;
       if (!same) await db.emails.update(row.id, { event: cls.event, confidence: cls.confidence, reason: cls.reason, applicationId: appId, needsReview });
-      if (!needsReview) settled++;
+      if (!needsReview) n++;
     }
-    return settled;
+    return n;
   });
+  await db.settings.put({ key: SETTLE_MARK, value: await settleFingerprint(db) });
+  return settled;
+}
+
+const SETTLE_MARK = "settleMark";
+
+/**
+ * What the last settle depended on besides new mail: how many applications there are and the newest id, the rules in force and
+ * how much mail waits. Unchanged since the last settle, and no new job mail, means judging the waiting mail again gives the same answers.
+ */
+async function settleFingerprint(db: JobTrackerDB): Promise<string> {
+  const rules = (await db.learnedRules.toArray()).filter((r) => r.active).map((r) => r.id).sort((a, b) => a - b);
+  return JSON.stringify([await db.applications.count(), (await db.applications.orderBy("id").lastKey()) ?? 0, rules, await db.emails.where("review").equals(1).count()]);
 }
 
 /** Gives applications that have no role the one their saved emails name, now that the reader is better at finding it. */

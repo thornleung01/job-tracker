@@ -13,7 +13,7 @@ import type { AccountRow, JobTrackerDB } from "../db/schema";
 import { PROVIDER_LABEL } from "../sync/accountLabel";
 import { connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../sync/mailbox";
 import { createProvider, getAddress } from "../providers";
-import { accountSummaries } from "../sync/queries";
+
 import { isSyncing } from "../sync/syncLock";
 import { NotConnected, type ProviderName, type TokenSource } from "../types";
 import { useSyncRun } from "./syncprogress/progress";
@@ -64,7 +64,7 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
   const deps: SyncBannerDeps = { ...defaultDeps, ...given };
   const { auth } = deps;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
-  const accounts = useQuery(() => accountSummaries(db), [db]);
+  const accounts = useQuery(() => db.accounts.orderBy("id").toArray(), [db]);
 
   const sync = useSyncRun();
   const running = sync.progress !== null;

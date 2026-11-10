@@ -69,6 +69,12 @@ export interface EmailRow {
   /** kept in Needs review until you place it yourself */
   hold: boolean;
   reason: string | null;
+  /**
+   * 1 while the email waits in Needs review, absent otherwise. A boolean cannot be an IndexedDB key, so this mirrors
+   * `needsReview` for the `review` index, which is how the banner counts the waiting mail without reading any bodies.
+   * Kept in step by the hooks on the emails table (see JobTrackerDB); nothing else writes it, and exports leave it out.
+   */
+  review?: 1;
 }
 
 export interface ActivityRow {
@@ -220,6 +226,22 @@ export class JobTrackerDB extends Dexie {
     );
     // v3: resumes and cover letters.
     this.version(3).stores({ documents: "++id, kind, applicationId" });
+    // v4: indexes so the banners and the list can count and pick emails without reading their bodies. `event` finds the interview
+    // mail, `review` the mail waiting in Needs review (see EmailRow.review), `[accountId+applicationId]` the applications a mailbox
+    // has mail for. Rows already waiting in Needs review get their `review` marker here; the other indexes need no backfill.
+    this.version(4).stores({
+      emails: "++id, &[accountId+providerMsgId], [accountId+threadId], [accountId+applicationId], applicationId, receivedAt, event, review",
+    }).upgrade((trans) =>
+      trans.table("emails").filter((e: EmailRow) => e.needsReview).modify((e: EmailRow) => {
+        e.review = 1;
+      }),
+    );
+    // Whoever writes needsReview, `review` follows it.
+    this.emails.hook("creating", (_key, row) => {
+      if (row.needsReview) row.review = 1;
+      else delete row.review;
+    });
+    this.emails.hook("updating", (changes) => ("needsReview" in changes ? { review: changes.needsReview ? 1 : undefined } : undefined));
   }
 }
 

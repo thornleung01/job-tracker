@@ -236,7 +236,8 @@ export async function syncAccount(
     throw err;
   }
 
-  await settleReview(db); // new mail may be what an older, unsure email was waiting for
+  // New mail may be what an older, unsure email was waiting for; with none, it is judged again only if the rules or applications changed.
+  await settleReview(db, { skipIfUnchanged: !(counts.review || counts["applied-to-application"]) });
   const skipped = counts.error ?? 0;
   const note = skipped ? `Skipped ${plural(skipped, "unreadable email")}.` : null;
   if (counts.retry) {

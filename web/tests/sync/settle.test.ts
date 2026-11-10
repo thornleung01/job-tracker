@@ -254,3 +254,48 @@ describe("application actions", () => {
     await expect(mergeApplications(db, b, b)).rejects.toBeInstanceOf(ActionError);
   });
 });
+
+describe("settling after a sync", () => {
+  const weak = () => mail("Update", "Hi Jordan, I have an update on the interview process for the role. Do you have a few minutes to chat?", "Sam Lee <sam@unknown-co.com>");
+
+  it("is skipped when no new mail came and neither the applications nor the rules changed", async () => {
+    const { db, acct } = await dbWithAccount();
+    expect(await processMessage(db, acct, weak())).toBe("review");
+    await settleReview(db, { skipIfUnchanged: true }); // the first one has no mark yet, so it runs
+    const reads = vi.spyOn(db.learnedRules, "orderBy");
+    await settleReview(db, { skipIfUnchanged: true });
+    expect(reads).not.toHaveBeenCalled();
+    await settleReview(db); // asked for outright, it always runs
+    expect(reads).toHaveBeenCalled();
+    reads.mockClear();
+    await createApplication(db, { company: "Acme", companyKey: "acme", role: "A", roleKey: "a", stage: "Applied", when: "2026-10-01T09:00:00Z" });
+    await settleReview(db, { skipIfUnchanged: true }); // a new application may be what the waiting mail needed
+    expect(reads).toHaveBeenCalled();
+  });
+
+  it("still settles waiting mail after a sync that saved new job mail", async () => {
+    const { db, acct } = await dbWithAccount();
+    await processMessage(db, acct, mail("Next steps", "We would like to schedule an interview with you for the Analyst role at Acme.", "Pat Lee <pat@acme.com>", "early", 1));
+    await settleReview(db, { skipIfUnchanged: true });
+    await processMessage(db, acct, mail("Thank you for applying to Acme", "We received your application for the Analyst role.", "Acme <jobs@acme.com>", "later", 3));
+    expect(await settleReview(db, { skipIfUnchanged: true })).toBe(1);
+    expect(await reviewCount(db)).toBe(0);
+  });
+});
+
+describe("recheck over many emails", () => {
+  it("clears exactly what a learned rule blocks, across the chunks it classifies in", async () => {
+    const { db, acct } = await dbWithAccount();
+    const row = (i: number, sender: string) => ({
+      accountId: acct, providerMsgId: `m${i}`, threadId: null, receivedAt: "2026-10-02T09:00:00Z", sender, subject: sender.startsWith("Spam") ? "Hello there" : "Thank you for applying", body: "We received your application for the Analyst role.",
+      related: true, event: "applied" as const, confidence: "high" as const, applicationId: null, needsReview: false, webLink: null, bulk: false, hold: false, reason: "x",
+    });
+    await db.emails.bulkAdd(Array.from({ length: 450 }, (_, i) => row(i, i % 3 === 0 ? "Spam <hello@spam-co.com>" : "Acme <jobs@acme.com>")));
+    await db.learnedRules.add({ kind: "block_sender", value: "hello@spam-co.com", evidence: 3, active: true, createdAt: "2026-10-01T00:00:00Z" });
+    const result = await recheck(db);
+    expect(result.checked).toBe(450);
+    expect(result.cleared).toBe(150);
+    expect(await db.emails.filter((e) => e.related).count()).toBe(300);
+    expect(await db.emails.filter((e) => e.sender?.includes("spam-co") === true).count()).toBe(0);
+  });
+});

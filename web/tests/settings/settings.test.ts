@@ -465,7 +465,7 @@ describe("your data", () => {
     const { db, downloadCsv } = await setup();
     await withApplications(db, 2);
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(db.emails, "toArray").mockRejectedValueOnce(new Error("disk is full"));
+    vi.spyOn(db.emails, "orderBy").mockImplementation(() => { throw new Error("disk is full"); });
     try {
       await click(byText("Export CSV")!);
       await waitFor(() => noticeText() !== "");

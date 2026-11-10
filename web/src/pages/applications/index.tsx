@@ -40,6 +40,7 @@ import { addApplication as realAddApplication, type AddApplicationInput } from "
 import { liveResumes } from "../../sync/documents";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
+import { liveApplications } from "../../sync/live";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
 import { AppRow } from "./AppRow";
@@ -156,12 +157,15 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const dir = state.dir || DEFAULT_DIR[sort];
 
   const data = useQuery(async () => {
-    const rows = await listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir });
-    const counts = await stageCounts(db);
+    // The live applications are read once and shared, and the independent reads run together.
+    const live = await liveApplications(db);
+    const [rows, counts, accounts, settings, suggest, resumes] = await Promise.all([
+      listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir }, live), stageCounts(db, live), listAccounts(db),
+      loadSettings(db), suggestions(db, live), liveResumes(db),
+    ]);
     return {
-      rows, counts, accounts: await listAccounts(db),
-      columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
-      resumes: (await liveResumes(db)).map(({ id, title, master }) => ({ id, title, master })),
+      rows, counts, accounts, columns: settings.appearance.columns, suggestions: suggest,
+      resumes: resumes.map(({ id, title, master }) => ({ id, title, master })),
     };
   }, [db, stage, q, account, followUp, ghosted, resume, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
 
