@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AiError, DEFAULT_MODEL, type AiDeps, type AiModel, type AiRequest, type Vault, type VaultStatus } from "../../src/ai";
 import { ActionError } from "../../src/db/errors";
 import { HEADER_HEADING } from "../../src/db/documentShape";
-import { MAX_AI_INPUT_CHARS } from "../../src/db/limits";
+import { MAX_CONVERT_CHARS } from "../../src/db/limits";
 import { convertResume } from "../../src/sync/convert";
 import { testVault } from "../ai/helpers";
 import { TEMPLATE_RESUME_LINES } from "../documents/fixtures";
@@ -39,10 +39,10 @@ describe("convertResume: refusals", () => {
 
   it("refuses text over the limit with tooLong, and accepts exactly the limit", async () => {
     const { deps, complete } = fakeDeps(MINIMAL);
-    const err = await convertResume("x".repeat(MAX_AI_INPUT_CHARS + 1), deps, { db: "d" }).catch((e) => e);
-    expect(err).toMatchObject({ name: "AiError", code: "tooLong" });
+    const err = await convertResume("x".repeat(MAX_CONVERT_CHARS + 1), deps, { db: "d" }).catch((e) => e);
+    expect(err).toMatchObject({ name: "AiError", code: "convertTooLong" });
     expect(complete).not.toHaveBeenCalled();
-    await expect(convertResume("x".repeat(MAX_AI_INPUT_CHARS), deps, { db: "d" })).resolves.toBeTruthy();
+    await expect(convertResume("x".repeat(MAX_CONVERT_CHARS), deps, { db: "d" })).resolves.toBeTruthy();
   });
 
   it("says noKey when there is no key, and locked when there is one that isn't unlocked", async () => {

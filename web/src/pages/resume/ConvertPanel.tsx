@@ -4,7 +4,7 @@
 import { useId, useState } from "react";
 import { AI_MESSAGES, type AiDeps, type VaultStatus } from "../../ai";
 import { Notice } from "../../components/Notice";
-import { MAX_AI_INPUT_CHARS } from "../../db/limits";
+import { MAX_CONVERT_CHARS } from "../../db/limits";
 import type { JobTrackerDB } from "../../db/schema";
 import type { ConvertResult, convertResume } from "../../sync/convert";
 import { plural } from "../../sync/text";
@@ -31,7 +31,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
   const [status, setStatus] = useState<VaultStatus>(() => ai.vault.status(db.name));
   const refreshStatus = () => setStatus(ai.vault.status(db.name));
   const boxId = useId();
-  const tooLong = incoming.text.length > MAX_AI_INPUT_CHARS;
+  const tooLong = incoming.text.length > MAX_CONVERT_CHARS;
   const unlock = useUnlock(ai.vault, db.name, refreshStatus);
   const run = useConvertRun(convert, ai, db.name, incoming.text, tooLong, onConverted, refreshStatus);
 
@@ -43,7 +43,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
       <label className="muted small convert-lead" htmlFor={boxId}>This is the text that will be sent to Anthropic with your key:</label>
       <textarea id={boxId} className="convert-text" readOnly rows={10} value={incoming.text} />
       <p className="muted small convert-count">{plural(incoming.text.length, "character")}</p>
-      {tooLong ? <Notice tone="err">{AI_MESSAGES.tooLong}</Notice> : null}
+      {tooLong ? <Notice tone="err">{AI_MESSAGES.convertTooLong}</Notice> : null}
       {hasNoKey ? <p className="convert-key">Add your Anthropic key in <a href="#/settings/ai">Settings</a> to convert with AI.</p> : null}
       {status.state === "locked" ? (
         <form className="row convert-unlock" onSubmit={(e) => void unlock.submit(e)}>

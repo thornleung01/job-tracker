@@ -75,6 +75,11 @@ export const TRASH_DAYS = 30;
 
 /** The most characters of a resume's text that Convert will send. A longer one is refused with a plain message, not cut. */
 export const MAX_AI_INPUT_CHARS = 120_000;
+/**
+ * The most characters of a resume's text that Convert will send. Its reply is the whole resume again as JSON, and the reply budget
+ * (8,000 tokens, roughly 25,000 characters of JSON) can't carry more than this, so a longer text would be billed and then cut off.
+ */
+export const MAX_CONVERT_CHARS = 20_000;
 /** The most characters of a reply that are read. A longer one is treated as cut off. */
 export const MAX_AI_OUTPUT_CHARS = 60_000;
 /** The most characters of the person's own note ("stress my reporting work") that Tailor sends. */

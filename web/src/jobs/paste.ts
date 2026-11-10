@@ -2,6 +2,7 @@
 import { draftFromJsonText, extractJobPostingFromJsonLd } from "./jsonld";
 import type { JobDraft } from "./types";
 import { GUESS_COMPANY_CHARS, GUESS_LOCATION_CHARS, GUESS_ROLE_CHARS, MAX_PASTE_CHARS } from "../db/limits";
+import { hasTag, stripScriptBlocks, stripTags } from "./markup";
 import { postingText } from "./posting";
 import { cleanJobUrl, parseJobUrl, sanitizeText } from "./url";
 
@@ -75,8 +76,8 @@ function isLocation(line: string): boolean {
 
 function toLines(input: string): string[] {
   let t = input;
-  if (/<\/?(?:p|div|br|li|h\d|span|html|body|ul|a)\b[^>]*>/i.test(t)) {
-    t = t.replace(/<\/(?:p|div|li|h\d|ul|tr)>|<br\s*\/?>/gi, "\n").replace(/<(?:script|style)[\s\S]*?<\/(?:script|style)>/gi, " ").replace(/<[^>]*>/g, " ");
+  if (hasTag(t, /<\/?(?:p|div|br|li|h\d|span|html|body|ul|a)\b/)) {
+    t = stripTags(stripScriptBlocks(t.replace(/<\/(?:p|div|li|h\d|ul|tr)>|<br\s*\/?>/gi, "\n"), " "), " ");
   }
   return t
     .split(/\r?\n/)

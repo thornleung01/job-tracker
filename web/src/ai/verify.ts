@@ -5,7 +5,7 @@ import { isRecord } from "../db/isRecord";
 import type { DocItem, DocSection } from "../db/schema";
 import { MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_LABEL_CHARS } from "../db/limits";
 import { AiError } from "./errors";
-import type { MasterLine, TailorMaster } from "./master";
+import { masterText, type MasterLine, type TailorMaster } from "./master";
 import { CONVERT_KINDS, type ConvertKind } from "./prompts";
 
 /** A line the person should look at before saving: `detail` is a number, date or name that isn't in the source text, `label` a made-up bullet label. */
@@ -133,7 +133,8 @@ export const SMALL_LABEL_WORDS = new Set(["and", "the", "for", "of", "to", "in",
 /** Shortest source word that is listed as dropped (shorter ones are mostly noise). */
 const MIN_UNUSED_WORD_LENGTH = 4;
 const MAX_UNUSED_WORDS = 40;
-const MAX_NOTE_DETAILS = 3;
+/** How many details a flag note names. */
+const NOTE_DETAILS = 3;
 
 /**
  * The capitalised words of `text` (2+ letters), leaving out the first word of a sentence when `skipFirst`.
@@ -181,11 +182,6 @@ export function missingDetails(text: string, src: SourceIndex, skipFirst: boolea
 /** Only prose can begin with a capital for no reason: a company, a school or a skill's values can't. */
 const isProse = (kind: DocItem["kind"]): boolean => kind === undefined || kind === "bullet";
 
-/** Every text of the result in one string (headings, lines, labels and right-hand text), for the words that made it through. */
-function resultText(sections: readonly DocSection[]): string {
-  return sections.flatMap((s) => [s.heading, ...s.items.flatMap((i) => [i.text, i.label ?? "", i.right ?? ""])]).join("\n");
-}
-
 /** Up to MAX_UNUSED_WORDS distinct words of the source (4+ letters, no page numbers or everyday words) that `resultWords` doesn't have. */
 function unusedSourceWords(sourceText: string, resultWords: ReadonlySet<string>): string[] {
   const body = rejoin(sourceText).split(/\r?\n/).filter((l) => !PAGE_NUMBER.test(l)).join("\n");
@@ -214,13 +210,13 @@ export function checkAgainstSource(sourceText: string, sections: readonly DocSec
       const parts = [item.text, item.right ?? "", ...(item.kind === "skill" ? [item.label ?? ""] : [])];
       const skipFirst = isProse(item.kind) && !header;
       const missing = [...new Set(parts.flatMap((p, i) => missingDetails(p, src, i === 0 && skipFirst)))];
-      if (missing.length) flags.push({ itemId: item.id, kind: "detail", note: `Not in your file: ${missing.slice(0, MAX_NOTE_DETAILS).join(", ")}` });
+      if (missing.length) flags.push({ itemId: item.id, kind: "detail", note: `Not in your file: ${missing.slice(0, NOTE_DETAILS).join(", ")}` });
       if (item.kind === "bullet" && item.label && wordsOf(item.label).some((w) => !SMALL_LABEL_WORDS.has(w) && !src.words.has(w))) {
         flags.push({ itemId: item.id, kind: "label", note: "Label added by AI" });
       }
     }
   }
-  return { flags, unused: unusedSourceWords(sourceText, new Set(wordsOf(resultText(sections)))) };
+  return { flags, unused: unusedSourceWords(sourceText, new Set(wordsOf(masterText(sections)))) };
 }
 
 // -- Tailoring ------------------------------------------------------------------------------------------------------------------------
@@ -294,16 +290,53 @@ export interface CheckedTailor {
 }
 
 /** Words that claim a credential. A model told to add a degree writes one of these, and a capital letter alone wouldn't catch "a degree in physics". */
-const CREDENTIAL = /\b(?:ph\.?d|doctorate|doctoral|mba|bachelor'?s?|master'?s|degree|diploma|certified|certification|licen[cs]ed?)\b/gi;
-const CLAIM_NOTE_DETAILS = 3;
+const CREDENTIAL =
+  /\b(?:ph\.?d|doctorate|doctoral|mba|b\.?sc|m\.?sc|bachelor'?s?|master'?s|degree|diploma|graduat(?:e|ed|es|ion)|certified|certification|chartered|clearance|fluent|licen[cs]ed?)\b/gi;
+/** A credential is supported only by the source's own words around it: this many characters either side of each place the source uses the word. */
+const CREDENTIAL_REACH = 80;
+/** How many words after a credential word say what it is for ("degree in physics"). */
+const CREDENTIAL_SUBJECT_WORDS = 2;
+const credentialKey = (w: string): string => fold(w).replace(/[.']/g, "").replace(/s$/, "");
+const SUBJECT_SKIP = new Set([...SMALL_LABEL_WORDS, "from", "at", "by", "as", "is", "was", "are", "my", "our"]);
 
-/** What a tailored text claims that the source doesn't have: numbers, names and tools (the convert detector) and credentials. */
-function unfoundClaims(text: string, src: SourceIndex, srcFolded: string, skipFirst: boolean): string[] {
+/** Whether the source uses the credential word `claim` with the words that follow it in `text` close by, not just somewhere. */
+function credentialSupported(claim: RegExpMatchArray, text: string, srcFolded: string): boolean {
+  const k = credentialKey(claim[0]);
+  const after = text.slice((claim.index ?? 0) + claim[0].length);
+  const subject = wordsOf(after)
+    .filter((w) => !SUBJECT_SKIP.has(w) && !CREDENTIAL_WORD.test(w))
+    .slice(0, CREDENTIAL_SUBJECT_WORDS);
+  for (const m of srcFolded.matchAll(CREDENTIAL)) {
+    if (credentialKey(m[0]) !== k) continue;
+    const at = m.index ?? 0;
+    const near = new Set(wordsOf(srcFolded.slice(Math.max(0, at - CREDENTIAL_REACH), at + m[0].length + CREDENTIAL_REACH)));
+    if (subject.every((w) => near.has(w))) return true;
+  }
+  return false;
+}
+const CREDENTIAL_WORD = new RegExp(`^${CREDENTIAL.source}$`, "i");
+
+/** A web address, a domain or an email address, written in any case. A tailored line has no reason to add one. */
+const LINK_LIKE =
+  /[^\s<>()"',;]+@[^\s<>()"',;]+\.[a-z]{2,}|(?:https?:\/\/|www\.)[^\s<>()"',;]+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|ca|org|net|io|co|dev|app|ai|us|uk|me|ly|info|biz|edu|gov|xyz|tech)\b(?:\/[^\s<>()"',;]*)?/gi;
+const linkKey = (s: string): string => fold(s).replace(/[.\/]+$/, "");
+
+/** The values of a skills line ("python, sql; aws"), each one a thing the person claims to know. */
+const skillValues = (text: string): string[] => text.split(/[,;|\u2022\u00b7]/).map((v) => v.trim()).filter(Boolean);
+
+/**
+ * What a tailored text claims that the source doesn't have: numbers, names and tools (the convert detector), credentials without their own
+ * support nearby, web addresses and email addresses, and, on a skills line, any value whose words the source doesn't have (a lowercase "kubernetes"
+ * has no capital to give it away). Phone numbers are digit runs, so the number check already covers them.
+ */
+function unfoundClaims(text: string, src: SourceIndex, srcFolded: string, skipFirst: boolean, skills = false): string[] {
   const found = missingDetails(text, src, skipFirst);
-  for (const m of text.matchAll(CREDENTIAL)) if (!srcFolded.includes(fold(m[0]))) found.push(m[0]);
+  for (const m of text.matchAll(CREDENTIAL)) if (!credentialSupported(m, text, srcFolded)) found.push(m[0]);
+  for (const m of text.matchAll(LINK_LIKE)) if (!srcFolded.includes(linkKey(m[0]))) found.push(m[0]);
+  if (skills) for (const v of skillValues(text)) if (wordsOf(v).some((w) => !src.words.has(w))) found.push(v);
   return [...new Set(found)];
 }
-const note = (missing: string[]): string[] => (missing.length ? [`Not in your resume: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : []);
+const note = (missing: string[]): string[] => (missing.length ? [`Not in your resume: ${missing.slice(0, NOTE_DETAILS).join(", ")}`] : []);
 
 const GREETING = /^dear\b/i;
 const SIGN_OFF_PHRASES = "sincerely|regards|best regards|kind regards|warm regards|best|cheers|yours truly|yours sincerely|respectfully|thank you|thanks";
@@ -331,11 +364,11 @@ export function checkTailored(
 ): CheckedTailor {
   const src = indexSource(ctx.masterSource);
   const srcFolded = fold(rejoin(ctx.masterSource));
-  const claims = (text: string, skipFirst: boolean) => note(unfoundClaims(text, src, srcFolded, skipFirst));
+  const claims = (text: string, skipFirst: boolean, skills = false) => note(unfoundClaims(text, src, srcFolded, skipFirst, skills));
   const same = (a: string, b: string) => fold(a).trim() === fold(b).trim();
 
-  const line = (from: MasterLine, label: string, text: string, skipFirst: boolean): CheckedLine => {
-    const flags = claims(text, skipFirst);
+  const line = (from: MasterLine, label: string, text: string, skipFirst: boolean, skills = false): CheckedLine => {
+    const flags = claims(text, skipFirst, skills);
     if (label && !same(label, from.label) && wordsOf(label).some((w) => !SMALL_LABEL_WORDS.has(w) && !src.words.has(w))) flags.push("Label added by AI");
     return { sourceId: from.id, label, text, changed: !same(text, from.text) || !same(label, from.label), flags };
   };
@@ -354,7 +387,7 @@ export function checkTailored(
     const from = skillById.get(s.sourceId);
     if (!from || !s.text || skillSeen.has(from.id)) continue;
     skillSeen.add(from.id);
-    skills.push(line(from, from.label, s.text, false));
+    skills.push(line(from, from.label, s.text, false, true));
   }
   if (!skills.length) skills = master.skills.map(kept);
   const skillsUsed = new Set(skills.map((s) => s.sourceId));
@@ -384,7 +417,7 @@ export function checkTailored(
   const coverFolded = fold(`${ctx.masterSource}\n${ctx.company}\n${ctx.role}`);
   const coverFlags = paragraphs.flatMap((p, i) => {
     const missing = unfoundClaims(p, coverSrc, coverFolded, true);
-    return missing.length ? [`Paragraph ${i + 1} has details not in your resume or the job: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : [];
+    return missing.length ? [`Paragraph ${i + 1} has details not in your resume or the job: ${missing.slice(0, NOTE_DETAILS).join(", ")}`] : [];
   });
   return { summary, skills, droppedSkills, jobs, cover: { paragraphs, flags: coverFlags } };
 }

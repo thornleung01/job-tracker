@@ -206,3 +206,63 @@ describe("checkTailored: prompt injection from the posting", () => {
     expect(JSON.stringify(check(parseTailorReply(r)))).not.toMatch(/Evil|CEO|Hogwarts/);
   });
 });
+
+describe("checkTailored: claims that have no capital letter or digit", () => {
+  const withSource = (extra: string) => ({ ...CTX, masterSource: `${CTX.masterSource}\n${extra}` });
+
+  it("flags a web address or email address that is not in the master, in any case", () => {
+    const r = goodReply();
+    r.summary = "Analyst. Apply at jobs-example.com/refer for details.";
+    r.jobs[0].bullets[0] = { sourceId: "b2", label: "Reporting", text: "Automated the weekly report, mail refer@evil-example.io to learn how." };
+    r.cover.paragraphs[1] = "See www.sketchy-example.net and https://sketchy-example.net/x for my work.";
+    const out = check(r);
+    expect(out.summary?.flags.join()).toMatch(/jobs-example\.com/);
+    expect(out.jobs[0].bullets[0].flags.join()).toMatch(/refer@evil-example\.io/);
+    expect(out.cover.flags.join()).toMatch(/sketchy-example\.net/);
+  });
+
+  it("does not flag an address the master has, or a tool name that only looks like one", () => {
+    const r = goodReply();
+    r.cover.paragraphs[1] = "You can reach me at jordan.lee@example.com. I wrote Node.js tools.";
+    r.summary = "Operations analyst with 3 years in retail who ships Node.js dashboards.";
+    const out = checkTailored(PARTS, r, withSource("Built dashboards in Node.js"));
+    expect(out.cover.flags).toEqual([]);
+    expect(out.summary?.flags).toEqual([]);
+  });
+
+  it("needs a credential to be supported near the claim, not anywhere in the master", () => {
+    const ctx = withSource("Bachelor's degree in Commerce, Lakeside College\n" + "x ".repeat(120) + "\nCertified scrum master");
+    const r = goodReply();
+    r.summary = "Analyst with a degree in physics.";
+    r.jobs[0].bullets[0] = { sourceId: "b2", label: "Reporting", text: "Automated the weekly report as a certified accountant." };
+    r.cover.paragraphs[1] = "I hold a Bachelor's degree in commerce.";
+    const out = checkTailored(PARTS, r, ctx);
+    expect(out.summary?.flags.join()).toMatch(/degree/);
+    expect(out.jobs[0].bullets[0].flags.join()).toMatch(/certified/i);
+    expect(out.cover.flags).toEqual([]);
+  });
+
+  it("matches a credential on word boundaries", () => {
+    const r = goodReply();
+    r.summary = "Operations analyst with 3 years in retail and an MBA.";
+    expect(checkTailored(PARTS, r, withSource("Worked in Zimbabwe")).summary?.flags.join()).toMatch(/MBA/);
+  });
+
+  it("flags graduated, chartered and clearance claims the master does not make", () => {
+    for (const claim of ["Graduated with honours.", "A chartered analyst.", "Holds a security clearance."]) {
+      const r = goodReply();
+      r.summary = `Operations analyst with 3 years in retail. ${claim}`;
+      expect(check(r).summary?.flags.join(), claim).toMatch(/Not in your resume/);
+    }
+  });
+
+  it("flags a lowercase skill the master does not list and keeps one it does", () => {
+    const r = goodReply();
+    r.skills[0] = { sourceId: "k2", text: "SQL, python, kubernetes, terraform" };
+    const out = check(r);
+    expect(out.skills[0].flags.join()).toMatch(/kubernetes/);
+    expect(out.skills[0].flags.join()).toMatch(/terraform/);
+    expect(out.skills[0].flags.join()).not.toMatch(/python/);
+    expect(check().skills[0].flags).toEqual([]);
+  });
+});

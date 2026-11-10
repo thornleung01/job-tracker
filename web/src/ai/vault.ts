@@ -126,7 +126,7 @@ export function createVault(seams: Partial<VaultSeams> = {}): Vault & { lockAll(
   }
 
   // Every message here is a fixed sentence: nothing echoes the key or the passphrase.
-  async function saveNow(db: string, key: string, passphrase: string, model: AiModel): Promise<void> {
+  async function saveNow(db: string, key: string, passphrase: string, model: AiModel, before: string): Promise<void> {
     const plain = key.trim();
     if (!plain) throw new ActionError("Enter your Anthropic key.");
     if (!plain.startsWith(KEY_PREFIX)) throw new ActionError("That doesn't look like an Anthropic key.");
@@ -140,6 +140,8 @@ export function createVault(seams: Partial<VaultSeams> = {}): Vault & { lockAll(
       // the model comes from a <select>, so check it
       model: isAiModel(model) ? model : DEFAULT_MODEL,
     };
+    // Someone locked or forgot this key (or logged out) while it was being locked with the passphrase: that wins, and nothing is written.
+    if (stamp(db) !== before) throw new ActionError("The key wasn't saved because it was locked or forgotten meanwhile. Save it again.");
     try {
       storage().setItem(storageKey(db), JSON.stringify(entry));
     } catch {
@@ -156,7 +158,9 @@ export function createVault(seams: Partial<VaultSeams> = {}): Vault & { lockAll(
     },
 
     save(db, key, passphrase, model) {
-      const run = (saving.get(db) ?? Promise.resolve()).then(() => saveNow(db, key, passphrase, model));
+      // The stamp is taken now, not when the save gets its turn, so a lock or forget while it waits also cancels it.
+      const before = stamp(db);
+      const run = (saving.get(db) ?? Promise.resolve()).then(() => saveNow(db, key, passphrase, model, before));
       const settled = run.then(() => undefined, () => undefined);
       saving.set(db, settled);
       void settled.then(() => {

@@ -7,6 +7,7 @@ import { readBackupState, recordBackup } from "../../src/backup/state";
 import type { StorageStatus } from "../../src/backup/storage";
 import type { JobTrackerDB } from "../../src/db/schema";
 import { SettingsView, type SettingsDeps } from "../../src/pages/settings/SettingsPage";
+import { connectedAddress, registerMailbox } from "../../src/sync/mailbox";
 import { fakeAiDeps } from "../ai/helpers";
 import { byText, cleanupRendered, click, closeDbs, fakeAuth, freshDb, q, render, ada, waitFor } from "../app/helpers";
 
@@ -141,6 +142,18 @@ describe("export records the last backup", () => {
     await waitFor(() => noticeText().startsWith("All your data was deleted"));
     expect(readBackupState(db.name)).toEqual({ lastBackupAt: null, snoozedAt: null });
     expect(store.map.size).toBe(0);
+  });
+});
+
+describe("Delete all my data and the mailbox connections held in memory", () => {
+  it("forgets which address was connected", async () => {
+    const { db } = await setup();
+    await registerMailbox(db, ada, "gmail", { tokenSource: {} as never, getAddress: async () => "ada@gmail.com" }, { reactivate: true });
+    expect(connectedAddress(ada, "gmail")).toBe("ada@gmail.com");
+    await click(byText("Delete all my data")!);
+    await click(byText("Delete everything")!);
+    await waitFor(() => noticeText().startsWith("All your data was deleted"));
+    expect(connectedAddress(ada, "gmail")).toBeNull();
   });
 });
 

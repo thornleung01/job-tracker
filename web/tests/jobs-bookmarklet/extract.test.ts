@@ -48,7 +48,7 @@ describe("extract", () => {
   });
 
   it("returns little but never throws on a bare page", () => {
-    expect(run(bare)).toEqual({ c: "", r: "", l: "", u: bare.url, g: 0 });
+    expect(run(bare)).toEqual({ c: "", r: "", l: "", u: "https://example.com/some/page", g: 0 });
   });
 
   it("strips control characters and caps every field", () => {
@@ -144,6 +144,16 @@ describe("extract", () => {
 
     it.each([["pipe", titlePipe], ["dash", titleDash], ["at", titleAt]])("generic 'Role %s Company'", (_n, f) => {
       expect(run(f)).toMatchObject({ c: "Globex", r: "Product Designer", l: "", g: 3 });
+    });
+  });
+
+  describe("the saved address", () => {
+    const at = (url: string) => run({ html: bare.html, url }).u;
+    it("drops the query and fragment of a page, so a session or token never travels", () => {
+      expect(at("https://example.com/some/page?sid=SECRET&token=abc#access=1")).toBe("https://example.com/some/page");
+    });
+    it("keeps a job-id parameter and nothing else", () => {
+      expect(at("https://careers.example.com/open?gh_jid=4012345&utm_source=x&session=SECRET")).toBe("https://careers.example.com/open?gh_jid=4012345");
     });
   });
 });
