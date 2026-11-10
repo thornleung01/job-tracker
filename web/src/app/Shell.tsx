@@ -8,6 +8,7 @@ export const PAGE_TITLES: Record<PageName, string> = {
   detail: "Application",
   people: "People",
   resume: "Resume",
+  tailor: "Tailor",
   statistics: "Statistics",
   review: "Needs review",
   settings: "Settings",
@@ -16,8 +17,9 @@ export const PAGE_TITLES: Record<PageName, string> = {
 
 const hrefFor = (path: string) => "#" + path;
 
-/** The nav entry that is current for a page. An application's own page and the review queue (reached from a banner there) belong to Applications. */
+/** The nav entry that is current for a page. An application's own page and the review queue (reached from a banner there) belong to Applications, and Tailor (a task started from the Resume page) belongs to Resume. */
 export function currentNav(page: PageName): PageName {
+  if (page === "tailor") return "resume";
   return page === "detail" || page === "review" ? "applications" : page;
 }
 
