@@ -34,7 +34,7 @@ export function SettingsView({ db, user, params, navigate, deps: given }: PagePr
   const auth = account ? deps.auth : NO_AUTH;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const settings = useQuery(() => loadSettings(db), [db]);
-  const accounts = useQuery(() => accountSummaries(db), [db]);
+  const accounts = useQuery(() => (section === "mail" ? accountSummaries(db) : []), [db, section]); // the email counts are only shown on the Mail tab
 
   // Bumped when "Delete all my data" forgets the AI key, so the AI card starts again from the vault's state.
   const [aiEpoch, setAiEpoch] = useState(0);

@@ -1,6 +1,7 @@
 import { liveQuery } from "dexie";
 import { useEffect, useState } from "react";
 import { isSyncing } from "../sync/syncLock";
+import { share } from "./share";
 
 /** While a sync runs, a query re-runs at most this often. A sync writes once per message and each write would otherwise re-read whole tables. */
 export const SYNC_THROTTLE_MS = 1000;
@@ -44,7 +45,11 @@ export function useQuery<T>(read: () => Promise<T> | T, deps: unknown[], options
       lastStart = Date.now();
       return read();
     };
-    const sub = liveQuery(querier).subscribe({ next: (value) => setHeld({ deps, value }), error: setError });
+    const sub = liveQuery(querier).subscribe({ next: (value) => setHeld((prev) => {
+      // Same data as the last run: keep the old objects, so memoised rows don't render again after an unrelated write.
+      const kept = prev.deps === deps ? share(prev.value, value) : value;
+      return kept === prev.value && prev.deps === deps ? prev : { deps, value: kept };
+    }), error: setError });
     return () => sub.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, live]);

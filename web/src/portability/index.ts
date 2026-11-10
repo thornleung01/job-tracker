@@ -17,7 +17,7 @@ export async function exportAll(db: JobTrackerDB, now: Date = new Date()): Promi
     const data: ExportData = {
       accounts: byId(await db.accounts.toArray()),
       applications: byId(await db.applications.toArray()),
-      emails: byId(await db.emails.toArray()),
+      emails: byId(await db.emails.toArray()).map(({ review: _review, ...email }) => email), // `review` is an index helper, rebuilt on import
       activity: byId(await db.activity.toArray()),
       feedback: byId(await db.feedback.toArray()),
       ignoredMail: byId(await db.ignoredMail.toArray()),

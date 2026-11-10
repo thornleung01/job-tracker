@@ -39,7 +39,7 @@ describe("upgrade from version 2 to 3", () => {
 
     const db = openDatabase(name);
     try {
-      expect(db.verno).toBe(3);
+      expect(db.verno).toBe(4);
       const apps = await db.applications.orderBy("id").toArray();
       expect(apps.map((a) => a.company)).toEqual(["Acme", "Beta"]);
       expect(apps[0].postingUrl).toBe("https://example.com/acme");
