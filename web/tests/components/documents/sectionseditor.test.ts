@@ -188,11 +188,13 @@ describe("inside an application's resume edit", () => {
     const docs = () => $(container, "section.documents") as HTMLElement;
     await waitFor(() => button(docs(), "Make a copy for this job") !== null, "the documents section");
     await click(button(docs(), "Make a copy for this job"));
-    await waitFor(() => $(docs(), ".doc-editor") !== null, "the editor");
+    await waitFor(() => $(docs(), ".doc-sheet") !== null, "the on-page editor");
+    await click(button(docs(), "Edit as list"));
+    await waitFor(() => $(docs(), ".doc-editor") !== null, "the list editor");
     await type(named(docs(), "Type of line 1 of Experience"), "org");
     await type(named(docs(), "Location of line 1 of Experience"), "Toronto, ON");
     await click(button(docs(), "Save"));
-    await waitFor(() => $(docs(), ".doc-editor") === null, "the editor to close");
+    await waitFor(() => $(docs(), ".doc-resume-edit") === null, "the editor to close");
     const copy = (await db.documents.toArray()).find((d) => !d.master)!;
     expect(copy.sections[0].items[0]).toMatchObject({ text: "Acme", kind: "org", right: "Toronto, ON" });
     expect("kind" in copy.sections[0].items[1]).toBe(false);
