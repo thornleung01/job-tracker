@@ -210,10 +210,11 @@ describe("documents", () => {
     expect(refused([doc(), doc({ title: "Other" })])).toEqual(["documents has the id 1 twice."]);
   });
 
-  it("makes a cover letter's master flag false and a resume's application link null", () => {
-    const [cover, resume] = parse([doc({ kind: "cover", master: true, applicationId: 1 }), doc({ id: 2, applicationId: 1 })]).documents;
+  it("makes a cover letter's master flag false, keeps a resume's application link (a tailored resume) and drops the master's", () => {
+    const [cover, resume, master] = parse([doc({ kind: "cover", master: true, applicationId: 1 }), doc({ id: 2, applicationId: 1 }), doc({ id: 3, master: true, applicationId: 1 })]).documents;
     expect([cover.master, cover.applicationId]).toEqual([false, 1]);
-    expect([resume.master, resume.applicationId]).toEqual([false, null]);
+    expect([resume.master, resume.applicationId]).toEqual([false, 1]);
+    expect([master.master, master.applicationId]).toEqual([true, null]);
   });
 
   it("allows a deleted extra master and refuses two live ones", () => {

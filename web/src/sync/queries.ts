@@ -1,5 +1,5 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
-import type { AccountRow, ApplicationRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
+import type { AccountRow, ApplicationRow, DocumentRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
 import { SEARCH_MIN_CHARS } from "../db/limits";
 import { sectionsToText } from "../db/documentShape";
@@ -15,7 +15,7 @@ import { byDesc } from "./compare";
 import { groupBy } from "./groupBy";
 import { roundsLookup } from "./roundsLookup";
 import { searchApplications, type SearchCover, type SearchMatch } from "./search";
-import { isLiveDocument } from "./documents";
+import { isLiveDocument, isTailored, liveTailored } from "./documents";
 import { meetingDays } from "./upcoming";
 
 /** How many companies and roles the search box suggests, and how many ignored emails are listed. */
@@ -55,6 +55,10 @@ export interface ApplicationListRow extends Omit<ApplicationRow, "postingText"> 
   ghosted: boolean;
   /** why a search matched, when it did (see sync/search.ts); absent when there was no search */
   match?: SearchMatch;
+  /** a job posting text is saved on the application (the text itself is left out of the row) */
+  hasPosting: boolean;
+  /** the application has a live tailored resume */
+  tailored: boolean;
   /** the next day an interview email says a meeting is on (YYYY-MM-DD, today or later), or null */
   nextInterview: string | null;
   /** every interview day the emails name, past and future (YYYY-MM-DD), earliest first, each once; a cancelled meeting is left out. The calendar shows these. */
@@ -70,7 +74,7 @@ type InterviewMail = EmailRow & { applicationId: number };
 const isInterviewMail = (e: EmailRow): e is InterviewMail => e.event === "interview" && e.applicationId != null;
 
 /** The row before the interview day and the rounds are worked out: those are only needed for the rows that are shown. */
-type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds" | "resumeTitle"> & Pick<ApplicationRow, "postingText">;
+type EarlyRow = Omit<ApplicationListRow, "nextInterview" | "interviewDays" | "rounds" | "resumeTitle" | "hasPosting" | "tailored"> & Pick<ApplicationRow, "postingText">;
 
 type Cmp = (a: ApplicationListRow, b: ApplicationListRow) => number;
 
@@ -110,7 +114,12 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   if (query.account) early = early.filter((a) => inAccount.has(a.id));
   // The resume versions you haven't deleted: a deleted one is "no resume" here, and a filter on it shows nothing.
   const resumeTitles = new Map<number, string>();
-  for (const d of await db.documents.where("kind").equals("resume").toArray()) if (isLiveDocument(d)) resumeTitles.set(d.id, d.title);
+  const tailoredApps = new Set<number>();
+  for (const d of await db.documents.where("kind").equals("resume").toArray()) {
+    if (!isLiveDocument(d)) continue;
+    resumeTitles.set(d.id, d.title);
+    if (isTailored(d) && d.applicationId !== null) tailoredApps.add(d.applicationId);
+  }
   const wantResume = query.resume === "none" ? "none" : Number(query.resume) > 0 ? Number(query.resume) : null;
   if (wantResume === "none") early = early.filter((a) => a.resumeId === undefined || !resumeTitles.has(a.resumeId));
   else if (wantResume !== null) early = early.filter((a) => a.resumeId === wantResume && resumeTitles.has(wantResume));
@@ -123,7 +132,7 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
     const days = meetingDays(interviews.get(a.id) ?? []);
     const { postingText: _posting, ...rest } = a;
     return {
-      ...rest, nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
+      ...rest, hasPosting: Boolean(_posting), tailored: tailoredApps.has(a.id), nextInterview: remindsOfInterviews(a.stage) ? days.find((d) => d >= today) ?? null : null, interviewDays: days, rounds: roundsOf(a),
       match: hits?.get(a.id), resumeTitle: a.resumeId === undefined ? null : resumeTitles.get(a.resumeId) ?? null,
     };
   });
@@ -274,4 +283,16 @@ export async function accountSummaries(db: JobTrackerDB): Promise<(AccountRow & 
   const counts = new Map<number, number>();
   for (const e of await db.emails.toArray()) counts.set(e.accountId, (counts.get(e.accountId) ?? 0) + 1);
   return (await db.accounts.orderBy("id").toArray()).map((a) => ({ ...a, emailCount: counts.get(a.id) ?? 0 }));
+}
+
+/** The live tailored resumes of live applications, newest first, each with its application's name: the Resume page's Tailored tab. */
+export async function tailoredPage(db: JobTrackerDB): Promise<{ doc: DocumentRow; app: { id: number; company: string; role: string } | null }[]> {
+  const apps = new Map((await liveApplications(db)).map((a) => [a.id, a]));
+  return (await liveTailored(db))
+    .filter((d) => d.applicationId !== null && apps.has(d.applicationId))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : b.id - a.id))
+    .map((doc) => {
+      const a = apps.get(doc.applicationId!)!;
+      return { doc, app: { id: a.id, company: a.company, role: a.role } };
+    });
 }

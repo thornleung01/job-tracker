@@ -5,7 +5,7 @@ import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
 import { iso } from "../db/time";
 import { deleteApplication } from "./actions";
 import { isLive } from "./live";
-import { isLiveDocument } from "./documents";
+import { isLiveDocument, isTailored } from "./documents";
 import { restoreApplication } from "./trash";
 
 /** The most applications one bulk action takes. */
@@ -115,6 +115,7 @@ export async function bulkSetResume(db: JobTrackerDB, ids: readonly number[], re
     if (resumeId !== null) {
       const doc = await db.documents.get(resumeId);
       if (!doc || doc.kind !== "resume" || !isLiveDocument(doc)) throw new ActionError("That resume isn't there any more.");
+      if (isTailored(doc)) throw new ActionError("A tailored resume belongs to one application, so it can't be set on several.");
     }
     let changed = 0;
     for (const id of wanted) {

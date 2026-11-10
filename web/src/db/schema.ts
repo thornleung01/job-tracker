@@ -160,20 +160,21 @@ export interface DocSection {
 
 /**
  * A resume or a cover letter. Resume versions are standalone and reusable: any number of applications can point at one
- * (ApplicationRow.resumeId), and `master` marks the one you copy from. A cover letter belongs to one application.
+ * (ApplicationRow.resumeId), and `master` marks the one you copy from. A cover letter belongs to one application, and so does a
+ * tailored resume (kind "resume", not the master, `applicationId` set): it is not one of the reusable versions.
  */
 export interface DocumentRow {
   id: number;
   kind: "resume" | "cover";
   /** the resume you copy versions from; at most one, and never a cover letter */
   master: boolean;
-  /** the application a cover letter was written for; null for a resume */
+  /** the application a cover letter or a tailored resume belongs to; null for the master and the reusable resume versions */
   applicationId: number | null;
   title: string;
   sections: DocSection[];
-  /** the document it was copied or tailored from */
+  /** the document it was copied or tailored from (a tailored resume: the master resume) */
   basedOn?: number;
-  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, and tailoring will use it too), "template" (typed into the blank template) */
+  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, or a resume or cover letter tailored to an application), "template" (typed into the blank template) */
   source?: "upload" | "paste" | "copy" | "ai" | "template";
   createdAt: string;
   updatedAt: string;

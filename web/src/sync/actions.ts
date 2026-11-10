@@ -12,6 +12,7 @@ import { iso, stampForDay } from "../db/time";
 import { messageFromRow } from "./decide";
 import * as learn from "./learn";
 import { pipeline } from "./pipeline";
+import { isTailored } from "./documents";
 import { recheck, removeApplicationRow } from "./recheck";
 import { MAX_ROUNDS } from "./rounds";
 import { processMessage, type Outcome } from "./sync";
@@ -76,6 +77,7 @@ export async function addApplication(db: JobTrackerDB, input: AddApplicationInpu
     if (input.resumeId !== undefined) {
       const resume = await db.documents.get(input.resumeId);
       if (!resume || resume.kind !== "resume" || resume.deletedAt) throw new ActionError("That resume isn't there any more.");
+      if (isTailored(resume)) throw new ActionError("A tailored resume belongs to one application.");
     }
     return createApplication(db, {
       company, companyKey: p.companyKey(company), role, roleKey: p.roleKey(role), stage, when, manual: true, locked: true, postingUrl,
@@ -179,13 +181,21 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
     if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
     if (!dst.postingText && src.postingText) fields.postingText = src.postingText;
     if (dst.resumeId === undefined && src.resumeId !== undefined) fields.resumeId = src.resumeId;
-    // One cover letter per application: the target's stays. The source's moves over, and when the target has one already it goes to
-    // Recently deleted instead of being erased with the source, so a letter you wrote is never lost without a way back.
-    const targetHasLetter = (await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt).count()) > 0;
+    // One cover letter and one tailored resume per application: the target's stay. The source's move over, and when the target has one
+    // already it goes to Recently deleted instead of being erased with the source, so a document you made is never lost without a way back.
+    const targetHas = async (tailored: boolean) =>
+      (await db.documents.where("applicationId").equals(into).filter((d) => !d.deletedAt && isTailored(d) === tailored).count()) > 0;
+    const keepsOwn = { tailored: await targetHas(true), cover: await targetHas(false) };
+    const trashed = new Set<number>();
     await db.documents.where("applicationId").equals(appId).modify((d) => {
       d.applicationId = into;
-      if (targetHasLetter && !d.deletedAt) d.deletedAt = iso(now);
+      if (!d.deletedAt && (isTailored(d) ? keepsOwn.tailored : keepsOwn.cover)) {
+        d.deletedAt = iso(now);
+        trashed.add(d.id);
+      }
     });
+    // the source pointed at its own tailored resume: the target doesn't take a pointer to one that went to Recently deleted
+    if (src.resumeId !== undefined && trashed.has(src.resumeId)) delete fields.resumeId;
     await db.emails.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.activity.where("applicationId").equals(appId).modify({ applicationId: into });
     await db.feedback.where("applicationId").equals(appId).modify({ applicationId: into });
