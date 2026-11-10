@@ -33,13 +33,15 @@ interface Props {
   title: string;
   /** for an empty or blank template draft: the page shows every field of the template, and the first edit hands the whole list to `onChange` */
   scaffold?: boolean;
+  /** the page sheet is scaled to its column (see PageEditor) */
+  fit?: boolean;
 }
 
 /**
  * Editing a resume: on the page (the sheet itself, typed into where it is) or as a list of fields. Exactly one editor is mounted, the choice is
  * remembered, and the editor is controlled: the caller keeps the draft and saves it.
  */
-export function ResumeEditing({ sections, onChange, label, title, scaffold = false }: Props) {
+export function ResumeEditing({ sections, onChange, label, title, scaffold = false, fit = false }: Props) {
   const [mode, setMode] = useState<Mode>(readMode);
   // The scaffold only fills in the template until the first edit: after that the list is the caller's, so a section you remove stays removed.
   const [touched, setTouched] = useState(false);
@@ -65,7 +67,7 @@ export function ResumeEditing({ sections, onChange, label, title, scaffold = fal
       {mode === "page" ? (
         <PageEditor
           sections={scaffolded} label={label} title={title}
-          onChange={edited}
+          onChange={edited} fit={fit}
         />
       ) : (
         <SectionsEditor sections={sections} onChange={edited} label={label} />
