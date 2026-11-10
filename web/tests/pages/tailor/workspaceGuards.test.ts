@@ -91,11 +91,21 @@ describe("moving away", () => {
     await startCopy(container);
     await type(field(container, BULLET), "An unsaved edit.");
     const back = $(container, "a.back") as HTMLAnchorElement;
-    for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { button: 1 }]) {
-      const e = new MouseEvent("click", { bubbles: true, cancelable: true, ...init });
-      await act(async () => void back.dispatchEvent(e));
-      expect(e.defaultPrevented).toBe(false);
-      expect($(container, ".inline-confirm")).toBeNull();
+    // Record what the app decided, then stop jsdom from following the link itself: a real hash change
+    // would reach the leave guard and show the confirm, which on a slow runner lands before the check.
+    let prevented: boolean | null = null;
+    const record = (e: Event) => { prevented = e.defaultPrevented; e.preventDefault(); };
+    document.addEventListener("click", record);
+    try {
+      for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { button: 1 }]) {
+        prevented = null;
+        const e = new MouseEvent("click", { bubbles: true, cancelable: true, ...init });
+        await act(async () => void back.dispatchEvent(e));
+        expect(prevented).toBe(false);
+        expect($(container, ".inline-confirm")).toBeNull();
+      }
+    } finally {
+      document.removeEventListener("click", record);
     }
     const plain = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
     await act(async () => void back.dispatchEvent(plain));
