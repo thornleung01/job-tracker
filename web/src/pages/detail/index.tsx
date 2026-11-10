@@ -31,6 +31,7 @@ import { STAGES, type Stage } from "../../db/stages";
 import {
   deleteApplication, editApplication, learnedNotice, mergeApplications, notAnApplication, setStage, unlockStage,
 } from "../../sync/actions";
+import { goToTrash } from "../../app/goToTrash";
 import { mailboxLink, replyLink } from "../../sync/links";
 import { applicationDetail } from "../../sync/queries";
 import { TRASH_DAYS, deletedApplication, restoreApplication } from "../../sync/trash";
@@ -125,7 +126,7 @@ export default function DetailPage({ db, params, query, navigate, deps }: PagePr
         <p className="muted">{gone.company}{gone.role ? ` · ${gone.role}` : ""}. It stays in Recently deleted for {plural(gone.daysLeft, "more day")}.</p>
         <div className="row">
           <button type="button" className="primary" onClick={restoreDeleted} {...act.button("restore")}>Restore</button>
-          <a className="btn" href="#/settings/data">Recently deleted</a>
+          <a className="btn" href="#/settings/data" onClick={(e) => { e.preventDefault(); goToTrash(); }}>Recently deleted</a>
         </div>
       </>
     );

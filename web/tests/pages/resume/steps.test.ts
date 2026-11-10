@@ -83,6 +83,7 @@ describe("step 1, Your resume", () => {
     expect(strip(container)).toEqual(["1Your resume, current step", "2The job, not started", "3Review, not started", "4Add to applications, not started"]);
     expect($(container, "[aria-current=step]")!.textContent).toContain("Your resume");
     expect(postingBox(container)).toBeNull();
+    expect(text($(container, ".steps-lead"))).toBe("Your resume is the starting point for every job you tailor for.");
     await click(button(container, "Start from the template"));
     await type($$(container, "input, textarea").find((e) => /^Line 1 of Header/.test(e.getAttribute("aria-label") ?? ""))!, "Jordan Lee");
     await click(button(container, "Save"));
@@ -128,7 +129,7 @@ describe("step 2, The job", () => {
 
   it("starts by hand with no key: one line links to Settings, Start by hand is the primary, and nothing is sent", async () => {
     const { container, fake, deps } = await withMaster("none");
-    expect(text($(container, ".tailor-ai-line"))).toBe("Add your Anthropic key in Settings to write with AI.");
+    expect(text($(container, ".tailor-ai-line"))).toBe("Add your Anthropic key in Settings.");
     expect($(container, ".tailor-ai-line a")!.getAttribute("href")).toBe("#/settings/ai");
     expect(button(container, "Start by hand")!.className).toBe("primary");
     await paste(container, POSTING);

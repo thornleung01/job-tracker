@@ -78,15 +78,15 @@ describe("Draft follow-up", () => {
     expect(draftButton(container)).toBeDefined();
   });
 
-  it("is hidden, with nothing said, when no mail account is connected", async () => {
+  it("is replaced by one muted line when no mail account is connected", async () => {
     const { db, id } = await seed(null);
     const container = await openRow(db);
     const panel = $(container, `#panel-${id}`)!;
     expect(draftButton(panel)).toBeUndefined();
-    expect($(panel, ".app-actions")).toBeNull();
-    expect(text(panel)).not.toMatch(/draft|Gmail|Outlook/i);
+    expect(text($(panel, ".app-actions .muted"))).toBe("Connect your mailbox to draft this in Gmail or Outlook.");
     const page = await mountPage(DetailPage, db, `/app/${id}`, { id: String(id) });
     expect(draftButton(page.container)).toBeUndefined();
+    expect(text($(page.container, ".app-actions .muted"))).toBe("Connect your mailbox to draft this in Gmail or Outlook.");
   });
 
   it("still opens a draft, with no recipient, for an application with no emails", async () => {

@@ -14,6 +14,7 @@ import { TailorAi, type WriteOptions } from "../../components/documents/TailorAi
 import { composeResume, initialTicks } from "../../components/documents/tailorReview";
 import { applyTick } from "../../components/documents/tailorTicks";
 import { InlineConfirm } from "../../components/InlineConfirm";
+import { Gate } from "../../components/Gate";
 import { Notice } from "../../components/Notice";
 import { useAction } from "../../components/useAction";
 import { normalizeSections } from "../../db/documentShape";
@@ -139,7 +140,7 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
     return (
       <>
         <h1 className="page">Tailor for {name}</h1>
-        <p className="tailor-empty">Add your resume first. <a href="#/resume">Go to Resume</a>.</p>
+        <p className="tailor-empty"><Gate gate="resume" /></p>
       </>
     );
   }

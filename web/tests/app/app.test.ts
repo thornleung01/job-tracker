@@ -597,7 +597,7 @@ describe("site setup page", () => {
 });
 
 describe("mail declined notice", () => {
-  const text = "Logged in. Gmail access wasn't allowed, so nothing will sync. Connect it in Settings.";
+  const text = "Logged in. Gmail access wasn't allowed, so nothing will sync. Connect your mailbox in Settings.";
   async function shell(mailDeclined: "gmail" | "outlook" | null) {
     const fake = fakeAuth({ status: "signed-in", user: ada, mailDeclined });
     await render(h(App, { local: false, auth: fake.auth, loaders: loaders(), openDb: openTestDb }));
@@ -618,7 +618,8 @@ describe("mail declined notice", () => {
   it("names Outlook when that is the mailbox that was declined", async () => {
     await shell("outlook");
     const n = await waitFor(notice);
-    expect(n.textContent).toContain("Logged in. Outlook access wasn't allowed, so nothing will sync. Connect it in Settings.");
+    expect(n.textContent).toContain("Logged in. Outlook access wasn't allowed, so nothing will sync. Connect your mailbox in Settings.");
+    expect(n.querySelector("a")!.getAttribute("href")).toBe("#/settings/mail");
   });
 
   it("shows nothing when mail was allowed", async () => {

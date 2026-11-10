@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { TAILOR_TONES, type AiDeps, type TailorTone, type VaultStatus } from "../../ai";
 import { MAX_TAILOR_NOTE_CHARS } from "../../db/limits";
+import { Gate } from "../Gate";
 import { Notice } from "../Notice";
 import { messageFor } from "../useAction";
 import { useUnlock } from "./useUnlock";
@@ -111,7 +112,7 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false, w
   return (
     <section className="tailor-ai" aria-label="Write with AI">
       {status.state === "none" ? (
-        <p className="tailor-ai-line">Add your Anthropic key in <a href="#/settings/ai">Settings</a> to write with AI.</p>
+        <p className="tailor-ai-line"><Gate gate="aiKey" /></p>
       ) : null}
       {status.state === "locked" ? (
         <form className="row tailor-ai-unlock" onSubmit={(e) => void unlock.submit(e)}>

@@ -177,10 +177,11 @@ describe("Add to calendar on the application", () => {
     expect($(container, ".card .app-actions")).not.toBeNull();     // in the facts card, not down in the notes
   });
 
-  it("shows nothing when there is no interview day and no mail service", async () => {
+  it("shows only the connect-your-mailbox line when there is no interview day and no mail service", async () => {
     const db = freshDb();
     const id = await addApp(db, "Acme");
     const { container } = await mountPage(DetailPage, db, `/app/${id}`, { id: String(id) });
-    expect($(container, ".app-actions")).toBeNull();
+    expect($(container, ".app-actions .app-interview")).toBeNull();
+    expect($(container, ".app-actions a")).toBeNull();
   });
 });

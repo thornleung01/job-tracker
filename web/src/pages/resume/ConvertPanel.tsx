@@ -3,6 +3,7 @@
 // the review on the Resume page. A locked key is opened here with its passphrase (useUnlock), and the conversion itself is useConvertRun.
 import { useId, useState } from "react";
 import { AI_MESSAGES, type AiDeps, type VaultStatus } from "../../ai";
+import { Gate } from "../../components/Gate";
 import { Notice } from "../../components/Notice";
 import { convertTooLong } from "../../db/limits";
 import type { JobTrackerDB } from "../../db/schema";
@@ -44,7 +45,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
       <textarea id={boxId} className="convert-text" readOnly rows={10} value={incoming.text} />
       <p className="muted small convert-count">{plural(incoming.text.length, "character")}</p>
       {tooLong ? <Notice tone="err">{AI_MESSAGES.convertTooLong}</Notice> : null}
-      {hasNoKey ? <p className="convert-key">Add your Anthropic key in <a href="#/settings/ai">Settings</a> to convert with AI.</p> : null}
+      {hasNoKey ? <p className="convert-key"><Gate gate="aiKey" /></p> : null}
       {status.state === "locked" ? (
         <form className="row convert-unlock" onSubmit={(e) => void unlock.submit(e)}>
           <div className="fgroup">

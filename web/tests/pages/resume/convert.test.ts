@@ -115,8 +115,8 @@ describe("the convert panel", () => {
     const { container } = await mount(freshDb(), vi.fn() as unknown as Convert, "none");
     await paste(container);
     expect(button(container, "Convert with AI")).toBeNull();
-    expect(text(panel(container))).toContain("Add your Anthropic key in Settings to convert with AI.");
-    expect($$(panel(container), "a").find((a) => text(a) === "Settings")!.getAttribute("href")).toBe("#/settings/ai");
+    expect(text(panel(container))).toContain("Add your Anthropic key in Settings.");
+    expect($$(panel(container), "a").find((a) => text(a) === "Add your Anthropic key in Settings.")!.getAttribute("href")).toBe("#/settings/ai");
     expect(button(container, "Use the simple converter")!.classList.contains("primary")).toBe(true);
   });
 

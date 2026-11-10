@@ -70,7 +70,7 @@ describe("the Documents section", () => {
   describe("resume sent", () => {
     it("links to Add your resume when there is no master, and offers no Tailor link", async () => {
       const { container } = await setup({ master: false });
-      expect(link(container, "Add your resume")?.getAttribute("href")).toBe("#/resume");
+      expect(link(container, "Add your resume first.")?.getAttribute("href")).toBe("#/resume");
       expect(link(container, "Tailor resume and cover letter")).toBeUndefined();
       expect($$(select(container), "option").map((o) => text(o))).toEqual(["None"]);
     });
@@ -316,6 +316,7 @@ describe("the Documents section", () => {
       await saveCoverLetter(db, id, [{ heading: "", items: [{ text: "Hi." }] }]);
       await waitFor(() => button(section(container), "Copy text") !== null);
       expect($$(section(container), "a").some((a) => /^Draft/.test(text(a)))).toBe(false);
+      await waitFor(() => text(section(container)).includes("Connect your mailbox to draft this in Gmail or Outlook."), "the hint");
     });
 
     it("deletes to Recently deleted after a question, and Write comes back", async () => {
