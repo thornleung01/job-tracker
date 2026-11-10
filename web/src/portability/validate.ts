@@ -16,7 +16,7 @@ import { iso } from "../db/time";
 import { isTailored } from "../sync/documents";
 import { sanitizeGoal } from "../sync/goal";
 import { sanitizeSavedViews } from "../sync/savedViews";
-import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
+import { SETUP_CARD_KEY, SETUP_SKIPS_KEY, sanitizeAppearance, sanitizeSetupCard, sanitizeSetupSkips, sanitizeSync } from "../sync/settings";
 import { truncate } from "../sync/text";
 import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData } from "./format";
 
@@ -369,6 +369,9 @@ export function parseExportData(raw: unknown): ExportData {
     if (isRecord(d.settings.sync)) settings.sync = sanitizeSync(d.settings.sync);
     // Saved views and the weekly goal (sync/savedViews.ts, sync/goal.ts): kept as checked values, or not at all.
     if (d.settings.savedViews !== undefined) settings.savedViews = { views: sanitizeSavedViews(d.settings.savedViews) };
+    // Which Setup steps were skipped, and whether the Setup card was closed (sync/setupStatus.ts).
+    if (d.settings[SETUP_SKIPS_KEY] !== undefined) settings[SETUP_SKIPS_KEY] = sanitizeSetupSkips(d.settings[SETUP_SKIPS_KEY]);
+    if (d.settings[SETUP_CARD_KEY] !== undefined) settings[SETUP_CARD_KEY] = sanitizeSetupCard(d.settings[SETUP_CARD_KEY]);
     if (sanitizeGoal(d.settings.weeklyGoal) !== null) settings.weeklyGoal = { perWeek: sanitizeGoal(d.settings.weeklyGoal) };
   }
 

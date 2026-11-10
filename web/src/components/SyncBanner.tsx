@@ -10,6 +10,7 @@ import * as realAuth from "../auth";
 import type { Session } from "../auth/session";
 import type { AuthUser } from "../auth/user";
 import type { AccountRow, JobTrackerDB } from "../db/schema";
+import { GATES } from "../app/gates";
 import { PROVIDER_LABEL } from "../sync/accountLabel";
 import { connectMailbox, isConnected, registerMailbox, runSync, type MailDeps, type SyncReport } from "../sync/mailbox";
 import { createProvider, getAddress } from "../providers";
@@ -52,6 +53,12 @@ export interface SyncBannerProps {
    * result, and never asks to reconnect. It stays mounted, so a sync keeps going when the person moves to that page.
    */
   quiet?: boolean;
+}
+
+/** A sentence about a mailbox that needs connecting: the whole sentence links to where that is done (the Mail tab, as every gate does). */
+function MailLink({ children }: { children: string }) {
+  const { href } = GATES.mailbox;
+  return href ? <a href={href}>{children}</a> : <>{children}</>;
 }
 
 export function SyncBanner(props: SyncBannerProps) {
@@ -160,7 +167,7 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
       problems.push(errorText(e));
     } finally {
       run.end();
-      if (sync.isMounted()) setResult(switchedOff ? { ok: true, lines: [`${PROVIDER_LABEL[switchedOff]} is switched off in Settings.`] } : describeBannerRun(report, problems));
+      if (sync.isMounted()) setResult(switchedOff ? { ok: true, lines: [`${PROVIDER_LABEL[switchedOff]} is switched off in Settings.`], mailLink: true } : describeBannerRun(report, problems));
     }
   }
 
@@ -185,9 +192,9 @@ function Banner({ db, user, deps: given, autoStart = false, quiet = false }: Syn
             <SyncBar percent={sync.progress?.percent ?? null} />
           </>
         ) : result ? (
-          result.lines.map((l, i) => <p className="line" key={i}>{l}</p>)
+          result.lines.map((l, i) => <p className="line" key={i}>{result.mailLink ? <MailLink>{l}</MailLink> : l}</p>)
         ) : (
-          <p className="line">Reconnect to sync your mailbox.</p>
+          <p className="line"><MailLink>Reconnect to sync your mailbox.</MailLink></p>
         )}
         {(showButton || running || result) && (
           <div className="sync-banner-actions">

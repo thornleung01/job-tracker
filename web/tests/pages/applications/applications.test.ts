@@ -181,9 +181,8 @@ describe("filters", () => {
   it("explains the empty states", async () => {
     const db = freshDb();
     const none = await mountPage(ApplicationsPage, db);
-    expect(text($(none.container, ".notice"))).toBe("No email account connected yet. Connect one in Settings to start syncing.");
-    expect($(none.container, ".notice a")?.getAttribute("href")).toBe("#/settings");
-    expect(text($(none.container, "td.list-empty"))).toContain("No applications yet.");
+    expect(text($(none.container, "td.list-empty"))).toBe('No applications yet. Choose "Add application", or finish setting up to find them in your email.');
+    expect($(none.container, "td.list-empty a")?.getAttribute("href")).toBe("#/settings");
     const full = freshDb();
     await seedThree(full);
     const filtered = await mountPage(ApplicationsPage, full, "/?q=nothing");

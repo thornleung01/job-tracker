@@ -7,6 +7,8 @@ import { NotConnected } from "../../types";
 export interface RunResult {
   ok: boolean;
   lines: string[];
+  /** the lines are about a mailbox that needs connecting in Settings, so they link to the Mail tab */
+  mailLink?: boolean;
 }
 
 /** What either screen says when the shared lock is taken. */

@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { cleanForSave } from "../../documents/blankResume";
 import { isTailored, setApplicationResume, updateDocument } from "../../sync/documents";
+import { Gate } from "../Gate";
 import type { ActionRunner } from "../useAction";
 import { ResumeEditing } from "./ResumeEditing";
 import { resumeLabel } from "./tailorReview";
@@ -61,7 +62,7 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
           <option value="">None</option>
           {resumes.map((r) => <option key={r.id} value={r.id}>{resumeLabel(r)}</option>)}
         </select>
-        {hasMaster ? null : <a className="btn" href="#/resume">Add your resume</a>}
+        {hasMaster ? null : <span className="small muted"><Gate gate="resume" /></span>}
         {chosen && isTailored(chosen) ? (
           <>
             <span className="badge score">Tailored</span>

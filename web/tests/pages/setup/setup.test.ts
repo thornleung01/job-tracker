@@ -92,7 +92,7 @@ describe("site links", () => {
 describe("the setup guide", () => {
   it("is the default export of the setup route and takes no props", async () => {
     const { container } = await mountPage(Setup, freshDb(), "/setup");
-    expect(text($(container, "h1"))).toBe("Set up mail sync");
+    expect(text($(container, "h1"))).toBe("Site setup (for the site owner)");
   });
 
   it("shows the values for this site and no build variable names", async () => {
@@ -206,7 +206,7 @@ describe("page basics", () => {
   it("sets the document title", async () => {
     document.title = "Something else";
     await mount();
-    expect(document.title).toBe("Set up · Job Tracker");
+    expect(document.title).toBe("Site setup · Job Tracker");
   });
 
   it("moves focus to the heading on mount", async () => {

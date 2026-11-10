@@ -15,7 +15,7 @@ import { NotConnected, type MailProvider, type Message, type ProviderName } from
 import { isSyncing, tryAcquire } from "../../src/sync/syncLock";
 import { mk } from "../sync/helpers";
 import { fakeAiDeps } from "../ai/helpers";
-import type { SectionId } from "../../src/pages/settings/sections";
+import { sectionFor, sectionPath, type SectionId } from "../../src/pages/settings/sections";
 import fixture from "../fixtures/python-export.json";
 import { LOCAL_USER } from "../../src/app/localUser";
 import { ada, byText, click, cleanupRendered, closeDbs, fakeAuth, freshDb, q, render, settle, sleep, waitFor } from "../app/helpers";
@@ -103,10 +103,10 @@ describe("page structure", () => {
     expect(document.body.textContent).not.toMatch(/[–—]/);
   };
 
-  it("shows one section at a time, Mail first, with one h1 and sentence case throughout", async () => {
+  it("shows one section at a time, with one h1 and sentence case throughout", async () => {
     await setup();
     expect(q("h1")!.textContent).toBe("Settings");
-    expect(headings()).toEqual(["Email accounts", "Sync", "What the app has learned"]);
+    expect(headings()).toEqual(["Account", "Email accounts", "Sync", "What the app has learned"]);
     expect(q("nav[aria-label='Settings sections'] a[aria-current=page]")!.textContent).toBe("Mail");
     expectSentenceCase();
   });
@@ -119,12 +119,13 @@ describe("page structure", () => {
     expectSentenceCase();
   });
 
-  it("Data runs Back up, Restore, Recently deleted, danger area, Account, and no bookmarklet card", async () => {
+  it("Data runs Back up, Restore, Recently deleted and the danger area, with the trash anchor and no Account or bookmarklet card", async () => {
     section = "data";
     await setup();
-    expect(headings()).toEqual(["Back up", "Restore", "Recently deleted", "Delete everything", "Account"]);
+    expect(headings()).toEqual(["Back up", "Restore", "Recently deleted", "Delete everything"]);
+    expect(q("section#trash h2")!.textContent).toBe("Recently deleted");
     expect(byText("Save jobs from any site", "h2")).toBeNull();
-    expect(byText("Log out")).not.toBeNull();
+    expect(byText("Log out")).toBeNull();
     expectSentenceCase();
   });
 
@@ -140,18 +141,30 @@ describe("page structure", () => {
     await setup();
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("nav[aria-label='Settings sections'] a"));
     expect(links.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current")])).toEqual([
-      ["Mail", "#/settings", null],
-      ["Appearance", "#/settings/appearance", null],
+      ["Setup", "#/settings", null],
+      ["Mail", "#/settings/mail", null],
       ["AI", "#/settings/ai", "page"],
       ["Data", "#/settings/data", null],
+      ["Appearance", "#/settings/appearance", null],
     ]);
   });
 
-  it("an unknown section shows Mail", async () => {
+  it("an unknown or missing section shows Setup", async () => {
     section = "nonsense" as SectionId;
     await setup();
-    expect(headings()).toEqual(["Email accounts", "Sync", "What the app has learned"]);
-    expect(q("nav a[aria-current=page]")!.textContent).toBe("Mail");
+    expect(headings()).toEqual(["Set up Job Tracker"]);
+    expect(q("nav a[aria-current=page]")!.textContent).toBe("Setup");
+  });
+
+  it("Setup is first and the default for #/settings and #/settings/setup", async () => {
+    section = "setup";
+    await setup();
+    expect(q("nav a[aria-current=page]")!.textContent).toBe("Setup");
+    expect(headings()).toEqual(["Set up Job Tracker"]);
+    expect(sectionFor(undefined)).toBe("setup");
+    expect(sectionFor("setup")).toBe("setup");
+    expect(sectionPath("setup")).toBe("/settings");
+    expect(sectionPath("mail")).toBe("/settings/mail");
   });
 });
 
@@ -262,7 +275,9 @@ describe("email accounts", () => {
     expect(row.textContent).toContain("Synced");
     expect(row.textContent).toContain("Not connected in this tab. Reconnect to sync.");
     expect(byText("Reconnect account")).not.toBeNull();
-    expect(q(".provider .addr")!.textContent).toBe("Not connected in this tab");
+    // one "not connected" line per row: the Gmail tile adds nothing to what the account row says
+    expect(q(".provider .addr")).toBeNull();
+    expect(document.body.textContent!.match(/Not connected in this tab/g)).toHaveLength(1);
   });
 
   it("shows the last error of an account", async () => {
@@ -591,7 +606,7 @@ describe("your data", () => {
 });
 
 describe("account", () => {
-  useSection("data");
+  useSection("mail");
   it("names who is logged in and logs out", async () => {
     const { deps } = await setup();
     expect(q("#account")!.textContent).toContain("Logged in as Ada Lovelace (ada@example.com) with Google.");
@@ -608,6 +623,8 @@ describe("section switcher", () => {
     await click(byText("Data", "nav a")!);
     expect(nav).toHaveBeenCalledWith("/settings/data");
     await click(byText("Mail", "nav a")!);
+    expect(nav).toHaveBeenLastCalledWith("/settings/mail");
+    await click(byText("Setup", "nav a")!);
     expect(nav).toHaveBeenLastCalledWith("/settings");
   });
 
@@ -622,7 +639,7 @@ describe("section switcher", () => {
   it("clicking the section that is already open leaves no focus request behind", async () => {
     const db = freshDb();
     const view = await render(h(SettingsView, { db, user: LOCAL_USER, params: {}, query: new URLSearchParams(), navigate: () => undefined }));
-    await click(byText("Mail", "nav a")!);
+    await click(byText("Setup", "nav a")!);
     expect(focusRequest.pending).toBe(false);
     await view.rerender(h(SettingsView, { db, user: LOCAL_USER, params: { section: "data" }, query: new URLSearchParams(), navigate: () => undefined }));
     expect(document.activeElement).not.toBe(q("#h-data"));

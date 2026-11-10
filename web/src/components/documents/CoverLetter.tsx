@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { DraftNeedsMailbox } from "../followup/DraftNeedsMailbox";
 import { useQuery } from "../../app/useQuery";
 import type { ApplicationRow, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { coverLetterMail } from "../../sync/applicationActions";
@@ -117,6 +118,7 @@ export function CoverLetter({ db, app, cover, people, act, startLabel = "Write a
 function LetterDraft({ db, appId, letter }: { db: JobTrackerDB; appId: number; letter: string }) {
   const mail = useQuery(() => coverLetterMail(db, appId, letter), [db, appId, letter]);
   const link = mail?.link;
+  if (mail && !link) return <DraftNeedsMailbox />;
   if (!mail || !link || !link.url.startsWith("https://")) return null;
   const service = link.label.replace("Draft in ", "");
   return (

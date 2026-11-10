@@ -82,7 +82,7 @@ describe("the manual path, with no key", () => {
     const { container, fake } = await setup({ saved: "none" });
     await waitFor(() => button(container, "Write with AI") !== null, "the page");
     await click(button(container, "Write with AI"));
-    expect(text(strip(container))).toContain("Add your Anthropic key in Settings to write with AI.");
+    expect(text(strip(container))).toContain("Add your Anthropic key in Settings.");
     expect($(strip(container)!, "a")!.getAttribute("href")).toBe("#/settings/ai");
     expect(button(strip(container)!, "Write")).toBeNull();
     await click(button(strip(container)!, "Close"));

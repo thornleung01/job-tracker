@@ -132,3 +132,25 @@ export async function saveSettings(db: JobTrackerDB, section: Section, values: R
   await setSetting(db, section, clean);
   return clean;
 }
+
+// -- Setup tab ---------------------------------------------------------------------------------
+// Two more settings rows, so they travel with Export and Import (portability/validate.ts keeps them as checked values):
+// the steps a person chose to skip, and whether they closed the "Finish setting up" card. Read and written by sync/setupStatus.ts.
+export const SETUP_SKIPS_KEY = "setupSkips";
+export const SETUP_CARD_KEY = "setupCard";
+
+export interface SetupSkips {
+  mailbox: boolean;
+  aiKey: boolean;
+}
+
+/** The skips as they are stored: a true or false for each of the two steps that can be skipped. Anything else is false. */
+export function sanitizeSetupSkips(raw: unknown): SetupSkips {
+  const r = asRecord(raw);
+  return { mailbox: r.mailbox === true, aiKey: r.aiKey === true };
+}
+
+/** Whether the card was dismissed: only an explicit true counts. */
+export function sanitizeSetupCard(raw: unknown): { dismissed: boolean } {
+  return { dismissed: asRecord(raw).dismissed === true };
+}

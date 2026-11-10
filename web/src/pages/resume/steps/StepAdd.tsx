@@ -2,6 +2,7 @@
 // and role, or a new one), Save stores the application, the tailored resume and the letter in one go, and the done screen links onward.
 import { useState } from "react";
 import { useQuery } from "../../../app/useQuery";
+import { DraftNeedsMailbox } from "../../../components/followup/DraftNeedsMailbox";
 import { InlineConfirm } from "../../../components/InlineConfirm";
 import { Notice } from "../../../components/Notice";
 import { useAction } from "../../../components/useAction";
@@ -108,10 +109,11 @@ export function StepDone({ db, saved, onAnother }: { db: JobTrackerDB; saved: Sa
   );
 }
 
-/** "Draft letter in Gmail" (or Outlook): a new message in the same mailbox. Nothing when there is no mailbox to open it in. */
+/** "Draft letter in Gmail" (or Outlook): a new message in the same mailbox. With no mailbox to open it in, one muted line (nothing in the demo). */
 function LetterDraft({ db, appId, letter }: { db: JobTrackerDB; appId: number; letter: string }) {
   const mail = useQuery(() => coverLetterMail(db, appId, letter), [db, appId, letter]);
   const link = mail?.link;
+  if (mail && !link) return <DraftNeedsMailbox />;
   if (!link || !link.url.startsWith("https://")) return null;
   const service = link.label.replace("Draft in ", "");
   const label = `Draft letter in ${service}`;

@@ -12,7 +12,12 @@ export interface SignInProps {
   configured?: { google: boolean; microsoft: boolean };
 }
 
-const buildConfigured = () => ({ google: config.googleClientId !== "", microsoft: config.msClientId !== "" });
+/** The one name of the owner's guide, wherever it is linked. */
+export const SITE_SETUP_LABEL = "Site setup (for the site owner)";
+/** A bare `setup` key in the address, in the query or in the hash route's query. */
+const SETUP_FLAG = /[?&]setup(?:[=&#]|$)/;
+
+const buildConfigured =() => ({ google: config.googleClientId !== "", microsoft: config.msClientId !== "" });
 
 /** Google's "G" mark, in Google's brand colours. Decorative: the button text names the action. */
 function GoogleMark() {
@@ -33,6 +38,12 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
   const helpId = none ? undefined : "signin-help";
   // The provider whose login just failed, so the person can try again without the mailbox.
   const [failed, setFailed] = useState<IdentityProvider | null>(null);
+
+  // The owner's guide is for the person who runs the site: it is offered only while the site has no client IDs, or when the address asks (?setup).
+  // The address #/setup itself always works.
+  const showSiteSetup = none || SETUP_FLAG.test(window.location.search + window.location.hash);
+  // Without a mailbox, through the provider just tried or used last, else the first one this site has.
+  const skipProvider: IdentityProvider = failed ?? (session.lastProvider && configured[session.lastProvider] ? session.lastProvider : configured.google ? "google" : "microsoft");
 
   useLayoutEffect(() => {
     document.title = "Log in · Job Tracker";
@@ -89,8 +100,8 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
               {configured.google && " Google may say it hasn't verified the app: choose Advanced, then Go to Job Tracker."}
             </p>
           )}
-          {failed && (
-            <button className="signin-skip" disabled={busy} onClick={() => logIn(failed, false)}>
+          {!none && (
+            <button className="signin-skip" disabled={busy} onClick={() => logIn(skipProvider, false)}>
               Log in without connecting your mailbox
             </button>
           )}
@@ -101,8 +112,8 @@ export function SignIn({ auth, session, configured = buildConfigured() }: SignIn
           )}
           <p className="small muted signin-footer">
             <a href="./privacy.html">Privacy</a>
-            <span aria-hidden="true"> · </span>
-            <a href="#/setup">Site setup</a>
+            {showSiteSetup && <span aria-hidden="true"> · </span>}
+            {showSiteSetup && <a href="#/setup">{SITE_SETUP_LABEL}</a>}
           </p>
         </div>
       </main>

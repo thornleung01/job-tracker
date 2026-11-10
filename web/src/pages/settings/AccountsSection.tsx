@@ -1,15 +1,13 @@
 // "Email accounts": the connected mailboxes with their status, and the Connect buttons. A local build has no
-// mail sync, so there it is only a pointer to the setup guide.
-import { useState } from "react";
+// mail sync, so there it is one plain line saying so.
 import { lowerMeridiem } from "../../components/TimeText";
-import { errorText } from "../../components/syncprogress/result";
 import type { AuthUser } from "../../auth/user";
-import { deactivateAccount } from "../../db/repo";
 import type { AccountRow, JobTrackerDB } from "../../db/schema";
 import type { ProviderName } from "../../types";
-import { PROVIDER_LABEL, accountLabel, connectMailbox, connectedAddress, isConnected } from "./actions";
+import { PROVIDER_LABEL, accountLabel, connectedAddress, isConnected } from "./actions";
 import type { SettingsAuth, SettingsDeps } from "./deps";
 import type { Say } from "./notice";
+import { useConnect } from "./useMailActions";
 
 export type AccountSummary = AccountRow & { emailCount: number };
 
@@ -30,41 +28,15 @@ interface Props {
 const formatSyncTime = (iso: string) => lowerMeridiem(new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }));
 
 export function AccountsSection({ db, account, accounts, mail, auth, deps, say, clear }: Props) {
-  const [connecting, setConnecting] = useState<ProviderName | null>(null);
+  const { connecting, connect, disconnect } = useConnect(db, account, auth, deps, say, clear);
 
   if (!account) {
     return (
       <section className="card" id="accounts" aria-labelledby="h-accounts">
         <h2 className="sec" id="h-accounts" tabIndex={-1}>Email accounts</h2>
-        <p className="muted">Mail sync isn't set up on this site. <a href="#/setup">Set it up</a></p>
+        <p className="muted">Mail sync isn't set up on this site.</p>
       </section>
     );
-  }
-
-  async function connect(provider: ProviderName) {
-    if (!account) return;
-    setConnecting(provider);
-    clear();
-    try {
-      const { address } = await connectMailbox(db, account, provider, {
-        connectMail: auth.connectMail, tokenSource: auth.tokenSource, createProvider: deps.createProvider, getAddress: deps.getAddress,
-      });
-      say("ok", `Connected ${PROVIDER_LABEL[provider]} ${address}.`);
-    } catch (e) {
-      say("err", `Couldn't connect ${PROVIDER_LABEL[provider]}. ${errorText(e)}`);
-    } finally {
-      setConnecting(null);
-    }
-  }
-
-  async function disconnect(id: number, label: string) {
-    try {
-      await deactivateAccount(db, id);
-      say("ok", `Disconnected ${label}. Its saved emails stay on this device.`);
-    } catch (e) {
-      console.error(e);
-      say("err", `Couldn't disconnect ${label}. Try again.`);
-    }
   }
 
   return (
@@ -111,7 +83,7 @@ export function AccountsSection({ db, account, accounts, mail, auth, deps, say, 
           return (
             <div className="provider" key={provider}>
               <h3>{PROVIDER_LABEL[provider]}</h3>
-              <div className="small muted addr">{here ? `Connected as ${here}` : "Not connected in this tab"}</div>
+              {here && <div className="small muted addr">Connected as {here}</div>}
               <button className={here ? undefined : "primary"} aria-busy={connecting === provider} disabled={connecting !== null} onClick={() => void connect(provider)}>
                 Connect {PROVIDER_LABEL[provider]}
               </button>

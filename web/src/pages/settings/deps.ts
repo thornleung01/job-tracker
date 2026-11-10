@@ -10,6 +10,7 @@ import type { ProviderName, TokenSource } from "../../types";
 import { signOutAndForget, type MailDeps } from "../../sync/mailbox";
 import type { BackupDeps } from "../../backup/deps";
 import { downloadText } from "../../app/download";
+import { config, type AppConfig } from "../../config";
 import { downloadCsv } from "./exportCsv";
 
 export interface SettingsAuth {
@@ -48,6 +49,14 @@ export const defaultDeps: SettingsDeps = {
   downloadCsv,
   ai: realAiDeps,
 };
+
+/** The mail providers this site can connect: the ones with a client ID in the build. A build with neither (a test, the demo) offers both. */
+export function availableProviders(c: Pick<AppConfig, "googleClientId" | "msClientId"> = config): ProviderName[] {
+  const have: ProviderName[] = [];
+  if (c.googleClientId) have.push("gmail");
+  if (c.msClientId) have.push("outlook");
+  return have.length > 0 ? have : ["gmail", "outlook"];
+}
 
 const NOT_SET_UP = "Mail sync isn't set up on this site.";
 const SIGNED_OUT: Session = { status: "signed-out", user: null, mail: { gmail: false, outlook: false }, error: null, lastProvider: null, pendingSync: null, mailDeclined: null };

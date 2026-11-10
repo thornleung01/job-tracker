@@ -8,7 +8,12 @@ import { MasterStart } from "../intake";
 import type { ReportUnsaved } from "../unsaved";
 
 export function StepResumeOpen({ db, ai, convert, report, onSaved }: { db: JobTrackerDB; ai: AiDeps; convert: ConvertFn; report: ReportUnsaved; onSaved(): void }) {
-  return <MasterStart db={db} ai={ai} convert={convert} report={report} onSaved={onSaved} />;
+  return (
+    <>
+      <p className="muted small steps-lead">Your resume is the starting point for every job you tailor for.</p>
+      <MasterStart db={db} ai={ai} convert={convert} report={report} onSaved={onSaved} />
+    </>
+  );
 }
 
 interface DoneProps {

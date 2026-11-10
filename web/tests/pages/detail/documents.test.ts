@@ -1,6 +1,7 @@
 // The Documents section on the application detail page: the resume sent, the cover letter and the job posting.
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { hostedBuild } from "../../support/hosted";
 import { $, $$, addApp, addMail, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
 import DetailPage from "../../../src/pages/detail";
 import { MAX_POSTING_CHARS } from "../../../src/db/limits";
@@ -70,7 +71,7 @@ describe("the Documents section", () => {
   describe("resume sent", () => {
     it("links to Add your resume when there is no master, and offers no Tailor link", async () => {
       const { container } = await setup({ master: false });
-      expect(link(container, "Add your resume")?.getAttribute("href")).toBe("#/resume");
+      expect(link(container, "Add your resume first.")?.getAttribute("href")).toBe("#/resume");
       expect(link(container, "Tailor resume and cover letter")).toBeUndefined();
       expect($$(select(container), "option").map((o) => text(o))).toEqual(["None"]);
     });
@@ -311,11 +312,13 @@ describe("the Documents section", () => {
     });
 
     it("has no draft link without a mailbox", async () => {
+      onTestFinished(hostedBuild());
       const { db, id, container } = await setup();
       await db.accounts.clear();
       await saveCoverLetter(db, id, [{ heading: "", items: [{ text: "Hi." }] }]);
       await waitFor(() => button(section(container), "Copy text") !== null);
       expect($$(section(container), "a").some((a) => /^Draft/.test(text(a)))).toBe(false);
+      await waitFor(() => text(section(container)).includes("Connect your mailbox to draft this in Gmail or Outlook."), "the hint");
     });
 
     it("deletes to Recently deleted after a question, and Write comes back", async () => {

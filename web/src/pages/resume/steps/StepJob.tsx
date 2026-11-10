@@ -3,8 +3,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { PostingTerms } from "../../../components/documents/PostingTerms";
 import { TailorAi, type WriteOptions } from "../../../components/documents/TailorAi";
+import { useUnlock } from "../../../components/documents/useUnlock";
 import { InlineConfirm } from "../../../components/InlineConfirm";
 import { Notice } from "../../../components/Notice";
+import { GATES } from "../../../app/gates";
 import { useAction } from "../../../components/useAction";
 import { parsePostingUrl, POSTING_URL_MESSAGE } from "../../../db/postingUrl";
 import { MAX_COMPANY_CHARS, MAX_POSTING_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../../db/limits";
@@ -35,11 +37,14 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
   const pasted = useRef(false);
   const [readingAi, setReadingAi] = useState(false);
   const [replacing, setReplacing] = useState(false);
+  // Unlocking happens beside the fields, so the vault is asked again (and the AI strip below starts over) once it has opened.
+  const [unlocks, setUnlocks] = useState(0);
   useEffect(() => () => reading.current?.abort(), []);
 
   const company = flow.company.trim();
   const posting = flow.posting.trim();
-  const noKey = deps.ai.vault.status(db.name).state === "none";
+  const keyState = deps.ai.vault.status(db.name).state;
+  const noKey = keyState === "none";
   const busy = act.busy !== null;
   const guessed = flow.guessed.company || flow.guessed.role;
   const checkId = `${base}-check`;
@@ -47,7 +52,7 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
   // The same rule as saving an application's link (addApplication), so a bad link is caught here and not at Save.
   const linkBad = flow.url.trim() !== "" && parsePostingUrl(flow.url) === null;
   const linkId = `${base}-linkwhy`;
-  const why = linkBad ? "Fix the job link to continue." : !company ? "Add the company to continue." : !posting ? "Paste the job description to write with AI." : "";
+  const why = linkBad ? "Fix the job link to continue." : !company ? "Add the company to continue." : !posting ? GATES.posting.text : "";
 
   /** After a paste, the full read: the device's rules first, and one small AI call only when they found neither the company nor the role. */
   const readPaste = async (text: string, found: { company: string; role: string }) => {
@@ -65,6 +70,13 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
       if (!ask.signal.aborted) setReadingAi(false);
     }
   };
+
+  const unlockToRead = useUnlock(deps.ai.vault, db.name, () => {
+    setUnlocks((n) => n + 1);
+    void readPaste(flow.posting, { company: "", role: "" });
+  });
+  // The AI read after a paste can't run while the key is locked: say so, and open the key right here.
+  const needsUnlockToRead = keyState === "locked" && posting !== "" && !flow.company.trim() && !flow.role.trim();
 
   const onPosting = (value: string) => {
     const found = readJobFromPaste(value, flow.url.trim() || undefined);
@@ -125,10 +137,22 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
       </div>
       <p className="muted small steps-check" id={checkId} role="status">{readingAi ? "Reading the company and role" : guessed ? "Check these" : ""}</p>
 
+      {needsUnlockToRead ? (
+        <form className="row steps-unlock" onSubmit={(e) => void unlockToRead.submit(e)}>
+          <p className="muted small">Unlock your key to read these from the job.</p>
+          <div className="fgroup">
+            <label htmlFor={`${base}-pass`}>Key passphrase</label>
+            <input id={`${base}-pass`} ref={unlockToRead.field} type="password" autoComplete="off" value={unlockToRead.passphrase}
+                   onChange={(e) => unlockToRead.setPassphrase(e.target.value)} disabled={unlockToRead.unlocking} />
+          </div>
+          <button type="submit" disabled={unlockToRead.unlocking || !unlockToRead.passphrase} aria-busy={unlockToRead.unlocking || undefined}>Unlock</button>
+        </form>
+      ) : null}
+      {unlockToRead.error ? <Notice tone="err">{unlockToRead.error}</Notice> : null}
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       {act.status ? <p className="muted small" role="status">{act.status}</p> : null}
 
-      <TailorAi dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad} writeLabel="Write my resume and letter" />
+      <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad} writeLabel="Write my resume and letter" />
       <div className="row steps-actions">
         <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
                 aria-describedby={why ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>

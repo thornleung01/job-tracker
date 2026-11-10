@@ -1,6 +1,7 @@
-// The Settings page: a heading, a switcher between four sections (mail, appearance, ai, data; #/settings/:section), the
-// result message and the open section's cards. Each card is its own component with its own state (AccountsSection,
-// SyncSection, MailRulesSection, AppearanceSection, AiSection, DataSection, TrashSection, AccountSection). This file only holds what they share: the message at the top, the screen-reader confirmation, the
+// The Settings page: a heading, a switcher between five sections (setup, mail, ai, data, appearance; #/settings/:section,
+// Setup being the default), the result message and the open section's cards. Each card is its own component with its own
+// state (SetupSection, AccountSection, AccountsSection, SyncSection, MailRulesSection, AiSection, DataSection, TrashSection,
+// AppearanceSection). This file only holds what they share: the message at the top, the screen-reader confirmation, the
 // auth session and the two queries.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { isLocalUser } from "../../app/localUser";
@@ -15,6 +16,7 @@ import { AppearanceSection } from "./AppearanceSection";
 import { DataSection } from "./DataSection";
 import { MailRulesSection } from "./MailRulesSection";
 import { SectionSwitcher, focusRequest } from "./SectionSwitcher";
+import { SetupSection } from "./SetupSection";
 import { sectionFor } from "./sections";
 import { SyncSection } from "./SyncSection";
 import { TrashSection } from "./TrashSection";
@@ -34,7 +36,7 @@ export function SettingsView({ db, user, params, navigate, deps: given }: PagePr
   const auth = account ? deps.auth : NO_AUTH;
   const session = useSyncExternalStore(auth.subscribe, auth.getSession);
   const settings = useQuery(() => loadSettings(db), [db]);
-  const accounts = useQuery(() => (section === "mail" ? accountSummaries(db) : []), [db, section]); // the email counts are only shown on the Mail tab
+  const accounts = useQuery(() => (section === "mail" || section === "setup" ? accountSummaries(db) : []), [db, section]); // the accounts are only shown on the Mail and Setup tabs
 
   // Bumped when "Delete all my data" forgets the AI key, so the AI card starts again from the vault's state.
   const [aiEpoch, setAiEpoch] = useState(0);
@@ -84,8 +86,10 @@ export function SettingsView({ db, user, params, navigate, deps: given }: PagePr
       <p className="sr" role="status">{announcement}</p>
 
       <div ref={pane} className="settings-pane">
+        {section === "setup" && <SetupSection db={db} account={account} accounts={accounts} mail={session.mail} auth={auth} deps={deps} report={report} />}
         {section === "mail" && (
           <>
+            {account && <AccountSection account={account} auth={auth} />}
             <AccountsSection db={db} account={account} accounts={accounts} mail={session.mail} auth={auth} deps={deps} say={report.say} clear={report.clear} />
             {account && (
               <SyncSection db={db} account={account} activeAccounts={activeAccounts} settings={settings?.sync} auth={auth} deps={deps} report={report} />
@@ -96,12 +100,9 @@ export function SettingsView({ db, user, params, navigate, deps: given }: PagePr
         {section === "appearance" && <AppearanceSection db={db} appearance={settings?.appearance} report={report} />}
         {section === "ai" && <AiSection key={aiEpoch} db={db} deps={deps.ai} report={report} />}
         {section === "data" && (
-          <>
-            <DataSection db={db} isLocal={isLocalUser(user)} deps={deps} report={report} onKeyForgotten={() => setAiEpoch((n) => n + 1)}>
-              <TrashSection db={db} />
-            </DataSection>
-            {account && <AccountSection account={account} auth={auth} />}
-          </>
+          <DataSection db={db} isLocal={isLocalUser(user)} deps={deps} report={report} onKeyForgotten={() => setAiEpoch((n) => n + 1)}>
+            <TrashSection db={db} />
+          </DataSection>
         )}
       </div>
     </>

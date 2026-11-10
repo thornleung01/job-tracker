@@ -44,6 +44,8 @@ button.steps-change { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.8
 .steps-check { min-height: 1.4em; margin: 6px 0 var(--gap); padding-left: 4px; }
 .steps-actions { margin-top: var(--gap); }
 .steps-why { margin: 8px 0 0; }
+.steps-lead { margin: 0 0 var(--gap); }
+.steps-unlock { align-items: flex-end; margin: 0 0 var(--gap); }
 .steps-card .tailor-ai { margin: 0; }
 .steps-card .tailor-ai + .steps-actions { margin-top: 12px; }
 .steps-card .inline-confirm { margin-top: var(--gap); }

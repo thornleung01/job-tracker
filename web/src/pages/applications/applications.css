@@ -3,6 +3,9 @@
 .filters .f-search { flex: 1 1 220px; }
 .card.list-card { padding: 0; overflow-x: auto; }
 .list-empty { padding: 24px 16px; }
+.list-empty .link-button { display: inline; min-height: 0; padding: 0 2px; background: none; box-shadow: none; color: var(--ink); font: inherit; font-weight: 500; border-radius: var(--r-seg); }
+.list-empty .link-button:hover:not(:disabled) { background: var(--hover); }
+@media (pointer: coarse) { .list-empty .link-button { padding: 12px 4px; } }
 .clear-filters { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 4px; }
 .add-note { margin-top: 10px; }
 .add-link-slot:empty { display: none; }
