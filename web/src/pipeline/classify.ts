@@ -1,6 +1,6 @@
 // Port of jobtracker/classify.py. Same rules, same order, same reason strings.
 import type { Message } from "../types";
-import { py, pattern, test } from "./pyre";
+import { py, pattern, sub, test } from "./pyre";
 import { loadRules, type Rules } from "./rules";
 
 /** Checked in this order; the first event with a match wins. */
@@ -80,8 +80,9 @@ function dropSentences(text: string, patterns: readonly RegExp[]): string {
   return kept.join("\n");
 }
 
-/** Drop boilerplate conditional sentences ("we'll contact you if selected..."). */
-export const stripConditionals = (text: string, rules: Rules = loadRules()): string => dropSentences(text, rules.conditionals);
+/** Drop boilerplate conditional sentences ("we'll contact you if selected...") and boilerplate clauses ("we can't give feedback"). */
+export const stripConditionals = (text: string, rules: Rules = loadRules()): string =>
+  dropSentences(rules.conditionalClauses.reduce((t, p) => sub(p, " ", t), text), rules.conditionals);
 
 /** Drop sentences like "we are unable to extend an offer" so they can't count as an offer. */
 export const stripNegatedOffers = (text: string, rules: Rules = loadRules()): string => dropSentences(text, rules.negatedOffers);

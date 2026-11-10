@@ -11,6 +11,7 @@ export interface RawRules {
   reply_context: string;
   negated_offer_sentences: string[];
   conditional_sentences: string[];
+  conditional_clauses?: string[];
   events: Record<string, { strong?: string[]; weak?: string[] }>;
 }
 
@@ -23,6 +24,7 @@ export interface Rules {
   replyContext: RegExp;
   negatedOffers: readonly RegExp[];
   conditionals: readonly RegExp[];
+  conditionalClauses: readonly RegExp[];
   strong: Readonly<Record<string, readonly RegExp[]>>;
   weak: Readonly<Record<string, readonly RegExp[]>>;
 }
@@ -46,9 +48,23 @@ export function compileRules(data: RawRules): Rules {
     replyContext: py(data.reply_context, "i"),
     negatedOffers: compile(data.negated_offer_sentences),
     conditionals: compile(data.conditional_sentences),
+    // global, so every clause in a text is cut (re.sub)
+    conditionalClauses: (data.conditional_clauses ?? []).map((source) => py(source, "ig")),
     strong,
     weak,
   };
+}
+
+/** 32-bit FNV-1a, in base 36. Not secure: it only has to move when the text does. */
+export function hashText(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+}
+
+/** A short fingerprint of the rules in this build, for deciding whether an earlier judgement is still current. */
+export function rulesVersion(): string {
+  return hashText(JSON.stringify(raw));
 }
 
 let cached: Rules | undefined;

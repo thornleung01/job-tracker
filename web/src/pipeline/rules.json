@@ -57,8 +57,10 @@
     "\\bwill (?:only )?(?:contact|reach out|be in touch)[^.]*\\bif\\b",
     "\\bonly (?:those|candidates|applicants)[^.]*(?:selected|shortlisted|contacted)",
     "\\bshould (?:your|we)[^.]*(?:interview|selected|shortlisted)",
-    "\\bif (?:you(?:'re| are)|your \\w+(?: \\w+)?(?: is| are)?) not (?:been )?(?:selected|shortlisted|chosen|successful)",
-    "\\b(?:(?:unable|not able|won'?t be able) to|cannot|can'?t) (?:offer|give|provide) (?:you |every applicant |all applicants |applicants )?(?:individual |personali[sz]ed |specific |detailed )?feedback"
+    "\\bif (?:you(?:'re| are)|your \\w+(?: \\w+)?(?: is| are)?) not (?:been )?(?:selected|shortlisted|chosen|successful)"
+  ],
+  "conditional_clauses": [
+    "(?:\\b(?:we|i) )?(?:(?:are|am) )?(?:(?:unable|not able|won'?t be able) to|cannot|can'?t) (?:offer|give|provide) (?:you |every applicant |all applicants |applicants )?(?:individual |personali[sz]ed |specific |detailed )?feedback[^,;.!?\\n]*"
   ],
   "events": {
     "offer": {

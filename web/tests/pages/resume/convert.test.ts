@@ -218,7 +218,7 @@ describe("the convert panel", () => {
     const { container } = await mount(freshDb(), convert as unknown as Convert);
     // Pasted text is read up to the file size limit, which is larger than the AI limit.
     await paste(container, `Jane Smith\nEXPERIENCE\n${"x".repeat(MAX_CONVERT_CHARS + 10)}`);
-    expect(text($(panel(container), ".notice.err"))).toBe("That resume is too long for AI to convert (over 20,000 characters). Shorten it, or use the simple converter.");
+    expect(text($(panel(container), ".notice.err"))).toBe("That resume is too long for AI to convert (more than about 12,000 characters). Shorten it, or use the simple converter.");
     expect(button(container, "Convert with AI")!.disabled).toBe(true);
     await click(button(container, "Convert with AI"));
     expect(convert).not.toHaveBeenCalled();

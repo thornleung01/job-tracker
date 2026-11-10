@@ -90,6 +90,45 @@ class UnreadableMessage extends Error {
   }
 }
 
+/** How many times an email may fail for a reason that is not storage trouble before it is given up on. */
+export const MAX_FAILURES = 3;
+export const FAILURES_KEY = "emailFailures";
+
+/** Errors from the browser's storage that can clear up by themselves (a full disk, a closed or busy database). */
+const TRANSIENT_NAMES = new Set([
+  "QuotaExceededError", "DatabaseClosedError", "OpenFailedError", "AbortError", "TimeoutError", "UnknownError",
+  "InvalidStateError", "TransactionInactiveError", "VersionError", "BlockedError",
+]);
+
+function isTransient(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 4; depth++) {
+    if (e instanceof Error && TRANSIENT_NAMES.has(e.name)) return true;
+    e = (e as { inner?: unknown } | null)?.inner ?? (e as { cause?: unknown } | null)?.cause;
+  }
+  return false;
+}
+
+async function loadFailures(db: JobTrackerDB): Promise<Record<string, number>> {
+  try {
+    const v = (await db.settings.get(FAILURES_KEY))?.value;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      return Object.fromEntries(Object.entries(v).filter(([, n]) => typeof n === "number" && Number.isFinite(n))) as Record<string, number>;
+    }
+  } catch {
+    // storage is unwell: start from none
+  }
+  return {};
+}
+
+async function saveFailures(db: JobTrackerDB, failures: Record<string, number>): Promise<void> {
+  try {
+    if (Object.keys(failures).length) await db.settings.put({ key: FAILURES_KEY, value: failures });
+    else await db.settings.delete(FAILURES_KEY);
+  } catch {
+    // the count is a convenience: losing it only means more retries
+  }
+}
+
 /** Process oldest-first so stages progress in the order things happened. */
 export async function processMessages(db: JobTrackerDB, accountId: number, messages: Message[], now: Date = new Date()): Promise<Counts> {
   const counts: Counts = {};
@@ -97,20 +136,40 @@ export async function processMessages(db: JobTrackerDB, accountId: number, messa
   const ordered = messages
     .map((msg) => ({ msg, when: iso(msg.receivedAt) }))
     .sort(byAsc((m) => m.when));
+  const failures = await loadFailures(db);
+  let failuresChanged = false;
   for (const { msg } of ordered) {
     let result: Outcome | "error" | "retry";
+    const key = `${accountId}:${msg.id}`;
     try {
       result = await processMessage(db, accountId, msg, learned, now);
+      if (failures[key] !== undefined) {
+        delete failures[key];
+        failuresChanged = true;
+      }
     } catch (err) {
-      if (!(err instanceof UnreadableMessage)) {
-        // Anything from storing it (full disk, a closed or busy database, a second tab, even a bug in how it was filed)
-        // may go away, and marking the email seen would blank it for good, so it is left for the next sync.
+      let giveUp = err instanceof UnreadableMessage;
+      if (!giveUp && !isTransient(err)) {
+        // Not a storage hiccup: a bug in how this one email is filed would fail every time and pin the sync window for good.
+        // It gets MAX_FAILURES tries across syncs (the next one may carry a fix), then is treated as unreadable.
+        failures[key] = (failures[key] ?? 0) + 1;
+        failuresChanged = true;
+        giveUp = failures[key] >= MAX_FAILURES;
+        if (giveUp) console.error(`Giving up on one email after ${MAX_FAILURES} failed attempts`, err);
+      }
+      if (!giveUp) {
+        // Storage trouble (full disk, a closed or busy database, a second tab) may go away, and marking the email seen would
+        // blank it for good, so it is left for the next sync.
         result = "retry";
       } else {
         // A message that can't be read at all would fail every time, so mark it seen and move on.
         result = "error";
         try {
           await tx(db, () => rememberUnrelated(db, accountId, msg.id, iso(msg.receivedAt)));
+          if (failures[key] !== undefined) {
+            delete failures[key]; // kept until it is marked seen, so a failed marking is not given a fresh three tries
+            failuresChanged = true;
+          }
         } catch {
           // already marked, or storage is unwell: nothing more to do
         }
@@ -118,6 +177,7 @@ export async function processMessages(db: JobTrackerDB, accountId: number, messa
     }
     counts[result] = (counts[result] ?? 0) + 1;
   }
+  if (failuresChanged) await saveFailures(db, failures);
   return counts;
 }
 

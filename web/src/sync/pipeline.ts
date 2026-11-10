@@ -22,6 +22,8 @@ const realPipeline: Pipeline = {
   replyLink: (provider, account, sender, subject, webLink = null) => asLink(real.replyLink(provider, account, sender, subject, webLink)),
   UNKNOWN_COMPANY: real.UNKNOWN_COMPANY,
   UNKNOWN_ROLE: real.UNKNOWN_ROLE,
+  rulesVersion: real.rulesVersion,
+  hashText: real.hashText,
 };
 
 export function pipeline(): Pipeline {

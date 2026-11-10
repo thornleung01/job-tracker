@@ -2,7 +2,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ImportError, MAX_IMPORT_BYTES, exportAll, importAll, importAllIfEmpty } from "../../src/portability";
-import { MAX_ROWS } from "../../src/portability/validate";
+import { MAX_EMAIL_ROWS, MAX_ROWS, parseExportData } from "../../src/portability/validate";
 import { readFileText } from "../../src/pages/settings/actions";
 import { saveCoverLetter } from "../../src/sync/documents";
 import { createApplication } from "../../src/db/repo";
@@ -54,7 +54,29 @@ describe("size caps", () => {
     expect((await target.applications.toArray()).map((a) => a.company)).toEqual(["Existing"]);
   });
 
-  it("keeps the row cap well below 500,000", () => expect(MAX_ROWS).toBeLessThanOrEqual(100_000));
+  it("keeps the row cap well below 500,000 for every table but emails", () => expect(MAX_ROWS).toBeLessThanOrEqual(100_000));
+
+  it("lets emails go far past that, to what a heavy mailbox keeps", () => expect(MAX_EMAIL_ROWS).toBeGreaterThanOrEqual(500_000));
+
+  it("refuses more email rows than that", async () => {
+    const { data } = await exportAll(await withData("Incoming"));
+    await expect(importAll(freshDb(), { ...(await exportAll(await withData("X"))), data: { ...data, emails: Array.from({ length: MAX_EMAIL_ROWS + 1 }, () => ({})) } }))
+      .rejects.toThrow(/"emails" has too many rows/);
+  });
+
+  it("accepts a large but real export: 60,000 emails (mostly stubs, some with text) fit the file cap and the row cap", async () => {
+    const { data } = await exportAll(await withData("Incoming"));
+    const accountId = data.accounts[0].id;
+    const stub = (i: number) => ({ id: i, accountId, providerMsgId: `18f3a9c0b7d2e${i.toString(16).padStart(6, "0")}`, threadId: null, receivedAt: "2026-10-01T09:00:00.000Z",
+      sender: null, subject: null, body: null, related: false, event: null, confidence: null, applicationId: null, needsReview: false, webLink: null, bulk: false, hold: false, reason: null });
+    const full = (i: number) => ({ ...stub(i), threadId: `18f3a9c0b7d2e${i.toString(16).padStart(6, "0")}`, sender: "Acme Careers <no-reply@greenhouse.io>", subject: "Thank you for applying to Acme",
+      body: "x".repeat(4096), related: true, event: "applied", confidence: "high", webLink: "https://mail.google.com/mail/u/0/#all/18f3a9c0b7d2e", reason: "applied: thank you for applying" });
+    const emails = Array.from({ length: 60_000 }, (_, i) => (i % 10 === 0 ? full(i + 1) : stub(i + 1)));
+    const bytes = JSON.stringify({ ...data, emails }).length;
+    expect(bytes).toBeLessThan(MAX_IMPORT_BYTES);
+    const parsed = parseExportData({ ...data, emails });
+    expect(parsed.emails).toHaveLength(60_000);
+  });
 
   it("refuses to read a file over the size cap, before reading it", () => {
     const text = vi.fn();

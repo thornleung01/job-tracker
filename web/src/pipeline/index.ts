@@ -4,4 +4,4 @@ export * from "./extract";
 export * from "./mailtext";
 export * from "./links";
 export * from "./match";
-export { loadRules, compileRules, type Rules } from "./rules";
+export { loadRules, compileRules, rulesVersion, hashText, type Rules } from "./rules";

@@ -188,7 +188,8 @@ SUBJECTS = [
 SENTENCES = [
     "We have received your application.", "Thank you for applying to Acme.", "Thanks for your interest in the Data Analyst role at Acme.",
     "We will contact you if selected for an interview.", "Only candidates shortlisted will be contacted.",
-    "We are unable to reply to every applicant.", "We regret to inform you that we will not be moving forward with your application.",
+    "We are unable to reply to every applicant.", "Due to volume, we are unable to provide individual feedback.",
+    "If you are not selected, we will keep your resume on file.", "We regret to inform you that we will not be moving forward with your application.",
     "Unfortunately, we have decided to pursue other candidates.", "Unfortunately your parcel is delayed.",
     "We are pleased to offer you the position of Data Analyst at Acme.", "We are unable to extend an offer at this time.",
     "Please select a time that works for you: https://calendly.com/acme/30min", "We\u2019d like to schedule an interview with you.",
@@ -239,7 +240,14 @@ def corpus_messages() -> list[Message]:
     out.append(mk("Thanks for applying to Acme", "We have received your application. If you are not selected, we will keep your resume on file.",
                   sender="Acme Careers <no-reply@greenhouse.io>"))
     out.append(mk("Your application to Acme", "Your application was unsuccessful on this occasion.", sender="HR <hr@acme.com>"))
-    for s in ("Careers <careers@jobs.rbc.ca>", "Jobs <jobs@mail.bmo.ca>", "Pat <pat@acme.com.au>", "Pat <pat@uhn.on.ca>"):
+    # a rejection that shares its sentence with the feedback disclaimer is still a rejection
+    out.append(mk("Your application to Acme", "We have decided not to move forward with your application and, due to volume, are unable to provide individual feedback.",
+                  sender="Acme Careers <no-reply@greenhouse.io>"))
+    out.append(mk("Your application to Acme", "We regret that your application was unsuccessful and we cannot give feedback.",
+                  sender="Acme Careers <no-reply@greenhouse.io>"))
+    for s in ("Careers <careers@jobs.rbc.ca>", "Jobs <jobs@mail.bmo.ca>", "Pat <pat@acme.com.au>", "Pat <pat@uhn.on.ca>",
+              "Pat <pat@acme.ltd.uk>", "Pat <pat@acme.plc.uk>", "Pat <pat@acme.sch.uk>", "Pat <pat@acme.me.uk>", "Pat <pat@acme.ne.jp>",
+              "Pat <pat@acme.or.jp>", "Pat <pat@acme.go.jp>", "Pat <pat@example.gc.ca>"):
         out.append(mk("Hello", sender=s))
     out.append(mk("Special offer: 40% off", "Limited time offer on career coaching. Apply now.", sender="Deals <deals@shop.com>"))
     out.append(mk("Order update", "Unfortunately your parcel is delayed.", sender="Shop <orders@shop.com>"))
@@ -897,7 +905,7 @@ def coverage_report() -> list[str]:
             if not any(p.search(s) for s in PHRASES + SENTENCES + SUBJECTS):
                 missing.append(p.pattern)
     addresses = [mk("", "", s).sender_email.lower() for s in SENDERS]
-    for p in (*rules.exclude_sender, *rules.exclude_subject, *rules.negated_offers, *rules.conditionals):
+    for p in (*rules.exclude_sender, *rules.exclude_subject, *rules.negated_offers, *rules.conditionals, *rules.conditional_clauses):
         if not any(p.search(s) for s in PHRASES + SENTENCES + SUBJECTS + addresses):
             missing.append(p.pattern)
     return missing

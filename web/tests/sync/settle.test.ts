@@ -5,9 +5,10 @@ import {
   ActionError, addApplication, deleteApplication, editApplication, mergeApplications, resolveReview, setStage, unlockStage,
 } from "../../src/sync/actions";
 import { fillMissingRoles, recheck, settleReview } from "../../src/sync/recheck";
-import { deleteForever } from "../../src/sync/trash";
+import { deleteForever, restoreApplication } from "../../src/sync/trash";
 import { processMessage, processMessages } from "../../src/sync/sync";
 import { createApplication, upsertAccount } from "../../src/db/repo";
+import { pipeline } from "../../src/sync/pipeline";
 import { sameRole } from "../../src/sync/match";
 import { localToday } from "../../src/db/time";
 import { classify, extractCompanyRole } from "../../src/pipeline";
@@ -271,6 +272,69 @@ describe("settling after a sync", () => {
     await createApplication(db, { company: "Acme", companyKey: "acme", role: "A", roleKey: "a", stage: "Applied", when: "2026-10-01T09:00:00Z" });
     await settleReview(db, { skipIfUnchanged: true }); // a new application may be what the waiting mail needed
     expect(reads).toHaveBeenCalled();
+  });
+
+  describe("is judged again after an edit that changes how waiting mail matches", () => {
+    async function settled() {
+      const { db, acct } = await dbWithAccount();
+      await processMessage(db, acct, weak());
+      const a = await createApplication(db, { company: "Acme", companyKey: "acme", role: "A", roleKey: "a", stage: "Applied", when: "2026-10-01T09:00:00Z" });
+      const b = await createApplication(db, { company: "Beta", companyKey: "beta", role: "B", roleKey: "b", stage: "Applied", when: "2026-10-01T09:00:00Z" });
+      await settleReview(db, { skipIfUnchanged: true });
+      const reads = vi.spyOn(db.learnedRules, "orderBy");
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).not.toHaveBeenCalled(); // nothing changed: skipped
+      return { db, a, b, reads };
+    }
+
+    it("a rename", async () => {
+      const { db, a, reads } = await settled();
+      await editApplication(db, a, "Acme Corp", "Analyst");
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
+
+    it("a restore from Recently deleted", async () => {
+      const { db, a, reads } = await settled();
+      await deleteApplication(db, a);
+      await settleReview(db, { skipIfUnchanged: true });
+      reads.mockClear();
+      await restoreApplication(db, a);
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
+
+    it("a merge", async () => {
+      const { db, a, b, reads } = await settled();
+      await mergeApplications(db, a, b);
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
+
+    it("a hold being released", async () => {
+      const { db, reads } = await settled();
+      const waiting = (await db.emails.toArray()).find((e) => e.needsReview)!;
+      await db.emails.update(waiting.id, { hold: true });
+      await settleReview(db, { skipIfUnchanged: true });
+      reads.mockClear();
+      await db.emails.update(waiting.id, { hold: false });
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
+
+    it("a stage or lock change", async () => {
+      const { db, a, reads } = await settled();
+      await setStage(db, a, "Interview");
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
+
+    it("a different rules version", async () => {
+      const { db, reads } = await settled();
+      vi.spyOn(pipeline(), "rulesVersion").mockReturnValue("a newer build's rules");
+      await settleReview(db, { skipIfUnchanged: true });
+      expect(reads).toHaveBeenCalled();
+    });
   });
 
   it("still settles waiting mail after a sync that saved new job mail", async () => {

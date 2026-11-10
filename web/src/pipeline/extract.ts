@@ -120,6 +120,7 @@ export function extractCompanyRole(msg: Message): [string, string] {
 
 const SECOND_LEVEL = new Set([
   "co", "com", "org", "net", "gov", "ac", "edu", "gob",
+  "ltd", "plc", "sch", "me", "nic", "gen", "ind", "ne", "or", "go", "gc",
   "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
 ]);
 

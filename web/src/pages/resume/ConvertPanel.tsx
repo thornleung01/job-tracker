@@ -4,7 +4,7 @@
 import { useId, useState } from "react";
 import { AI_MESSAGES, type AiDeps, type VaultStatus } from "../../ai";
 import { Notice } from "../../components/Notice";
-import { MAX_CONVERT_CHARS } from "../../db/limits";
+import { convertTooLong } from "../../db/limits";
 import type { JobTrackerDB } from "../../db/schema";
 import type { ConvertResult, convertResume } from "../../sync/convert";
 import { plural } from "../../sync/text";
@@ -31,7 +31,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
   const [status, setStatus] = useState<VaultStatus>(() => ai.vault.status(db.name));
   const refreshStatus = () => setStatus(ai.vault.status(db.name));
   const boxId = useId();
-  const tooLong = incoming.text.length > MAX_CONVERT_CHARS;
+  const tooLong = convertTooLong(incoming.text);
   const unlock = useUnlock(ai.vault, db.name, refreshStatus);
   const run = useConvertRun(convert, ai, db.name, incoming.text, tooLong, onConverted, refreshStatus);
 

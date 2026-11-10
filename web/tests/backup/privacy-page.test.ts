@@ -26,7 +26,7 @@ describe("the privacy page", () => {
     ["Tailor sends the company, role, posting and baseline resume lines only", "Tailor sends one request the same way, from the Tailor page: the company, the role (left out when it is unknown), the job posting text, the lines of the resume you chose as the baseline"],
     ["Tailor lines, posting and note go as written and may hold such details", "Those lines, the posting and your note go as written, so they may contain names, email addresses or other details if you wrote them there"],
     ["Tailor never sends the header, emails, contacts or other applications", "Your resume's contact header, your emails, your contacts and your other applications are never sent"],
-    ["Convert refuses text over 20,000 characters before sending", "Convert takes up to 20,000 characters of text and refuses longer text before anything is sent"],
+    ["Convert refuses text over 12,000 characters before sending", "Convert takes up to 12,000 characters of text and refuses longer text before anything is sent"],
     ["a correction keeps the sender and reason, not the subject", "The email's subject is not kept, and a correction stays after the email and the application it came from are erased"],
     ["ignored mail is erased after about 30 days without depending on syncing", "kept for about 30 days so you can bring it back, and then erased"],
     ["the resume editor layout is a local storage note", "jobtracker:resume-editing"],
