@@ -47,9 +47,11 @@ async function seedVault(db: string, saved: Saved): Promise<AiDeps> {
 }
 
 beforeEach(() => {
+  localStorage.setItem("jobtracker:resume-editing", "list");   // the editor defaults to the on-page one; these tests drive the list editor
   fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no network in tests"));
 });
 afterEach(() => {
+  localStorage.removeItem("jobtracker:resume-editing");
   expect(fetchSpy).not.toHaveBeenCalled();
   fetchSpy.mockRestore();
 });
@@ -544,6 +546,41 @@ describe("the review", () => {
     expect(button(container, "Save as master resume")).not.toBeNull();
     expect(fields(container, /^Heading of section/).map((e) => e.value)).toEqual(["Experience", "Skills"]);
     expect(await db.documents.count()).toBe(0);
+  });
+});
+
+describe("the review in the on-page editor", () => {
+  beforeEach(() => localStorage.removeItem("jobtracker:resume-editing"));   // the default: the page editor
+
+  async function review() {
+    const db = freshDb();
+    const page = await mount(db, vi.fn(async () => converted) as unknown as Convert);
+    await paste(page.container);
+    await click(button(page.container, "Convert with AI"));
+    await waitFor(() => button(page.container, "Save as master resume") !== null, "the review");
+    expect($(page.container, ".page-editor")).not.toBeNull();
+    return page;
+  }
+
+  it("Go to line focuses that line's text field", async () => {
+    const { container } = await review();
+    await click(button(flagRows(container)[1], "Go to line"));
+    expect(document.activeElement).toBe($(container, '[data-field="i-b2"]'));
+    expect((document.activeElement as HTMLTextAreaElement).value).toBe("Built a model");
+    await click(button(flagRows(container)[0], "Go to line"));
+    expect(document.activeElement).toBe($(container, '[data-field="i-b1"]'));
+  });
+
+  it("drops a flag when its line is edited", async () => {
+    const { container } = await review();
+    await type($(container, '[data-field="i-b1"]'), "Cut costs by 31%");
+    expect(flagRows(container).map((r) => text($(r, ".convert-flag-note")))).toEqual(["Check this label"]);
+  });
+
+  it("drops a flag when its line is deleted", async () => {
+    const { container } = await review();
+    await click($(container, '[aria-label="Remove bullet 2 of Experience"]'));
+    expect(flagRows(container).map((r) => text($(r, ".convert-flag-note")))).toEqual(["Check this label"]);
   });
 });
 

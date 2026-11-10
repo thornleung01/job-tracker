@@ -1,4 +1,4 @@
-import { act, createRef } from "react";
+import { act, createElement, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { ResumeSheet } from "../../../src/components/documents/ResumeSheet";
@@ -22,7 +22,7 @@ function render(sections: DocSection[], title = "Resume for data roles", sheetRe
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(<ResumeSheet sections={sections} title={title} sheetRef={sheetRef} />));
+  act(() => root!.render(createElement(ResumeSheet, { sections, title, sheetRef })));
   return host;
 }
 

@@ -2,7 +2,7 @@
 // convertResume. Only the network is replaced. It follows one person from a locked key to a saved master resume.
 import "fake-indexeddb/auto";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageProps } from "../../../src/app/pageProps";
 import { AI_URL, createClient } from "../../../src/ai/client";
 import ResumePage from "../../../src/pages/resume";
@@ -11,7 +11,11 @@ import { getMaster } from "../../../src/sync/documents";
 import { KEY, PASSPHRASE, testVault } from "../../ai/helpers";
 import { $, $$, button as findButton, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
 
-afterEach(cleanup);
+beforeEach(() => localStorage.setItem("jobtracker:resume-editing", "list"));   // the editor defaults to the on-page one; this test drives the list editor
+afterEach(async () => {
+  localStorage.removeItem("jobtracker:resume-editing");
+  await cleanup();
+});
 
 const RESUME_TEXT = "Jane Smith\nEXPERIENCE\n- Built a weekly reporting model\n- Cut close time by two days\nSKILLS\n- Writes SQL and Python daily";
 

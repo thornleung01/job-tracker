@@ -64,6 +64,8 @@ const composing = (e: KeyboardEvent) => e.nativeEvent.isComposing;
 
 interface FieldProps {
   fkey: string;
+  /** the id FlagList's "Go to line" looks a field up by: the line's id (its text field) or the section's (its heading) */
+  field?: string;
   value: string;
   label: string;
   placeholder: string;
@@ -74,10 +76,10 @@ interface FieldProps {
 }
 
 /** A one-line field in the sheet: it looks like the printed text. Enter moves on to the next field. */
-function Single({ fkey, value, label, placeholder, max, className, onValue, onKeyDown, size }: FieldProps & { size?: number }) {
+function Single({ fkey, field, value, label, placeholder, max, className, onValue, onKeyDown, size }: FieldProps & { size?: number }) {
   return (
     <input
-      type="text" className={`pe-field ${className}`} data-pe={fkey} aria-label={label} placeholder={placeholder} value={value} maxLength={max} size={size}
+      type="text" className={`pe-field ${className}`} data-pe={fkey} data-field={field} aria-label={label} placeholder={placeholder} value={value} maxLength={max} size={size}
       onChange={(e) => onValue(e.target.value)} onPaste={pasteInto(true, max, onValue)} onKeyDown={onKeyDown}
     />
   );
@@ -86,7 +88,7 @@ function Single({ fkey, value, label, placeholder, max, className, onValue, onKe
 const nativeSizing = () => typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
 
 /** A field that grows with its text: `field-sizing: content` where there is one, the textarea's scroll height where there is not. */
-function Multi({ fkey, value, label, placeholder, max, className, onValue, onKeyDown }: FieldProps) {
+function Multi({ fkey, field, value, label, placeholder, max, className, onValue, onKeyDown }: FieldProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -103,7 +105,7 @@ function Multi({ fkey, value, label, placeholder, max, className, onValue, onKey
   }, [value]);
   return (
     <textarea
-      ref={ref} rows={1} className={`pe-field ${className}`} data-pe={fkey} aria-label={label} placeholder={placeholder} value={value} maxLength={max}
+      ref={ref} rows={1} className={`pe-field ${className}`} data-pe={fkey} data-field={field} aria-label={label} placeholder={placeholder} value={value} maxLength={max}
       onChange={(e) => onValue(e.target.value)} onPaste={pasteInto(false, max, onValue)} onKeyDown={onKeyDown}
     />
   );
@@ -255,7 +257,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     const kind = legacy ? undefined : item.kind;
     const textField = (multi: boolean) => {
       const props: FieldProps = {
-        fkey: `${item.id}:text`, value: item.text, label: capital(name), placeholder: placeholderFor(s.heading, kind, "text", k), max: MAX_DOC_ITEM_CHARS,
+        fkey: `${item.id}:text`, field: item.id, value: item.text, label: capital(name), placeholder: placeholderFor(s.heading, kind, "text", k), max: MAX_DOC_ITEM_CHARS,
         className: "pe-grow", onValue: (text) => setItem(s.id, item.id, (x) => ({ ...x, text })),
         onKeyDown: multi ? lineKeys(s.id, item, k) : enterMovesOn(`${item.id}:text`),
       };
@@ -294,7 +296,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
           <div key={item.id} className={`pe-line ${title ? "doc-title" : "doc-org"}`}>
             <div className="doc-row">
               <Single
-                fkey={`${item.id}:text`} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
+                fkey={`${item.id}:text`} field={item.id} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
                 className={`pe-grow ${tone}`} onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={enterMovesOn(`${item.id}:text`)}
               />
               <Single
@@ -363,7 +365,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
       <article ref={sheet} className="doc-sheet classic page-edit" role="group" aria-label={label}>
         <h1 className="page doc-name">
           <Single
-            fkey={header?.items[0] ? `${header.items[0].id}:text` : "name"} value={header?.items[0]?.text ?? ""} label="Name" placeholder={namePlaceholder}
+            fkey={header?.items[0] ? `${header.items[0].id}:text` : "name"} field={header?.items[0]?.id} value={header?.items[0]?.text ?? ""} label="Name" placeholder={namePlaceholder}
             max={MAX_DOC_ITEM_CHARS} className="pe-center" onValue={(t) => setHeaderText(0, t)} onKeyDown={enterMovesOn(header?.items[0] ? `${header.items[0].id}:text` : "name")}
           />
         </h1>
@@ -373,7 +375,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
             const key = item ? `${item.id}:text` : `contact${n}`;
             return (
               <Single
-                key={`contact${n}`} fkey={key} value={item?.text ?? ""} label={n === 0 ? "Contact line" : `Contact line ${n + 1}`}
+                key={`contact${n}`} fkey={key} field={item?.id} value={item?.text ?? ""} label={n === 0 ? "Contact line" : `Contact line ${n + 1}`}
                 placeholder={n === 0 ? PLACEHOLDERS.contact : ""} max={MAX_DOC_ITEM_CHARS} className="pe-center"
                 onValue={(t) => setHeaderText(n + 1, t)} onKeyDown={enterMovesOn(key)}
               />
@@ -388,7 +390,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
             <section key={s.id} className="doc-block">
               <h2>
                 <Single
-                  fkey={`${s.id}:heading`} value={s.heading} label={`Heading of section ${si + 1}`} placeholder="Section heading" max={MAX_DOC_HEADING_CHARS}
+                  fkey={`${s.id}:heading`} field={s.id} value={s.heading} label={`Heading of section ${si + 1}`} placeholder="Section heading" max={MAX_DOC_HEADING_CHARS}
                   className="pe-heading" onValue={(heading) => setSection(s.id, (x) => ({ ...x, heading }))} onKeyDown={enterMovesOn(`${s.id}:heading`)}
                 />
               </h2>

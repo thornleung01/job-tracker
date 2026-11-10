@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PageProps } from "../../../src/app/pageProps";
 import type { AuthUser } from "../../../src/auth/user";
 import ResumePage from "../../../src/pages/resume";
@@ -11,7 +11,11 @@ import { createVersion, getMaster, liveResumes, saveCoverLetter, saveMaster } fr
 import { file, makeDocx } from "../../documents/fixtures";
 import { $, $$, addApp, button, cleanup, click, freshDb, mountPage, settle, text, type, waitFor } from "../applications/harness";
 
-afterEach(cleanup);
+beforeEach(() => localStorage.setItem("jobtracker:resume-editing", "list"));   // the editor defaults to the on-page one; these tests drive the list editor
+afterEach(async () => {
+  localStorage.removeItem("jobtracker:resume-editing");
+  await cleanup();
+});
 
 const user: AuthUser = { iss: "https://accounts.google.com", sub: "1", provider: "google", email: "me@example.com" };
 
