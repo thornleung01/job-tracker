@@ -324,9 +324,9 @@ ffmpeg -i resume-loop.gif -vf "select=eq(n\,60)" -vframes 1 /tmp/mid.png   # fra
 
 Draft only: it was not built, so none of the timings below were measured. Retime in SCRIPT after the first full run.
 
-The Resume page has four steps (`STEP_NAMES` in `web/src/pages/resume/steps/StepStrip.tsx`): **Your resume**, **The job**, **Review**, **Add to applications**. The loop shows one job going through them: paste the job, write the tailored draft, review it, save it, and see the application appear in the list.
+The Resume page has three sections, **Resume**, **Job** and the **tailored resume and cover letter** split with its action bar (the page used to be four steps, which this draft still counts as 0 to 3). The loop shows one job going through them: paste the job, write the tailored draft, review it, save it, and see the application appear in the list.
 
-`step` in the SCRIPT is the index of the current step: 0 Your resume, 1 The job, 2 Review, 3 Add to applications. Earlier steps read done (a check), later ones waiting.
+`step` in the SCRIPT is the index of the current stage: 0 Resume, 1 Job, 2 the split, 3 Save (the bar reads Saved and the application appears in the list). Earlier sections read done, later ones are not on screen yet.
 
 Stage: 1200 x 740, content is the Resume page column at 560 wide, rendered with the page's real components and `ResumeDeps` fakes so nothing calls the AI or the network. The Applications list is a second composition at content x 640, so the camera can pan to it without a route change. Seed data: master resume saved ("Master resume · updated Nov 10"), job "Product Designer at Northwind", an unmodified application list. Set `data-theme="light"` on `<html>` (section 9).
 
