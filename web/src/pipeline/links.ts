@@ -5,6 +5,12 @@ import { quote, strip } from "./pystr";
 
 export type MailLink = readonly [label: string, url: string];
 
+/** Where a reply to this sender would go: their address, or null when it is not an address or the sender says it does not take replies ("no-reply@..."). */
+export function replyRecipient(sender: string): string | null {
+  const to = splitSender(sender)[1];
+  return isAddress(to || "") && !test(NO_REPLY, to.split("@")[0]) ? to : null;
+}
+
 /**
  * (button label, https URL), or null when the original can't be linked to.
  *
@@ -56,8 +62,8 @@ export function replyLink(
   subject: string | null | undefined,
   webLink: string | null | undefined = null,
 ): MailLink | null {
-  const [, to] = splitSender(sender);
-  if (!isAddress(to || "") || test(NO_REPLY, to.split("@")[0])) return null;
+  const to = replyRecipient(sender);
+  if (!to) return null;
   let subj = strip(subject || "");
   if (!match(RE_PREFIX, subj)) subj = strip(`Re: ${subj}`);
   if (provider === "gmail" && account) {

@@ -1,6 +1,8 @@
 // What a finished sync says, shared by the Settings page and the banner so the two cannot word the same problem differently.
+import { ActionError } from "../../db/errors";
 import { accountLabel } from "../../sync/accountLabel";
 import type { SyncReport } from "../../sync/mailbox";
+import { NotConnected } from "../../types";
 
 export interface RunResult {
   ok: boolean;
@@ -10,8 +12,15 @@ export interface RunResult {
 /** What either screen says when the shared lock is taken. */
 export const ALREADY_RUNNING = "A sync is already running.";
 
-/** A sentence that is safe to show for something that went wrong. */
-export const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+/**
+ * A sentence that is safe to show for something that went wrong. The app's own errors (ActionError, NotConnected) and the plain `new Error("...")`
+ * the sign-in and provider code throw carry hand-written sentences; anything else (a TypeError such as "Failed to fetch", a DOMException,
+ * a thrown string) is an engine message, so it gets a plain sentence instead.
+ */
+export function errorText(e: unknown): string {
+  if (e instanceof ActionError || e instanceof NotConnected || (e instanceof Error && e.constructor === Error && e.message)) return e.message;
+  return "Something went wrong. Try again.";
+}
 
 /** "1 email", "2 emails". */
 export const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);

@@ -2,7 +2,8 @@ import { useRef } from "react";
 import { useQuery } from "../../app/useQuery";
 import { sectionsToText } from "../../db/documentShape";
 import type { DocumentRow, JobTrackerDB } from "../../db/schema";
-import { downloadText } from "../settings/actions";
+import { routeId } from "../../app/routeId";
+import { downloadText } from "../../app/download";
 import { ResumeSheet } from "../../components/documents/ResumeSheet";
 import { measureSheetHeight, pageVerdictText } from "../../components/documents/onepage";
 import { useOnePage } from "../../components/documents/useOnePage";
@@ -33,7 +34,7 @@ const missing = (
  * `measure` is the page-height probe, a seam for tests (jsdom has no layout).
  */
 export function PrintView({ db, id, measure = measureSheetHeight }: { db: JobTrackerDB; id: string; measure?: (sheet: HTMLElement) => number }) {
-  const n = /^\d+$/.test(id) ? Number(id) : NaN;
+  const n = routeId(id);
   const doc = useQuery(async () => (Number.isSafeInteger(n) ? (await db.documents.get(n)) ?? null : null), [db, n]);
   const sheet = useRef<HTMLElement>(null);
   const resume = !!doc && !doc.deletedAt && doc.kind === "resume";

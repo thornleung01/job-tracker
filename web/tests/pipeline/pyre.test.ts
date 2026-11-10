@@ -89,7 +89,7 @@ describe("case-insensitive and sub", () => {
 describe("rules.yaml patterns survive translation", () => {
   const rules = loadRules();
   it("compiles every pattern and keeps the original text for reasons", () => {
-    const all = [...rules.excludeSender, ...rules.excludeSubject, ...rules.negatedOffers, ...rules.conditionals, ...Object.values(rules.strong).flat(), ...Object.values(rules.weak).flat()];
+    const all = [...rules.excludeSender, ...rules.excludeSubject, ...rules.negatedOffers, ...rules.conditionals, ...rules.conditionalClauses, ...Object.values(rules.strong).flat(), ...Object.values(rules.weak).flat()];
     expect(all.length).toBeGreaterThan(80);
     expect(all.every((re) => re.flags.includes("i") && re.flags.includes("u"))).toBe(true);
   });

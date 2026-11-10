@@ -1,4 +1,4 @@
-import { downloadText } from "../../pages/settings/actions";
+import { downloadText } from "../../app/download";
 import { icsFilename, icsForInterviews, type IcsEvent } from "../../sync/ics";
 import { useSavedNotice } from "./useSavedNotice";
 import "./upcoming.css";

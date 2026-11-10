@@ -2,6 +2,8 @@
 // string in the user turn, and the system prompt says to treat it as data.
 import { MAX_POSTING_CHARS, MAX_TAILOR_NOTE_CHARS } from "../db/limits";
 import { DEFAULT_MAX_TOKENS, type AiModel, type AiRequest } from "./deps";
+import { TEMPLATE_HEADINGS as TEMPLATE_HEADING_BY_KEY } from "../documents/blankResume";
+import { UNKNOWN_ROLE } from "../pipeline/extract";
 import type { TailorMaster } from "./master";
 
 /** The line kinds the model may use. `line` becomes a plain line with no kind. */
@@ -9,7 +11,7 @@ export const CONVERT_KINDS = ["line", "org", "title", "bullet", "skill", "school
 export type ConvertKind = (typeof CONVERT_KINDS)[number];
 
 /** The template's own section headings, in order. */
-export const TEMPLATE_HEADINGS = ["Professional summary", "Skills and qualifications", "Work experience", "Education"] as const;
+export const TEMPLATE_HEADINGS = Object.values(TEMPLATE_HEADING_BY_KEY);
 
 const ITEM_SCHEMA = {
   type: "object",
@@ -105,9 +107,6 @@ export interface TailorInput {
   tone?: TailorTone;
   note?: string;
 }
-
-/** The placeholder the app saves when it can't read a role. It tells the model nothing, so it is left out. */
-const UNKNOWN_ROLE = "Unknown role";
 
 const SOURCE_LINE = {
   type: "object",

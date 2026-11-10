@@ -4,6 +4,8 @@
 .viz-root svg.pace-chart .goal-line { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; fill: none; }
 .viz-root svg.pace-chart .goal-label, .viz-root svg.pace-chart .y-label, .viz-root svg.pace-chart .x-label { fill: var(--ink2); font-size: 12px; }
 .viz-root svg.pace-chart .mark-hit:focus-visible { stroke: var(--ink); stroke-width: 2px; }
+/* A week is a narrow slot, far under a 44px tap on a phone, so on touch the bars are not targets: the Table view (open by default) has the numbers. */
+@media (pointer: coarse) { .viz-root svg.pace-chart .mark-hit { pointer-events: none; } }
 @media (forced-colors: active) {
   .viz-root svg.pace-chart .pace-bar { fill: GrayText; stroke: CanvasText; stroke-width: 1px; }
   .viz-root svg.pace-chart .pace-bar.now { fill: Canvas; stroke: Highlight; stroke-width: 2px; }

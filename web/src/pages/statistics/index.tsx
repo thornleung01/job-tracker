@@ -6,7 +6,8 @@ import { statistics, type Statistics } from "../../sync/statistics";
 import { useQuery } from "../../app/useQuery";
 import { ImageUnsupportedError, imageFileName, renderPng } from "./exportPng";
 import { layoutSankey } from "./layout";
-import { usePhone } from "./usePhone";
+import { downloadBlob } from "../../app/download";
+import { usePhone } from "../../app/usePhone";
 import { SankeyChart, flowsFor, tipContent } from "./Sankey";
 import { MonthlyRates } from "./MonthlyRates";
 import { SpeedRanges } from "./SpeedRanges";
@@ -160,12 +161,7 @@ function Results({ view, data }: { view: View; data: FlowData }) {
   };
   const save = () =>
     run("save", async () => {
-      const url = URL.createObjectURL(await image());
-      const a = Object.assign(document.createElement("a"), { href: url, download: imageFileName() });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      downloadBlob(imageFileName(), await image(), 10000);
       setStatus(`Saved ${imageFileName()}.`);
     });
   const copy = () =>

@@ -142,12 +142,17 @@ export async function settleReview(db: JobTrackerDB, opts: { skipIfUnchanged?: b
 const SETTLE_MARK = "settleMark";
 
 /**
- * What the last settle depended on besides new mail: how many applications there are and the newest id, the rules in force and
+ * What the last settle depended on besides new mail: every application's name, role, stage, lock and deleted state (a rename, a
+ * restore, a merge or a stage change moves how waiting mail matches), which waiting mail is on hold, the rules in force and
  * how much mail waits. Unchanged since the last settle, and no new job mail, means judging the waiting mail again gives the same answers.
  */
 async function settleFingerprint(db: JobTrackerDB): Promise<string> {
+  const p = pipeline();
   const rules = (await db.learnedRules.toArray()).filter((r) => r.active).map((r) => r.id).sort((a, b) => a - b);
-  return JSON.stringify([await db.applications.count(), (await db.applications.orderBy("id").lastKey()) ?? 0, rules, await db.emails.where("review").equals(1).count()]);
+  const apps = (await db.applications.orderBy("id").toArray()).map((a) => [a.id, a.company, a.companyKey, a.role, a.roleKey, a.stage, a.locked, a.deletedAt ?? ""]);
+  const waiting = await db.emails.where("review").equals(1).toArray();
+  const held = waiting.filter((e) => e.hold).map((e) => e.id);
+  return JSON.stringify([p.rulesVersion(), p.hashText(JSON.stringify(apps)), apps.length, rules, waiting.length, held.length, p.hashText(held.join(","))]);
 }
 
 /** Gives applications that have no role the one their saved emails name, now that the reader is better at finding it. */

@@ -1,5 +1,5 @@
 // The blank resume template, and the scaffolding the edit screens add around a saved resume. Pure: nothing here reads or writes the database.
-import { HEADER_HEADING, isHeaderHeading, newItemId } from "../db/documentShape";
+import { HEADER_HEADING, isHeaderHeading, newItemId, normalizeSections } from "../db/documentShape";
 import type { DocItem, DocItemKind, DocSection } from "../db/schema";
 
 /** The headings of the template, in order. */
@@ -105,6 +105,9 @@ export function withScaffold(sections: readonly DocSection[]): DocSection[] {
  * empty lines but keeps a section that has a heading, so an untouched template section would otherwise be saved as a lone heading.
  */
 export const withoutEmptySections = (sections: readonly DocSection[]): DocSection[] => sections.filter((s) => s.items.length > 0);
+
+/** What every edit screen stores: normalised, with no section left without lines. */
+export const cleanForSave = (sections: readonly DocSection[]): DocSection[] => withoutEmptySections(normalizeSections(sections));
 
 /** True when nothing has any text, so there is nothing to save. */
 export function isBlankTemplate(sections: readonly DocSection[]): boolean {

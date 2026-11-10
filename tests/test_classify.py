@@ -158,6 +158,8 @@ def test_auto_acknowledgement_is_not_a_rejection(body):
 @pytest.mark.parametrize(
     "body",
     [
+        "We have decided not to move forward with your application and, due to volume, are unable to provide individual feedback.",
+        "We regret that your application was unsuccessful and we cannot give feedback.",
         "Thank you for your interest. Unfortunately, we are unable to offer you the position at this time.",
         "We regret to inform you that you have not been selected. We are unable to offer feedback, but we wish you luck.",
         "Your application was unsuccessful on this occasion.",
@@ -170,7 +172,9 @@ def test_real_rejections_still_reject(body):
 
 @pytest.mark.parametrize(
     "sender,company",
-    [("Careers <careers@jobs.rbc.ca>", "Rbc"), ("Jobs <jobs@mail.bmo.ca>", "Bmo"), ("Pat <pat@acme.com.au>", "Acme"), ("Pat <pat@uhn.on.ca>", "Uhn")],
+    [("Careers <careers@jobs.rbc.ca>", "Rbc"), ("Jobs <jobs@mail.bmo.ca>", "Bmo"), ("Pat <pat@acme.com.au>", "Acme"), ("Pat <pat@uhn.on.ca>", "Uhn"),
+     ("Pat <pat@acme.ltd.uk>", "Acme"), ("Pat <pat@acme.plc.uk>", "Acme"), ("Pat <pat@acme.sch.uk>", "Acme"), ("Pat <pat@acme.me.uk>", "Acme"),
+     ("Pat <pat@acme.ne.jp>", "Acme"), ("Pat <pat@acme.or.jp>", "Acme"), ("Pat <pat@acme.go.jp>", "Acme"), ("Pat <pat@example.gc.ca>", "Example")],
 )
 def test_company_under_a_country_domain(sender, company):
     assert extract_company_role(mk("Hello", sender=sender))[0] == company

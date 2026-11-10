@@ -1,2 +1,3 @@
 /* The "you already have this" line under the add form's fields: muted, with the application's name as the link. */
 .dup-note { margin: 12px 0 0; font-size: 0.875rem; color: var(--muted); }
+.dup-note:empty { display: none; }

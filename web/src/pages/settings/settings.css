@@ -42,12 +42,16 @@ h2 + h3.subhead { margin-top: 8px; }
 .prof .small { font-weight: 400; }
 .account-list { margin-bottom: 18px; }
 .provider { border-top: 1px solid var(--line); padding-top: 18px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.provider h3 { font: 500 1.25rem/1.4 var(--font-ui); margin: 0; }
+.provider h3 { font: 500 1rem/1.4 var(--font-ui); margin: 0; }
 .provider .addr { margin-bottom: 6px; overflow-wrap: anywhere; }
 .providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 0 var(--gap); margin: 18px 0 8px; }
 .progress-card { padding: 4px 0 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
 .progress-card .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 700; margin-bottom: 10px; }
 .file-pick { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
+/* A label styled as a button: base.css gives hover and press to `button` and `a.btn` only. */
+.file-pick:hover { background: var(--surface-hover); }
+.file-pick:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: no-preference) { .file-pick { transition: background-color 0.15s, transform 0.1s; } }
 .file-pick:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
 #ai .row .inline-confirm { flex: 1 0 100%; margin-top: 0; }
 #ai .key-ending { margin: 0 0 12px; }

@@ -8,7 +8,7 @@ import { createProvider, getAddress } from "../../providers";
 import type { ProviderName, TokenSource } from "../../types";
 import { signOutAndForget, type MailDeps } from "../../sync/mailbox";
 import type { BackupDeps } from "../../backup/deps";
-import { downloadText } from "./actions";
+import { downloadText } from "../../app/download";
 import { downloadCsv } from "./exportCsv";
 
 export interface SettingsAuth {

@@ -22,7 +22,9 @@ async function openForm(db: JobTrackerDB) {
   await click(button(container, "Add application"));
   return container;
 }
-const note = (c: HTMLElement) => $(c, "#add-application .dup-note");
+// The live region is always in the form (a screen reader can miss one that arrives with its text); `note` is it only while it has something to say.
+const region = (c: HTMLElement) => $(c, "#add-application .dup-note");
+const note = (c: HTMLElement) => (region(c)?.textContent ? region(c) : null);
 const noteShown = (c: HTMLElement) => waitFor(() => note(c) !== null, "the duplicate notice");
 
 describe("the duplicate notice in the add form", () => {
@@ -31,6 +33,7 @@ describe("the duplicate notice in the add form", () => {
     const id = await addApp(db, "Acme", { role: "Analyst", stage: "Applied" });
     const c = await openForm(db);
     expect(note(c)).toBeNull();
+    expect(region(c)?.getAttribute("role")).toBe("status");   // there from the start, empty
     await type($(c, "#add-company"), "acme inc.");
     await type($(c, "#add-role"), "analyst");
     await noteShown(c);

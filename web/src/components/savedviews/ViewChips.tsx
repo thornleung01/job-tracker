@@ -1,3 +1,4 @@
+import { Ellipsis } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { SAVED_VIEW_NAME_MAX } from "../../db/limits";
 import type { JobTrackerDB } from "../../db/schema";
@@ -67,7 +68,7 @@ export function ViewChips({ db, views, currentUrl, urlFor, navigate, accountName
                   <a className="view-chip-link" href={"#" + urlFor(v)} aria-current={active ? "true" : undefined} title={describeFilters(v, accountName(v.account), resumeName?.(v.resume ?? ""))} onClick={(e) => onChoose(e, v)}>{v.name}</a>
                   <button type="button" className="view-chip-menu" id={`view-menu-${v.id}`} aria-label={`Options for ${v.name}`} aria-expanded={menu === v.id} aria-controls={`view-options-${v.id}`}
                           onClick={() => { setDeleted(""); setMenu(menu === v.id ? null : v.id); }}>
-                    <span aria-hidden="true">…</span>
+                    <Ellipsis size={16} strokeWidth={3} aria-hidden="true" focusable="false" />
                   </button>
                 </li>
               );

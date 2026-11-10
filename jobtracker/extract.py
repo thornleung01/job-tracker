@@ -113,6 +113,7 @@ def extract_company_role(msg: Message) -> tuple[str, str]:
 
 
 _SECOND_LEVEL = frozenset({"co", "com", "org", "net", "gov", "ac", "edu", "gob",
+                           "ltd", "plc", "sch", "me", "nic", "gen", "ind", "ne", "or", "go", "gc",
                            "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt"})
 
 

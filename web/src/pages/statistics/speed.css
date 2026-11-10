@@ -1,7 +1,7 @@
 /* The speed chart: three range rows on one day axis, and the "Waiting now" counts under it. Everything is scoped to the classes below. */
 .viz-root svg.speed-chart .row-label { fill: var(--ink); font-size: 13px; font-weight: 500; }
 .viz-root svg.speed-chart .row-text { fill: var(--ink2); font-size: 12px; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
-.viz-root svg.speed-chart .range { fill: var(--stage-applied); fill-opacity: .55; }
+.viz-root svg.speed-chart .range { fill: var(--stage-applied); fill-opacity: .55; stroke: var(--stage-applied-text); stroke-width: 1px; }
 .viz-root svg.speed-chart .median { fill: var(--stage-applied); stroke: var(--viz-surface); stroke-width: 2px; }
 .viz-root svg.speed-chart .mark-hit:focus-visible { stroke: var(--ink); stroke-width: 2px; }
 
@@ -12,7 +12,8 @@
 .viz-root.waiting-now .wn-text { display: grid; gap: 2px; min-width: 0; }
 .viz-root.waiting-now .wn-label { font-size: 0.9375rem; font-weight: 500; }
 .viz-root.waiting-now .wn-note { color: var(--ink2); font-size: 0.8125rem; }
-.viz-root.waiting-now .wn-count { font: 700 1.5625rem/1.2 var(--font-ui); letter-spacing: -0.25px; }
+.viz-root.waiting-now .wn-count { margin-left: auto; font: 700 1.5625rem/1.2 var(--font-ui); letter-spacing: -0.25px; }
+.viz-root.waiting-now .wn-row svg { flex: none; min-width: 0; width: 16px; height: 16px; margin-left: -8px; color: var(--ink2); }   /* beats the chart rule `.viz-root svg` */
 
 @media (forced-colors: active) {
   .viz-root svg.speed-chart .row-label { fill: CanvasText; }
@@ -25,3 +26,4 @@
 @media (prefers-reduced-motion: reduce) {
   .viz-root svg.speed-chart *, .viz-root.waiting-now * { transition: none; }
 }
+.viz-root.waiting-now span.wn-row::after { content: ""; flex: none; width: 16px; margin-left: -8px; }   /* keeps the counts level with the link rows */

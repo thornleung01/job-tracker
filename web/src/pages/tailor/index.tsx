@@ -1,4 +1,5 @@
 import type { PageProps } from "../../app/pageProps";
+import { routeId } from "../../app/routeId";
 import type { DocumentsDeps } from "../../components/documents/deps";
 import { Picker } from "./Picker";
 import { Workspace } from "./Workspace";
@@ -9,5 +10,5 @@ export default function TailorPage({ db, params, query, navigate, deps }: PagePr
   const baseline = Number(query.get("baseline")) || null;
   if (params.id === undefined) return <Picker db={db} baseline={baseline} navigate={navigate} />;
   // Keyed by the application, so nothing typed or drafted for one carries over to the next.
-  return <Workspace key={params.id} db={db} appId={Number(params.id)} baseline={baseline} navigate={navigate} deps={deps} />;
+  return <Workspace key={params.id} db={db} appId={routeId(params.id)} baseline={baseline} navigate={navigate} deps={deps} />;
 }

@@ -152,9 +152,44 @@ describe("a sync error never blanks an email for good", () => {
   it("leaves it unmarked ('retry') when storing it fails, so the next sync reads it again", async () => {
     const { db, acct } = await dbWithAccount();
     vi.spyOn(db.emails, "add").mockRejectedValueOnce(new Error("a bug while filing it"));
+    // (the first of three tries: it is left for the next sync)
     expect(await processMessages(db, acct, [HELLO()])).toEqual({ retry: 1 });
     expect(await db.emails.count()).toBe(0);
     expect(await processMessage(db, acct, HELLO())).toBe("applied-to-application");
+  });
+
+  it("gives up on an email that keeps failing for a non-storage reason after three tries, once", async () => {
+    const { db, acct } = await dbWithAccount();
+    const add = db.emails.add.bind(db.emails);
+    // only filing the email as a job email fails; marking it seen (an unrelated stub) works
+    vi.spyOn(db.emails, "add").mockImplementation(((row) => (row.related ? Promise.reject(new TypeError("a bug while filing it")) : add(row))) as typeof db.emails.add);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ retry: 1 });
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ retry: 1 });
+    expect(log).not.toHaveBeenCalled();
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ error: 1 }); // the third failure: unreadable, so the sync window can move on
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ duplicate: 1 }); // marked seen, so never fetched into trouble again
+    expect(await db.settings.get("emailFailures")).toBeUndefined(); // the count is cleared
+  });
+
+  it("keeps retrying a storage error without counting it", async () => {
+    const { db, acct } = await dbWithAccount();
+    const full = Object.assign(new Error("disk full"), { name: "QuotaExceededError" });
+    vi.spyOn(db.emails, "add").mockRejectedValue(full);
+    for (let i = 0; i < 5; i++) expect(await processMessages(db, acct, [HELLO()])).toEqual({ retry: 1 });
+    expect(await db.settings.get("emailFailures")).toBeUndefined();
+    vi.restoreAllMocks();
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ "applied-to-application": 1 });
+  });
+
+  it("forgets the count once the email is saved", async () => {
+    const { db, acct } = await dbWithAccount();
+    vi.spyOn(db.emails, "add").mockRejectedValueOnce(new TypeError("once"));
+    await processMessages(db, acct, [HELLO()]);
+    expect((await db.settings.get("emailFailures"))?.value).toEqual({ [`${acct}:h`]: 1 });
+    expect(await processMessages(db, acct, [HELLO()])).toEqual({ "applied-to-application": 1 });
+    expect(await db.settings.get("emailFailures")).toBeUndefined();
   });
 
   it("marks an email seen only when reading it throws", async () => {

@@ -14,7 +14,7 @@ import { decide } from "../../src/sync/decide";
 import { processMessage, processMessages } from "../../src/sync/sync";
 import { comingUp } from "../../src/sync/upcoming";
 import {
-  TRASH_DAYS, TRASH_MS, deleteForever, deletedApplication, emptyTrash, listDeleted, purgeExpired, purgeOncePerSession, restoreApplication,
+  TRASH_DAYS, TRASH_MS, deleteForever, deletedApplication, emptyTrash, listDeleted, purgeExpired, purgeOncePerSession, restoreApplication, restoreApplications,
 } from "../../src/sync/trash";
 import { createApplication } from "../../src/db/repo";
 import { DAY_MS, iso } from "../../src/db/time";
@@ -143,6 +143,16 @@ describe("restoring", () => {
     const { db, acme } = await seed();
     expect(await restoreApplication(db, acme)).toBe(false);
     await expect(restoreApplication(db, 999)).rejects.toBeInstanceOf(MissingRecordError);
+  });
+
+  it("brings several back in one transaction, and none when one of them was erased meanwhile", async () => {
+    const { db, acme, beta } = await seed();
+    await deleteApplication(db, acme, undefined, NOW);
+    await deleteApplication(db, beta, undefined, NOW);
+    await expect(restoreApplications(db, [acme, 999, beta])).rejects.toBeInstanceOf(MissingRecordError);
+    expect((await db.applications.get(acme))?.deletedAt).toBeDefined();   // all or none
+    expect(await restoreApplications(db, [acme, beta])).toBe(2);
+    expect(await restoreApplications(db, [acme, beta])).toBe(0);   // already live
   });
 
   it("is what Undo does after a bulk delete", async () => {

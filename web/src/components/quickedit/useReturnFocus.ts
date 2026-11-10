@@ -17,5 +17,9 @@ export function useReturnFocus<T extends HTMLElement>(editing: boolean) {
   const request = useCallback(() => {
     wanted.current = true;
   }, []);
-  return { target, request };
+  /** The editor stayed open after all (a save that failed): drop the request, so focus is not pulled back after a later blur-save. */
+  const cancel = useCallback(() => {
+    wanted.current = false;
+  }, []);
+  return { target, request, cancel };
 }

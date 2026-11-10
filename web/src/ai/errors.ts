@@ -19,7 +19,7 @@ export const AI_MESSAGES = {
   refused: "Anthropic declined to answer that.",
   badReply: "That came back in a shape the app can't read. Try again.",
   tooLong: "That's too long to send. Shorten it and try again.",
-  convertTooLong: "That resume is too long for AI to convert (over 20,000 characters). Shorten it, or use the simple converter.",
+  convertTooLong: "That resume is too long for AI to convert (more than about 12,000 characters). Shorten it, or use the simple converter.",
 } as const;
 
 export type AiErrorCode = keyof typeof AI_MESSAGES;

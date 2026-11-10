@@ -60,7 +60,10 @@ export function QuickDate({ db, appId, company, appliedAt }: Props) {
       await setAppliedOn(db, appId, day);
     }).then((ok) => {
       if (ok) setEditing(false);
-      else done.current = false;      // stay open on a problem, so what you typed isn't lost
+      else {
+        done.current = false;         // stay open on a problem, so what you typed isn't lost
+        back.cancel();
+      }
     });
   };
 

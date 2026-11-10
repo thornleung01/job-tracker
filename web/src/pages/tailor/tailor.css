@@ -40,7 +40,7 @@
 .tailor-list { margin: 0 0 var(--gap); }
 .tailor-list ul { list-style: none; margin: 0; padding: 0; }
 .tailor-entry { padding: 12px 0; border-top: 1px solid var(--line); }
-.tailor-entry.active { box-shadow: inset 3px 0 0 var(--ink); padding-left: 10px; }
+.tailor-entry.active { background: var(--fog); border-radius: var(--r-seg); padding-left: 10px; padding-right: 10px; }
 .tailor-entry-h { margin: 0 0 2px; }
 .tailor-text { margin: 0 0 8px; overflow-wrap: anywhere; }
 .tailor-changed { background: var(--hover); color: inherit; border-radius: 4px; padding: 0 2px; text-decoration: underline; text-decoration-style: dotted; }
@@ -59,6 +59,8 @@
 @media (max-width: 520px) {
   .tailor-pick { align-items: flex-start; }
   .tailor-use input { width: 24px; height: 24px; }
-  .tailor-use { min-height: var(--tap); }
+  /* The whole row is the target: an overlay inside the label (so a tap on it ticks the box) makes it 44px high. */
+  .tailor-use { position: relative; width: fit-content; min-height: var(--tap); padding-right: 16px; }
+  .tailor-use label::after { content: ""; position: absolute; inset: 0; cursor: pointer; }
   .tailor-entry > button, .tailor-tools button, .tailor-actions button, .tailor-actions a.btn, .tailor-start button { min-height: var(--tap); }
 }

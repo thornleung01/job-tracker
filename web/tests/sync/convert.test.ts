@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { AiError, DEFAULT_MODEL, type AiDeps, type AiModel, type AiRequest, type Vault, type VaultStatus } from "../../src/ai";
 import { ActionError } from "../../src/db/errors";
 import { HEADER_HEADING } from "../../src/db/documentShape";
-import { MAX_CONVERT_CHARS } from "../../src/db/limits";
+import { CONVERT_LINE_OVERHEAD, MAX_CONVERT_CHARS, convertTooLong } from "../../src/db/limits";
+import { DEFAULT_MAX_TOKENS } from "../../src/ai/deps";
 import { convertResume } from "../../src/sync/convert";
 import { testVault } from "../ai/helpers";
 import { TEMPLATE_RESUME_LINES } from "../documents/fixtures";
@@ -43,6 +44,21 @@ describe("convertResume: refusals", () => {
     expect(err).toMatchObject({ name: "AiError", code: "convertTooLong" });
     expect(complete).not.toHaveBeenCalled();
     await expect(convertResume("x".repeat(MAX_CONVERT_CHARS), deps, { db: "d" })).resolves.toBeTruthy();
+  });
+
+  it("refuses text whose JSON reply could not fit the reply budget, even when it is under the character cap", async () => {
+    const { deps, complete } = fakeDeps(MINIMAL);
+    const shortLines = Array.from({ length: 400 }, (_, i) => `Skill ${i}`).join("\n"); // about 3,000 characters, but 400 lines of JSON around them
+    expect(shortLines.length).toBeLessThan(MAX_CONVERT_CHARS);
+    expect(await convertResume(shortLines, deps, { db: "d" }).catch((e) => e)).toMatchObject({ name: "AiError", code: "convertTooLong" });
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("keeps the cap's reply inside the token budget: a typical resume at the cap comes back under 8,000 tokens", () => {
+    const lines = Math.floor(MAX_CONVERT_CHARS / 61); // 60-character lines
+    const reply = lines * (60 + CONVERT_LINE_OVERHEAD);
+    expect(reply / 3).toBeLessThan(DEFAULT_MAX_TOKENS);
+    expect(convertTooLong("x".repeat(59) + "\n")).toBe(false);
   });
 
   it("says noKey when there is no key, and locked when there is one that isn't unlocked", async () => {
