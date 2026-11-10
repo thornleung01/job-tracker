@@ -542,13 +542,22 @@ describe("enrichJobDraft, failures return the input unchanged", () => {
   });
 
   it("the timeout covers the whole lookup, not each request", async () => {
-    const slow = (body: unknown) => new Promise<Response>((res) => setTimeout(() => res(json(body)), 60));
-    const f = ((u: string) => (u === GH_JOB ? slow({ id: 4012345005, title: "Engineer" }) : slow({ name: "Acme Board" }))) as unknown as typeof fetch;
-    const started = Date.now();
-    const out = await enrichJobDraft(draftOf("https://boards.greenhouse.io/acme/jobs/4012345005"), { fetch: f, timeoutMs: 90 });
-    expect(Date.now() - started).toBeLessThan(140);
-    expect(out.role).toBe("Engineer");
-    expect(out.company).not.toBe("Acme Board");
+    // Fake clock: each request takes 60 ms, the whole lookup is allowed 90 ms. Two requests in turn would take
+    // 120 ms, so the second must be cut short by the shared deadline. Real timers made this flaky on busy machines.
+    vi.useFakeTimers();
+    try {
+      const slow = (body: unknown) => new Promise<Response>((res) => setTimeout(() => res(json(body)), 60));
+      const f = ((u: string) => (u === GH_JOB ? slow({ id: 4012345005, title: "Engineer" }) : slow({ name: "Acme Board" }))) as unknown as typeof fetch;
+      const started = Date.now();
+      const pending = enrichJobDraft(draftOf("https://boards.greenhouse.io/acme/jobs/4012345005"), { fetch: f, timeoutMs: 90 });
+      await vi.advanceTimersByTimeAsync(200);
+      const out = await pending;
+      expect(Date.now() - started).toBeLessThanOrEqual(200);
+      expect(out.role).toBe("Engineer");
+      expect(out.company).not.toBe("Acme Board");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("timeout, with a fetch that ignores the signal", async () => {
