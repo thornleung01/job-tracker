@@ -11,7 +11,7 @@ import { plural } from "../../sync/text";
 export { PROVIDER_LABEL, accountLabel } from "../../sync/accountLabel";
 export {
   connectMailbox, connectedAddress, forgetConnections, isConnected, registerMailbox, runSync,
-  type MailDeps, type RegisterResult, type SyncDeps, type SyncOptions, type SyncReport,
+  type MailDeps, type RegisterResult, type RunSyncOptions, type SyncDeps, type SyncReport,
 } from "../../sync/mailbox";
 
 /** Plain sentences for the result notice. */
@@ -66,17 +66,6 @@ export function runImport(db: JobTrackerDB, parsed: ParsedImport): Promise<Impor
 
 export function describeImport(s: ImportSummary): string {
   return `Imported ${plural(s.applications, "application")} and ${plural(s.emails, "email")}.`;
-}
-
-export function downloadText(filename: string, text: string, type = "application/json"): void {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Dated with your own day, like the CSV file name. */

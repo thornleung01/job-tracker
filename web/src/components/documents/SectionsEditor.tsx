@@ -93,15 +93,15 @@ export function SectionsEditor({ sections, onChange, label }: Props) {
                 <div className="doc-line-actions">
                   <button type="button" className="icon" aria-label={`Move line ${k + 1} up`} disabled={k === 0}
                           onClick={() => setSection(i, { ...s, items: move(s.items, k, k - 1) })}>
-                    <ArrowUp size={16} aria-hidden="true" />
+                    <ArrowUp size={16} strokeWidth={3} aria-hidden="true" />
                   </button>
                   <button type="button" className="icon" aria-label={`Move line ${k + 1} down`} disabled={k === s.items.length - 1}
                           onClick={() => setSection(i, { ...s, items: move(s.items, k, k + 1) })}>
-                    <ArrowDown size={16} aria-hidden="true" />
+                    <ArrowDown size={16} strokeWidth={3} aria-hidden="true" />
                   </button>
                   <button type="button" className="icon" aria-label={`Remove line ${k + 1}`}
                           onClick={() => setSection(i, { ...s, items: s.items.filter((x) => x.id !== item.id) })}>
-                    <X size={16} aria-hidden="true" />
+                    <X size={16} strokeWidth={3} aria-hidden="true" />
                   </button>
                 </div>
               </li>

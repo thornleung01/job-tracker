@@ -1,4 +1,4 @@
-import { downloadText } from "../../pages/settings/actions";
+import { downloadText } from "../../app/download";
 import type { CalendarEvent } from "../../sync/calendar";
 import { icsForInterviews, type IcsEvent } from "../../sync/ics";
 import { ICS_TYPE } from "../upcoming/AddToCalendar";

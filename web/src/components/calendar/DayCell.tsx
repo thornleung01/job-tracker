@@ -33,7 +33,7 @@ export const DayCell = memo(function DayCell({ day, inMonth, isToday, selected, 
         <span className="cal-chips" aria-hidden="true">
           {shown.map((e) => {
             const Icon = KIND_ICON[e.kind];
-            return <span key={e.key} className="cal-chip" data-kind={e.kind}><Icon size={12} aria-hidden="true" focusable="false" /><span className="cal-chip-name">{e.company}</span></span>;
+            return <span key={e.key} className="cal-chip" data-kind={e.kind}><Icon size={16} strokeWidth={3} aria-hidden="true" focusable="false" /><span className="cal-chip-name">{e.company}</span></span>;
           })}
           {events.length > shown.length ? <span className="cal-more">+{events.length - shown.length} more</span> : null}
         </span>

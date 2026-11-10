@@ -5,15 +5,17 @@ import { plural } from "../../sync/text";
 import { ChartFrame } from "./ChartFrame";
 import "./monthly.css";
 
-// viewBox units. The plot runs from LEFT to RIGHT, the 0 to 100 scale from BASE (0%) up to TOP (100%).
+// viewBox units. The plot runs from LEFT to RIGHT (the drawn width minus RIGHT_PAD), the 0 to 100 scale from BASE (0%) up to TOP (100%).
+// The width follows the card (ChartFrame `size`), so the 12px text is 12px on a phone; W is the width before it is measured.
 const W = 480;
+const MAX_W = 600;
 const LEFT = 40;
-const RIGHT = W - 8;
+const RIGHT_PAD = 8;
 const TOP = 10;
 const BASE = 150;
 const MAX_COLUMN = 28;
 const MIN_LABEL_GAP = 34; // the widest label ("Aug", "2026") is about 28 units wide
-const COUNT_CHAR = 6.2; // average width of one 11px character, for "12 applied"
+const COUNT_CHAR = 6.6; // average width of one 12px character, for "12 applied"
 
 const short = (month: string) => MONTHS[Number(month.split("-")[1]) - 1].slice(0, 3);
 const yearOf = (month: string) => month.split("-")[0];
@@ -111,27 +113,11 @@ export function MonthlyRates({ months }: { months: readonly MonthRate[] }) {
   const hatchId = `hatch-${uid}`;
   const legendHatchId = `hatch-key-${uid}`;
   const n = months.length;
-  const slot = (RIGHT - LEFT) / n;
-  const colW = Math.min(MAX_COLUMN, slot * 0.65);
-  const shown = labelled(n, slot);
-  // Decided by the column slot width in viewBox units: "12 applied" needs its length times COUNT_CHAR plus a little air,
-  // so when the slot is narrower than that only the bare number is written.
   const showCounts = n <= 12;
-  const longestCount = Math.max(...months.map((m) => `${m.applied} applied`.length));
-  const fullCounts = slot >= longestCount * COUNT_CHAR + 6;
   const H = showCounts ? 202 : 190;
   const y = (pct: number) => BASE - ((BASE - TOP) * pct) / 100;
   const note = noteText(months);
   const anySettling = months.some((m) => m.settling);
-
-  let lastLabelYear: string | null = null;
-  const labels = months.map((m, i) => {
-    if (!shown.has(i)) return null;
-    const year = yearOf(m.month);
-    const withYear = year !== lastLabelYear;
-    lastLabelYear = year;
-    return { i, withYear, text: short(m.month), year };
-  });
 
   const table = (
     <table>
@@ -171,9 +157,26 @@ export function MonthlyRates({ months }: { months: readonly MonthRate[] }) {
   ) : undefined;
 
   return (
-    <ChartFrame title="Reply rate by month sent" note={note ?? undefined} keys={months.map((m) => `m:${m.month}`)} table={table} footer={footer}>
-      {(bind) => (
-        <svg className="chart monthly-chart" viewBox={`0 0 ${W} ${H}`} role="group" aria-label={takeaway(months)}>
+    <ChartFrame title="Reply rate by month sent" note={note ?? undefined} keys={months.map((m) => `m:${m.month}`)} table={table} footer={footer} size={{ fallback: W, max: MAX_W }}>
+      {(bind, w) => {
+        const RIGHT = w - RIGHT_PAD;
+        const slot = (RIGHT - LEFT) / n;
+        const colW = Math.min(MAX_COLUMN, slot * 0.65);
+        const shown = labelled(n, slot);
+        // Decided by the column slot width in viewBox units: "12 applied" needs its length times COUNT_CHAR plus a little air,
+        // so when the slot is narrower than that only the bare number is written.
+        const longestCount = Math.max(...months.map((m) => `${m.applied} applied`.length));
+        const fullCounts = slot >= longestCount * COUNT_CHAR + 6;
+        let lastLabelYear: string | null = null;
+        const labels = months.map((m, i) => {
+          if (!shown.has(i)) return null;
+          const year = yearOf(m.month);
+          const withYear = year !== lastLabelYear;
+          lastLabelYear = year;
+          return { i, withYear, text: short(m.month), year };
+        });
+        return (
+        <svg className="chart monthly-chart" viewBox={`0 0 ${w} ${H}`} role="group" aria-label={takeaway(months)}>
           <defs>
             <Hatch id={hatchId} />
           </defs>
@@ -236,7 +239,8 @@ export function MonthlyRates({ months }: { months: readonly MonthRate[] }) {
             />
           ))}
         </svg>
-      )}
+        );
+      }}
     </ChartFrame>
   );
 }

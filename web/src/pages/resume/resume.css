@@ -30,7 +30,7 @@
 .doc-cover-text { min-width: 0; }
 .doc-cover-text p { margin: 2px 0 0; }
 .doc-cover-title { font-weight: 500; overflow-wrap: anywhere; }
-.doc-cover-title:hover { color: var(--muted); }
+a.doc-cover-title:hover { color: var(--muted); }
 
 /* Tailored resumes: the same card as a cover letter, with Make reusable and Print on the right. */
 .doc-covers li.doc-tailored { display: block; }

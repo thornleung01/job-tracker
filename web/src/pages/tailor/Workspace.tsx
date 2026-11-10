@@ -1,6 +1,7 @@
 // The Tailor workspace for one application: the baseline on the left, the tailored copy on the right, the letter on its own view. The copy is made
 // by hand (Start from baseline, then edit on the page) or with AI as an optional helper, and both mix in the same editor. Nothing is saved until Save.
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { usePhone } from "../../app/usePhone";
 import { useQuery } from "../../app/useQuery";
 import { BaselineMarks } from "../../components/documents/BaselineMarks";
 import { CoverLetter } from "../../components/documents/CoverLetter";
@@ -44,26 +45,12 @@ interface CoverDraft {
   flags: string[];
 }
 
-/** Whether the screen is a phone's: the baseline then sits in a disclosure. */
-function usePhone(): boolean {
-  const query = "(max-width: 720px)";
-  const [phone, setPhone] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(query).matches);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(query);
-    const on = () => setPhone(mq.matches);
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, []);
-  return phone;
-}
-
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }: Props) {
   const all: DocumentsDeps = { ...realDocumentsDeps, ...deps };
   const data = useQuery(async () => {
-    const app = await db.applications.get(appId);
+    const app = Number.isSafeInteger(appId) ? await db.applications.get(appId) : undefined;
     if (!app || app.deletedAt) return null;
     return {
       app,
@@ -103,7 +90,9 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
   const baselineGone = tailored !== null && chosen === null && tailored.basedOn !== undefined && !pick(tailored.basedOn);
   const sections: DocSection[] | null = edits ?? tailored?.sections ?? null;
   const unsaved = edits !== null && (!tailored || !same(edits, tailored.sections));
-  const dirty = unsaved || coverDraft !== null;
+  // Another baseline picked for an existing copy is a change too: it is saved with the copy (Save stays enabled for it).
+  const baselineChanged = tailored !== null && chosen !== null && chosen !== tailored.basedOn;
+  const dirty = unsaved || coverDraft !== null || baselineChanged;
   // The leave guard (app/leaveGuard.ts) reads these at the moment of a move, so it is registered once.
   const dirtyNow = useRef(false);
   dirtyNow.current = dirty;
@@ -156,7 +145,8 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
   }
 
   const back = (e: MouseEvent) => {
-    if (!dirty) return;
+    // A new-tab or new-window click opens nothing here, so it is not stopped.
+    if (!dirty || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     setLeaving(`/app/${app.id}`);
   };

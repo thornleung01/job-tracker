@@ -25,6 +25,8 @@ export const COLORS: Readonly<Record<string, string>> = {
   "Still open": "var(--neutral)",
 };
 const colorOf = (id: string) => COLORS[id] ?? "var(--neutral)";
+/** The hairline round a node: the stage's text colour, so a pale hue (Interview yellow) still has an edge on the surface. */
+export const strokeOf = (id: string): string | undefined => (COLORS[id] && COLORS[id] !== "var(--neutral)" ? COLORS[id].replace(")", "-text)") : undefined);
 
 /** Lucide check and x on their 24px grid. The chart scales them to 16px and strokes them at 3 (2px on screen). */
 export const ICON_PATHS = {

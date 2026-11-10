@@ -17,7 +17,7 @@
 .viz-root svg.dim .link.hl { stroke-opacity: .72; }
 .viz-root .node { cursor: default; }
 .viz-root .node:focus-visible, .viz-root .hit:focus-visible { outline: none; }
-.viz-root .hit:focus-visible { stroke: var(--ink); stroke-opacity: .22; }
+.viz-root .hit:focus-visible { stroke: var(--ink); stroke-opacity: .5; }   /* the focus ring of a flow: 3:1 against the surface */
 .viz-root .node:focus-visible rect { stroke: var(--ink); stroke-width: 2px; }
 .viz-root .lbl { fill: var(--ink); font-size: 14px; font-weight: 500; paint-order: stroke; stroke: var(--viz-surface); stroke-width: 4px; stroke-linejoin: round; }
 .viz-root .sub { fill: var(--ink2); font-size: 13px; font-weight: 400; }

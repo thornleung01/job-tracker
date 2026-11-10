@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MAX_POSTING_CHARS } from "../../db/limits";
 import { EMPTY_DRAFT } from "../../jobs/types";
 import type { ApplicationRow, JobTrackerDB } from "../../db/schema";
@@ -27,6 +27,15 @@ export function PostingCard({ db, app, act, enrich }: Props) {
   const editing = text !== null || !saved;
   const value = text ?? "";
   const id = `posting-${app.id}`;
+  // Save and Cancel take the form away: focus goes to the Edit button that replaces it, once it is on the page.
+  const editButton = useRef<HTMLButtonElement>(null);
+  const focusEdit = useRef(false);
+  useEffect(() => {
+    if (!editing && focusEdit.current) {
+      focusEdit.current = false;
+      editButton.current?.focus();
+    }
+  }, [editing]);
 
   const fill = () => {
     const url = app.postingUrl;
@@ -43,6 +52,7 @@ export function PostingCard({ db, app, act, enrich }: Props) {
     e.preventDefault();
     void act.run("posting", async () => {
       await setPostingText(db, app.id, value);
+      focusEdit.current = true;
       setText(null);
       return value.trim() ? "Saved." : "Job posting removed.";
     });
@@ -51,20 +61,20 @@ export function PostingCard({ db, app, act, enrich }: Props) {
   return editing ? (
     <form className="doc-posting-form" onSubmit={save}>
       <label className="field small" htmlFor={id}>{saved ? "Job posting" : "Paste the job posting"}</label>
-      <textarea id={id} rows={10} maxLength={MAX_POSTING_CHARS} value={text ?? saved} onChange={(e) => setText(e.target.value)} />
+      <textarea id={id} rows={10} autoFocus={saved !== ""} maxLength={MAX_POSTING_CHARS} value={text ?? saved} onChange={(e) => setText(e.target.value)} />
       {(text ?? saved).length >= MAX_POSTING_CHARS * NEAR_LIMIT ? (
         <p className="small muted doc-note">{(text ?? saved).length.toLocaleString("en-CA")} of {MAX_POSTING_CHARS.toLocaleString("en-CA")} characters</p>
       ) : null}
       <div className="row">
         <button type="submit" className="primary" disabled={act.busy !== null || (text ?? saved) === saved} {...(act.busy === "posting" ? { "aria-busy": true as const } : {})}>Save</button>
         {app.postingUrl ? <button type="button" onClick={fill} {...act.button("posting-fill")}>Fill from link</button> : null}
-        {saved ? <button type="button" onClick={() => setText(null)} disabled={act.busy !== null}>Cancel</button> : null}
+        {saved ? <button type="button" onClick={() => { focusEdit.current = true; setText(null); }} disabled={act.busy !== null}>Cancel</button> : null}
       </div>
     </form>
   ) : (
     <>
       <p className="doc-posting-text">{saved}</p>
-      <div className="row"><button type="button" onClick={() => setText(saved)}>Edit</button></div>
+      <div className="row"><button type="button" ref={editButton} onClick={() => setText(saved)}>Edit</button></div>
     </>
   );
 }

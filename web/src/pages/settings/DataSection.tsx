@@ -310,7 +310,7 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten, childre
           onCancel={() => setConfirmDemo(false)}
         />
       )}
-      <section className="card danger-zone" id="danger" aria-labelledby="h-danger">
+      <section className="card" id="danger" aria-labelledby="h-danger">
         <h2 className="sec" id="h-danger" tabIndex={-1}>Delete everything</h2>
         <p className="help">Removes your applications, emails and settings from this device. Back up first if you may want them again.</p>
         <button ref={deleteButton} className="danger" onClick={() => setConfirmDelete(true)}>Delete all my data</button>

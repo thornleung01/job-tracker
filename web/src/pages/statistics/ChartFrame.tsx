@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { usePhone } from "./usePhone";
+import { usePhone } from "../../app/usePhone";
 
 /** What a chart draws on each mark so the frame can show its tooltip, move between marks with the arrow keys and read it aloud. */
 interface MarkProps {
@@ -34,15 +34,24 @@ interface Props {
   table: ReactNode;
   /** goes under the chart, above the table view: a legend or a caption */
   footer?: ReactNode;
-  /** draws the chart. Marks get their tooltip, focus and keyboard behaviour from `bind`. */
-  children(bind: BindMark): ReactNode;
+  /**
+   * The chart's drawn width. Charts draw in viewBox units, so one that is scaled down to a phone shrinks its text with it. With this the frame
+   * measures the card and hands the chart that many units (never more than `max`), so 12 units of text are 12px. `fallback` is the width
+   * before anything is measured (and where nothing can be, as in tests).
+   */
+  size?: { fallback: number; max: number };
+  /** draws the chart. Marks get their tooltip, focus and keyboard behaviour from `bind`; `width` is the drawn width in viewBox units. */
+  children(bind: BindMark, width: number): ReactNode;
 }
+
+/** Narrower than this a chart stops getting narrower: it shrinks a little instead. */
+const MIN_CHART_WIDTH = 260;
 
 /**
  * The card every Statistics chart sits in: a heading, the chart, a tooltip that follows the pointer (a tap pins it on a phone), arrow
  * keys that move between marks, and a "Table view" with the same numbers. The chart itself is each component's own SVG.
  */
-export function ChartFrame({ title, note, keys, table, footer, children }: Props) {
+export function ChartFrame({ title, note, keys, table, footer, size, children }: Props) {
   const id = useId();
   const phone = usePhone();
   const phoneRef = useRef(phone);
@@ -54,6 +63,17 @@ export function ChartFrame({ title, note, keys, table, footer, children }: Props
   const pinned = useRef<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState(0);
+  useLayoutEffect(() => {
+    const box = wrapRef.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const read = () => setMeasured(Math.round(box.clientWidth));
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(box);
+    return () => watch.disconnect();
+  }, []);
+  const width = size ? (measured > 0 ? Math.max(MIN_CHART_WIDTH, Math.min(measured, size.max)) : size.fallback) : 0;
   const [tableOpen, setTableOpen] = useState(phone); // on a narrow screen the table is the readable version of the chart
 
   // Touch screens have no hover: tapping anywhere outside a mark closes the pinned tooltip.
@@ -131,7 +151,7 @@ export function ChartFrame({ title, note, keys, table, footer, children }: Props
       <h2 className="section" id={id}>{title}</h2>
       {note ? <p className="chart-note">{note}</p> : null}
       <div className="chart-wrap" ref={wrapRef}>
-        {children(bind)}
+        {children(bind, width)}
         <div ref={tipRef} className="tip" hidden={!tip}>
           {tip?.content}
         </div>

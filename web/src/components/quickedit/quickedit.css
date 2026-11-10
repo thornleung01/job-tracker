@@ -8,4 +8,6 @@ input[type="date"].quick-input { width: auto; }
 .quick-stage { padding: 0 8px 0 12px; }
 .quick-stage select { min-height: var(--tap-sm); padding: 0; border: 0; background: none; color: inherit; font: inherit; gap: 8px; cursor: pointer; }
 .quick-stage select:focus-visible { outline-offset: 4px; }
+/* `font: inherit` above would undo the 16px phone floor that stops iOS zooming into a focused field. */
+@media (max-width: 720px) { .quick-stage select { font-size: 16px; } }
 .quick-undo { min-height: var(--tap-sm); padding: 0 12px; margin-left: 4px; }

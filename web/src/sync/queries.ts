@@ -274,6 +274,7 @@ export interface ApplicationDetail {
 
 /** The application page. Returns null when there is no such application. */
 export async function applicationDetail(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<ApplicationDetail | null> {
+  if (!Number.isSafeInteger(appId)) return null;   // a mangled address gives NaN, which IndexedDB rejects
   const application = await db.applications.get(appId);
   if (!application || application.deletedAt) return null;   // a deleted application is only in Recently deleted: see deletedApplication in trash.ts
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));

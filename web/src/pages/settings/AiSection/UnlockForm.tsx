@@ -41,7 +41,7 @@ export function UnlockForm({ db, vault, act, run, refresh, last4, model, onForge
         </div>
         <ModelSelect value={model} onChange={(next) => { vault.setModel(db, next); refresh(); }} />
         <div className="row">
-          <button type="submit" {...act.button("unlock")}>Unlock</button>
+          <button type="submit" className="primary" {...act.button("unlock")}>Unlock</button>
           <ForgetKey act={act} onForget={onForget} />
         </div>
       </form>

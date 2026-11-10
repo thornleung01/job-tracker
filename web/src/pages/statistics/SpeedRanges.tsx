@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import type { Speed, Spread, Waiting } from "../../sync/statistics";
 import { plural } from "../../sync/text";
@@ -5,9 +6,12 @@ import { listUrl } from "../applications";
 import { ChartFrame } from "./ChartFrame";
 import "./speed.css";
 
+// The width follows the card (ChartFrame `size`), so the 12px text is 12px on a phone; W is the width before it is measured.
 const W = 380;
-const X0 = 12;
-const X1 = 368;
+const MAX_W = 475;
+const EDGE = 12;
+/** Narrower than this the median line no longer fits beside the row's name, so it goes on its own line under it. */
+const STACK_BELOW = 340;
 const PITCH = 54;
 const TOP = 6;
 const H = TOP + PITCH * 3 + 16;
@@ -81,6 +85,7 @@ function WaitingNow({ waiting, account }: { waiting: Waiting; account: number })
   const id = useId();
   if (waiting.fresh + waiting.followUp + waiting.ghosted === 0) return null;
   const row = (label: string, count: number, note: string, filter?: { followUp: true } | { ghosted: true }) => {
+    const link = Boolean(filter && count > 0);
     const inner = (
       <>
         <span className="wn-text">
@@ -88,9 +93,10 @@ function WaitingNow({ waiting, account }: { waiting: Waiting; account: number })
           {note ? <span className="wn-note">{note}</span> : null}
         </span>
         <span className="wn-count">{count}</span>
+        {link ? <ChevronRight size={16} strokeWidth={3} aria-hidden="true" focusable="false" /> : null}
       </>
     );
-    return <li>{filter && count > 0 ? <a className="wn-row" href={`#${listUrl({ ...filter, account })}`}>{inner}</a> : <span className="wn-row">{inner}</span>}</li>;
+    return <li>{link && filter ? <a className="wn-row" href={`#${listUrl({ ...filter, account })}`}>{inner}</a> : <span className="wn-row">{inner}</span>}</li>;
   };
   return (
     <section className="card viz-root waiting-now" aria-labelledby={id}>
@@ -111,7 +117,6 @@ export function SpeedRanges({ speed, waiting, account }: { speed: Speed; waiting
     { key: "s:outcome", label: "To an outcome", short: "Outcome", spread: speed.outcome },
   ];
   const max = axisMax(speed);
-  const x = (d: number) => X0 + (d / max) * (X1 - X0);
 
   const table = (
     <table>
@@ -138,9 +143,14 @@ export function SpeedRanges({ speed, waiting, account }: { speed: Speed; waiting
 
   return (
     <div className="stat-pair">
-      <ChartFrame title="How fast companies reply" keys={rows.map((r) => r.key)} table={table}>
-        {(bind) => (
-          <svg className="chart speed-chart" viewBox={`0 0 ${W} ${H}`} role="group" aria-label={summary(rows)}>
+      <ChartFrame title="How fast companies reply" keys={rows.map((r) => r.key)} table={table} size={{ fallback: W, max: MAX_W }}>
+        {(bind, w) => {
+          const X0 = EDGE;
+          const X1 = w - EDGE;
+          const x = (d: number) => X0 + (d / max) * (X1 - X0);
+          const stacked = w < STACK_BELOW;
+          return (
+          <svg className="chart speed-chart" viewBox={`0 0 ${w} ${H}`} role="group" aria-label={summary(rows)}>
             <g aria-hidden="true" className="axis">
               {[0, max].map((v) => (
                 <line key={v} className="gridline" x1={x(v)} x2={x(v)} y1={GRID_TOP} y2={GRID_BOTTOM} />
@@ -151,23 +161,24 @@ export function SpeedRanges({ speed, waiting, account }: { speed: Speed; waiting
             {rows.map((r, i) => {
               const s = r.spread;
               const top = TOP + i * PITCH;
-              const cy = top + 32;
+              const cy = top + (stacked ? 44 : 32);
               return (
                 <g key={r.key}>
                   <text className="row-label" x={X0} y={top + 14} aria-hidden="true">{r.label}</text>
-                  <text className="row-text" x={X1} y={top + 14} textAnchor="end" aria-hidden="true">{medianText(s)}</text>
+                  <text className="row-text" x={stacked ? X0 : X1} y={top + (stacked ? 31 : 14)} textAnchor={stacked ? "start" : "end"} aria-hidden="true">{medianText(s)}</text>
                   {s.median !== null && s.p25 !== null && s.p75 !== null ? (
                     <g aria-hidden="true">
                       {s.p25 !== s.p75 ? <rect className="range" x={x(s.p25)} y={cy - 3} width={x(s.p75) - x(s.p25)} height={6} rx={3} /> : null}
                       <circle className="median" cx={x(s.median)} cy={cy} r={5} />
                     </g>
                   ) : null}
-                  <rect className="mark-hit" x={0} y={top} width={W} height={PITCH} {...bind(r.key, tip(r), markLabel(r))} />
+                  <rect className="mark-hit" x={0} y={top} width={w} height={PITCH} {...bind(r.key, tip(r), markLabel(r))} />
                 </g>
               );
             })}
           </svg>
-        )}
+          );
+        }}
       </ChartFrame>
       <WaitingNow waiting={waiting} account={account} />
     </div>

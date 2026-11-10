@@ -8,7 +8,7 @@ export function EventRow({ event: e }: { event: CalendarEvent }) {
   const Icon = KIND_ICON[e.kind];
   return (
     <a className="cal-event" href={`#/app/${e.appId}`}>
-      <span className="cal-event-kind"><Icon size={16} aria-hidden="true" focusable="false" />{e.label}</span>
+      <span className="cal-event-kind"><Icon size={16} strokeWidth={3} aria-hidden="true" focusable="false" />{e.label}</span>
       <strong className="cal-event-company">{e.company}</strong>
       {e.role ? <span className="cal-event-role muted">{e.role}</span> : null}
       {isStage(e.stage) ? <StageBadge stage={e.stage} /> : null}
