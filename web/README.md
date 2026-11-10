@@ -33,7 +33,7 @@ or with the repository variables `GOOGLE_CLIENT_ID` and `MS_CLIENT_ID` (Settings
 
 ## One-time setup (you do this in the consoles)
 
-Open the site's `#/setup` page (https://thornleung01.github.io/job-tracker/#/setup, the "Set it up" link in Settings, Email accounts (shown while login is off), or Site setup on the login page) and follow it. It works in demo mode and while logged out. It gives you:
+Open the site's `#/setup` page (https://thornleung01.github.io/job-tracker/#/setup, or "Site setup (for the site owner)" on the login page, which shows only while the site has no client IDs or the address has `?setup`) and follow it. It is for the site owner: ordinary users and the demo build are never sent to it. It works in demo mode and while logged out. It gives you:
 
 - numbered steps for the Google and Microsoft consoles, with a link to each page
 - the exact values to copy, each with a Copy button: the JavaScript origin, the redirect URI and the scopes, taken from the address you opened it at
@@ -124,7 +124,9 @@ Settings, Data, Export CSV saves every application, ignoring any filters on the 
 
 ## Your data, backups and installing
 
-Settings has four sections, Mail, Appearance, AI and Data, one at a time at `#/settings/:section` (`#/settings` is Mail). `SectionSwitcher` is the row of links, `sections.ts` the list. Mail also shows what the app has learned and the mail it ignored (`MailRulesSection`). Needs review is not in the nav: `ReviewBanner` on Applications links to it. Data has Back up, Restore, Recently deleted and Delete everything.
+Settings has five sections, Setup, Mail, AI, Data and Appearance, one at a time at `#/settings/:section` (`#/settings` is Setup). `SectionSwitcher` is the row of links, `sections.ts` the list. Mail also shows what the app has learned and the mail it ignored (`MailRulesSection`). Needs review is not in the nav: `ReviewBanner` on Applications links to it. Data has Back up, Restore, Recently deleted and Delete everything.
+
+Setup lists four steps (mailbox, resume, AI key, backup) from `src/sync/setupStatus.ts`. While any is missing, Applications shows `SetupCard` (`src/components/setup/SetupCard.tsx`): "Finish setting up · 2 of 4", the next step, Continue (to Settings) and Dismiss (stored in the settings table of that database, so it stays dismissed). The empty table row on Applications also points there, and in the demo build offers "load the demo data" as a button. The login page always has "Log in without connecting your mailbox", and shows "Site setup (for the site owner)" only when the site has no client IDs or the address has `?setup`. Tests: `tests/components/setup/setupcard-done.test.ts`, `tests/pages/applications/setup-card.test.ts`, `tests/app/app.test.ts` (login page).
 
 All of these live in `src/backup/` and `src/pages/settings/DataSection.tsx`. Tests are in `tests/backup/` and `tests/settings/data-backup.test.ts`.
 

@@ -28,9 +28,12 @@ import { ViewChips } from "../../components/savedviews/ViewChips";
 import { ShortcutHelp } from "../../components/shortcuts/ShortcutHelp";
 import type { ShortcutAction } from "../../components/shortcuts/keys";
 import { useShortcuts } from "../../components/shortcuts/useShortcuts";
+import { SetupCard } from "../../components/setup/SetupCard";
 import { ComingUp } from "../../components/upcoming/ComingUp";
 import { useAction } from "../../components/useAction";
+import { realVault } from "../../ai";
 import { isLocalUser } from "../../app/localUser";
+import { hasData, loadDemoData } from "../../demo/loadDemo";
 import { listAccounts } from "../../db/repo";
 import type { JobTrackerDB } from "../../db/schema";
 import { STAGES, isStage, type Stage } from "../../db/stages";
@@ -38,6 +41,7 @@ import { MAX_COMPANY_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../db/limit
 import { isDayString, localToday } from "../../db/time";
 import { addApplication as realAddApplication, type AddApplicationInput } from "../../sync/actions";
 import { liveResumes } from "../../sync/documents";
+import type { SetupDeps } from "../../sync/setupStatus";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
 import { liveApplications } from "../../sync/live";
@@ -139,7 +143,12 @@ function readState(query: URLSearchParams, today: string): ListState {
 /** What tests may swap: the job-link library and the save. The router passes neither. */
 export interface ApplicationsPageDeps extends Partial<JobLinkDeps> {
   addApplication?: typeof realAddApplication;
+  /** what the "Finish setting up" card reads about the AI key, backup and mail; tests pass fakes */
+  setup?: SetupDeps;
 }
+
+/** The key's state comes from the real vault. */
+const realSetupDeps: SetupDeps = { aiState: (dbName) => realVault.status(dbName).state };
 
 /** The six filters of the list, as the address holds them and as the filter form edits them. */
 interface Filters {
@@ -217,6 +226,14 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
 
   // Add an application by hand: one button opens the form under the filter card
   const add = useAction();
+  const demo = useAction();
+  /** The empty row's "load the demo data": the same guarded load as the demo banner, so it can never replace what is there. */
+  async function loadDemo() {
+    await demo.run("demo", async () => {
+      if (await hasData(db)) return;
+      await loadDemoData(db);
+    });
+  }
   /** the application just added, when the Added notice can offer to tailor your resume for it (it has posting text and there is a master resume) */
   const [tailorFor, setTailorFor] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -604,7 +621,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         </div>
       ) : null}
 
-      {!accounts.length && !local ? <Notice>No email account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
+      <SetupCard db={db} deps={deps.setup ?? realSetupDeps} />
 
       {calendar ? (
         <CalendarView month={month} today={today} day={day} events={events} onMonth={goMonth} onSelectDay={pickDay} />
@@ -636,7 +653,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
             {!rows.length ? (
               <tr role="row">
                 <td role="cell" colSpan={columns.length + 1} className="muted list-empty">
-                  {filtered ? "No applications match these filters." : (local ? <>No applications yet. Choose "Add application" to add one, or load the demo data from the banner above.</> : <>No applications yet. <a href="#/settings">Sync your mailbox in Settings</a>, or choose "Add application" to add one.</>)}
+                  {filtered ? "No applications match these filters." : (local
+                    ? <>No applications yet. Choose "Add application", or <button type="button" className="link-button" {...demo.button("demo")} onClick={() => void loadDemo()}>load the demo data</button>.{demo.error ? <> <span role="alert">{demo.error}</span></> : null}</>
+                    : <>No applications yet. Choose "Add application", or <a href="#/settings">finish setting up</a> to find them in your email.</>)}
                 </td>
               </tr>
             ) : null}

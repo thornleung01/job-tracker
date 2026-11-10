@@ -1,0 +1,11 @@
+/* The "Finish setting up" card on Applications. Everything else comes from the shared stylesheet. */
+.setup-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap); }
+.setup-card-title { margin: 0; font: 500 1rem/1.3 var(--font-ui); }
+.setup-card-next { margin: 4px 0 0; color: var(--muted); }
+.setup-card-error { margin: 4px 0 0; color: var(--rejected); }
+.setup-card-actions { display: flex; align-items: center; gap: 8px; }
+.setup-card-actions button.muted { background: none; box-shadow: none; color: var(--muted); }
+.setup-card-actions button.muted:hover:not(:disabled) { background: var(--hover); }
+@media (max-width: 600px) {
+  .setup-card-actions .btn, .setup-card-actions button { min-height: var(--tap); }
+}
