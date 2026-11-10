@@ -8,5 +8,6 @@ import "./tailor.css";
 export default function TailorPage({ db, params, query, navigate, deps }: PageProps & { deps?: Partial<DocumentsDeps> }) {
   const baseline = Number(query.get("baseline")) || null;
   if (params.id === undefined) return <Picker db={db} baseline={baseline} navigate={navigate} />;
-  return <Workspace db={db} appId={Number(params.id)} baseline={baseline} navigate={navigate} deps={deps} />;
+  // Keyed by the application, so nothing typed or drafted for one carries over to the next.
+  return <Workspace key={params.id} db={db} appId={Number(params.id)} baseline={baseline} navigate={navigate} deps={deps} />;
 }

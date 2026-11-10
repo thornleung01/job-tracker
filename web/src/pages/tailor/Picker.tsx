@@ -30,7 +30,8 @@ export function Picker({ db, baseline, navigate }: Props) {
     });
   }, [rows, search]);
 
-  const open = (id: number) => navigate(`/tailor/${id}${baseline ? `?baseline=${baseline}` : ""}`);
+  // The chosen version only matters to an application that has no copy yet; an existing copy keeps the baseline it was made from.
+  const open = (id: number, hasCopy: boolean) => navigate(`/tailor/${id}${baseline && !hasCopy ? `?baseline=${baseline}` : ""}`);
 
   return (
     <>
@@ -57,7 +58,7 @@ export function Picker({ db, baseline, navigate }: Props) {
                       {tailored ? <span>Tailored</span> : null}
                     </p>
                   </div>
-                  <button type="button" className={tailored ? undefined : "primary"} onClick={() => open(app.id)} aria-label={`${tailored ? "Open" : "Tailor"} ${name}`}>
+                  <button type="button" className={tailored ? undefined : "primary"} onClick={() => open(app.id, tailored)} aria-label={`${tailored ? "Open" : "Tailor"} ${name}`}>
                     {tailored ? "Open" : "Tailor"}
                   </button>
                 </li>

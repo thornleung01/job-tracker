@@ -1,7 +1,6 @@
 // Comparing a tailored resume with its baseline, and putting single lines back.
 import { describe, expect, it } from "vitest";
 import { addBackLine, compareToBaseline, diffWords, resetLine } from "../../src/documents/compare";
-import { diffWords as reExported } from "../../src/components/documents/tailorReview";
 import type { DocSection } from "../../src/db/schema";
 
 const BASE: DocSection[] = [
@@ -22,13 +21,26 @@ const copy = (): DocSection[] => structuredClone(BASE);
 const idsOf = (sections: DocSection[]) => sections.flatMap((s) => s.items.map((i) => i.id));
 
 describe("diffWords", () => {
-  it("is the same function from the old place", () => {
-    expect(reExported).toBe(diffWords);
+  it("marks the words that differ on each side", () => {
     expect(diffWords("a b c", "a x c")).toEqual({
       before: [{ text: "a", changed: false }, { text: "b", changed: true }, { text: "c", changed: false }],
       after: [{ text: "a", changed: false }, { text: "x", changed: true }, { text: "c", changed: false }],
     });
     expect(diffWords("", "")).toEqual({ before: [], after: [] });
+  });
+
+  it("marks only the words that differ, whatever their order", () => {
+    const d = diffWords("Built dashboards for sales", "Built sales dashboards quickly");
+    expect(d.before.filter((p) => p.changed).map((p) => p.text)).toEqual(expect.arrayContaining(["for"]));
+    expect(d.after.filter((p) => p.changed).map((p) => p.text)).toContain("quickly");
+    expect(d.before.map((p) => p.text).join(" ")).toBe("Built dashboards for sales");
+    expect(d.after.map((p) => p.text).join(" ")).toBe("Built sales dashboards quickly");
+  });
+
+  it("marks nothing for the same text, and everything against nothing", () => {
+    expect(diffWords("same words", "same  words").after.every((p) => !p.changed)).toBe(true);
+    expect(diffWords("", "all new").after.every((p) => p.changed)).toBe(true);
+    expect(diffWords("all old", "").before.every((p) => p.changed)).toBe(true);
   });
 });
 
@@ -61,6 +73,23 @@ describe("compareToBaseline", () => {
     expect(lines.o1.status).toBe("changed");
     expect(lines.o1.baselineText).toBe("Northwind Toronto");
     expect(lines.b1.status).toBe("same");
+  });
+
+  it("counts a changed kind as a change", () => {
+    const t = copy();
+    t[2].items[1] = { ...t[2].items[1], kind: "title" };
+    const { lines } = compareToBaseline(t, BASE);
+    expect(lines.b1.status).toBe("changed");
+    expect(lines.b2.status).toBe("same");
+  });
+
+  it("counts a heading cleared to nothing as changed, and a blank header heading as same", () => {
+    const t = copy();
+    t[1].heading = "";
+    const { lines } = compareToBaseline(t, BASE);
+    expect(lines.ss.status).toBe("changed");
+    expect(lines.ss.baselineText).toBe("Summary");
+    expect(lines.sh).toBeUndefined();
   });
 
   it("treats a line with no label and an empty one alike, and a moved line as same", () => {

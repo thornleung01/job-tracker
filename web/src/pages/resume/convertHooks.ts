@@ -1,49 +1,9 @@
-// The two things the convert panel does besides showing text: unlock a locked key, and run (and stop) one conversion. Each is a hook so the panel
-// only lays out what they return.
-import { useEffect, useRef, useState, type FormEvent } from "react";
+// What the convert panel does besides showing text: run (and stop) one conversion. It is a hook so the panel only lays out what it returns.
+// Unlocking a locked key is the shared useUnlock (components/documents/useUnlock.ts).
+import { useEffect, useRef, useState } from "react";
 import type { AiDeps } from "../../ai";
 import { messageFor } from "../../components/useAction";
 import type { ConvertResult, convertResume } from "../../sync/convert";
-
-/** The passphrase form for a locked key. `onUnlocked` runs when the key opened. */
-export function useUnlockForm(vault: AiDeps["vault"], db: string, onUnlocked: () => void) {
-  const [passphraseInput, setPassphraseInput] = useState("");
-  const [unlocking, setUnlocking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const field = useRef<HTMLInputElement>(null);
-  // Unlocking can't be cancelled, so a result that arrives after the panel went away is ignored with this.
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  // After a wrong one the field is where to try again.
-  useEffect(() => {
-    if (error) field.current?.focus();
-  }, [error]);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (unlocking || !passphraseInput) return;
-    setUnlocking(true);
-    setError(null);
-    try {
-      await vault.unlock(db, passphraseInput);
-      if (mounted.current) onUnlocked();
-    } catch (err) {
-      if (mounted.current) setError(messageFor(err));
-    } finally {
-      if (mounted.current) {
-        setPassphraseInput("");   // never keep it around after it has been used
-        setUnlocking(false);
-      }
-    }
-  };
-  return { passphraseInput, setPassphraseInput, unlocking, error, field, submit };
-}
 
 /**
  * One conversion at a time, which Stop (or leaving the page) can cancel. Whether a result is still wanted is answered in one place: the

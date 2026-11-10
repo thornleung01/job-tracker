@@ -18,6 +18,7 @@ import { useAction } from "../../components/useAction";
 import { normalizeSections } from "../../db/documentShape";
 import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { addBackLine, compareToBaseline, resetLine } from "../../documents/compare";
+import { registerLeaveGuard } from "../../app/leaveGuard";
 import { derive } from "../../sync/contacts";
 import {
   baselineChoices, getCoverLetter, getTailored, liveResumes, saveCoverLetter, saveTailored, startTailoredFromBaseline,
@@ -85,7 +86,8 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
   const [coverDraft, setCoverDraft] = useState<CoverDraft | null>(null);
   const [active, setActive] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
+  /** where the person was headed when the unsaved-changes question stopped them (a route such as "/people"), null when not asking */
+  const [leaving, setLeaving] = useState<string | null>(null);
   const [told, setTold] = useState("");
   const copyHead = useRef<HTMLHeadingElement>(null);
   const right = useRef<HTMLDivElement>(null);
@@ -96,10 +98,16 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
   const tailored = data?.tailored ?? null;
   const master = resumes.find((r) => r.master);
   const pick = (id: number | null | undefined) => resumes.find((r) => r.id === id);
-  const base: DocumentRow | undefined = pick(chosen) ?? pick(baselineParam) ?? pick(tailored?.basedOn) ?? master;
+  // An existing copy keeps the baseline it was made from; ?baseline= only decides where a copy that doesn't exist yet starts.
+  const base: DocumentRow | undefined = pick(chosen) ?? (tailored ? pick(tailored.basedOn) : pick(baselineParam)) ?? master;
+  const baselineGone = tailored !== null && chosen === null && tailored.basedOn !== undefined && !pick(tailored.basedOn);
   const sections: DocSection[] | null = edits ?? tailored?.sections ?? null;
   const unsaved = edits !== null && (!tailored || !same(edits, tailored.sections));
   const dirty = unsaved || coverDraft !== null;
+  // The leave guard (app/leaveGuard.ts) reads these at the moment of a move, so it is registered once.
+  const dirtyNow = useRef(false);
+  dirtyNow.current = dirty;
+  const discarding = useRef(false);
   const diff = useMemo(() => (base && sections ? compareToBaseline(sections, base.sections) : null), [base, sections]);
   const differs = diff !== null && (diff.leftOut.length > 0 || Object.values(diff.lines).some((l) => l.status !== "same"));
 
@@ -110,6 +118,11 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  // Leaving for another page in the app (a nav link, Back, Forward, an edited address) asks too, in place.
+  useEffect(
+    () => registerLeaveGuard({ isDirty: () => dirtyNow.current && !discarding.current, onBlocked: (to) => setLeaving(to.replace(/^#/, "")) }),
+    [],
+  );
   // After a control that is gone (Add back, Reset to baseline), focus goes to the line it changed; after Start, to the copy's heading.
   useEffect(() => {
     const id = focusLine.current;
@@ -145,7 +158,7 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
   const back = (e: MouseEvent) => {
     if (!dirty) return;
     e.preventDefault();
-    setLeaving(true);
+    setLeaving(`/app/${app.id}`);
   };
 
   const start = () =>
@@ -173,6 +186,11 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
     setDraft(next);
     setTicks(first);
     setEdits(composeResume(next, base.sections, first));
+    // A letter that is already saved is never staged over from here: the combined Save would replace it without the person having looked.
+    if (cover) {
+      setTold("Wrote a resume draft. Your saved letter was left as it is. To write a new one, use Cover letter.");
+      return;
+    }
     setCoverDraft((was) => was ?? staged);
     setTold("Wrote a resume draft and a letter. The letter is under Cover letter.");
   };
@@ -187,8 +205,10 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
     void act.run("save", async () => {
       const clean = normalizeSections(sections ?? []);
       const letter = coverDraft && coverDraft.text.trim() ? letterSections(coverDraft.text, coverDraft.base) : null;
-      if (letter) await all.save(db, appId, { resume: clean, cover: letter, baselineId: base.id });
-      else await saveTailored(db, appId, clean, draft ? "ai" : tailored?.source ?? "copy", undefined, base.id);
+      // The copy's recorded baseline changes only when it is made, or the person chose another one, or an AI draft was written from another one.
+      const basedOn = !tailored || chosen !== null || (draft !== null && tailored.basedOn !== base.id) ? base.id : undefined;
+      if (letter) await all.save(db, appId, { resume: clean, cover: letter, ...(basedOn !== undefined ? { baselineId: basedOn } : {}) });
+      else await saveTailored(db, appId, clean, draft ? "ai" : tailored?.source ?? "copy", undefined, basedOn);
       setEdits(clean);
       setDraft(null);
       setCoverDraft(null);
@@ -231,7 +251,7 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
       {leaving ? (
         <InlineConfirm
           title="Leave without saving?" help="Your changes to the tailored copy and the letter haven't been saved."
-          confirmLabel="Discard changes" onConfirm={() => navigate(`/app/${app.id}`)} onCancel={() => setLeaving(false)} act={act} actionKey="leave"
+          confirmLabel="Discard changes" onConfirm={() => { discarding.current = true; navigate(leaving); }} onCancel={() => setLeaving(null)} act={act} actionKey="leave"
         />
       ) : null}
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
@@ -242,9 +262,14 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
           <div className="tailor-left documents">
             <div className="fgroup tailor-baseline-select">
               <label htmlFor="tailor-baseline">Baseline</label>
-              <select id="tailor-baseline" value={base.id} onChange={(e) => setChosen(Number(e.target.value))}>
+              <select
+                id="tailor-baseline" value={base.id} onChange={(e) => setChosen(Number(e.target.value))}
+                disabled={draft !== null} aria-describedby={draft ? "tailor-baseline-why" : undefined}
+              >
                 {resumes.map((r) => <option key={r.id} value={r.id}>{r.master ? `Master: ${r.title}` : r.title}</option>)}
               </select>
+              {draft ? <p id="tailor-baseline-why" className="small muted">The draft was written from this baseline. Save it to choose another.</p> : null}
+              {baselineGone ? <p className="small muted">The baseline this copy was made from is gone, so it is compared with your master.</p> : null}
             </div>
             {phone ? (
               <details className="more tailor-baseline-sheet">
@@ -275,7 +300,12 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }
                 </BaselineMarks>
                 <div className="row tailor-actions">
                   <button type="button" className="primary" onClick={save} disabled={busy || !dirty} {...(act.busy === "save" ? { "aria-busy": true as const } : {})}>Save</button>
-                  {tailored && !dirty ? <a className="btn" href={`#/resume/print/${tailored.id}`}>Print</a> : <button type="button" disabled title="Save first">Print</button>}
+                  {tailored && !dirty ? <a className="btn" href={`#/resume/print/${tailored.id}`}>Print</a> : (
+                    <>
+                      <button type="button" disabled aria-describedby="tailor-print-why">Print</button>
+                      <span id="tailor-print-why" className="small muted">Save first to print.</span>
+                    </>
+                  )}
                 </div>
               </>
             ) : (

@@ -133,6 +133,20 @@ describe("saveTailored basedOn", () => {
     expect((await db.documents.get(id))?.basedOn).not.toBe(version);
   });
 
+  it("refuses a baseline that is deleted, missing, a cover letter or tailored, and saves nothing", async () => {
+    const db = freshDb();
+    await saveMaster(db, MASTER, "paste", NOW);
+    const version = await createVersion(db, { title: "V", sections: MASTER }, NOW);
+    const a = await app(db);
+    const b = await app(db, "Globex");
+    const theirs = await saveTailored(db, b, MASTER, "ai", NOW);
+    await deleteDocument(db, version, NOW);
+    for (const bad of [version, theirs, 9999]) {
+      await expect(saveTailored(db, a, MASTER, "ai", NOW, bad)).rejects.toThrow("That resume isn't there any more.");
+    }
+    expect(await getTailored(db, a)).toBeUndefined();
+  });
+
   it("has no basedOn when there is no master and none is given", async () => {
     const db = freshDb();
     const a = await app(db);
