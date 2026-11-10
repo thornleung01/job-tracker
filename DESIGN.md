@@ -182,219 +182,214 @@ components:
 
 # Design System: Job Tracker
 
-## Overview
+## 1. How to use this file
 
-**Creative North Star: "The Quiet Ledger"**
+This file is the single entry point for how Job Tracker looks, reads and moves. The YAML block above holds the design tokens (colours, type, radii, spacing, component specs); design tooling reads it, so keep it valid. Everything below is the prose that explains and applies it.
 
-Job Tracker follows the Wealthsimple prototype styling reference (the `use-ws-styling` primer in the `product-design` plugin). It is a hand-distilled approximation, not the real design system, which this local app cannot load. The app speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairline separators inside cards, and nothing that shouts. It is still a calm place for an anxious moment, and it avoids the dashboard-widget look of metric-card grids.
+**Rules first, then screens.** Read sections 2 to 4 (principles, words, components) before any screen. A screen spec only says what is unique to the screen and links to the rule or component it uses. Do not restate a rule on a screen.
 
-Depth comes from raised surfaces. A card, a secondary button and a popup each carry a white inner stroke, a 5% outer stroke and a soft drop shadow. Primary buttons are dark glass: a gradient fill with an inner top highlight, an inner bottom shadow and a drop shadow. Color is rationed: the one stage colour map (six stage dots and words, also the Flow chart), and one user-selectable accent (black by default) that fills primary buttons and the active mobile sort chip.
+**File map**
 
-The user owns the finish. Theme (system/light/dark), accent (graphite, bronze, forest, clay), density (comfortable/compact) and corners (soft/sharp) are settings, written onto `<html>` as `data-theme`, `data-density`, `data-corners`, `data-accent` and the `--accent-l` / `--accent-d` variables. Every new surface must survive all combinations.
+| File | What it holds |
+| --- | --- |
+| `DESIGN.md` (this file) | Tokens, principles, the components catalogue, the pre-ship checklist |
+| [docs/design/styling.md](docs/design/styling.md) | The full styling reference: every value, the owner's rules, where each rule lives in the CSS, worked examples |
+| [docs/design/copy.md](docs/design/copy.md) | Voice, formatting, glossary, error and confirm patterns, card copy, copy checklist |
+| [docs/design/screens.md](docs/design/screens.md) | One section per screen, grouped by page |
+| [docs/design/animation.md](docs/design/animation.md) | Building fixed-size looping UI animations |
+| [docs/design/critique.md](docs/design/critique.md) | How to critique a screen, with the rubric |
+| `tools/design/` | The scripts the animation and critique guides use |
+| `PRODUCT.md` | Who the product is for and what it will not do |
 
-**Key Characteristics:**
-- Light grey ground (#f2f2f2), near-white raised surfaces, true black text; dark theme is pure black with #171717 surfaces.
-- One sans typeface for everything. Weights 400, 500 and 700 only.
-- Pills for every control; 20px raised cards with 16px padding.
-- 16px page gutter at every width; 32px between sections on a phone and 64px on the web.
-- Lucide icons only, 24px or 16px, drawn as CSS masks so they take the text color.
-- Sentence case, never uppercase; no underlined links; no tabular numbers.
-- WCAG AA in both themes; controls are 44px tall by default (36px in compact density on a mouse, 44px again on touch screens).
+**Skills are distilled.** The design work was first done with four product-design skills (`use-ws-styling`, `support-resolution-card-copy`, `ui-animation`, `design-critique`). They are no longer needed: their content is distilled into `docs/design/styling.md`, `copy.md`, `animation.md` and `critique.md`, and their scripts into `tools/design/`. Reproduce the work from the repo alone.
 
-## Colors
+**Edition legend.** Entries are marked **local** (the Python app, `jobtracker/templates`, one stylesheet in `base.html`), **hosted** (the web app, `web/src`) or **both**. The two stylesheets are kept in step by hand.
 
-Values below are the light theme with the dark counterpart in the frontmatter (`dark-*`). Token names in the CSS: `--bg`, `--surface`, `--surface-hover`, `--linen` (secondary surface), `--fog` (inactive-bg), `--hover`, `--ink`, `--muted`, `--line` (outline), `--field-line`.
+**Where tokens live.** Frontmatter names are the design record; the code reads CSS custom properties in `web/src/styles/base.css` (`:root`, the dark blocks, `data-density`, `data-corners`, `data-accent`). Change a value in both and say why.
 
-### Primary
-- **Graphite Accent** (#000000 light, #ffffff dark): the default accent. Fills primary buttons, the count badge in the nav and the active mobile sort chip. Text on it is `accent-ink` (#ffffff light, #000000 dark).
-- **Bronze** (#5c4b24 / #d9c28a), **Forest** (#2f5d46 / #8cc7a6), **Clay** (#8f4a32 / #e0a184): alternative accents the user may pick in Settings. They replace only `--accent`; text, outlines and badges stay neutral.
+**To add a component:** reuse a catalogue entry if one fits. Otherwise put its CSS next to the component (`web/src/components/<name>/<name>.css`), take colour, radius and size from tokens only, add an entry to section 4 (what it is, edition, component file, CSS file), then run the checklist in section 8. **To add a screen spec:** add a section to `docs/design/screens.md` under the nearest group and link to the catalogue entries it uses.
 
-### Neutral
-- **Background** (#f2f2f2 / #000000): page background.
-- **Surface** (#fafafa / #171717): cards, inputs, popups, secondary buttons. Hover is #ffffff / #1f1f1f.
-- **Surface secondary** (#ebebeb / #0f0f0f): open table rows and their expansion panel.
-- **Inactive bg** (rgba(0,0,0,.05) / rgba(255,255,255,.07)): badges, chips, the current tab, hover-pressed rows. The reference says 3%; it is held slightly higher so badges and the current tab stay visible on #f2f2f2.
-- **Hover bg** (rgba(0,0,0,.04) / rgba(255,255,255,.04)): row, tab and menu-item hover.
-- **Text primary** (#000000 / #ffffff). **Text secondary** (55% black / 50% white): help text, placeholders, chevrons.
-- **Outline** (8% black / 12% white): decorative dividers only.
-- **Field line** (#8c8c8c / #8a8a8a): borders of inputs and notices; held to 3:1 against the surface, which Outline is not.
+## 2. Principles and tokens
 
-### Stage colours (one map, used by the list, the detail page and Statistics)
-Each of the six stages has a graphic colour and a text colour, both defined once in the shared stylesheet as `--stage-applied`, `--stage-heard-back`, `--stage-assessment`, `--stage-interview`, `--stage-offer`, `--stage-rejected` and the same names with `-text`. The graphic colour fills the dot beside the stage word, the chart nodes and links on Statistics. The text colour is the same hue pulled darker (light theme) or lighter (dark theme) until it holds 4.5:1 on the page surface and on the tinted rows behind it (open row, hover, badge tint). Short aliases `--offer` and `--rejected` point at the text colours for other text uses (danger buttons, error notices, sync status). Rejected doubles as the danger and error color.
+### Overview
 
-| Stage | Graphic light / dark | Text light / dark |
-| --- | --- | --- |
-| Applied | #5b88d9 / #5b88d9 | #2b5fbb / #7198de |
-| Heard back | #b27ee4 / #b27ee4 | #8634d4 / #b482e5 |
-| Assessment | #e47eca / #e47eca | #ae248b / #e47eca |
-| Interview | #eece2d / #eece2d | #736109 / #eece2d |
-| Offer | #409652 / #4db565 | #2f6e3c / #4db565 |
-| Rejected | #e22b18 / #ed4f3c | #be2414 / #f07161 |
+**Creative North Star: "The Quiet Ledger".** Job Tracker follows a hand-distilled approximation of the Wealthsimple prototype styling (full values in `docs/design/styling.md`), not the real design system, which this local app cannot load. It speaks in plain sentences and one sans typeface: black on a light grey ground, raised cards and pill controls, hairline separators inside cards, nothing that shouts.
 
-The graphics are the Wealthsimple data-viz hues in numeric order (blue, purple, pink, yellow) plus data-viz green and the negative red. In the light theme purple, pink and yellow sit under 3:1 on the page surface (2.9, 2.5 and 1.5), so the dot carries a hairline in the text colour, and the stage word beside it is always present: colour is never the only signal.
+The user owns the finish. Theme (system, light, dark), accent (graphite, bronze, forest, clay), density (comfortable, compact) and corners (soft, sharp) are settings, written on `<html>` as `data-theme`, `data-accent` (plus `--accent-l` / `--accent-d`), `data-density` and `data-corners`. Every surface must survive every combination, so it takes colour, radius and size from tokens only.
 
-### Statistics charts (scoped to the Statistics page's chart root)
-- Stages, Offer and Rejected take their fills from the stage map above, so a stage is the same colour on the list and in the chart. Only the no-outcome-yet grey is the chart's own: #8c8c8c / #8a8a8a. Links draw at 0.38 opacity (0.1 dimmed, 0.72 highlighted). Node bars have a 2px corner radius.
-- The other charts on the page (pace, speed, reply rate by month) follow the same rules: one axis, recessive hairline gridlines at a few round values, 12px axis text in the secondary ink and never in a series colour, thin marks with a 4px rounded data end, and no number on every mark. Colour follows the thing measured: applications use Applied, replies use Heard back. Past weeks are the chart grey and the current week takes the accent (emphasis form). A month that isn't final is a 45 degree hatch in its own colour, with the words "Still coming in", so colour is never the only signal. Each chart is drawn in a small coordinate space and capped at about 1.25 times its width (`max-width` in `statistics.css`) so its text stays near its normal size on a wide screen and shrinks to fit on a phone.
-- Every chart sits in `ChartFrame`: a heading, one line of note at most, the chart, a tooltip (a tap pins it on a phone), arrow keys between marks with one tab stop, and a Table view. The headline numbers are plain text with no boxes: a 2rem/500 value, a label and one line of context.
+**The rules, once each**
+- **Colour is rationed.** Chroma is for status (the one stage map), the data-viz palette and the single chosen accent. A new colour needs a new status to justify it. No coloured side-stripes. Colour is never the only signal: pair it with a word, shape or icon.
+- **Sentence case, no uppercase, weights 400/500/700, one typeface.** No `text-transform: uppercase`, no small caps. Acronyms such as RRSP and ETF are fine. The print resume is the one exception (below).
+- **Plain figures, plain links.** No `font-variant-numeric: tabular-nums`. Links are never underlined; they show through ink colour, weight 500 and a tonal hover.
+- **Text is at least 12px (0.75rem).** The owner's app rule. 12px is for tags, badges and chart axes; prefer 14px and up for anything a person must read. Sizes are rem so browser settings apply; the one exception is the 16px floor on phone inputs.
+- **Tokens, never literals.** No hex, no `#000`/`#fff`, no px radii in component rules. Operable borders use Field line.
+- **Pills, 20px raised cards, hairlines inside cards.** Do not nest a raised card in a raised card. Prefer a sentence to a stat card.
+- **Honest interaction.** Hover and pointer cursors only on things that act. Standalone controls scale to 0.97 on press; anything inside a container changes tone instead. Never both.
+- **Document formats are the exception.** The resume sheet (`.doc-sheet.classic`) and print styles keep a serif font, capital headings and black on white in both themes, because they match a document the owner must produce. The exception stops at the sheet's edge.
+- **Never ship Wealthsimple's name, logo, wordmark or font files.**
 
-### Named Rules
-**The One Voice Rule.** Chroma is reserved for status, the data-viz palette and the single chosen accent. A surface with a new color needs a new status to justify it.
-**The Outline Contrast Rule.** Decorative dividers use Outline; anything a user must see to operate (inputs, notices, swatch rings) uses Field line.
+### Colours
 
-## Typography
+Light values here, dark counterparts in the frontmatter (`dark-*`). CSS names: `--bg`, `--surface`, `--surface-hover`, `--linen` (secondary surface), `--fog` (inactive bg), `--hover`, `--ink`, `--muted`, `--line` (outline), `--field-line`.
 
-**Font:** `"Wealthsimple Sans Display", Figtree, -apple-system, "SF Pro Display", system-ui, sans-serif`. Wealthsimple Sans Display is proprietary and is not shipped; it is named first so a device that has it installed uses it. Figtree (self-hosted variable woff2, SIL OFL, in `/static/fonts` for the local edition and `web/src/assets/fonts` for the hosted one) is the stand-in everywhere else, so the app works offline.
-**Mono:** system monospace, only for code and addresses in setup instructions.
+- **Accent.** Graphite #000000 / #ffffff by default; Bronze, Forest and Clay are user choices. They replace only `--accent`; text, outlines and badges stay neutral. The accent fills primary buttons, the nav count badge and the active mobile sort chip. `--accent-ink` is the text on it.
+- **Neutrals.** Background #f2f2f2 / #000000. Surface #fafafa / #171717 for cards, inputs, popups, secondary buttons (hover #ffffff / #1f1f1f). Surface secondary #ebebeb / #0f0f0f for open rows and panels. Inactive bg 5% black / 7% white for badges, chips, the current tab and press tone (the primer says 3%; held higher so it shows on #f2f2f2). Hover bg 4%. Text primary black / white; Text secondary 55% / 50%.
+- **Outline versus Field line.** Outline (8% black / 12% white) is for decorative dividers only. Anything a user must see to operate (inputs, notices, swatch rings) uses Field line (#8c8c8c / #8a8a8a), held to 3:1 against the surface.
+- **Stage colours, one map** (`--stage-applied`, `--stage-heard-back`, `--stage-assessment`, `--stage-interview`, `--stage-offer`, `--stage-rejected`, and each with `-text`). The graphic colour fills the dot and chart marks; the text colour is the same hue darkened (light) or lightened (dark) to hold 4.5:1 on the page and the tinted rows. `--offer` and `--rejected` alias the text colours; Rejected doubles as the danger and error colour. The hex table is in the frontmatter and `docs/design/styling.md` 2.4.
 
-### Hierarchy
-- **Display** (500, clamp(2rem, 4vw, 2.5rem), 1.2, -0.8px): the page headline, one per page.
-- **Brand** (700, 1.5625rem, 1.2): the wordmark in the header.
-- **Section** (500, 1.25rem, 1.4): section headings. Panel sub-headings are 1rem/500.
-- **Row** (500, 1rem, 1.4): company names in list rows, people names.
-- **Lede** (400, clamp(1.25rem, 2.2vw, 1.5625rem), 1.4, max 46ch): the Statistics page sentence summary.
-- **Body** (400, 1rem, 1.4, 0.02px; 0.9375rem in compact density). Buttons are 500. Email text is 0.9375rem/1.7 for reading.
-- **Small** (400, 0.875rem): dates, role sub-line, help text, table headers (500, muted).
-- **Label** (500, 0.75rem, 0.18px): tags and the jobs score pill. The stage badge is the exception: 0.875rem/500, because the stage is what each row is for.
+### Typography
 
-### Named Rules
-**The Rem Rule.** All sizes are rem so browser text-size settings are honoured; the one exception is the 16px floor on phone inputs to stop iOS focus zoom.
-**The Sentence Case Rule.** No `text-transform: uppercase`, no small caps, no all-caps strings. Acronyms such as RRSP or ETF are the only exception.
-**The Plain Figures Rule.** No `font-variant-numeric: tabular-nums`, anywhere. Links are never underlined; interactivity shows through color and tone.
+Font stack `"Wealthsimple Sans Display", Figtree, -apple-system, "SF Pro Display", system-ui, sans-serif`. Figtree is self-hosted (`/static/fonts` local, `web/src/assets/fonts` hosted) so the app works offline. Mono is for code and addresses in setup instructions only.
 
-## Layout
+- **Display** 500, clamp(2rem, 4vw, 2.5rem), 1.2, -0.8px: the page headline, one per page. **Brand** 700, 1.5625rem: the wordmark.
+- **Section** 500, 1.25rem (panel sub-headings and **Row** names 1rem/500). **Lede** 400, clamp(1.25rem, 2.2vw, 1.5625rem), max 46ch: the Statistics summary.
+- **Body** 400, 1rem, 1.4 (0.9375rem compact). Buttons 500. Email text 0.9375rem/1.7, max 68ch.
+- **Small** 0.875rem: dates, help text, field labels (500, muted), table headers. **Label** 500, 0.75rem: tags and the score pill. The stage badge is 0.875rem/500.
+- Statistics headline numbers are plain text, 700 at the Display size, a label and one line of context, no boxes.
 
-Single column, max-width 1120px, centered, padding 40px 16px 96px. The 16px gutter is the same on every screen size; breathing room comes from section spacing and card padding, not a wider margin. Header is a flex row (wordmark left, nav right: Jobs, Applications, People, Statistics, then a Settings gear icon; the hosted header has no Jobs link, and instead reads Applications, People, Resume, Statistics, then the gear; the local edition's nav is unchanged and has no Resume). At 520px and below the gear moves into the title row and the nav words stay on one row below it. Needs review is not in the nav: a quiet banner on Applications links to it. Card padding `--pad` 16px, table cell vertical padding `--cell-y` 16px, vertical gap `--gap` 24px, and `--section` between cards 32px (64px from 721px up).
+### Layout
 
-Compact density tightens these to 12px / 8px / 12px (section 24px, 40px on the web), drops body to 0.9375rem and tap to 36px. On touch (`pointer: coarse`) the tap target is 44px in every density. At 720px and below each table row becomes a stacked block: company and role on the left, stage (word and dot) on the right, last activity on its own line; column headers become a row of pill sort buttons with the active sort filled in the accent. Role, Applied, Emails, Rounds and Resume columns hide there. The checkbox column stays as a narrow first column of each card. Panels use a two-column form grid (gap 32px) that collapses to one column at 720px.
+Single column, max-width 1120px, centred, padding 40px 16px 96px. The 16px gutter is the same at every width; room comes from section spacing and card padding. Tokens: `--pad` 16px, `--cell-y` 16px, `--gap` 24px, `--section` 32px (64px from 721px up). Compact density: 12px / 8px / 12px, section 24px (40px), body 0.9375rem, tap 36px. On `pointer: coarse` the tap target is 44px in every density.
 
-## Elevation & Depth
+Header: wordmark left, nav right (hosted: Applications, People, Resume, Statistics, Settings gear; local: Jobs first, no Resume). At 520px and below the gear moves into the title row and the nav words stay on one row below. At 720px and below tables become stacked blocks and panels collapse to one column. Needs review is not in the nav; a banner on Applications links to it.
 
-Raised surfaces, defined by strokes plus one soft shadow. `--raise` is `inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08)`; the secondary button uses a 0.10 shadow. The outer stroke is a non-inset spread so it never shrinks the corner radius. In dark theme the strokes become white at 5% and 8% over a 0.5 black shadow. Primary buttons add an inner top highlight and inner bottom shadow over the gradient. Popups (dropdown list, search suggestions, chart tooltip) use the same raised surface. Layers: tooltip `--z-tip: 20`, popup `--z-pop: 30`, skip link `--z-skip: 100`.
+### Elevation
 
-### Named Rules
-**The Press Rule.** Standalone controls (buttons, action pills) scale to 0.97 on press. Anything inside a container (table rows, tabs, segmented options, menu items) signals press with a background tone change, never a scale.
-**The Honest Hover Rule.** Hover and pointer cursors belong only to things that do something. Static cards stay at rest.
+Raised surfaces are strokes plus one soft shadow: `--raise` is `inset 0 0 0 1px #fff, 0 0 0 1px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.08)` (secondary button 0.10). The outer stroke is a non-inset spread so it never shrinks the corner radius. Dark: strokes white at 5% and 8%, shadow 0.5 black. Primary buttons are dark glass: gradient, inner top highlight, inner bottom shadow, drop shadow. Popups reuse `--raise`. Layers: `--z-tip` 20, `--z-pop` 30, `--z-skip` 100.
 
-## Shapes
+### Shapes and radius names
 
-Round and soft by default: pills (999px) for buttons, inputs, badges, chips and nav links; 20px for cards; 12px for notices and textareas; 8px for the Minimal segmented indicator (the filter tabs). The "sharp" corners setting collapses all four radii to 3px, so every component must take its radius from the tokens, never a literal. Icons are Lucide, drawn as CSS masks in `currentColor` at 16px with stroke 3 (rendering 2px): the list and disclosure chevron, the sort arrows, the dropdown chevron and check, and the notice info and alert icons. The Settings gear is an inline Lucide `settings` at 24px, stroke 2. Never hand-draw an icon path. A semi-opaque color is never applied to a multi-path icon; mask icons are a single flat fill, so they may use text-secondary.
+Round and soft: pills for buttons, inputs, badges, chips and nav links; 20px cards; 12px notices, textareas and popups; 8px for the Minimal segmented indicator. The sharp setting collapses all four to 3px, so every component takes its radius from a token.
 
-## Components
+| Frontmatter `rounded.*` | CSS custom property | Soft | Used for |
+| --- | --- | --- | --- |
+| `pill` | `--r-pill` | 999px | buttons, inputs, badges, chips, nav links, dropdown options |
+| `card` | `--r-lg` | 20px | cards |
+| `sm` | `--r` | 12px | notices, textareas, popups, code blocks |
+| `segment` | `--r-seg` | 8px | Minimal segmented options, link hover tone |
+| `sharp` | all four | 3px | `data-corners="sharp"` |
+
+### Icons
+
+Lucide only, as the official package or its path data in a CSS mask (`--ico-chevron-right`, `--ico-chevron-down`, `--ico-check`, `--ico-arrow-up`, `--ico-arrow-down`, `--ico-info`, `--ico-alert` in `base.css`). Two sizes: 24px and 16px. Rendered stroke is 2px (strokeWidth 3 at 16px). Colour is `currentColor`. Never hand-draw a path, use emoji or unicode glyphs as icons, or give a multi-path icon a semi-opaque colour (mask icons are single flat fills, so they may use text-secondary). The Settings gear is an inline Lucide `settings`, 24px, stroke 2.
+
+## 3. Writing the words
+
+Full rules, glossary, card copy and checklist: [docs/design/copy.md](docs/design/copy.md). The short version:
+
+- **Voice.** Transparent, human, helpful; never funny in a problem. A person talking to a person, no jargon, codes or enum names. Address the person as you; the app never says I.
+- **Minimal copy.** No intro paragraph, no explainer. If the person can see it, do not say it. One muted help line is the ceiling, only where a mistake costs something. Show data as the source system shows it.
+- **Sentence case everywhere**, except named places (Settings, Needs review, Recently deleted) and brands (Gmail, Anthropic). No all-caps strings. Print-resume exception: the printed resume template sets the name and section headings in capitals, because it is a document format (see Principles).
+- **No em-dashes** anywhere in the app or its docs; use a comma, colon or new sentence. `copy.md` allows a rare em dash; the owner's rule is stricter and wins. No emoji, no semicolons, no ampersands. En dash only for ranges and negatives.
+- **Canadian spelling.** Contractions are fine. Say "log in" (verb) and "login" (noun), "email" for a message.
+- **Headers, buttons and labels take no end punctuation**; sentences take a full stop. At most one "!" per screen, only for good news.
+- **Errors are plain sentences with a next step.** What happened, then what to do, two short sentences at most. Blame the thing, not the person ("That key was refused. Check it in Settings."). Name limits with numbers. Never hold or print a key. Log technical detail to the console, show a sentence.
+- **Buttons are named by outcome**, verb plus noun: "Save application", "Write my resume and letter". Destructive verbs say so ("Delete now"). Never "OK", "Yes" or "Submit". One primary per row or card.
+- **Not now, Skip, Dismiss, Undo** each mean one thing; Cancel abandons something started and never means "later". Optional fields say "(optional)"; required ones are unmarked.
+- **Empty states** name the next step in the button's own words. **Destructive actions** use InlineConfirm, never a browser dialog.
+- **Status lines** use the present participle while working and past tense when done. Formats (money, dates, numbers, masking) are in `copy.md` section 2.
+
+**Gate sentences** (`web/src/app/gates.ts`, rendered by `components/Gate.tsx`; never hand-write one on a screen): "Connect your mailbox in Settings." (`#/settings/mail`), "Add your resume first." (`#/resume`), "Add your Anthropic key in Settings." (`#/settings/ai`), "Unlock your key to use AI.", "Paste the job description first.", and the muted "Connect your mailbox to draft this in Gmail or Outlook." where a draft button would be.
+
+## 4. Components catalogue
+
+Each entry gives the edition, the component file and the CSS file. Per-screen use is in [docs/design/screens.md](docs/design/screens.md).
 
 ### Buttons
-- **Shape:** pill, min-height `--tap`, padding 0 24px, 500 1rem, `border: none` (the user-agent border is always reset).
-- **Primary:** gradient from the accent to 16% toward white (12% toward black in dark), inner highlight, inner shadow and a drop shadow, accent-ink text. Hover mixes both gradient stops 14% toward the ground.
-- **Secondary (default):** surface fill with the raised strokes and shadow; hover is Surface hover. Danger variant uses Rejected text.
-- **Tertiary:** 4% to 7% black gradient, no shadow. Used for "Delete" on history entries and for an open action disclosure.
-- **States:** active scales to 0.97; disabled 50% opacity; busy shows progress cursor. Focus is a 2px ink outline at 3px offset, on every interactive element.
+Both. CSS `button, .btn` and variants in `web/src/styles/base.css`; local `jobtracker/templates/base.html`. Pill, min-height `--tap`, padding 0 24px, 500 1rem, `border: none` (always reset the user-agent border).
+- **Primary** (`button.primary`, `a.btn.primary`): gradient from the accent to 16% toward white (12% toward black in dark), glass strokes, accent-ink text. One per view or form; when a primary appears, the others step down to secondary.
+- **Secondary** (default): Surface fill, `--raise-btn`, hover Surface hover. The default, and the section action (header row, right side, never Primary).
+- **Tertiary** (`button.quiet`, `button.hist-del`): 4% to 7% gradient, no shadow. Delete on a history row; an open action disclosure.
+- **Danger** (`button.danger`): as secondary with Rejected text. The label still says what it does.
+- **Small** `--tap-sm` (36px; 44px on touch). **Icon** buttons are `--tap` square with an `aria-label`.
+- States: press scale 0.97 (120ms), disabled 50% opacity, busy (`aria-busy`) progress cursor, focus a 2px ink outline at 3px offset on every interactive element.
 
-### Badges and chips
-**Stage badge:** no pill. The stage word at 0.875rem/500 in its stage text colour, led by a 10px dot in its graphic colour (8px gap), drawn in CSS so the markup stays `badge Interview`. The word is always present, so colour is never the only signal. It stays compact enough for the phone row's top-right cell. **Plain badge** ("Open now") and the jobs score pill: tonal pill on Inactive bg, 0.75rem/500, 3px 12px; the score takes the Offer, Heard back or Applied text colour. Chips are the same fill at 0.875rem; tags are smaller pills in text-secondary (step and note tags in text primary).
+### Badges, chips and tags
+Both. `StageBadge.tsx` (hosted), `.badge`, `.chip`, `.tag` in `base.css`. The **stage badge** has no pill: the stage word at 0.875rem/500 in its stage text colour, led by a 10px dot in its graphic colour, so markup stays `badge Interview`. A **plain badge** and the jobs score pill are pills on Inactive bg, 0.75rem/500, padding 3px 12px. **Chips** are the same fill at 0.875rem. **Tags** are smaller pills in text-secondary (step and note tags in ink). "Follow up?" and "No reply in 30 days" are tags; an application shows one or the other.
 
-### Filter tabs
-The Minimal segmented control: no track, text-secondary at 400 weight, 8px-radius options at 44px with the count inline. The current tab gets the Inactive-bg indicator and text primary at 500, so it is distinguished by weight and fill, not color alone. Hover is the Hover bg; press is a slightly stronger tone, never a scale.
+### Segmented controls and tabs
+Pick one of four; never mix. Selected is ink at 500, unselected muted at 400, told apart by weight and fill, never colour alone. The indicator is grey (`--fog`), no stroke or shadow.
+
+| Variant | Used for | Look | CSS |
+| --- | --- | --- | --- |
+| **Minimal** `.tabs` / `.tab` | filter tabs, List/Calendar, Resumes/Cover letters/Tailored | no track; 8px (`--r-seg`) options at `--tap`, count inline; `aria-current="true"` | `base.css` |
+| **Default** `.seg` | theme, density, corners | pill track styled as a Primary card, pill options inset 4px, hidden radios | `pages/settings/settings.css` |
+| **Section switcher** `.section-switcher` | Settings sections | the Default track, a row of links, `aria-current="page"`, scrolls sideways | `settings.css` |
+| **Document switch** `.doc-switch` | Resume / Cover letter, Edit on page / as list | Minimal look on buttons at `--tap-sm`, `aria-pressed="true"` | `components/documents/pageeditor.css` |
+
+Hover is Hover bg; press is a stronger tone, never a scale. Indicators switch instantly (no script on these controls).
 
 ### Inputs
-Pill, 1px Field line border, Surface fill, padding 0 20px; border shifts to ink on focus plus the outline. Textareas use the 12px radius. Labels are 0.875rem/500 text-secondary with a 4px inset. Checkboxes and radios take ink as accent-color. Dropdowns use the customizable-select popup (raised surface, pill options, Lucide check) where the browser supports it.
+Both. `input, select, textarea`, `label.field`, `.help`, and the `appearance: base-select` block in `base.css`; `Combobox.tsx` and `combobox.css` for suggestions. Pill, 1px Field line border, Surface fill, padding 0 20px; border turns ink on focus. Textareas use the 12px radius. Labels 0.875rem/500 muted, 4px inset. Checkboxes and radios use ink as accent-color. Dropdowns use the themed popup where supported (raised surface, pill options, Lucide check). Under 720px, field text is 16px.
 
 ### Cards
-The Primary card: Surface fill, raised strokes and shadow, no border, 20px radius, 16px padding. The list card holds the table with hairline row dividers; open rows tint Surface secondary and hovered rows use Hover bg. Don't nest a raised card in a raised card; group inside a card with dividers or a hairline box.
+Both. `.card` in `base.css`. Surface, `--raise`, no border, 20px radius, 16px padding, `--section` below. No hover or pointer cursor on a static card. Group inside a card with dividers or a hairline box.
 
-### Stacked phone row
-Described in Layout: a two-column grid per application with the stage (dot and word) top-right and last activity beneath.
-
-### Notices
-Surface fill, 1px Field line border, 12px radius, 16px Lucide info icon (alert icon in the Rejected color for errors). Never a colored side-stripe.
-
-### Expandable list panel
-Clicking a company name (a 500 row label with a Lucide chevron) opens an in-place Surface-secondary panel under the row with a two-column form grid and a hairline-divided history list. The chevron rotates from 0 to 90 degrees over 0.16s; disclosures (`details`) reuse the same chevron.
-
-### Settings controls
-The Default segmented control (theme, density, corners): a pill track styled as a Primary card, with a grey pill indicator inset 4px inside it, selected option at 500 weight in text primary, the others in text-secondary. Accent swatches are raised pills with an 18px dot and a 2px ink ring when selected. Settings shows one of five sections at a time (Setup, Mail, AI, Data, Appearance, in the order things depend on each other), chosen with a row of links at the top that are Minimal segmented options. Setup is the default: "Set up Job Tracker" with "2 of 4 done" over four rows (Mailbox, Resume, AI key, Backup), each a tick or an empty circle with words ("Connected", "Linked" when an account exists but needs reconnecting in this tab, "Not yet"; in the demo the mailbox row is done by nature and says "Not available"), a line on what it unlocks and its own buttons; Skip and "Not now" count a row as done by choice. Mail has Account (Log out), Email accounts, Look back on first sync, Sync now and what the app has learned; Data has Back up, Restore, Recently deleted and Delete everything. The reference calls for the indicator to animate between options; this app switches instantly because it has no script on that form.
-
-### Jobs tab
-Filter tabs (Matches, Notifications, Your profile, Sources) sit above a second row of view tabs (New, Saved, Applied, Dismissed, All) with counts. Matches are hairline-divided rows inside one card: a 500 title, a small tonal score pill, a muted "company · place · source" line, the match reasons in body ink, then pill actions. "I applied" is the one primary action; Dismiss is the quiet danger. The nav's Jobs link carries a count badge of new matches. On phones the actions wrap under the reasons.
-
-### Hosted-edition patterns
-- **One way to add.** A single secondary "Add application" button opens the form in place, between the filter card and the list. While it is open the form's Save is the one primary and Apply filters steps down.
-- **One target per row.** A list row expands from its name or anywhere on the row; "Open full page" lives inside the expanded panel, never beside every name.
-- **Demo banner.** A quiet one-line status row ("Demo mode: not logged in, data stays in this browser.") with text actions. It never carries a primary button, and "Load demo data" shows only while the database is empty.
-- **Detail actions.** One stage select that applies on change, plus a "More" menu (merge, not an application, delete). Nothing uses a browser dialog. Delete and Not an application ask in place with the shared InlineConfirm (Delete says "You can restore it for 30 days" and puts the application in Recently deleted; "Delete for good, keep emails in Needs review" sits inside the same block) (and so do removing a person, deleting selected rows, and the Data actions that replace or erase everything): a tinted block under the control that opened it, with the danger button, Cancel, and focus starting on Cancel so a stray Enter never removes anything. Escape or Cancel closes it and returns focus to the opener. Merge asks in place with its own small form (a select and Merge applications); focus starts on the select, and Escape closes it and returns focus to the More button.
-- **Paste a job link.** The link field sits at the top of the add form with a quiet "Fill in" button. Anything derived is a suggestion: guessed fields carry a muted "Guessed from the link" hint that clears when you edit, and nothing is saved until Save is pressed. Untrusted text from links, APIs and the bookmarklet is only ever rendered as text.
-- **Quick edits.** In the applications list, role and applied date read as plain text and become a field when chosen: Enter or leaving the field saves, Escape restores, and focus goes back to the text. The stage is a coloured pill that is a real dropdown, with a quiet Undo for a few seconds after a change. Nothing shows an edit icon.
-- **Interview rounds.** One line under the facts on the application page: "Interview rounds 3 · estimated from your emails", with a quiet "Edit rounds" button. The source note says whether the number is estimated, from logged steps, or set by you. A typed number always wins and is never rewritten by a sync.
-- **Coming up.** A hairline-divided list above the filter tabs, no card and no visible heading: company, role and day ("Today", "Tomorrow", "Thu, Oct 15") on one row, each a link to the application. Seven days ahead, five rows at most, hidden while any filter is on and when there is nothing to show.
-- **Quiet lines under the stage.** "Interview Thu, Oct 15" and "Decision by Oct 15" sit under the stage in small muted text. They are plain text, with no colour and no icon.
-- **Follow-up.** "Follow up?" is a label-size tag on the Inactive bg, in text-secondary, beside the last activity. "Needs follow-up" is a plain checkbox in the filter card, applied with Apply filters like the rest.
-- **Select several.** A checkbox column leads the list (the header box selects every row shown), and ticked rows tint with Inactive bg. While any are ticked a card appears between the filter card and the list with the count, a stage select with "Set stage", a danger "Delete" and "Clear selection". Delete asks in place, not in a browser dialog, and afterwards one notice says what happened and takes focus. Row clicks never tick. The box does.
-- **Offer details.** On the application page, an "Offer" section with Salary and Decision deadline fields and a quiet "Save offer details". It shows at the Offer stage or once there are details.
-- **Duplicate warning.** One muted sentence under the add form's fields with the application as a link. It informs and never blocks Save.
-- **Export CSV.** A secondary button beside Export data in Settings, Data.
-- **Backup nudge.** A quiet one-line status row at the top of the Applications page, like the demo banner: muted 0.875rem text ("Your applications only live in this browser. Last backup: never."), then two text actions, "Export a backup" and "Remind me in a week". Never a card, never a primary button, never a dialog, and nothing waits on it. Focus moves to the page when it is snoozed so it isn't lost.
-- **Data section: Back up, Restore, Delete everything.** Settings has five sections, Setup, Mail, AI, Data and Appearance, shown one at a time at `#/settings/:section` (`#/settings` is Setup) under a row of links (the open one has `aria-current`). Data holds three cards, Back up, Restore and Delete everything (a danger card), with Recently deleted between Restore and Delete everything. Under the Back up intro, up to two muted help lines say whether the browser will keep the data and how much space it uses. A second row of secondary buttons ("Choose a backup file", "Back up now", "Choose a different file", "Stop using this file") shows only in a browser that can write to a file, with the file's name as a muted line above it.
-- **Recently deleted.** After a delete, a Notice ("Deleted Acme. It stays in Recently deleted for 30 days.") with a small secondary Restore beside it for 8 seconds, in the same place whichever page you deleted from. In Settings it is its own card of hairline-divided rows: company, muted role, stage badge (a resume or cover letter row is a muted kind word and a dot, then its name in bold: "Resume · Resume for Acme, Analyst", "Cover letter · Acme, Analyst"), a muted "Deleted 3 days ago · 27 days left" line, then small Restore and a small danger "Delete now" (which asks in place; the result is a Notice above the rows that takes focus, since the row's button is gone). "Empty recently deleted" is the card's one danger button and also asks in place. The page of a deleted application says so and offers Restore as its one primary button.
-- **Add to calendar.** Quiet small secondary buttons ("Add to calendar", "Download all upcoming interviews", "Download interviews (.ics)", "Download this month's interviews") that save a file and say "Calendar file saved." in a status line. No icon, no menu, and no promise of a time: the files hold all-day events.
-- **Draft follow-up.** A small pill link, not a button, in the row of actions under an application (with the upcoming interview days and Add to calendar). It is the primary style only when the application needs a follow-up, and it says in its label that it opens a new tab. It is hidden when there is no mail account.
-- **No reply tag.** "No reply in 30 days" is the same label-size tag as "Follow up?" (Inactive bg, text-secondary), and "No reply" is a plain checkbox beside "Needs follow-up" in the filter card. An application shows one tag or the other, never both.
-- **Search note.** When a row matched on text other than its company or role, a muted "Matched in an email: ..." line sits under the company, with a short snippet as plain text.
-- **Saved views.** "Save this view" is a quiet button on the Applications page, shown once the filters or sort differ from the plain list, that opens a one-field form. Saved views are pill chips (Inactive bg, 0.875rem/500) above the list, each a link with a small options button that opens Rename and Delete view in a Surface-secondary block under the chips. The chip for the current view is filled in ink. Deleting a view says so in a muted line under the chips ("Deleted the view \"Mine\".") and focus moves to the next chip's options button, or to that line when it was the last.
-- **Weekly goal.** One muted sentence ("This week: 3 of 5 applications. Goal reached.") with a 6px pill bar in the accent on Inactive bg under it, and a quiet "Change goal" button. With no goal it is only a quiet "Set a weekly goal" button. No ring, no confetti, no colour change when it is met. The one button stays where it is when the goal is set or removed (only its words change), so focus stays on it, and a screen-reader-only line says "Weekly goal saved." or "Weekly goal removed."
-- **Compare offers.** A card that is closed until opened: a 44px disclosure row with the Lucide chevron and a count, then a hairline-divided table (company as a link, role, salary as typed, decision deadline with the days left in muted text ("3 days left", "Today", "Passed yesterday"), stage date) that scrolls sideways on a phone. It stays as it was left for the rest of the session.
-- **Calendar.** A List and Calendar pair of tabs on the Applications page (the same Minimal segmented control). The month is a seven-column grid in a hairline-bordered 20px box: weekday names in muted small text, each day a 44px-or-taller cell with its number, up to three event chips (Inactive bg, 0.75rem, a Lucide icon and the event word, never colour alone) and a muted "+2 more" for the rest. Today's number sits in a 2px ink ring, the chosen day has a 2px ink inset ring on Inactive bg, and days outside the month are muted. It is a `role="grid"` with one tab stop, and forced-colors mode uses system colours for the rings. Weeks start on Monday.
-- **Calendar day panel.** Choosing a day opens a raised card under the grid: the long date as a heading, one row per event (icon, word, company and role as a link to the application, "Past" when it is) and "Download interviews (.ics)". Nothing is shown for an empty day except "Nothing on this day." Coming up and Compare offers are not shown in the calendar view.
-- **Calendar agenda.** At 720px and below the grid is replaced, not squeezed: one section per day that has events (today first), a heading with the weekday and date, and the same event rows.
-- **Resume page steps.** Hosted edition only. The title "Resume" over a four-step strip: "1 Your resume", "2 The job", "3 Review", "4 Add to applications". Each step reads done (a Lucide check), current or waiting in words as well as tone, never colour alone. Only the current step is open; a finished step collapses to one line with a quiet "Change", and focus moves to the new step's heading when the step changes. Step 1 with no master is the empty state below ("Start from the template", "Upload a file", "Paste text"), the convert and check, then "Save as master resume", which opens step 2; with a master it is one line, "Master resume · updated Nov 10", with "Change" (scrolls to the master under Your documents) and a small "Based on" select (the master or a version, master first). Step 2 waits until a master exists: "Paste the job description" (a big text box), an optional "Job link" with "Fill from link", then Company and Role, filled from the pasted text on the device and marked "Check these" until touched (when both stay empty and the key is unlocked, one small AI call fills them, kept only if the words are in the posting), and "Words from the posting" under the box. The actions wait for a company, and for a link that is a web address (the rule an application's link follows: a plain sentence next to the field says what is wrong). The primary is "Write my resume and letter" (AI, with the inline unlock, and Stop while it writes; with no key, one line and a link to Settings, AI), beside a quiet "Start by hand" that copies the baseline with no AI and starts the letter with the greeting. Step 3 has a switch of two buttons (the `.doc-switch`, the chosen one pressed), Resume and Cover letter: the tailored copy in the page editor with change marks, Use ticks, flags, "Left out" with Add back, "Changes from your baseline" and the one-page check; the letter as an editable text box with its flags and Copy text. Its buttons are "Next", "Try again" (asks in place first if you edited) and "Back", and nothing is saved yet. Step 4 is one sentence: "Already in your applications: Gringotts, Product Analyst (applied Sep 7)" with "Use this one" (the default) and "Add as new", a choice of rows when several match (by link first, then company and role), or "Adds Gringotts, Product Analyst to your applications (Applied, today)". The primary "Save" asks in place before replacing a tailored resume or letter the application already has. An application that is used keeps its own posting text and link and gets the pasted ones only when it has none, and saving without a letter keeps the letter it already has. If the resume the draft was based on has been deleted, one muted line says so and the master is used for Review and for Save. Done reads "Saved to Gringotts" with "Open application", "Edit in Tailor" (`#/tailor/<id>`), "Print resume", "Draft letter in Gmail" or Outlook (when a mailbox is connected) and "Tailor another job" (back to step 2, cleared). The job in progress survives a reload in session storage until Save or "Start over", until "Discard changes" on the leave question (which clears the saved job too), or until log out or "Delete all my data". Leaving the app with an unsaved draft asks first, like the other editors; reloading or closing the tab does not bring up the browser's prompt for the draft (it is kept), only for the editors that keep nothing. `#/resume?step=job` opens step 2, `#/resume?step=job&baseline=<id>` opens it with that resume version as "Based on" (an id that isn't a live resume is ignored), and `#/resume?app=<id>` opens it filled from that application (company, role, posting text and link) with step 4 set to "Use this one" for it. At 390px the strip wraps to one step per line and every control is a 44px target.
-- **Your documents.** Under the steps on the Resume page, a "Your documents" section with three Minimal segmented tabs, Resumes, Cover letters and Tailored. Resumes is a stack of 20px cards: the master editor card (the sheet editor: the classic one-page sheet itself with every text a borderless field you type into where it is, a line's move up, move down and remove buttons on a white chip that appears on hover or focus and floats in the margin only when the editor is 900px wide or more, otherwise sits over the line's right end, a quiet add row under each section ("Add bullet", "Add job"... the likely next line first, and "Add contact line" under the header), and a muted "Fits one page" line above; a `.doc-switch` of two plain options, "Edit on page" and "Edit as list", the chosen one in a grey rounded rectangle, picks between it and the list of plain fields, where each line has a "Line type" select (Line, Job, Job title, Bullet, Skill, School) and label, location and dates fields that show only for the types that use them; on a phone the controls and the add row are always shown with 44px targets and the sheet uses 16px type; a quiet muted row under the title, "This resume was saved before the template. Re-read it as the template?" with Re-read and Dismiss, shows for a master with no typed lines; the demo resume is structured in the same layout; "Replace with a file", "Make a version", "Tailor for a job" (a plain button that opens step 2 at `#/resume?step=job`), Print) and one card per resume version, each with a muted "Used for 2 applications" line (a link to the list filtered to that resume), Rename, Edit, Duplicate, "Tailor with this" (goes to `#/resume?step=job&baseline=<id>`, step 2 with that version as "Based on"), Print and a Delete that asks in place. Before there is a master, one card offers "Start from the template" (primary: a card with the blank sheet editor to type into, Save off until there is text, and Cancel that asks in place only after something was typed), "Upload a file" and "Paste text", and what is read is shown to check before Save. Cover letters is a list of rows, each a link to its application with the letter's text. Tailored is the same card list for the resumes tailored for one application each, newest first: the title, a muted line with a link to the application ("Acme, Analyst"), "Based on: Master" or the version's title (a deleted baseline reads "Based on: a deleted resume") and the updated date, then "Open in Tailor" (goes to `#/tailor/<id>`), a quiet "Make reusable" (turns it into a resume version; at the five-version cap a plain sentence appears under the row and the row stays) and Print. With none, one muted sentence, "No tailored resumes yet.", and a "Tailor for a job" button that opens step 2. Rows made by the steps show here like any other. The Tailor picker (`#/tailor`) and workspace (`#/tailor/<id>`) stay for an application that already exists. A tailored resume never shows on the Resumes tab.
-- **Settings, AI card.** A card titled "AI" (hosted only, the AI section of Settings) under one muted line: "Convert a resume, tailor it for a job and read the company and role from a pasted job. Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase." Labels are "Anthropic key", "Passphrase" (help: "At least 12 characters. You'll type it to unlock your key. It isn't stored anywhere.") and "Model" (a select: "Sonnet 5.5 (recommended)", "Haiku 5.5 (cheaper)", "Opus 5.5 (best)"). Three states. None: the three fields and one primary "Save key". Locked: "Key ending in ••••1234", a Passphrase field and a primary "Unlock", with "Forget key" as a danger button beside it that asks in place ("Forget your key on this device?"). Unlocked: the same key line, a muted "Unlocked until you reload or log out.", then "Check key", "Lock" and "Forget key". Results and errors (a wrong passphrase, a key Anthropic refuses) go to the Notice at the top of Settings, like the other cards.
-- **Convert panel on the Resume page.** A card that appears for every upload or paste, headed "Convert to your template". A muted line, "This is the text that will be sent to Anthropic with your key:", labels a read-only text box with a character count under it. Buttons: "Convert with AI" (primary, once the key is unlocked), "Use the simple converter" and "Cancel", plus "Stop" while it converts. With no key, a line says "Add your Anthropic key in Settings to convert with AI." with a Settings link, and the simple converter is the primary button. With a locked key, a Passphrase field and "Unlock" sit inline. The review is the check step with a muted "Converted with AI. Check each line before you save." Above the editor, a "Check these lines" list has one row per line the conversion wasn't sure about: the note ("Not in your file: ..." or "Label added by AI"), the line, and small "Go to line" and "Dismiss" buttons. A collapsed "Not used from your file" lists the words that weren't carried over. The buttons are "Save as master resume" (primary), "Convert again", "Use the simple converter" and "Cancel", and nothing is saved before Save.
-- **Documents on the detail page.** A "Documents" section with three plain blocks: "Resume sent" (a select of resume versions, None first), the cover letter (a text box, with Copy text, Draft in Gmail or Outlook and Print) and the job posting (a quiet disclosure with the pasted or captured text). On the list, an open application's panel carries one muted line ("Resume: Analyst v2 · Cover letter"), which adds a plain link "Tailor for this job" (to `#/tailor/<id>`) when a master resume exists and the application has no tailored resume yet. With a master resume, a quiet "Tailor resume and cover letter" button-link sits under "Resume sent" and goes to `#/tailor/<id>`; nothing is tailored inline on the page, and there is no "Make a copy for this job". A tailored resume shows as "Tailored" in "Resume sent" beside an "Open in Tailor" link, and the header's "You sent:" says "(tailored)". The Job posting box offers "Fill from link" when the application has a posting link. After Add application, the "Added Acme" notice carries a link "Tailor your resume for this job" (to `#/resume?app=<id>`, the Resume page steps filled from it) when that application has posting text and a master exists.
-- **Resume column and filter.** Resume is an optional column (Settings, Appearance, off by default) that sorts and hides on a phone. The filter card has a "Resume" select (Any resume, each version, No resume set) and the current choice shows as a chip ("Resume: Analyst v2", "No resume set"). The Add forms ("Resume sent") and the bulk bar use a select of the versions too, with "Set resume" in the bulk bar. An interview in Coming up and the calendar carries a muted small "Sent: Analyst v2".
-- **Print view.** `#/resume/print/:id` shows one document as a single clean column, with a "Print or save as PDF" primary button above it. Printed, the header, nav, banners and buttons are hidden and text is black on white. A cover letter prints in the plain system font with 18mm `@page` margins. A resume prints in the classic template: serif font on US letter with half-inch margins (the named `@page classic`), 10.5pt text on a 1.25 line height, a centered caps name and contact line, ruled caps headings, and job and school rows with the location or dates aligned right. It is black on white in light and dark. For a resume a muted status line beside the print buttons reads "Fits one page" or "About 3 lines over one page". It is advisory, because the screen layout only approximates print.
-- **Keyboard shortcuts.** A quiet "Keyboard shortcuts" button at the bottom of the Applications page opens a small modal dialog (440px wide at most, a raised card on a 40% black backdrop): a list of keys in `kbd` pills with what they do, a muted line that they don't work while typing, and one primary Close. The list includes `g` then `r` for Resume. Focus moves in, Tab stays inside (focus that lands anywhere behind it is brought back), Escape or Close shuts it and focus goes back to what opened it, or to the footer button when that is gone.
-- **Add several links.** A quiet disclosure inside the Add application form with a textarea (one link per line, up to 10), "Add these" and, while it runs, Stop (the disclosure stays open meanwhile, and focus moves to Stop and back to "Add these"). Each link then gets a plain sentence ("Added Acme, Designer.", "Skipped. Already saved as ...", "Couldn't be read. ..."), all as text.
-- **History alignment.** Every dated row in History ends at the same edge, so the dates line up in one column: the Delete button has a fixed width, and an email row leaves that room empty.
-- **Links in running text.** A link inside a paragraph, list item, notice or help line is full-contrast ink at weight 500 with no underline, and a tonal background on hover. Buttons, tabs, back links, expanders and sort links style themselves.
-- **Lists are lists.** People is one hairline-divided list on the page background, not a card per company. Cards are for grouping a form or a self-contained object such as an email.
-- **Log in page.** Two equal "Continue with ..." buttons in one card. Google's own G mark sits on a white pill, as their branding rules ask; the button the person used last gets the primary style. One muted help line says one window logs them in and Google may show an unverified notice (Advanced, then Go to Job Tracker). "Log in without connecting your mailbox" is always there under the buttons, a quiet text button in the ink colour (it logs in with the provider that just failed, else the one used last, else the first the site has); it is left out only when the site has no client IDs. The footer holds Privacy, and "Site setup (for the site owner)" only when the site has no client IDs or the address has `?setup` (the address `#/setup` always works).
-- **Setup card on Applications.** A hosted-edition card above the list while setup is unfinished: the title "Finish setting up · 2 of 4", a muted line naming the next missing step ("Next: add your resume"; "Optional: add your Anthropic key" for the AI key), a primary "Continue" (to Settings, where Setup is the first tab) and a quiet "Dismiss". It is hidden once all four steps are done or skipped, and once dismissed; the dismissal is stored in the person's own database, so it stays gone on reload. It replaces the old "No email account connected yet" notice. The empty table row reads `No applications yet. Choose "Add application", or finish setting up to find them in your email.` with "finish setting up" a link to Settings; in the demo build it reads `No applications yet. Choose "Add application", or load the demo data.` with "load the demo data" an inline button, the same guarded load as the demo banner. The demo build never links to the owner's guide.
-- **Gate sentences.** When something is missing, every screen says it in the same words and links to the place that fixes it: "Connect your mailbox in Settings." (`#/settings/mail`), "Add your resume first." (`#/resume`), "Add your Anthropic key in Settings." (`#/settings/ai`), "Unlock your key to use AI." and "Paste the job description first." They live in `src/app/gates.ts`.
-- **Site setup guide page.** Its title is "Site setup (for the site owner)", the one name wherever it is linked. `#/setup` is numbered steps in cards, one per console. Every value to copy is a monospace line with a Copy button. The two ID fields check their format as you type and say so in plain words. The generated `site-config.json` text sits below with a Copy button and an "Open site-config.json on GitHub" link, then an invite block with a copyable message. It needs no login.
-- **Carry-over offer.** A quiet row, not a card: one sentence saying how many applications are saved in this browser from before login, with "Bring them over" and "Not now". It is never automatic. Afterwards a Notice says the earlier copy is still in this browser, with "Remove the earlier copy", which asks in place before it deletes.
+### Rows and lists
+Both. `table.list`, `tr.app-row` in `base.css`; `ApplicationPanel.tsx` and `applicationpanel.css`; `PersonCard.tsx`, `pages/people/people.css`. Hairline dividers (`--line`) between rows inside one card; open rows tint Surface secondary, hover is Hover bg, press is Inactive bg. List content that is not a form or a self-contained object (People, Coming up) is a hairline-divided list on the page background, not a card each. At 720px and below a row becomes a stacked block (see Applications list in screens).
 
 ### Disclosures
-One system, defined once in the shared stylesheet. A **section disclosure** (`summary.disclosure`: Table view; the local edition's Add an application) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line with the same chevron. An **action disclosure** (`details.action`) is a secondary pill that sits in an action row (Edit, the emails list) and opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient (Reply).
+Both. `base.css`. A **section disclosure** (`summary.disclosure`: Table view, Compare offers) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line. An **action disclosure** (`details.action`) is a secondary pill in an action row that opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient. The chevron rotates 0 to 90 degrees over 0.16s.
 
-### Email text
-Emails are read, not dumped. The subject is a 500 heading, the sender a bold name with a muted address, and the date and account sit on their own line, in the viewer's time zone with how long ago. The body is 0.9375rem/1.7, max 68ch, with repaired paragraphs and lists. Reply chains and footers fold under "Earlier in this thread" and "Footer and links". Links show their domain and are never clickable. A sent reply is a Surface-secondary card labeled "Reply sent". The newest email carries a "Latest" pill (the accent fill).
+### Steps strip
+Hosted. `pages/resume/steps/StepStrip.tsx`, `pages/resume/steps.css`. A wrapping flex list of four items at `--tap`, each with a 24px mark: an outlined number (not reached), accent fill (current) or `--fog` with a tick (done), plus the state in words. Finished steps collapse to one line with a small "Change". The open step's heading takes focus on each step change and shows a visible ring.
 
-### People
-Each company on the People tab is a dropdown (`details.company`): a card whose summary row is the chevron, the company name, its role, and a people count. It opens by itself when there is only one or after a search, and Expand all / Collapse all sit above. One shared person component on the People tab and inside each application: bold name, a tag for the kind (Recruiter, Hiring side, People Ops), the title as plain text, then a muted address and last contact. One action row holds Email (primary), Reply here, the emails list and Edit. People are grouped under their application and hairline-divided, never boxed.
+### Setup row and setup card
+Hosted. `components/setup/SetupRow.tsx` + `setuprow.css`; `SetupCard.tsx` + `setupcard.css`. A hairline-divided list inside one card; each row is a 24px mark (a 2px Field line ring when open, filled ink with a tick when done), a 500 title, a 0.875rem state word ("Connected", "Not yet"), a muted line on what it unlocks, and its own buttons. The card is a flex row: title, muted next-step line, a primary "Continue", a quiet "Dismiss".
 
-### Status and progress
-Account status is the provider's name in a heading, with the address or the error under it, and no emoji. A running sync is an unboxed block with a 10px pill progress bar in the accent on Inactive bg, an indeterminate slide when the total is unknown, and a sentence for the time left.
+### Notices
+Both. `components/Notice.tsx`, `.notice` in `base.css`. Surface fill, 1px Field line border, 12px radius, padding 14px 20px, a 16px Lucide info icon (alert icon and Rejected border for errors). Errors are `role="alert"`, others `role="status"`. A notice that reports a result takes focus. Never a coloured side-stripe.
 
-### Motion
-Background, border and color transitions at 0.16s ease-out, the 0.12s press scale, and the chevron rotation, all gated behind `prefers-reduced-motion: no-preference`.
+### InlineConfirm
+Hosted. `components/InlineConfirm.tsx`, `inlineconfirm.css`. The one way to confirm removing or replacing anything; nothing uses a browser dialog. A tinted Surface-secondary block with a 12px radius, 12px margin and the card padding, directly under the control that opened it: a question title naming the object, an optional one-sentence consequence, the confirm button named by outcome (danger style when destructive) and Cancel, plus optional extra choices between them. Focus starts on Cancel so a stray Enter never removes anything. Escape or Cancel closes it and returns focus to the opener; Escape does nothing while the action runs, and both buttons are held. What happens afterwards is the caller's: remove the block and say what happened in a Notice that takes focus.
 
-## Do's and Don'ts
+### Quiet status row
+Hosted (the demo banner, backup nudge, carry-over offer, "Needs review" banner). `.status-row` in `pages/applications/applications.css`; `app/LocalBanner.tsx`; `backup/BackupNudge.tsx` and `backup.css`; `.demo-line` in `settings.css`. One line of muted 0.875rem text followed by text actions. Never a card, never a primary button, never a dialog, and nothing waits on it. When an action dismisses it, focus moves to the page so it is not lost. Account status: the provider's name in a heading, the address or error under it, no emoji. A running sync is an unboxed block (`components/syncprogress/SyncBar.tsx`, `syncbar.css`) with a 10px pill progress bar in the accent on Inactive bg, an indeterminate slide when the total is unknown, and a sentence for time left.
 
-### Do:
-- **Do** take color from the tokens so light, dark and all four accents work without per-theme overrides.
-- **Do** use `var(--r-pill)`, `var(--r-lg)`, `var(--r)` and `var(--r-seg)` for radii so the sharp setting applies.
-- **Do** size controls with `var(--tap)` and sizes in rem.
-- **Do** keep text at WCAG AA in both themes; use Field line for operable borders.
-- **Do** raise cards, secondary buttons and popups with `var(--raise)`; reset `border` on every button.
-- **Do** draw icons as Lucide masks or inline Lucide SVG, 24px or 16px, with `currentColor`.
-- **Do** wrap motion in `prefers-reduced-motion: no-preference`.
-- **Do** prefer a sentence over a stat card.
+### Charts and ChartFrame
+Hosted (local: `templates/statistics.html`). `pages/statistics/ChartFrame.tsx`, `statistics.css` under the `.viz-root` chart root. Every chart sits in `ChartFrame`: a heading, at most one line of note, the chart, a tooltip (a tap pins it on a phone), arrow keys between marks with one tab stop, and a Table view. Stages take fills from the stage map; only the no-outcome grey is the chart's own (#8c8c8c / #8a8a8a). Series colour follows the thing measured (applications Applied blue, replies Heard back purple). One axis, hairline gridlines at a few round values, 12px axis text in muted (never a series colour), thin marks with a 4px rounded data end, no number on every mark. An unfinished period is a 45 degree hatch plus the words "Still coming in".
 
-### Don't:
-- **Don't** use colored side-stripes on cards, rows or notices.
-- **Don't** hand-author icon paths, or use emoji or unicode glyphs as icons.
-- **Don't** uppercase text, underline links, or use tabular numbers.
-- **Don't** use a weight outside 400, 500 and 700.
-- **Don't** introduce a new accent color outside the four choices, or color a stage beyond its entry in the one stage map.
-- **Don't** scale list rows, tabs or other items that share edges with siblings on press.
-- **Don't** hard-code px radii, `#000`/`#fff` in component rules, or hairline-colored borders on inputs.
-- **Don't** use Wealthsimple's name, logo, wordmark or font files in the shipped app.
+### Links in running text
+Both. `base.css` (the `:is(p, li, .notice, .help, .small, .muted) a` rule). A link inside a paragraph, list item, notice or help line is full-contrast ink, weight 500, no underline, with a tonal background on hover. Buttons, tabs, back links, expanders and sort links style themselves.
+
+## 5. Screens
+
+Each screen has its own section in [docs/design/screens.md](docs/design/screens.md):
+
+- [Applications list](docs/design/screens.md#applications-list): add, filter, quick edit, bulk, saved views, goal, offers, shortcuts
+- [Application detail](docs/design/screens.md#application-detail): actions, rounds, offer details, documents, history
+- [Resume page and its steps](docs/design/screens.md#resume-page-and-its-steps): four steps, Your documents, convert panel, print view, Tailor
+- [Settings and Setup](docs/design/screens.md#settings-and-setup): sections, Data, Recently deleted, AI card
+- [Log in and setup guide](docs/design/screens.md#log-in-and-setup-guide)
+- [Jobs and Calendar](docs/design/screens.md#jobs-and-calendar)
+- [People and email](docs/design/screens.md#people-and-email)
+- [Gate sentences](docs/design/screens.md#gate-sentences)
+
+## 6. Motion and animation
+
+In the app, motion is small and optional: background, border and colour transitions at 0.16s ease-out, the 0.12s press scale and the chevron rotation, all inside `@media (prefers-reduced-motion: no-preference)`. No bounce, no parallax, nothing else moves.
+
+Fixed-size looping animations of the UI (a README GIF, release note, App Store card) are a separate, dev-only job: a pixel-exact stage, a camera that pushes in and out, one flat timeline of absolute milliseconds, recorded to GIF or mp4 by script. The method, gotchas and checklist are in [docs/design/animation.md](docs/design/animation.md); scripts are in `tools/design/`. A stage reuses the real components and tokens so it cannot drift.
+
+## 7. Critiquing a screen
+
+A critique is about taste first: what reads wrong and why, as tendencies, not violations; design-system conformance and content are secondary notes. Every review starts fresh (never read earlier reviews), looks in six passes (whole read, counts, craft tells, flow, patterns, content cross-check) and keeps three to seven ranked findings. The workflow, rubric, finding format and screenshot recipe are in [docs/design/critique.md](docs/design/critique.md); scripts are in `tools/design/`.
+
+## 8. Pre-ship checklist
+
+Run all before calling a screen done (details: `styling.md` section 5, `copy.md` section 8).
+
+1. **Desktop** (1120px and wider): content in the column, 16px gutter, one Display heading, at most one primary button.
+2. **390px phone:** nothing clips, no horizontal overflow (`document.documentElement.scrollWidth <= innerWidth`), tables become stacked blocks, header nav on one row, inputs 16px.
+3. **Dark:** switch `data-theme="dark"` and the system setting. No hard-coded light colours; text 4.5:1, graphics 3:1; inputs use Field line.
+4. **Every finish combination:** each accent (graphite, bronze, forest, clay), compact density, sharp corners, with theme light and dark. Nothing hard-codes a radius or colour.
+5. **Keyboard and focus:** tab order follows reading order, every control shows the 2px ink ring, Enter and Space work on custom controls, focus lands somewhere sensible after a step change, a result or a removed button; the skip link works.
+6. **Colour never alone:** state is a word, shape or icon too (stage word plus dot, tab weight and fill, tick plus word, error icon, hatched and labelled provisional values).
+7. **44px targets** (36px on a mouse in compact density).
+8. **12px minimum text**; rem sizes; weights 400, 500, 700 only.
+9. **Tokens, not hex:** no `#000`/`#fff`, no literal px radii, no `font-weight: 600`; one radius name per component.
+10. **Honest interaction:** hover and pointer only on things that act; standalone controls scale on press, items in a container use a tone; motion inside `prefers-reduced-motion: no-preference`.
+11. **Grep the new CSS** for `#[0-9a-f]{3,6}`, `uppercase`, `tabular-nums`, `text-decoration: underline` and literal `border-radius`; each hit needs a reason.
+12. **Words:** sentence case, no em-dashes, no emoji, buttons named by outcome, one help line at most, errors are plain sentences with a next step, gates come from `gates.ts`, destructive steps use InlineConfirm.
+13. **Icons:** Lucide only, 24px or 16px, `currentColor`; icon-only buttons have `aria-label`.
+14. **Never:** side-stripes, hand-drawn icon paths, a new accent, a stage colour outside the map, a nested raised card, Wealthsimple's name, logo or fonts.

@@ -270,6 +270,8 @@ Replying from the app, the Jobs tab (resume matching, Adzuna, Windows pop-ups), 
 
 ## Layout
 
+For how anything here should look, read [DESIGN.md](../DESIGN.md) first (it links to the guides in `docs/design/`).
+
 - `src/auth` login, token handling, per-user database name
 - `src/providers` Gmail and Graph readers
 - `src/pipeline` the classifier, ported from Python and checked against golden fixtures (see "Changing the classifier" below)

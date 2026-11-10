@@ -118,6 +118,7 @@ From the repository root, `python scripts/export_json.py data/tracker.db export.
 - `scripts/` `export_json.py`, `export_fixtures.py`, `build_rules_json.py`, `seed_demo.py`, `install-task.ps1`
 - `tests/` Python tests. `web/tests/` TypeScript tests and fixtures
 - `PRODUCT.md`, `DESIGN.md`, `.impeccable/` product and design decisions
+- `docs/design/` the design guides (styling, copy, screens, animation, critique); start from [DESIGN.md](DESIGN.md)
 - `docs/reviews/` written reviews of the code (see below)
 
 ## Contributing
