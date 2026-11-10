@@ -3,7 +3,9 @@
 import { HEADER_HEADING, newItemId, normalizeSections } from "../db/documentShape";
 import { isRecord } from "../db/isRecord";
 import type { DocItem, DocSection } from "../db/schema";
+import { MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_LABEL_CHARS } from "../db/limits";
 import { AiError } from "./errors";
+import type { MasterLine, TailorMaster } from "./master";
 import { CONVERT_KINDS, type ConvertKind } from "./prompts";
 
 /** A line the person should look at before saving: `detail` is a number, date or name that isn't in the source text, `label` a made-up bullet label. */
@@ -107,7 +109,7 @@ const WORD = /\p{L}[\p{L}'’]*/gu;
 const NUMBER = /(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g;
 /** A word as it is compared: folded, with quotes at its ends dropped. */
 const key = (w: string): string => fold(w).replace(/^'+|'+$/g, "");
-const wordsOf = (s: string): string[] => (s.match(WORD) ?? []).map(key).filter(Boolean);
+export const wordsOf = (s: string): string[] => (s.match(WORD) ?? []).map(key).filter(Boolean);
 /** A number without its commas, so "$1,200" and "1200" match. */
 const numberKey = (n: string): string => n.replace(/,/g, "");
 
@@ -127,7 +129,7 @@ const PAGE_NUMBER = /^\s*(?:page\s+)?\d+(?:\s*(?:of|\/)\s*\d+)?\s*$/i;
 /** Words a model may capitalise that a resume often words differently. */
 const WORDS_MODEL_CAPITALISES = new Set(["present", "current"]);
 /** Small words a bullet's label may add to the bullet's own words ("Planning and forecasting") without counting as made up. */
-const SMALL_LABEL_WORDS = new Set(["and", "the", "for", "of", "to", "in", "on", "a", "an", "or", "with"]);
+export const SMALL_LABEL_WORDS = new Set(["and", "the", "for", "of", "to", "in", "on", "a", "an", "or", "with"]);
 /** Shortest source word that is listed as dropped (shorter ones are mostly noise). */
 const MIN_UNUSED_WORD_LENGTH = 4;
 const MAX_UNUSED_WORDS = 40;
@@ -153,11 +155,11 @@ function capitalised(text: string, skipFirst: boolean): string[] {
   return out;
 }
 
-interface SourceIndex {
+export interface SourceIndex {
   words: Set<string>;
   numbers: Set<string>;
 }
-function indexSource(source: string): SourceIndex {
+export function indexSource(source: string): SourceIndex {
   const text = rejoin(source);
   return { words: new Set(wordsOf(text)), numbers: new Set((text.match(NUMBER) ?? []).map(numberKey)) };
 }
@@ -167,7 +169,7 @@ function indexSource(source: string): SourceIndex {
  * sentence (a name, a tool, a company). It is compared with the whole source, not with the line it came from, so a made-up number that
  * appears anywhere else in the file passes: a swapped figure is only caught when the figure itself is new.
  */
-function missingDetails(text: string, src: SourceIndex, skipFirst: boolean): string[] {
+export function missingDetails(text: string, src: SourceIndex, skipFirst: boolean): string[] {
   const out = (text.match(NUMBER) ?? []).filter((n) => !src.numbers.has(numberKey(n)));
   for (const w of capitalised(text, skipFirst)) {
     const k = key(w);
@@ -219,4 +221,163 @@ export function checkAgainstSource(sourceText: string, sections: readonly DocSec
     }
   }
   return { flags, unused: unusedSourceWords(sourceText, new Set(wordsOf(resultText(sections)))) };
+}
+
+// -- Tailoring ------------------------------------------------------------------------------------------------------------------------
+// The model only ever chooses, orders and rewords lines of the master. Its reply names master lines by id, and anything that doesn't match
+// (an unknown id, a bullet under the wrong job) is dropped. The header, companies, titles and schools aren't in the reply's shape at all.
+
+/** What the model sends for tailoring. */
+export interface TailorReply {
+  summary: string;
+  skills: { sourceId: string; text: string }[];
+  jobs: { orgId: string; bullets: { sourceId: string; label: string; text: string }[] }[];
+  cover: { paragraphs: string[] };
+}
+
+const MAX_COVER_PARAGRAPHS = 5;
+
+const clip = (s: string, max: number): string => s.replace(/\r\n?/g, "\n").trim().slice(0, max);
+const arr = (v: unknown): unknown[] => {
+  if (!Array.isArray(v)) throw new AiError("badReply");
+  return v;
+};
+const rec = (v: unknown): Record<string, unknown> => {
+  if (!isRecord(v)) throw new AiError("badReply");
+  return v;
+};
+
+/** Validates the model's JSON: every part must have its shape and its strings must be strings. Long text and long lists are cut, extra properties ignored. */
+export function parseTailorReply(json: unknown): TailorReply {
+  const r = rec(json);
+  const reply: TailorReply = {
+    summary: clip(str(r.summary), MAX_DOC_ITEM_CHARS),
+    skills: arr(r.skills).slice(0, MAX_DOC_ITEMS).map((s) => {
+      const o = rec(s);
+      return { sourceId: str(o.sourceId).trim(), text: clip(str(o.text), MAX_DOC_ITEM_CHARS) };
+    }),
+    jobs: arr(r.jobs).slice(0, MAX_DOC_ITEMS).map((j) => {
+      const o = rec(j);
+      return {
+        orgId: str(o.orgId).trim(),
+        bullets: arr(o.bullets).slice(0, MAX_DOC_ITEMS).map((b) => {
+          const p = rec(b);
+          return { sourceId: str(p.sourceId).trim(), label: clip(str(p.label), MAX_DOC_LABEL_CHARS), text: clip(str(p.text), MAX_DOC_ITEM_CHARS) };
+        }),
+      };
+    }),
+    cover: { paragraphs: arr(rec(r.cover).paragraphs).slice(0, MAX_COVER_PARAGRAPHS).map((p) => clip(str(p), MAX_DOC_ITEM_CHARS)).filter(Boolean) },
+  };
+  if (!reply.cover.paragraphs.length) throw new AiError("badReply");
+  return reply;
+}
+
+/** A line of the tailored resume: where it came from, what it says, and what the person should look at before keeping it. */
+export interface CheckedLine {
+  sourceId: string;
+  label: string;
+  text: string;
+  changed: boolean;
+  flags: string[];
+}
+export interface CheckedTailor {
+  /** null when the master has no summary: nothing is added */
+  summary: CheckedLine | null;
+  skills: CheckedLine[];
+  /** one entry for every job of the master, in its order */
+  jobs: { orgId: string; bullets: CheckedLine[]; dropped: MasterLine[] }[];
+  cover: { paragraphs: string[]; flags: string[] };
+}
+
+/** Words that claim a credential. A model told to add a degree writes one of these, and a capital letter alone wouldn't catch "a degree in physics". */
+const CREDENTIAL = /\b(?:ph\.?d|doctorate|doctoral|mba|bachelor'?s?|master'?s|degree|diploma|certified|certification|licen[cs]ed?)\b/gi;
+const CLAIM_NOTE_DETAILS = 3;
+
+/** What a tailored text claims that the source doesn't have: numbers, names and tools (the convert detector) and credentials. */
+function unfoundClaims(text: string, src: SourceIndex, srcFolded: string, skipFirst: boolean): string[] {
+  const found = missingDetails(text, src, skipFirst);
+  for (const m of text.matchAll(CREDENTIAL)) if (!srcFolded.includes(fold(m[0]))) found.push(m[0]);
+  return [...new Set(found)];
+}
+const note = (missing: string[]): string[] => (missing.length ? [`Not in your resume: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : []);
+
+const GREETING = /^dear\b/i;
+const SIGN_OFF = /^(?:sincerely|regards|best regards|kind regards|warm regards|best|thank you|thanks|yours truly|respectfully)\b[^.!?]{0,60}[,.!]?$/i;
+/** The paragraphs without a greeting or sign-off the model wrote anyway: the app adds its own greeting. */
+function bodyParagraphs(paragraphs: readonly string[]): string[] {
+  const out = [...paragraphs];
+  while (out.length && GREETING.test(out[0])) out.shift();
+  while (out.length && SIGN_OFF.test(out[out.length - 1]) && out[out.length - 1].length <= 80) out.pop();
+  return out;
+}
+
+/**
+ * Checks a parsed reply against the master. Pure.
+ * - Lines are tied to the master by id. An unknown id, a repeat, or a bullet placed under a different job is dropped, and a job never
+ *   has more bullets than the master has. A job left with none keeps the master's own bullets, so no job is ever empty.
+ * - A line that carries a number, date, name, tool or credential the master doesn't have starts flagged, and so does a made-up bullet label.
+ * - A cover letter paragraph is flagged for a number or name that is in neither the master nor the job's company and role. The posting text is
+ *   left out on purpose: text in a posting is the likeliest way to talk a model into a claim.
+ * `masterSource` is every text of the master (see masterText).
+ */
+export function checkTailored(
+  master: TailorMaster, reply: TailorReply, ctx: { masterSource: string; company: string; role: string },
+): CheckedTailor {
+  const src = indexSource(ctx.masterSource);
+  const srcFolded = fold(rejoin(ctx.masterSource));
+  const claims = (text: string, skipFirst: boolean) => note(unfoundClaims(text, src, srcFolded, skipFirst));
+  const same = (a: string, b: string) => fold(a).trim() === fold(b).trim();
+
+  const line = (from: MasterLine, label: string, text: string, skipFirst: boolean): CheckedLine => {
+    const flags = claims(text, skipFirst);
+    if (label && !same(label, from.label) && wordsOf(label).some((w) => !SMALL_LABEL_WORDS.has(w) && !src.words.has(w))) flags.push("Label added by AI");
+    return { sourceId: from.id, label, text, changed: !same(text, from.text) || !same(label, from.label), flags };
+  };
+  const kept = (from: MasterLine): CheckedLine => ({ sourceId: from.id, label: from.label, text: from.text, changed: false, flags: [] });
+
+  let summary: CheckedLine | null = null;
+  if (master.summaryId) {
+    const from: MasterLine = { id: master.summaryId, label: "", text: master.summary };
+    summary = reply.summary ? line(from, "", reply.summary, true) : kept(from);
+  }
+
+  const skillById = new Map(master.skills.map((s) => [s.id, s]));
+  const skillSeen = new Set<string>();
+  let skills: CheckedLine[] = [];
+  for (const s of reply.skills) {
+    const from = skillById.get(s.sourceId);
+    if (!from || !s.text || skillSeen.has(from.id)) continue;
+    skillSeen.add(from.id);
+    skills.push(line(from, from.label, s.text, false));
+  }
+  skills = skills.slice(0, master.skills.length);
+  if (!skills.length) skills = master.skills.map(kept);
+
+  const replyJobs = new Map<string, TailorReply["jobs"][number]>();
+  for (const j of reply.jobs) if (!replyJobs.has(j.orgId)) replyJobs.set(j.orgId, j);
+  const jobs = master.jobs.map((job) => {
+    const own = new Map(job.bullets.map((b) => [b.id, b]));
+    const seen = new Set<string>();
+    let bullets: CheckedLine[] = [];
+    for (const b of replyJobs.get(job.id)?.bullets ?? []) {
+      const from = own.get(b.sourceId);
+      if (!from || !b.text || seen.has(from.id)) continue;
+      seen.add(from.id);
+      bullets.push(line(from, b.label || from.label, b.text, true));
+    }
+    bullets = bullets.slice(0, job.bullets.length);
+    if (!bullets.length) bullets = job.bullets.map(kept);
+    const used = new Set(bullets.map((b) => b.sourceId));
+    return { orgId: job.id, bullets, dropped: job.bullets.filter((b) => !used.has(b.id)) };
+  });
+
+  const paragraphs = bodyParagraphs(reply.cover.paragraphs);
+  if (!paragraphs.length) throw new AiError("badReply");
+  const coverSrc = indexSource(`${ctx.masterSource}\n${ctx.company}\n${ctx.role}`);
+  const coverFolded = fold(`${ctx.masterSource}\n${ctx.company}\n${ctx.role}`);
+  const coverFlags = paragraphs.flatMap((p, i) => {
+    const missing = unfoundClaims(p, coverSrc, coverFolded, true);
+    return missing.length ? [`Paragraph ${i + 1} has details not in your resume or the job: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : [];
+  });
+  return { summary, skills, jobs, cover: { paragraphs, flags: coverFlags } };
 }
