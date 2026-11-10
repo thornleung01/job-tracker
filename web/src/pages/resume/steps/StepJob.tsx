@@ -6,6 +6,7 @@ import { TailorAi, type WriteOptions } from "../../../components/documents/Tailo
 import { InlineConfirm } from "../../../components/InlineConfirm";
 import { Notice } from "../../../components/Notice";
 import { useAction } from "../../../components/useAction";
+import { parsePostingUrl, POSTING_URL_MESSAGE } from "../../../db/postingUrl";
 import { MAX_COMPANY_CHARS, MAX_POSTING_CHARS, MAX_ROLE_CHARS, MAX_URL_CHARS } from "../../../db/limits";
 import type { DocumentRow, JobTrackerDB } from "../../../db/schema";
 import { parseJobUrl } from "../../../jobs";
@@ -43,7 +44,10 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
   const guessed = flow.guessed.company || flow.guessed.role;
   const checkId = `${base}-check`;
   const whyId = `${base}-why`;
-  const why = !company ? "Add the company to continue." : !posting ? "Paste the job description to write with AI." : "";
+  // The same rule as saving an application's link (addApplication), so a bad link is caught here and not at Save.
+  const linkBad = flow.url.trim() !== "" && parsePostingUrl(flow.url) === null;
+  const linkId = `${base}-linkwhy`;
+  const why = linkBad ? "Fix the job link to continue." : !company ? "Add the company to continue." : !posting ? "Paste the job description to write with AI." : "";
 
   /** After a paste, the full read: the device's rules first, and one small AI call only when they found neither the company nor the role. */
   const readPaste = async (text: string, found: { company: string; role: string }) => {
@@ -100,10 +104,12 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
       <div className="row steps-link">
         <div className="fgroup">
           <label htmlFor={`${base}-url`}>Job link (optional)</label>
-          <input id={`${base}-url`} type="url" inputMode="url" value={flow.url} maxLength={MAX_URL_CHARS} onChange={(e) => dispatch({ type: "field", name: "url", value: e.target.value })} />
+          <input id={`${base}-url`} type="url" inputMode="url" value={flow.url} maxLength={MAX_URL_CHARS} aria-invalid={linkBad || undefined}
+                 aria-describedby={linkBad ? linkId : undefined} onChange={(e) => dispatch({ type: "field", name: "url", value: e.target.value })} />
         </div>
-        <button type="button" onClick={fillFromLink} disabled={busy || !flow.url.trim()} aria-busy={act.busy === "link" || undefined}>Fill from link</button>
+        <button type="button" onClick={fillFromLink} disabled={busy || !flow.url.trim() || linkBad} aria-busy={act.busy === "link" || undefined}>Fill from link</button>
       </div>
+      {linkBad ? <p className="muted small steps-why" id={linkId} role="status">{POSTING_URL_MESSAGE}</p> : null}
 
       <div className="steps-fields">
         <div className="fgroup">
@@ -122,11 +128,11 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       {act.status ? <p className="muted small" role="status">{act.status}</p> : null}
 
-      <TailorAi dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting} writeLabel="Write my resume and letter" />
+      <TailorAi dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad} writeLabel="Write my resume and letter" />
       <div className="row steps-actions">
-        <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing}
-                aria-describedby={!company ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>
-        {flow.draft ? <button type="button" onClick={onBackToReview} disabled={busy}>Back to review</button> : null}
+        <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
+                aria-describedby={why ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>
+        {flow.draft ? <button type="button" onClick={onBackToReview} disabled={busy || !company || linkBad}>Back to review</button> : null}
       </div>
       {why ? <p className="muted small steps-why" id={whyId}>{why}</p> : null}
       {replacing ? (

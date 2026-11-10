@@ -188,7 +188,7 @@ function VersionCard({ db, doc, used, say, report }: CardProps) {
         {editing ? null : <button type="button" onClick={() => setEditing(true)} disabled={act.busy !== null}>Edit</button>}
         <button type="button" onClick={() => { setRenaming(true); setName(doc.title); }} disabled={act.busy !== null || renaming}>Rename</button>
         <button type="button" onClick={duplicate} {...act.button("duplicate")}>Duplicate</button>
-        <a className="btn" href={`#/tailor?baseline=${doc.id}`} aria-label={`Tailor with this resume: ${doc.title}`}>Tailor with this</a>
+        <a className="btn" href={`#/resume?step=job&baseline=${doc.id}`} aria-label={`Tailor with this resume: ${doc.title}`}>Tailor with this</a>
         <a className="btn" href={`#/resume/print/${doc.id}`}>Print</a>
         <button type="button" className="danger" onClick={() => setConfirming(true)} disabled={act.busy !== null || confirming}>Delete</button>
         {!editing ? <Status text={act.busy === null ? act.status : null} /> : null}

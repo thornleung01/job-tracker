@@ -36,4 +36,31 @@ describe("the stored flow", () => {
     storeFlow("db1", emptyFlow());
     expect(sessionStorage.getItem(flowKey("db1"))).toBeNull();
   });
+
+  const section = { id: "s1", heading: "SUMMARY", items: [{ id: "i1", text: "Analyst" }] };
+  const goodDraft = { baselineId: 3, resume: [section], lines: [{ id: "i1", sourceId: "m1", changed: true, flags: [] }], cover: [section], coverFlags: [], unused: [] };
+  const good = { v: 1, step: "review", posting: "P", company: "Acme", draft: goodDraft, resume: [section], letter: { text: "Hi", base: [section], flags: [] } };
+
+  it("reads back a draft stored with its version", () => {
+    sessionStorage.setItem(flowKey("db1"), JSON.stringify(good));
+    expect(loadFlow("db1")).toMatchObject({ step: "review", company: "Acme", draft: { baselineId: 3 }, resume: [section], letter: { text: "Hi" } });
+  });
+
+  it("starts fresh, and never throws, for another version or the wrong types anywhere in the draft", () => {
+    const bad: unknown[] = [
+      { ...good, v: undefined }, { ...good, v: 2 }, { ...good, draft: { ...goodDraft, baselineId: "3" } }, { ...good, draft: { ...goodDraft, lines: [{ id: 1 }] } },
+      { ...good, draft: { ...goodDraft, cover: "x" } }, { ...good, resume: "x" }, { ...good, letter: { text: 5, base: [] } }, { ...good, letter: { text: "x", base: {} } },
+      { ...good, draft: [] }, [], "text", 7, null,
+    ];
+    for (const item of bad) {
+      sessionStorage.setItem(flowKey("db1"), JSON.stringify(item));
+      expect(() => loadFlow("db1")).not.toThrow();
+      expect(loadFlow("db1")).toEqual(emptyFlow());
+    }
+  });
+
+  it("cleans the stored sections the way every document is cleaned", () => {
+    sessionStorage.setItem(flowKey("db1"), JSON.stringify({ ...good, resume: [section, { nonsense: true }, 4] }));
+    expect(loadFlow("db1").resume).toEqual([section]);
+  });
 });

@@ -136,6 +136,20 @@ describe("saveTailoredJob", () => {
     expect(await counts(db)).toEqual(before);
   });
 
+  it("refuses a bad link for a reused application too, even one that keeps its own, and changes nothing", async () => {
+    const { db, draft } = await setup();
+    const bare = await addApplication(db, { company: "Gringotts", role: "Product Analyst" }, NOW);
+    const linked = await addApplication(db, { company: "Hooli", role: "Analyst", url: "https://hooli.example/jobs/1" }, NOW);
+    const before = await counts(db);
+    for (const useId of [bare, linked]) {
+      const err = await saveTailoredJob(db, { draft, company: "x", role: "y", url: "linkedin.com/jobs/123", posting: POSTING, useId }, NOW).catch((e) => e);
+      expect(err).toBeInstanceOf(ActionError);
+      expect(err.message).toBe("That link doesn't look right. Use a web address that starts with https://.");
+    }
+    expect(await counts(db)).toEqual(before);
+    expect((await db.applications.get(bare))?.postingText).toBeUndefined();
+  });
+
   it("rolls everything back when the last write fails", async () => {
     const { db, draft } = await setup();
     const used = await addApplication(db, { company: "Hooli", role: "Analyst" }, NOW);

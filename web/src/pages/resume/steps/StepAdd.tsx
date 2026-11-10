@@ -16,6 +16,8 @@ import type { StepsDeps } from "./deps";
 interface Props {
   db: JobTrackerDB;
   flow: FlowState & { draft: NonNullable<FlowState["draft"]>; resume: NonNullable<FlowState["resume"]> };
+  /** the resume Save records the tailored one as based on: the draft's own, or the master when that one was deleted */
+  baselineId: number;
   dispatch(a: FlowAction): void;
   deps: StepsDeps;
   onSaved(saved: SavedJob): void;
@@ -28,7 +30,7 @@ const appLine = (a: ApplicationRow) => `${nameOf(a.company, a.role)} (${a.applie
 const docsLine = (d: { tailored: boolean; cover: boolean }) =>
   d.tailored && d.cover ? "a tailored resume and a cover letter" : d.tailored ? "a tailored resume" : "a cover letter";
 
-export function StepAdd({ db, flow, dispatch, deps, onSaved, onBack }: Props) {
+export function StepAdd({ db, flow, baselineId, dispatch, deps, onSaved, onBack }: Props) {
   const act = useAction();
   const [confirming, setConfirming] = useState(false);
   const { company, role, url, fromApp } = flow;
@@ -53,7 +55,7 @@ export function StepAdd({ db, flow, dispatch, deps, onSaved, onBack }: Props) {
     void act.run("save", async () => {
       setConfirming(false);
       const done = await deps.saveTailoredJob(db, {
-        draft: { resume: normalizeSections(flow.resume), cover: letter, baselineId: flow.draft.baselineId, source: flow.byHand ? "copy" : "ai" },
+        draft: { resume: normalizeSections(flow.resume), cover: letter, baselineId, source: flow.byHand ? "copy" : "ai" },
         company: company.trim(), role: role.trim(), ...(url.trim() ? { url: url.trim() } : {}), posting: flow.posting,
         ...(chosen !== "new" ? { useId: chosen } : {}),
       });

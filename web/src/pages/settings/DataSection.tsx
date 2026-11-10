@@ -2,6 +2,7 @@
 // children), a small Demo data line in a local build, and a separate danger area that deletes everything.
 // Each of the actions that replace the data asks first, in place, with the shared InlineConfirm.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { clearFlow } from "../../app/resumeFlowStorage";
 import { realBackupDeps } from "../../backup/deps";
 import { backupContent } from "../../backup/content";
 import { backUpToFile, backupFileName, chooseBackupFile, forgetBackupFile, isFileBackupSupported, type BackupOptions } from "../../backup/fileBackup";
@@ -226,6 +227,8 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten, childre
         onKeyForgotten?.();
         // The reminder times and the chosen file belong to the data that is gone. The file itself is left where it is.
         clearBackupState(db.name);
+        // So does the job in progress on the Resume page (the pasted posting and the unsaved resume and letter).
+        clearFlow(db.name);
         await forgetBackupFile(db.name, backup.file).catch(() => undefined);
         setFileName(null);
         refreshStorage();

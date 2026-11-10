@@ -1,7 +1,9 @@
 // The four steps' work in progress: the pasted job, the draft and its ticks, the letter and where it will be saved. A reducer, so every change is
 // one plain step, and a copy in session storage per database, so a reload keeps it. Nothing here reaches the database: Save does (StepAdd).
 import { useEffect, useReducer } from "react";
+import { clearFlow, flowKey } from "../../app/resumeFlowStorage";
 import { applyTick } from "../../components/documents/tailorTicks";
+import { normalizeSections } from "../../db/documentShape";
 import type { DocSection } from "../../db/schema";
 import type { TailorDraft } from "../../sync/tailor";
 
@@ -137,35 +139,56 @@ export function flowReducer(s: FlowState, a: FlowAction): FlowState {
 
 // -- session storage --------------------------------------------------------------------------------------------------
 
-export const flowKey = (dbName: string) => `jobtracker:resume-steps:${dbName}`;
+export { clearFlow, flowKey };
+
+/** The shape of what is stored. An item without this number, or with another, is dropped. */
+const STORED_VERSION = 1;
 
 const STEPS: readonly FlowStep[] = ["job", "review", "add", "done"];
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
-/** The flow saved for this database, or a fresh one when there is none, storage is off, or what is there doesn't read. */
+const id = (x: unknown) => (typeof x === "number" && Number.isSafeInteger(x) && x > 0 ? x : null);
+const strings = (x: unknown): string[] => (Array.isArray(x) ? x.filter((f): f is string => typeof f === "string") : []);
+
+/** The stored draft, rebuilt from what is there, or null when any part of it is the wrong type. */
+function readDraft(v: unknown): TailorDraft | null {
+  if (!isObj(v) || id(v.baselineId) === null) return null;
+  if (!Array.isArray(v.resume) || !Array.isArray(v.cover) || !Array.isArray(v.lines)) return null;
+  const lines: TailorDraft["lines"] = [];
+  for (const l of v.lines) {
+    if (!isObj(l) || typeof l.id !== "string" || typeof l.sourceId !== "string" || typeof l.changed !== "boolean") return null;
+    lines.push({ id: l.id, sourceId: l.sourceId, ...(Array.isArray(l.sourceIds) ? { sourceIds: strings(l.sourceIds) } : {}), changed: l.changed, flags: strings(l.flags) });
+  }
+  return { baselineId: v.baselineId as number, resume: normalizeSections(v.resume), lines, cover: normalizeSections(v.cover), coverFlags: strings(v.coverFlags), unused: strings(v.unused) };
+}
+
+/** The flow saved for this database, or a fresh one when there is none, storage is off, or what is there isn't this version's shape. Never throws. */
 export function loadFlow(dbName: string): FlowState {
   try {
     const raw = sessionStorage.getItem(flowKey(dbName));
     if (!raw) return emptyFlow();
     const v: unknown = JSON.parse(raw);
-    if (!isObj(v)) return emptyFlow();
+    if (!isObj(v) || v.v !== STORED_VERSION) return emptyFlow();
+    const draft = v.draft === null || v.draft === undefined ? null : readDraft(v.draft);
+    if (v.draft != null && !draft) return emptyFlow();
+    if (draft && !Array.isArray(v.resume)) return emptyFlow();
+    let letter: LetterDraft | null = null;
+    if (v.letter != null) {
+      if (!isObj(v.letter) || typeof v.letter.text !== "string" || !Array.isArray(v.letter.base)) return emptyFlow();
+      letter = { text: v.letter.text, base: normalizeSections(v.letter.base), flags: strings(v.letter.flags) };
+    }
+    const resume = draft ? normalizeSections(v.resume) : null;
     const step = STEPS.includes(v.step as FlowStep) && v.step !== "done" ? (v.step as FlowStep) : "job";
-    const draft = isObj(v.draft) && Array.isArray(v.draft.resume) && Array.isArray(v.draft.lines) && Array.isArray(v.draft.cover) ? (v.draft as unknown as TailorDraft) : null;
-    const resume = draft && Array.isArray(v.resume) ? (v.resume as DocSection[]) : null;
-    const letter = draft && isObj(v.letter) && typeof v.letter.text === "string" && Array.isArray(v.letter.base)
-      ? { text: v.letter.text, base: v.letter.base as DocSection[], flags: Array.isArray(v.letter.flags) ? (v.letter.flags as unknown[]).filter((f): f is string => typeof f === "string") : [] }
-      : null;
     const guessed = isObj(v.guessed) ? { company: v.guessed.company === true, role: v.guessed.role === true } : { company: false, role: false };
-    const id = (x: unknown) => (typeof x === "number" && Number.isSafeInteger(x) && x > 0 ? x : null);
     const target: Target = v.target === "new" ? "new" : id(v.target) ?? "default";
     return {
       ...emptyFlow(id(v.baselineId)),
-      step: draft && resume ? step : "job",
+      step: draft ? step : "job",
       posting: str(v.posting), url: str(v.url), company: str(v.company), role: str(v.role), guessed,
-      draft: resume ? draft : null, byHand: resume !== null && v.byHand === true, resume,
+      draft, byHand: draft !== null && v.byHand === true, resume,
       ticks: isObj(v.ticks) ? Object.fromEntries(Object.entries(v.ticks).filter(([, on]) => typeof on === "boolean")) as Record<string, boolean> : {},
-      letter, edited: v.edited === true, view: v.view === "cover" ? "cover" : "resume", target, fromApp: id(v.fromApp),
+      letter: draft ? letter : null, edited: v.edited === true, view: v.view === "cover" ? "cover" : "resume", target, fromApp: id(v.fromApp),
     };
   } catch {
     return emptyFlow();
@@ -177,22 +200,14 @@ export function storeFlow(dbName: string, s: FlowState): void {
   try {
     if (s.step === "done" || !hasWork(s)) {
       if (s.baselineId === null) sessionStorage.removeItem(flowKey(dbName));
-      else sessionStorage.setItem(flowKey(dbName), JSON.stringify({ baselineId: s.baselineId }));
+      else sessionStorage.setItem(flowKey(dbName), JSON.stringify({ v: STORED_VERSION, baselineId: s.baselineId }));
       return;
     }
     const { saved: _saved, ...keep } = s;
     void _saved;
-    sessionStorage.setItem(flowKey(dbName), JSON.stringify(keep));
+    sessionStorage.setItem(flowKey(dbName), JSON.stringify({ v: STORED_VERSION, ...keep }));
   } catch {
     // no storage, or it is full: the flow lasts until the page is left
-  }
-}
-
-export function clearFlow(dbName: string): void {
-  try {
-    sessionStorage.removeItem(flowKey(dbName));
-  } catch {
-    // nothing to clear
   }
 }
 

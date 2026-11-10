@@ -11,7 +11,7 @@ import { derive } from "../../../sync/contacts";
 import { baselineChoices } from "../../../sync/documents";
 import type { ConvertFn } from "../ConvertPanel";
 import { hasWork, type FlowAction, type FlowState } from "../flowState";
-import { useReportUnsaved, type ReportUnsaved } from "../unsaved";
+import { FLOW_KEY, useReportUnsaved, type ReportUnsaved } from "../unsaved";
 import type { StepsDeps } from "./deps";
 import { StepAdd, StepDone } from "./StepAdd";
 import { StepJob } from "./StepJob";
@@ -42,9 +42,11 @@ export function Steps({ db, resumes, flow, dispatch, deps, report, onShowMaster,
   const master = baselines.find((r) => r.master);
   const open: Open = !master ? "resume" : flow.step;
   const pick = (id: number | null | undefined) => (id == null ? undefined : baselines.find((r) => r.id === id));
-  // The draft keeps the baseline it was written from; before a draft it is the one chosen (the master unless a version was).
-  const baseline = pick(flow.draft?.baselineId) ?? pick(flow.baselineId) ?? master;
-  useReportUnsaved(report, "flow", flow.draft !== null && flow.step !== "done");
+  // The draft keeps the baseline it was written from; before a draft it is the one chosen (the master unless a version was). When that
+  // resume has been deleted since, the master stands in for Review and for Save alike, and the page says so.
+  const baselineGone = flow.draft !== null && pick(flow.draft.baselineId) === undefined;
+  const baseline = baselineGone ? master : pick(flow.draft?.baselineId) ?? pick(flow.baselineId) ?? master;
+  useReportUnsaved(report, FLOW_KEY,flow.draft !== null && flow.step !== "done");
 
   // On a move between steps the new step's heading takes focus, once it is on the page (a new master arrives a moment after its save).
   const focusStep = useRef<Open | null>(null);
@@ -63,23 +65,27 @@ export function Steps({ db, resumes, flow, dispatch, deps, report, onShowMaster,
   const stepParam = query.get("step");
   const appParam = query.get("app");
   const tabParam = query.get("tab");
+  const baselineParam = query.get("baseline");
   useEffect(() => {
-    if (stepParam === null && appParam === null) return;
+    if (stepParam === null && appParam === null && baselineParam === null) return;
     let live = true;
     void (async () => {
       const id = Number(appParam);
       const app = appParam !== null && Number.isSafeInteger(id) && id > 0 ? await db.applications.get(id) : undefined;
       if (!live) return;
+      // `baseline=<id>` (Tailor with this) picks that resume as the one to tailor from; anything that isn't a live resume is ignored.
+      const chosen = baselineParam !== null && /^\d+$/.test(baselineParam) ? baselines.find((r) => r.id === Number(baselineParam)) : undefined;
+      if (chosen && !flow.draft) dispatch({ type: "baseline", id: chosen.master ? null : chosen.id });
       if (app && !app.deletedAt) {
         go({ type: "prefill", appId: app.id, company: app.company, role: app.role, posting: app.postingText ?? "", url: app.postingUrl ?? "" }, "job");
-      } else if (stepParam === "job") go({ type: "go", step: "job" }, "job");
+      } else if (stepParam === "job" || chosen) go({ type: "go", step: "job" }, "job");
       navigate(tabParam ? `/resume?tab=${encodeURIComponent(tabParam)}` : "/resume", { replace: true });
     })();
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new link starts this
-  }, [db, stepParam, appParam]);
+  }, [db, stepParam, appParam, baselineParam]);
 
   const startAct = useAction();
   const [restarting, setRestarting] = useState(false);
@@ -159,7 +165,7 @@ export function Steps({ db, resumes, flow, dispatch, deps, report, onShowMaster,
             <StepReview db={db} flow={ready} dispatch={dispatch} deps={deps} baseline={baseline} write={write} byHand={byHand}
                         onNext={() => go({ type: "go", step: "add" }, "add")} onBack={() => go({ type: "go", step: "job" }, "job")} />
           ) : (
-            <StepAdd db={db} flow={ready} dispatch={dispatch} deps={deps}
+            <StepAdd db={db} flow={ready} baselineId={baseline.id} dispatch={dispatch} deps={deps}
                      onSaved={(saved) => go({ type: "saved", saved }, "done")} onBack={() => go({ type: "go", step: "review" }, "review")} />
           )}
         </div>
@@ -201,6 +207,9 @@ export function Steps({ db, resumes, flow, dispatch, deps, report, onShowMaster,
             </li>
           ))}
         </ul>
+      ) : null}
+      {baselineGone && master && (open === "job" || open === "review" || open === "add") ? (
+        <p className="muted small steps-gone" role="status">The resume this draft was based on was deleted, so your master resume is used instead.</p>
       ) : null}
       {body}
     </section>

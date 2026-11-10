@@ -3,7 +3,7 @@
 import { normalizeSections } from "../db/documentShape";
 import { ActionError } from "../db/errors";
 import { MAX_POSTING_CHARS } from "../db/limits";
-import { safePostingUrl } from "../db/postingUrl";
+import { cleanPostingUrl } from "../db/postingUrl";
 import { tx, type ApplicationRow, type DocSection, type JobTrackerDB } from "../db/schema";
 import { addApplication } from "./actions";
 import { getCoverLetter, getTailored, saveCoverLetter, saveTailored } from "./documents";
@@ -65,10 +65,14 @@ export async function saveTailoredJob(
   });
 }
 
-/** Gives an application the posting text and link it doesn't have yet. What it already has is never replaced, and a bad link is skipped. */
+/**
+ * Gives an application the posting text and link it doesn't have yet. What it already has is never replaced. A link that isn't a web
+ * address is refused (the same rule as adding an application), never dropped quietly, even when the application keeps its own.
+ */
 async function fillMissing(db: JobTrackerDB, app: ApplicationRow, input: Pick<SaveTailoredJobInput, "posting" | "url">): Promise<void> {
   const posting = input.posting.replace(/\r\n?/g, "\n").trim().slice(0, MAX_POSTING_CHARS);
-  const link = app.postingUrl ? "" : safePostingUrl(input.url ?? "");
+  const checked = cleanPostingUrl(input.url ?? "");
+  const link = app.postingUrl ? "" : checked;
   const fields: Partial<ApplicationRow> = {
     ...(!app.postingText?.trim() && posting ? { postingText: posting } : {}),
     ...(link ? { postingUrl: link } : {}),

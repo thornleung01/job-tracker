@@ -115,6 +115,6 @@ describe("Tailor links on the Resumes tab", () => {
     const { container } = await mount(db, "/resume");
     const link = (label: string) => $$(panes(container)[0], "a").find((a) => text(a) === label)!;
     expect(link("Tailor for a job").getAttribute("href")).toBe("#/resume?step=job");
-    expect(link("Tailor with this").getAttribute("href")).toBe(`#/tailor?baseline=${v}`);
+    expect(link("Tailor with this").getAttribute("href")).toBe(`#/resume?step=job&baseline=${v}`);
   });
 });

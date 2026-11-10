@@ -8,7 +8,7 @@ import { blockLeave } from "../../../src/app/leaveGuard";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import type { JobDraft } from "../../../src/jobs/types";
 import ResumePage, { type ResumeDeps } from "../../../src/pages/resume";
-import { createVersion, getCoverLetter, getTailored, saveMaster, saveTailored, setPostingText } from "../../../src/sync/documents";
+import { createVersion, deleteDocument, getCoverLetter, getTailored, saveMaster, saveTailored, setPostingText } from "../../../src/sync/documents";
 import { addApplication } from "../../../src/sync/actions";
 import { readJob } from "../../../src/sync/readJob";
 import { draftFromBaseline, tailorForJob } from "../../../src/sync/tailor";
@@ -328,5 +328,92 @@ describe("the flow across a reload and a link", () => {
     await click(button(container, "Save"));
     await waitFor(() => deps.saveTailoredJob.mock.calls.length === 1, "the save");
     expect(deps.saveTailoredJob.mock.calls[0][1].useId).toBe(id);
+  });
+});
+
+describe("the job link, Back to review and the deleted baseline", () => {
+  it("shows a plain sentence for a link that isn't a web address, and keeps the actions off until it is fixed", async () => {
+    const { container } = await withMaster();
+    await type(postingBox(container), POSTING);
+    await type(labelled(container, "Company")!, "Acme");
+    const link = labelled(container, "Job link (optional)")!;
+    await type(link, "linkedin.com/jobs/123");
+    expect(text($(container, ".steps-why"))).toBe("That link doesn't look right. Use a web address that starts with https://.");
+    expect(link.getAttribute("aria-invalid")).toBe("true");
+    expect((button(container, "Start by hand") as HTMLButtonElement).disabled).toBe(true);
+    expect((button(container, "Fill from link") as HTMLButtonElement).disabled).toBe(true);
+    await type(link, "https://boards.greenhouse.io/acme/jobs/1");
+    expect((button(container, "Start by hand") as HTMLButtonElement).disabled).toBe(false);
+    expect(text(container)).not.toContain("That link doesn't look right");
+  });
+
+  it("keeps Back to review off while the company is empty", async () => {
+    const { container } = await withMaster();
+    await paste(container, POSTING);
+    await byHand(container);
+    await click($$(container, "button").find((b) => b.getAttribute("aria-label") === "Change the job")!);
+    await waitFor(() => openHeading(container) === "2The job", "the job step");
+    expect((button(container, "Back to review") as HTMLButtonElement).disabled).toBe(false);
+    await type(labelled(container, "Company")!, "");
+    expect((button(container, "Back to review") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says so when the draft's baseline was deleted, and reviews and saves against the master", async () => {
+    const db = freshDb();
+    const master = await saveMaster(db, MASTER, "paste");
+    const version = await createVersion(db, { title: "Data version", sections: MASTER });
+    const first = makeDeps();
+    const before = await mount(db, first.deps, `/resume?step=job&baseline=${version}`);
+    await paste(before.container, POSTING);
+    await byHand(before.container);
+    expect(first.deps.draftFromBaseline.mock.calls[0][1]).toBe(version);
+    expect($(before.container, ".steps-gone")).toBeNull();
+
+    await deleteDocument(db, version);
+    const { deps } = makeDeps();
+    const { container } = await mount(db, deps);
+    expect(openHeading(container)).toBe("3Review");
+    expect(text($(container, ".steps-gone"))).toBe("The resume this draft was based on was deleted, so your master resume is used instead.");
+    await click(button(container, "Next"));
+    await waitFor(() => $(container, ".steps-where") !== null, "step 4");
+    await click(button(container, "Save"));
+    await waitFor(() => openHeading(container) === "Saved to Acme Corp", "the done screen");
+    expect(deps.saveTailoredJob.mock.calls[0][1].draft.baselineId).toBe(master);
+  });
+});
+
+describe("Tailor with this and the reload prompt", () => {
+  it("?baseline=<id> picks that resume on the job step, takes the link off the address, and ignores an id that isn't a live resume", async () => {
+    const db = freshDb();
+    await saveMaster(db, MASTER, "paste");
+    const version = await createVersion(db, { title: "Data version", sections: MASTER });
+    const gone = await createVersion(db, { title: "Old version", sections: MASTER });
+    await deleteDocument(db, gone);
+    const { container, visited } = await mount(db, makeDeps().deps, `/resume?step=job&baseline=${version}`);
+    await waitFor(() => (($(container, "#steps-baseline") as HTMLSelectElement | null)?.value ?? "") === String(version), "the version to be picked");
+    expect(openHeading(container)).toBe("2The job");
+    expect(visited).toEqual(["/resume"]);
+
+    for (const id of [String(gone), "9999", "abc"]) {
+      const other = await mount(db, makeDeps().deps, `/resume?step=job&baseline=${id}`);
+      await waitFor(() => other.visited.length === 1, "the link to be handled");
+      expect(openHeading(other.container)).toBe("2The job");
+    }
+  });
+
+  const closeWarns = () => {
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+
+  it("does not ask the browser on reload for a draft that is kept, but still asks when leaving the app", async () => {
+    const { container } = await withMaster();
+    await paste(container, POSTING);
+    await byHand(container);
+    expect(closeWarns()).toBe(false);
+    let stopped = false;
+    await act(async () => void (stopped = blockLeave("#/people")));
+    expect(stopped).toBe(true);
   });
 });
