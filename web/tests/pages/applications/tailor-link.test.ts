@@ -35,7 +35,7 @@ describe("Tailor your resume link in the Added notice", () => {
     const container = await addShopify(db, true);
     const id = (await db.applications.toArray()).find((a) => a.company === "Shopify")!.id;
     const link = $$(container, ".notice a").find((a) => text(a) === "Tailor your resume for this job")!;
-    expect(link.getAttribute("href")).toBe(`#/app/${id}`);
+    expect(link.getAttribute("href")).toBe(`#/tailor/${id}`);
   });
 
   it("says nothing extra without posting text", async () => {
@@ -61,20 +61,27 @@ describe("Tailor for this job in the open row panel", () => {
   }
   const tailorLink = (c: HTMLElement) => $$(c, ".panel-docs a").find((a) => text(a) === "Tailor for this job");
 
-  it("links to the detail page when there is a posting and a master, and no tailored resume", async () => {
+  it("links to the Tailor workspace when there is a master and no tailored resume, with a posting", async () => {
     const db = freshDb();
     await withMaster(db);
     const id = await addApp(db, "Acme");
     await setPostingText(db, id, "Acme is hiring");
-    expect(tailorLink(await open(db))!.getAttribute("href")).toBe(`#/app/${id}`);
+    expect(tailorLink(await open(db))!.getAttribute("href")).toBe(`#/tailor/${id}`);
   });
 
-  it("is not there without a posting", async () => {
+  it("is there without a posting too, because the workspace takes the posting", async () => {
     const db = freshDb();
     await withMaster(db);
-    await addApp(db, "Acme");
+    const id = await addApp(db, "Acme");
     const container = await open(db);
-    expect($(container, ".panel-docs")).not.toBeNull();
+    expect(tailorLink(container)!.getAttribute("href")).toBe(`#/tailor/${id}`);
+  });
+
+  it("is not there without a master resume", async () => {
+    const db = freshDb();
+    const id = await addApp(db, "Acme");
+    await setPostingText(db, id, "Acme is hiring");
+    const container = await open(db);
     expect(tailorLink(container)).toBeUndefined();
   });
 

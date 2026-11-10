@@ -12,13 +12,24 @@ export interface TailoredItem {
 interface Props {
   db: JobTrackerDB;
   items: TailoredItem[];
+  /** the live resumes (master and versions), to name what each tailored copy was based on */
+  baselines: readonly DocumentRow[];
   /** say something on the page, and move focus to it when the control that had focus is gone */
   say(message: string, removed?: boolean): void;
 }
 
-function Row({ db, item, say }: { db: JobTrackerDB; item: TailoredItem; say: Props["say"] }) {
+/** "Based on: Master", the version's title, or a sentence for a baseline that has been deleted. Empty when the copy records none. */
+export function basedOnText(doc: DocumentRow, baselines: readonly DocumentRow[]): string {
+  if (doc.basedOn === undefined) return "";
+  const base = baselines.find((b) => b.id === doc.basedOn);
+  if (!base) return "Based on: a deleted resume";
+  return `Based on: ${base.master ? "Master" : base.title}`;
+}
+
+function Row({ db, item, baselines, say }: { db: JobTrackerDB; item: TailoredItem; baselines: readonly DocumentRow[]; say: Props["say"] }) {
   const { doc, app } = item;
   const act = useAction();
+  const based = basedOnText(doc, baselines);
   const promote = () =>
     void act.run("promote", async () => {
       await promoteTailored(db, doc.id);
@@ -31,10 +42,12 @@ function Row({ db, item, say }: { db: JobTrackerDB; item: TailoredItem; say: Pro
           <span className="doc-cover-title">{doc.title}</span>
           <p className="muted small">
             {app ? <><a href={`#/app/${app.id}`}>{[app.company, app.role].filter(Boolean).join(", ") || "Open the application"}</a> · </> : null}
+            {based ? `${based} · ` : ""}
             {`Updated ${dayText(doc.updatedAt, "short")}`}
           </p>
         </div>
         <div className="row doc-tailored-actions">
+          {app ? <a className="btn" href={`#/tailor/${app.id}`} aria-label={`Open ${doc.title} in Tailor`}>Open in Tailor</a> : null}
           <button type="button" onClick={promote} aria-label={`Make ${doc.title} reusable`} {...act.button("promote")}>Make reusable</button>
           <a className="btn" href={`#/resume/print/${doc.id}`} aria-label={`Print ${doc.title}`}>Print</a>
         </div>
@@ -44,12 +57,19 @@ function Row({ db, item, say }: { db: JobTrackerDB; item: TailoredItem; say: Pro
   );
 }
 
-/** The resumes tailored for one application each, newest first. Tailoring happens on the application's own page. */
-export function TailoredList({ db, items, say }: Props) {
-  if (!items.length) return <p className="muted">No tailored resumes yet. Open an application with its job posting saved to make one.</p>;
+/** The resumes tailored for one application each, newest first. Tailoring happens in the Tailor workspace. */
+export function TailoredList({ db, items, baselines, say }: Props) {
+  if (!items.length) {
+    return (
+      <div className="doc-tailored-empty">
+        <p className="muted">No tailored resumes yet.</p>
+        <a className="btn" href="#/tailor">Tailor for a job</a>
+      </div>
+    );
+  }
   return (
     <ul className="doc-covers">
-      {items.map((item) => <Row key={item.doc.id} db={db} item={item} say={say} />)}
+      {items.map((item) => <Row key={item.doc.id} db={db} item={item} baselines={baselines} say={say} />)}
     </ul>
   );
 }

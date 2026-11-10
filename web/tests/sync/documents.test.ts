@@ -7,7 +7,7 @@ import { MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_SECTIONS, MAX_POSTING_CHARS,
 import type { JobTrackerDB } from "../../src/db/schema";
 import { mergeApplications } from "../../src/sync/actions";
 import {
-  DocumentError, copyResumeForApplication, createVersion, deleteDocument, eraseDocument, getCoverLetter, getMaster, listDeletedDocuments,
+  DocumentError, createVersion, deleteDocument, eraseDocument, getCoverLetter, getMaster, listDeletedDocuments,
   liveDocuments, purgeExpiredDocuments, restoreDocument, saveCoverLetter, saveMaster, setApplicationResume, setPostingText, updateDocument,
 } from "../../src/sync/documents";
 import { removeApplicationRow } from "../../src/sync/recheck";
@@ -80,22 +80,6 @@ describe("the master resume", () => {
 });
 
 describe("resume versions", () => {
-  it("copy the master for an application and point the application at the copy", async () => {
-    const db = freshDb();
-    const master = await saveMaster(db, text("Experience", "Built a thing"), "paste", NOW);
-    const appId = await app(db, "Acme");
-    const copy = await copyResumeForApplication(db, appId, undefined, NOW);
-    const row = (await db.documents.get(copy))!;
-    expect(row).toMatchObject({ kind: "resume", master: false, title: "Resume for Acme, Analyst", basedOn: master, source: "copy", applicationId: null });
-    expect((await db.applications.get(appId))!.resumeId).toBe(copy);
-    expect(row.sections[0].items[0].id).toBe((await getMaster(db))!.sections[0].items[0].id);
-  });
-
-  it("can't be copied before there is a master", async () => {
-    const db = freshDb();
-    await expect(copyResumeForApplication(db, await app(db, "Acme"))).rejects.toThrow(/Add your resume first/);
-  });
-
   it("stop at the limit, and a deleted one frees a place", async () => {
     const db = freshDb();
     const ids: number[] = [];

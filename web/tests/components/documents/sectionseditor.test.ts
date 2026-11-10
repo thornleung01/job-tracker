@@ -9,7 +9,7 @@ import { normalizeSections } from "../../../src/db/documentShape";
 import { MAX_DOC_HEADING_CHARS, MAX_DOC_ITEM_CHARS, MAX_DOC_LABEL_CHARS, MAX_DOC_RIGHT_CHARS } from "../../../src/db/limits";
 import type { DocSection } from "../../../src/db/schema";
 import DetailPage from "../../../src/pages/detail";
-import { saveMaster } from "../../../src/sync/documents";
+import { createVersion, saveMaster } from "../../../src/sync/documents";
 
 const mounted: { root: Root; container: HTMLElement }[] = [];
 let latest: DocSection[] = [];
@@ -183,11 +183,14 @@ describe("inside an application's resume edit", () => {
   it("shows the type select and saves a changed line type with Save", async () => {
     const db = freshDb();
     const id = await addApp(db, "Acme", { role: "Analyst" });
-    await saveMaster(db, [{ heading: "Experience", items: [{ text: "Acme" }, { text: "Cut reporting time" }] }], "paste");
+    const sections = [{ heading: "Experience", items: [{ text: "Acme" }, { text: "Cut reporting time" }] }];
+    const master = await saveMaster(db, sections, "paste");
+    const own = await createVersion(db, { title: "Resume for Acme, Analyst", sections, basedOn: master, source: "copy" });
+    await db.applications.update(id, { resumeId: own });
     const { container } = await mountPage(DetailPage, db, `/app/${id}`, { id: String(id) });
     const docs = () => $(container, "section.documents") as HTMLElement;
-    await waitFor(() => button(docs(), "Make a copy for this job") !== null, "the documents section");
-    await click(button(docs(), "Make a copy for this job"));
+    await waitFor(() => button(docs(), "Edit") !== null, "the documents section");
+    await click(button(docs(), "Edit"));
     await waitFor(() => $(docs(), ".doc-sheet") !== null, "the on-page editor");
     await click(button(docs(), "Edit as list"));
     await waitFor(() => $(docs(), ".doc-editor") !== null, "the list editor");

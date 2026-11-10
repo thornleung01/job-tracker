@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { normalizeSections } from "../../db/documentShape";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { withoutEmptySections } from "../../documents/blankResume";
-import { copyResumeForApplication, isTailored, setApplicationResume, updateDocument } from "../../sync/documents";
+import { isTailored, setApplicationResume, updateDocument } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
 import { ResumeEditing } from "./ResumeEditing";
 import { resumeLabel } from "./tailorReview";
@@ -29,7 +29,7 @@ function EditResume({ sections, title, act, onSave, onCancel }: { sections: read
   );
 }
 
-/** Which resume version went with this application: choose one, make a copy for this job, edit it, print it. */
+/** Which resume version went with this application: choose one, edit it, print it. A tailored one opens in Tailor. */
 export function ResumeSent({ db, app, resumes, act }: Props) {
   const labelId = useId();
   const [editing, setEditing] = useState(false);
@@ -43,13 +43,6 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
       await setApplicationResume(db, app.id, value ? Number(value) : null);
       setEditing(false);
       return "Saved.";
-    });
-  };
-  const copy = () => {
-    void act.run("resume-copy", async () => {
-      await copyResumeForApplication(db, app.id);
-      setEditing(true);
-      return "Made a copy for this job.";
     });
   };
   const save = (sections: DocSection[]) => {
@@ -69,12 +62,13 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
           <option value="">None</option>
           {resumes.map((r) => <option key={r.id} value={r.id}>{resumeLabel(r)}</option>)}
         </select>
-        {hasMaster ? (
-          <button type="button" onClick={copy} {...act.button("resume-copy")}>Make a copy for this job</button>
-        ) : (
-          <a className="btn" href="#/resume">Add your resume</a>
-        )}
-        {chosen && isTailored(chosen) ? <span className="badge score">Tailored</span> : null}
+        {hasMaster ? null : <a className="btn" href="#/resume">Add your resume</a>}
+        {chosen && isTailored(chosen) ? (
+          <>
+            <span className="badge score">Tailored</span>
+            <a className="btn" href={`#/tailor/${app.id}`}>Open in Tailor</a>
+          </>
+        ) : null}
         {chosen ? (
           <>
             <button type="button" aria-expanded={editing} onClick={() => setEditing((on) => !on)} disabled={act.busy !== null}>Edit</button>

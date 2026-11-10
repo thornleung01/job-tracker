@@ -3,10 +3,10 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { $, $$, addApp, addMail, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
 import DetailPage from "../../../src/pages/detail";
-import { MAX_POSTING_CHARS, MAX_RESUME_VERSIONS } from "../../../src/db/limits";
+import { MAX_POSTING_CHARS } from "../../../src/db/limits";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
-import { createVersion, getCoverLetter, saveCoverLetter, saveMaster } from "../../../src/sync/documents";
+import { createVersion, getCoverLetter, saveCoverLetter, saveMaster, saveTailored } from "../../../src/sync/documents";
 import { deleteDocument } from "../../../src/sync/documents";
 
 const clipboard = { writeText: vi.fn(async () => undefined) };
@@ -49,6 +49,15 @@ const addLineIn = (c: HTMLElement, heading: string) => button($(editor(c), `sect
 const link = (c: HTMLElement, label: string) => $$(section(c), "a").find((a) => text(a) === label) as HTMLAnchorElement | undefined;
 const row = async (db: JobTrackerDB, id: number) => (await db.applications.get(id))!;
 const notice = (c: HTMLElement) => text($(c, ".notice"));
+/** Gives the application its own copy of the master as the resume sent, then opens it in the list editor. Returns the copy's id. */
+async function editOwnCopy(db: JobTrackerDB, id: number, container: HTMLElement, master: number | undefined): Promise<number> {
+  const copy = await createVersion(db, { title: "Resume for Acme, Analyst", sections: resume, basedOn: master, source: "copy" });
+  await db.applications.update(id, { resumeId: copy });
+  await waitFor(() => select(container).value === String(copy));
+  await click(button(section(container), "Edit"));
+  await openList(container);
+  return copy;
+}
 
 describe("the Documents section", () => {
   it("sits between People and Notes and steps", async () => {
@@ -59,10 +68,10 @@ describe("the Documents section", () => {
   });
 
   describe("resume sent", () => {
-    it("links to Add your resume when there is no master, and offers no copy", async () => {
+    it("links to Add your resume when there is no master, and offers no Tailor link", async () => {
       const { container } = await setup({ master: false });
       expect(link(container, "Add your resume")?.getAttribute("href")).toBe("#/resume");
-      expect(button(section(container), "Make a copy for this job")).toBeNull();
+      expect(link(container, "Tailor resume and cover letter")).toBeUndefined();
       expect($$(select(container), "option").map((o) => text(o))).toEqual(["None"]);
     });
 
@@ -82,26 +91,28 @@ describe("the Documents section", () => {
       expect((await row(db, id)).resumeId).toBeUndefined();
     });
 
-    it("makes a copy for this job, chooses it and opens it to edit", async () => {
-      const { db, id, container } = await setup();
-      await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => sheet(container) !== null);
-      expect($(section(container), ".doc-editor")).toBeNull();
-      await openList(container);
-      const resumeId = (await row(db, id)).resumeId!;
-      const copy = (await db.documents.get(resumeId))!;
-      expect(copy.title).toBe("Resume for Acme, Analyst");
-      expect(copy.master).toBe(false);
-      expect(copy.source).toBe("copy");
-      expect(select(container).value).toBe(String(resumeId));
-      expect($$(editor(container), "textarea").map((t) => (t as HTMLTextAreaElement).value)).toEqual(["Built dashboards", "Cut reporting time by 40%", "SQL"]);
+    it("has no inline Tailor panel or copy button, and links to the Tailor workspace", async () => {
+      const { id, container } = await setup();
+      await waitFor(() => link(container, "Tailor resume and cover letter") !== undefined);
+      expect(link(container, "Tailor resume and cover letter")!.getAttribute("href")).toBe(`#/tailor/${id}`);
+      expect(button(section(container), "Make a copy for this job")).toBeNull();
+      expect($(container, ".tailor-panel")).toBeNull();
+    });
+
+    it("opens a tailored resume in Tailor, and only when the chosen resume is tailored", async () => {
+      const { db, id, container, master } = await setup();
+      await type(select(container), String(master));
+      await waitFor(() => select(container).value === String(master));
+      expect(link(container, "Open in Tailor")).toBeUndefined();
+      const tailored = await saveTailored(db, id, resume.map((r) => ({ id: "", heading: r.heading, items: r.items.map((i) => ({ id: "", ...i })) })), "copy");
+      await db.applications.update(id, { resumeId: tailored });
+      await waitFor(() => link(container, "Open in Tailor") !== undefined);
+      expect(link(container, "Open in Tailor")!.getAttribute("href")).toBe(`#/tailor/${id}`);
     });
 
     it("edits a line, adds one, removes one and saves", async () => {
-      const { db, id, container } = await setup();
-      await click(button(section(container), "Make a copy for this job"));
-      await openList(container);
-      const resumeId = (await row(db, id)).resumeId!;
+      const { db, id, container, master } = await setup();
+      const resumeId = await editOwnCopy(db, id, container, master);
 
       await type($(editor(container), "textarea"), "Built 12 dashboards");
       await click(addLineIn(container, "Skills"));
@@ -117,10 +128,8 @@ describe("the Documents section", () => {
     });
 
     it("saving after clearing every line of a section does not store a lone heading", async () => {
-      const { db, id, container } = await setup();
-      await click(button(section(container), "Make a copy for this job"));
-      await openList(container);
-      const resumeId = (await row(db, id)).resumeId!;
+      const { db, id, container, master } = await setup();
+      const resumeId = await editOwnCopy(db, id, container, master);
       const clear = $$(section(container), "button").find((b) => b.getAttribute("aria-label") === "Remove line 1" && b.closest('section[aria-label="Skills"]') !== null)!;
       await click(clear);
       await click(button(section(container), "Save"));
@@ -129,9 +138,8 @@ describe("the Documents section", () => {
     });
 
     it("leaves the master alone when only the copy is edited", async () => {
-      const { db, container, master } = await setup();
-      await click(button(section(container), "Make a copy for this job"));
-      await openList(container);
+      const { db, id, container, master } = await setup();
+      await editOwnCopy(db, id, container, master);
       await type($(editor(container), "textarea"), "Changed");
       await click(button(section(container), "Save"));
       await waitFor(() => sheet(container) === null);
@@ -167,10 +175,8 @@ describe("the Documents section", () => {
     });
 
     it("keeps the draft when switching to the list and back, and saves only on Save", async () => {
-      const { db, id, container } = await setup();
-      await click(button(section(container), "Make a copy for this job"));
-      await openList(container);
-      const resumeId = (await row(db, id)).resumeId!;
+      const { db, id, container, master } = await setup();
+      const resumeId = await editOwnCopy(db, id, container, master);
       await type($(editor(container), "textarea"), "Edited once");
       await click(button(section(container), "Edit on page"));
       await waitFor(() => sheet(container) !== null);
@@ -203,13 +209,6 @@ describe("the Documents section", () => {
       expect(button(section(container), "Edit")).toBeNull();
       await type(select(container), String(master));
       await waitFor(() => !text(section(container)).includes("(deleted)"));
-    });
-
-    it("says why a copy can't be made when the versions are used up", async () => {
-      const { db, container, master } = await setup();
-      for (let i = 0; i < MAX_RESUME_VERSIONS; i++) await createVersion(db, { title: `V${i}`, sections: resume, basedOn: master });
-      await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => notice(container).includes("You can keep 5 resume versions"));
     });
 
     it("shows what you sent in the header for an interview, and not for other stages", async () => {
