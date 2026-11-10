@@ -12,6 +12,7 @@ import { deleteDocument } from "../../../src/sync/documents";
 const clipboard = { writeText: vi.fn(async () => undefined) };
 beforeEach(() => {
   clipboard.writeText.mockClear();
+  localStorage.removeItem("jobtracker:resume-editing");
   Object.defineProperty(navigator, "clipboard", { value: clipboard, configurable: true });
 });
 afterEach(cleanup);
@@ -35,6 +36,13 @@ async function setup(o: { stage?: "Applied" | "Interview"; master?: boolean; rec
 
 const select = (c: HTMLElement) => $(c, "select[name=resume]") as HTMLSelectElement;
 const section = (c: HTMLElement) => $(c, "section.documents") as HTMLElement;
+const sheet = (c: HTMLElement) => $(section(c), ".doc-sheet");
+/** The editor opens on the page; the list-editor tests switch to the list first. */
+async function openList(c: HTMLElement) {
+  await waitFor(() => sheet(c) !== null);
+  await click(button(section(c), "Edit as list"));
+  await waitFor(() => $(section(c), ".doc-editor") !== null);
+}
 const editor = (c: HTMLElement) => $(c, ".doc-editor") as HTMLElement;
 /** The "Add line" button of the editor section with this heading. */
 const addLineIn = (c: HTMLElement, heading: string) => button($(editor(c), `section[aria-label="${heading}"]`) as HTMLElement, "Add line");
@@ -77,7 +85,9 @@ describe("the Documents section", () => {
     it("makes a copy for this job, chooses it and opens it to edit", async () => {
       const { db, id, container } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), ".doc-editor") !== null);
+      await waitFor(() => sheet(container) !== null);
+      expect($(section(container), ".doc-editor")).toBeNull();
+      await openList(container);
       const resumeId = (await row(db, id)).resumeId!;
       const copy = (await db.documents.get(resumeId))!;
       expect(copy.title).toBe("Resume for Acme, Analyst");
@@ -90,7 +100,7 @@ describe("the Documents section", () => {
     it("edits a line, adds one, removes one and saves", async () => {
       const { db, id, container } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), ".doc-editor") !== null);
+      await openList(container);
       const resumeId = (await row(db, id)).resumeId!;
 
       await type($(editor(container), "textarea"), "Built 12 dashboards");
@@ -99,7 +109,7 @@ describe("the Documents section", () => {
       await type(fields[fields.length - 1], "Python");
       await click($$(section(container), "button").find((b) => b.getAttribute("aria-label") === "Remove line 2" && b.closest('section[aria-label="Experience"]') !== null)!);
       await click(button(section(container), "Save"));
-      await waitFor(() => $(section(container), ".doc-editor") === null);
+      await waitFor(() => sheet(container) === null);
 
       const saved = (await db.documents.get(resumeId))!;
       expect(saved.sections.map((s) => [s.heading, s.items.map((i) => i.text)])).toEqual([["Experience", ["Built 12 dashboards"]], ["Skills", ["SQL", "Python"]]]);
@@ -109,10 +119,10 @@ describe("the Documents section", () => {
     it("leaves the master alone when only the copy is edited", async () => {
       const { db, container, master } = await setup();
       await click(button(section(container), "Make a copy for this job"));
-      await waitFor(() => $(section(container), ".doc-editor") !== null);
+      await openList(container);
       await type($(editor(container), "textarea"), "Changed");
       await click(button(section(container), "Save"));
-      await waitFor(() => $(section(container), ".doc-editor") === null);
+      await waitFor(() => sheet(container) === null);
       expect((await db.documents.get(master!))!.sections[0].items[0].text).toBe("Built dashboards");
     });
 
@@ -121,10 +131,44 @@ describe("the Documents section", () => {
       await type(select(container), String(master));
       await waitFor(() => select(container).value === String(master));
       await click(button(section(container), "Edit"));
+      await openList(container);
       await type($(editor(container), "textarea"), "Nope");
       await click(button(section(container), "Cancel"));
+      expect(sheet(container)).toBeNull();
       expect($(section(container), ".doc-editor")).toBeNull();
       expect((await db.documents.get((await row(db, id)).resumeId!))!.sections[0].items[0].text).toBe("Built dashboards");
+    });
+
+    it("Edit shows the on-page editor by default, with Save and Cancel under it", async () => {
+      const { container, master } = await setup();
+      await type(select(container), String(master));
+      await waitFor(() => select(container).value === String(master));
+      await click(button(section(container), "Edit"));
+      await waitFor(() => sheet(container) !== null);
+      expect($(section(container), ".doc-editor")).toBeNull();
+      expect($(section(container), '[aria-label="Edit resume"]')).not.toBeNull();
+      const wrap = $(section(container), ".doc-resume-edit") as HTMLElement;
+      expect(wrap.contains(sheet(container))).toBe(true);
+      expect(wrap.lastElementChild!.classList.contains("doc-actions")).toBe(true);
+      expect(button(wrap, "Save")).not.toBeNull();
+      expect(button(wrap, "Cancel")).not.toBeNull();
+    });
+
+    it("keeps the draft when switching to the list and back, and saves only on Save", async () => {
+      const { db, id, container } = await setup();
+      await click(button(section(container), "Make a copy for this job"));
+      await openList(container);
+      const resumeId = (await row(db, id)).resumeId!;
+      await type($(editor(container), "textarea"), "Edited once");
+      await click(button(section(container), "Edit on page"));
+      await waitFor(() => sheet(container) !== null);
+      await click(button(section(container), "Edit as list"));
+      await waitFor(() => $(section(container), ".doc-editor") !== null);
+      expect(($(editor(container), "textarea") as HTMLTextAreaElement).value).toBe("Edited once");
+      expect((await db.documents.get(resumeId))!.sections[0].items[0].text).toBe("Built dashboards");
+      await click(button(section(container), "Save"));
+      await waitFor(() => sheet(container) === null);
+      expect((await db.documents.get(resumeId))!.sections[0].items[0].text).toBe("Edited once");
     });
 
     it("links Print to the print view of the chosen resume, and only when one is chosen", async () => {

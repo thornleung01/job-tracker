@@ -3,6 +3,9 @@
 .documents .doc-h { font: 500 1rem/1.375 var(--font-ui); letter-spacing: inherit; margin: 0 0 8px; }
 .documents .doc-note { margin: 8px 0 0; }
 .documents .doc-actions { margin-top: 12px; }
+/* The on-page editor sits in this card: never wider than it, and nothing scrolls sideways on a phone. */
+.documents .doc-resume-edit { min-width: 0; max-width: 100%; }
+.documents .doc-resume-edit .doc-sheet { max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
 
 /* The saved letter reads like a letter: paragraphs, not a box of text. */
 .documents .doc-letter { max-width: 68ch; padding: var(--pad); border-radius: var(--r); background: var(--linen); }
