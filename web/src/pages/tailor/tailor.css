@@ -37,7 +37,6 @@
 .posting-terms-list svg { flex: none; }
 
 /* Under the copy: what changed, what was left out, the AI's lines. */
-.tailor-length { margin: 8px 0 12px; min-height: 1.4em; }
 .tailor-list { margin: 0 0 var(--gap); }
 .tailor-list ul { list-style: none; margin: 0; padding: 0; }
 .tailor-entry { padding: 12px 0; border-top: 1px solid var(--line); }
@@ -51,8 +50,6 @@
 .tailor-unused li { margin: 4px 0 0; overflow-wrap: anywhere; }
 .tailor-none { margin: 0 0 var(--gap); }
 .tailor-letter .doc-letter-text { width: 100%; box-sizing: border-box; max-width: 68ch; margin-bottom: 12px; }
-/* The sheet that is measured for the length estimate: laid out, never seen. */
-.tailor-measure { position: absolute; left: -10000px; top: 0; width: 8.5in; visibility: hidden; pointer-events: none; }
 
 @media (forced-colors: active) {
   .tailor-changed { background: Mark; color: MarkText; }

@@ -5,7 +5,6 @@ import { useQuery } from "../../app/useQuery";
 import { BaselineMarks } from "../../components/documents/BaselineMarks";
 import { CoverLetter } from "../../components/documents/CoverLetter";
 import { realDocumentsDeps, type DocumentsDeps } from "../../components/documents/deps";
-import { measureSheetHeight, pageVerdictText } from "../../components/documents/onepage";
 import { PostingCard } from "../../components/documents/PostingCard";
 import { PostingTerms } from "../../components/documents/PostingTerms";
 import { ResumeEditing } from "../../components/documents/ResumeEditing";
@@ -13,7 +12,6 @@ import { ResumeSheet } from "../../components/documents/ResumeSheet";
 import { TailorAi, type WriteOptions } from "../../components/documents/TailorAi";
 import { composeResume, initialTicks } from "../../components/documents/tailorReview";
 import { applyTick } from "../../components/documents/tailorTicks";
-import { useOnePage } from "../../components/documents/useOnePage";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { Notice } from "../../components/Notice";
 import { useAction } from "../../components/useAction";
@@ -36,8 +34,6 @@ interface Props {
   baseline: number | null;
   navigate(to: string): void;
   deps?: Partial<DocumentsDeps>;
-  /** the page-height probe, a seam for tests (jsdom has no layout) */
-  measure?: (sheet: HTMLElement) => number;
 }
 
 interface CoverDraft {
@@ -63,7 +59,7 @@ function usePhone(): boolean {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-export function Workspace({ db, appId, baseline: baselineParam, navigate, deps, measure }: Props) {
+export function Workspace({ db, appId, baseline: baselineParam, navigate, deps }: Props) {
   const all: DocumentsDeps = { ...realDocumentsDeps, ...deps };
   const data = useQuery(async () => {
     const app = await db.applications.get(appId);
@@ -95,7 +91,6 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps, 
   const right = useRef<HTMLDivElement>(null);
   const aiButton = useRef<HTMLButtonElement>(null);
   const focusLine = useRef<string | null>(null);
-  const sheet = useRef<HTMLElement>(null);
 
   const resumes = data?.resumes ?? [];
   const tailored = data?.tailored ?? null;
@@ -107,7 +102,6 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps, 
   const dirty = unsaved || coverDraft !== null;
   const diff = useMemo(() => (base && sections ? compareToBaseline(sections, base.sections) : null), [base, sections]);
   const differs = diff !== null && (diff.leftOut.length > 0 || Object.values(diff.lines).some((l) => l.status !== "same"));
-  const verdict = useOnePage(sheet, [sections], measure ?? measureSheetHeight);
 
   // Leaving the page by closing or reloading it asks too.
   useEffect(() => {
@@ -279,7 +273,6 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps, 
                 <BaselineMarks compare={diff!} on={compare} onActive={setActive}>
                   <ResumeEditing sections={sections} onChange={setEdits} label="Tailored resume" title={tailored?.title ?? base.title} />
                 </BaselineMarks>
-                <p className="small muted tailor-length" role="status">{verdict ? `${pageVerdictText(verdict)} (estimate)` : ""}</p>
                 <div className="row tailor-actions">
                   <button type="button" className="primary" onClick={save} disabled={busy || !dirty} {...(act.busy === "save" ? { "aria-busy": true as const } : {})}>Save</button>
                   {tailored && !dirty ? <a className="btn" href={`#/resume/print/${tailored.id}`}>Print</a> : <button type="button" disabled title="Save first">Print</button>}
@@ -298,7 +291,6 @@ export function Workspace({ db, appId, baseline: baselineParam, navigate, deps, 
               </>
             ) : null}
             {draft && sections ? <Ticks draft={draft} ticks={ticks} onTick={tick} /> : null}
-            {sections ? <div className="tailor-measure" aria-hidden="true"><ResumeSheet sections={sections} title={base.title} sheetRef={sheet} /></div> : null}
           </div>
         </div>
       ) : (

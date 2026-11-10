@@ -10,7 +10,7 @@
 .doc-sheet.classic.page-edit textarea.pe-field { resize: none; overflow: hidden; white-space: pre-wrap; }
 @supports (field-sizing: content) {
   .doc-sheet.classic.page-edit textarea.pe-field { field-sizing: content; }
-  .doc-sheet.classic.page-edit input.pe-label { field-sizing: content; }
+  .doc-sheet.classic.page-edit input.pe-label, .doc-sheet.classic.page-edit input.pe-right { field-sizing: content; }
 }
 .doc-sheet.classic.page-edit .pe-field::placeholder { color: rgba(0, 0, 0, 0.4); opacity: 1; }
 /* an empty field shows where to click; hovering any field tints it */
@@ -21,13 +21,17 @@
 .doc-sheet.classic.page-edit .pe-i { font-style: italic; }
 .doc-sheet.classic.page-edit .pe-center { text-align: center; }
 .doc-sheet.classic.page-edit .pe-grow { flex: 1 1 auto; }
-.doc-sheet.classic.page-edit input.pe-right { flex: 0 1 40%; width: 40%; text-align: right; }
+.doc-sheet.classic.page-edit input.pe-right { flex: none; width: auto; max-width: 60%; text-align: right; }
+.doc-sheet.classic.page-edit .doc-row { min-width: 0; }
+.doc-sheet.classic.page-edit .doc-row > .pe-grow { min-width: 0; }
 .doc-sheet.classic.page-edit input.pe-label { flex: none; width: auto; max-width: 45%; }
 .doc-sheet.classic.page-edit .pe-colon { flex: none; margin-left: -0.15em; }
 
 /* Layout of a line: a bullet or skill is its bold label then its text, side by side. */
 .doc-sheet.classic.page-edit .pe-line { position: relative; }
 .doc-sheet.classic.page-edit .pe-inline { display: flex; align-items: flex-start; gap: 0 0.3em; }
+/* the text beside a label wraps in a narrower box than the printed line, so justifying it only stretches the gaps */
+.doc-sheet.classic.page-edit .pe-inline textarea.pe-field { text-align: left; }
 .doc-sheet.classic.page-edit .pe-p { margin: 0 0 2pt; }
 .doc-sheet.classic.page-edit .doc-block h2 .pe-field { text-transform: uppercase; }
 .doc-sheet.classic.page-edit .doc-block h2 { padding-bottom: 1pt; }
@@ -57,10 +61,12 @@
 }
 
 /* The add row at the end of a section: small quiet buttons, the likely next line first. Each is 28px to look at and 44px to hit (a ::after). */
-.doc-sheet.classic.page-edit .pe-add { display: flex; flex-wrap: wrap; gap: 16px 6px; margin: 4pt 0 0; opacity: 0; }
+/* the row takes no room in the flow (so the sheet spaces like the read-only one) and floats just under its section when it shows */
+.doc-sheet.classic.page-edit .doc-block, .doc-sheet.classic.page-edit .doc-contact { position: relative; }
+.doc-sheet.classic.page-edit .pe-add { position: absolute; left: 0; right: 0; top: 100%; z-index: 1; display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 2px 0; background: white; opacity: 0; pointer-events: none; }
 .doc-sheet.classic.page-edit .doc-contact .pe-add { justify-content: center; }
 .doc-sheet.classic.page-edit .doc-block:hover .pe-add, .doc-sheet.classic.page-edit .doc-block:focus-within .pe-add,
-.doc-sheet.classic.page-edit .doc-contact:hover .pe-add, .doc-sheet.classic.page-edit .doc-contact:focus-within .pe-add { opacity: 1; }
+.doc-sheet.classic.page-edit .doc-contact:hover .pe-add, .doc-sheet.classic.page-edit .doc-contact:focus-within .pe-add { opacity: 1; pointer-events: auto; }
 .doc-sheet.classic.page-edit .pe-addbtn { position: relative; min-height: 28px; padding: 0 12px; background: rgba(0, 0, 0, 0.06); color: black; box-shadow: none; border-radius: var(--r-pill);
   font: 500 13px/1 var(--font-ui); letter-spacing: 0; }
 .doc-sheet.classic.page-edit .pe-addbtn::after { content: ""; position: absolute; left: 0; right: 0; top: -8px; bottom: -8px; }
@@ -74,7 +80,7 @@
   .doc-sheet.classic.page-edit { margin-right: 0; }
   .doc-sheet.classic.page-edit .pe-controls { position: static; transform: none; opacity: 1; pointer-events: auto; justify-content: flex-end; background: none; box-shadow: none; }
   .doc-sheet.classic.page-edit .pe-controls::before { content: none; }
-  .doc-sheet.classic.page-edit .pe-add { opacity: 1; }
+  .doc-sheet.classic.page-edit .pe-add { position: static; margin: 4pt 0 0; padding: 0; gap: 16px 6px; background: none; opacity: 1; pointer-events: auto; }
   .doc-sheet.classic.page-edit .pe-addbtn { min-height: 44px; padding: 0 16px; }
   .doc-sheet.classic.page-edit .pe-addbtn::after { content: none; }
 }
