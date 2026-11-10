@@ -35,7 +35,7 @@ describe("Tailor your resume link in the Added notice", () => {
     const container = await addShopify(db, true);
     const id = (await db.applications.toArray()).find((a) => a.company === "Shopify")!.id;
     const link = $$(container, ".notice a").find((a) => text(a) === "Tailor your resume for this job")!;
-    expect(link.getAttribute("href")).toBe(`#/tailor/${id}`);
+    expect(link.getAttribute("href")).toBe(`#/resume?app=${id}`);
   });
 
   it("says nothing extra without posting text", async () => {
