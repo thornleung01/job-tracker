@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AiDeps } from "../../ai";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
@@ -20,7 +20,7 @@ import { ResumeTab } from "./ResumeTab";
 import { realSectionDeps, type SectionDeps } from "./sections/deps";
 import { Sections } from "./sections/Sections";
 import { TailoredList } from "./TailoredList";
-import { useLeaveWhenUnsaved } from "./unsaved";
+import { useLeaveWhenUnsaved, type ReportUnsaved } from "./unsaved";
 import "./resume.css";
 
 export type ResumeView = "resumes" | "cover" | "tailored";
@@ -66,18 +66,42 @@ function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDe
   }, [data]);
   const apps = useMemo(() => new Map((data?.apps ?? []).map((a) => [a.id, a])), [data]);
 
-  // Your documents starts closed and opens for anything that points into it: the Cover letters and Tailored tab links, Edit on the master line,
-  // a ?baseline= link and the Print view's Back link. What was left open stays open.
-  const baselineParam = query.get("baseline");
-  const [docsOpen, setDocsOpen] = useState(() => view !== "resumes" || baselineParam !== null || readDocsOpen(db.name));
+  // Your documents starts closed and opens for anything that points into it: the Cover letters and Tailored tab links (each time one is followed,
+  // so a closed one opens again), Edit on the master line, the Print view's Back link and the leave question while text typed in it isn't saved.
+  // A tab link also scrolls to it and moves focus to its summary. A ?baseline= link is about Job, so it leaves Your documents alone.
+  const [docsOpen, setDocsOpen] = useState(() => view !== "resumes" || readDocsOpen(db.name));
   const openDocs = (open: boolean) => {
     setDocsOpen(open);
     rememberDocsOpen(db.name, open);
   };
+  const toDocs = useRef(false);
+  const summary = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (view !== "resumes" || baselineParam !== null) openDocs(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new tab or link opens it
-  }, [view, baselineParam]);
+    if (view === "resumes") return;
+    toDocs.current = true;
+    openDocs(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `query` is a new object for every move to an address, so the same link followed again opens it again
+  }, [view, query]);
+  useEffect(() => {
+    if (!toDocs.current || !docsOpen || !data) return;
+    toDocs.current = false;
+    summary.current?.scrollIntoView?.({ block: "start" });
+    summary.current?.focus({ preventScroll: true });
+  });
+
+  // Typed text in Your documents that isn't saved: the summary says so while it is closed, and the leave question opens it to show where.
+  const docsUnsaved = useRef(new Set<string>());
+  const [docsDirty, setDocsDirty] = useState(false);
+  const docsReport = useCallback<ReportUnsaved>((key, on) => {
+    if (on) docsUnsaved.current.add(key);
+    else docsUnsaved.current.delete(key);
+    setDocsDirty(docsUnsaved.current.size > 0);
+    guard.report(`docs:${key}`, on);
+  }, [guard.report]);   // eslint-disable-line react-hooks/exhaustive-deps -- guard.report is stable
+  useEffect(() => {
+    if (guard.leaving && docsDirty && !docsOpen) openDocs(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the question appearing opens it
+  }, [guard.leaving]);
 
   // Edit on the master line: the Resumes tab, then the master's heading, once it is shown.
   const toMaster = useRef(false);
@@ -112,9 +136,10 @@ function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDe
         <Sections db={db} resumes={data.resumes} flow={flow} dispatch={dispatch} deps={all} report={guard.report} onShowMaster={showMaster} query={query} navigate={navigate} />
       ) : null}
       <details className="rs-docs" open={docsOpen} onToggle={(e) => { if (e.currentTarget.open !== docsOpen) openDocs(e.currentTarget.open); }}>
-        <summary className="disclosure">
+        <summary className="disclosure" ref={summary}>
           <span className="chev" aria-hidden="true"></span>
-          Your documents{kept ? ` · ${kept}` : ""}
+          <h2 className="rs-docs-h">Your documents{kept ? ` · ${kept}` : ""}</h2>
+          {docsDirty ? <span className="rs-docs-unsaved small">Unsaved changes</span> : null}
         </summary>
         <nav className="tabs" aria-label="Show">
           <a href="#/resume" className="tab" aria-current={view === "resumes" ? "true" : undefined}>Resumes</a>
@@ -126,7 +151,7 @@ function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDe
           <>
             {/* All three lists stay in the page, so what you typed and haven't saved is still there when you come back to it. */}
             <div className="resume-view" hidden={view !== "resumes"}>
-              <ResumeTab db={db} resumes={data.resumes} usage={usage} say={say} report={guard.report} deps={all} />
+              <ResumeTab db={db} resumes={data.resumes} usage={usage} say={say} report={docsReport} deps={all} />
             </div>
             <div className="resume-view" hidden={view !== "cover"}>
               <CoverLetters letters={data.docs.filter((d) => d.kind === "cover")} apps={apps} />

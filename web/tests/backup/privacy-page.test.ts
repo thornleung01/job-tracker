@@ -42,6 +42,8 @@ describe("the privacy page", () => {
     ["the extract call sends only the posting, and only when the device couldn't read it", "Only the pasted posting text is sent, with your key, when the company and role couldn't be read on your device and your key is unlocked"],
     ["the extract reply is kept only when it appears in the posting", "A company or role in the reply is kept only if it appears in the posting"],
     ["the unsaved Resume page steps are a session storage note", "jobtracker:resume-steps: followed by the name of your database: the job you are tailoring for on the Resume page"],
+    ["the open state of Your documents is a session storage note", "jobtracker:resume-docs-open: followed by the name of your database: whether Your documents is open on the Resume page, until you close the tab"],
+    ["the open state of Your documents is cleared with the rest", "It is cleared when you log out or delete all your data"],
     ["a small wrapper goes with the text", "with the instructions for the task and a small wrapper around the text"],
     ["the vault entry is described in full", "the encrypted key, its salt and IV, the last 4 characters of the key and the model you chose, plus a format version"],
     ["another page on the shared address can watch a typed passphrase", "Another page on the same address can also open this app in a window and watch what you type, which a passphrase can't prevent, so only type your passphrase on this address"],

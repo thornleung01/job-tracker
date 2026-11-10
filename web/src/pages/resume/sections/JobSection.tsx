@@ -55,7 +55,7 @@ function JobForm({ db, flow, dispatch, deps, baseline, write, byHand, head }: Pr
   useEffect(() => () => reading.current?.abort(), []);
 
   const company = flow.company.trim();
-  const posting =flow.posting.trim();
+  const posting = flow.posting.trim();
   const keyState = deps.ai.vault.status(db.name).state;
   // The one primary: the strip's Write with AI while the key is open, else Start by hand, and neither once there is a draft (Save is the primary then).
   const handIsPrimary = keyState !== "unlocked" && !flow.draft;

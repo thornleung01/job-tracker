@@ -1,8 +1,9 @@
-/* The Resume page: Job, the tailored split with its action bar, then Your documents, all in one wide column (the app's page width is widened for this
-   page, so the header, Job, the split, the bar and Your documents share the same left and right edges). Cards, buttons and fields come from the shared
+/* The Resume page: Job, the tailored split with its action bar, then Your documents, all in one wide column (the page's own content is wider than
+   the app's page width, which the header keeps, so Job, the split, the bar and Your documents share the same left and right edges). Cards, buttons and fields come from the shared
    stylesheet; this file lays them out. The split is two columns above 1100px (the resume the larger share), one under it, and on a phone one
    document at a time behind the two-tab switch (.doc-switch). The bar's state reads from its words, never from colour alone. */
-.wrap:has(.rs-page) { max-width: 1272px; }   /* 1240px of content inside the 16px gutters */
+/* 1240px wide, centred on the page: 76px past each side of the header's 1088px, less as the window narrows, and none once the window is that narrow */
+.rs-page { margin-inline: calc(-1 * clamp(0px, (100vw - 1120px) / 2, 76px)); }
 .rs { margin: 0 0 var(--section); }
 .rs-section { margin: 0 0 var(--gap); }
 .rs-h { font-size: 1.25rem; line-height: 1.4; margin: 0 0 12px; }
@@ -104,4 +105,6 @@ html:has(.rs-bar) { scroll-padding-bottom: calc(var(--rs-bar-h, 96px) + 24px); }
 /* Your documents: a closed disclosure at the foot of the page, opened by anything that points into it. */
 .rs-docs { margin: var(--section) 0 0; }
 .rs-docs > summary.disclosure { font-size: 1.25rem; line-height: 1.4; }
+.rs-docs-h { font: inherit; margin: 0; }
+.rs-docs-unsaved { margin-left: auto; color: var(--muted); font-weight: 400; }
 .rs-docs[open] > summary.disclosure { margin-bottom: var(--gap); }

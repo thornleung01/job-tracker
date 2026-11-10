@@ -748,18 +748,77 @@ describe("the page's layout", () => {
     },
   );
 
-  it("opens Your documents for ?step=job&baseline=<id>, and keeps it open after Tailor with this", async () => {
+  it("scrolls to Job and leaves Your documents closed for ?step=job&baseline=<id>, and Tailor with this opens it", async () => {
     const db = freshDb();
     await saveMaster(db, MASTER, "paste");
     const version = await createVersion(db, { title: "Data version", sections: MASTER });
-    const linked = await mount(db, makeDeps().deps, `/resume?step=job&baseline=${version}`);
-    expect(docs(linked.container).open).toBe(true);
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const linked = await mount(db, makeDeps().deps, `/resume?baseline=${version}`);
+    await waitFor(() => linked.visited.length === 1, "the link to be handled");
+    await waitFor(() => scroll.mock.contexts.some((el) => (el as HTMLElement).id === "rs-job-h"), "the scroll to Job");
+    expect((labelled(linked.container, "Based on") as HTMLSelectElement).value).toBe(String(version));
+    expect(docs(linked.container).open).toBe(false);
+    expect(scroll.mock.contexts.some((el) => (el as HTMLElement).tagName === "SUMMARY")).toBe(false);
     sessionStorage.clear();
     const plain = await mount(db, makeDeps().deps);
-    expect(docs(plain.container).open).toBe(false);
     await click($(plain.container, ".rs-docs > summary"));
     await click($$(plain.container, "a.btn").find((a) => /^Tailor with this resume/.test(a.getAttribute("aria-label") ?? "")) ?? null);
     expect(docs(plain.container).open).toBe(true);
+  });
+
+  it.each([["cover"], ["tailored"]])("scrolls to Your documents and focuses its summary for ?tab=%s", async (tab) => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { container } = await withMaster("none", { to: `/resume?tab=${tab}` });
+    await waitFor(() => document.activeElement === $(container, ".rs-docs > summary"), "focus on the summary");
+    expect(scroll.mock.contexts.some((el) => (el as HTMLElement).tagName === "SUMMARY")).toBe(true);
+    expect(docs(container).open).toBe(true);
+  });
+
+  it("opens Your documents again when the same tab link is followed after it was closed", async () => {
+    const db = freshDb();
+    await saveMaster(db, MASTER, "paste");
+    let go: (to: string) => void = () => undefined;
+    const Page = (props: PageProps) => {
+      go = props.navigate;
+      return createElement(ResumePage, { ...props, deps: makeDeps().deps });
+    };
+    const { container } = await mountPage(Page, db, "/resume?tab=cover");
+    await waitFor(() => $(container, ".resume-view") !== null, "the page to load");
+    expect(docs(container).open).toBe(true);
+    await click($(container, ".rs-docs > summary"));
+    expect(docs(container).open).toBe(false);
+    await act(async () => go("/resume?tab=cover"));
+    await waitFor(() => docs(container).open, "Your documents to open again");
+    expect(document.activeElement).toBe($(container, ".rs-docs > summary"));
+  });
+
+  it("has a real heading inside the summary, which still toggles", async () => {
+    const { container } = await withMaster();
+    const heading = $(container, ".rs-docs > summary > h2")!;
+    expect(heading.tagName).toBe("H2");
+    expect(text(heading)).toBe("Your documents · master");
+    await click(heading);
+    expect(docs(container).open).toBe(true);
+  });
+
+  it("marks Unsaved changes in the closed summary and opens Your documents when the leave question appears", async () => {
+    const { container } = await withMaster();
+    const summary = $(container, ".rs-docs > summary")!;
+    expect($(summary, ".rs-docs-unsaved")).toBeNull();
+    await click(summary);
+    const line = $$(container, ".rs-docs input, .rs-docs textarea").find((e) => /^Line 1 of/.test(e.getAttribute("aria-label") ?? "")) as HTMLInputElement;
+    await type(line, "Jordan Q. Lee");
+    expect(text($(summary, ".rs-docs-unsaved"))).toBe("Unsaved changes");
+    await click(summary);
+    expect(docs(container).open).toBe(false);
+    expect(text($(summary, ".rs-docs-unsaved"))).toBe("Unsaved changes");
+    let stopped = false;
+    await act(async () => void (stopped = blockLeave("#/people")));
+    expect(stopped).toBe(true);
+    expect(docs(container).open).toBe(true);
+    expect($(container, ".inline-confirm")).not.toBeNull();
   });
 
   it("opens Your documents when the Print view's Back link returns to the page", async () => {

@@ -92,7 +92,7 @@ export function Sections({ db, resumes, flow, dispatch, deps, report, onShowMast
       if (app && !app.deletedAt) {
         dispatch({ type: "prefill", appId: app.id, company: app.company, role: app.role, posting: app.postingText ?? "", url: app.postingUrl ?? "" });
         focusJob.current = true;
-      } else if (stepParam === "job" || chosen) focusJob.current = true;
+      } else if (stepParam === "job" || baselineParam !== null) focusJob.current = true;
       navigate(tabParam ? `/resume?tab=${encodeURIComponent(tabParam)}` : "/resume", { replace: true });
     })();
     return () => {

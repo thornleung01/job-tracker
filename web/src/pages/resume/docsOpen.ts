@@ -1,6 +1,6 @@
 // Whether Your documents is open, kept in session storage per database so it is still open when the Print view's Back link returns to the page.
 // It starts closed, and a reload in the same tab keeps what you chose. With no storage it simply starts closed each time.
-const key = (dbName: string) => `jobtracker:resume-docs-open:${dbName}`;
+import { docsOpenKey as key } from "../../app/resumeFlowStorage";
 
 export function readDocsOpen(dbName: string): boolean {
   try {
