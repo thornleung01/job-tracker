@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { isLocalMode } from "../config";
 import { openDatabase, type JobTrackerDB } from "../db/schema";
 import { BackupGuard } from "../backup/BackupGuard";
+import { Gate } from "../components/Gate";
 import { Notice } from "../components/Notice";
 import { TrashHost } from "../components/trash/TrashHost";
 import { PROVIDER_LABEL } from "../sync/accountLabel";
@@ -102,7 +103,7 @@ function MailDeclinedNotice({ auth }: { auth: ShellAuth }) {
   if (!session.mailDeclined || dismissed) return null;
   return (
     <Notice>
-      <p className="line">{`Logged in. ${PROVIDER_LABEL[session.mailDeclined]} access wasn't allowed, so nothing will sync. Connect it in Settings.`}</p>
+      <p className="line">{`Logged in. ${PROVIDER_LABEL[session.mailDeclined]} access wasn't allowed, so nothing will sync.`} <Gate gate="mailbox" /></p>
       <div className="row">
         <button className="quiet" onClick={() => setDismissed(true)}>Dismiss</button>
       </div>

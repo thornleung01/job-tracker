@@ -20,6 +20,7 @@ import type { JobDraft } from "../../jobs/types";
 import type { JobLinkDeps } from "../../components/joblink/deps";
 import { realJobLinkDeps } from "../../components/joblink/deps";
 import { useJobLink } from "../../components/joblink/useJobLink";
+import { Gate } from "../../components/Gate";
 import { Notice } from "../../components/Notice";
 import { CompareOffers } from "../../components/offers/CompareOffers";
 import { SaveViewForm } from "../../components/savedviews/SaveViewForm";
@@ -604,7 +605,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         </div>
       ) : null}
 
-      {!accounts.length && !local ? <Notice>No email account connected yet. <a href="#/settings">Connect one in Settings</a> to start syncing.</Notice> : null}
+      {!accounts.length && !local ? <Notice>No email account connected yet. <Gate gate="mailbox" /></Notice> : null}
 
       {calendar ? (
         <CalendarView month={month} today={today} day={day} events={events} onMonth={goMonth} onSelectDay={pickDay} />
