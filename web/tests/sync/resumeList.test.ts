@@ -7,7 +7,7 @@ import type { JobTrackerDB } from "../../src/db/schema";
 import { applicationsToCsv, CSV_HEADERS } from "../../src/portability/csv";
 import { bulkRestoreResumes, bulkSetResume } from "../../src/sync/bulk";
 import { bulkAdd } from "../../src/sync/bulkAdd";
-import { createVersion, deleteDocument, eraseDocument, saveCoverLetter, saveMaster, setApplicationResume, setPostingText } from "../../src/sync/documents";
+import { createVersion, deleteDocument, eraseDocument, saveCoverLetter, saveMaster, saveTailored, setApplicationResume, setPostingText } from "../../src/sync/documents";
 import { listApplications, SORT_COLUMNS, DEFAULT_DIR } from "../../src/sync/queries";
 import { cleanFilters, describeFilters, loadSavedViews, sanitizeSavedViews, saveView } from "../../src/sync/savedViews";
 import { searchApplications, whyMatched } from "../../src/sync/search";
@@ -259,6 +259,12 @@ describe("the CSV column", () => {
     expect(await cell("Dana")).toBe("");
     await deleteDocument(db, v2);
     expect(await cell("Cora")).toBe("");
+  });
+
+  it("writes a tailored resume's title with (tailored) in it", async () => {
+    const { db, dana } = await seed();
+    await saveTailored(db, dana, SECTIONS, "ai");
+    expect(applicationsToCsv(await listApplications(db))).toContain(`"Resume for Dana, Analyst (tailored)"\r\n`);
   });
 
   it("makes a title that starts like a formula safe", async () => {

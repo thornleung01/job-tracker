@@ -14,6 +14,7 @@ export const EXPORT_FORMAT = "jobtracker-export";
  * Older files are still read: a file without `documents` has none.
  * A resume line may also carry `kind`, `label` and `right` (see DocItem): additive, so they needed no new version, and a kind that isn't known is dropped.
  * A resume's `source` may also be "template" (typed into the blank template): additive too, and a source that isn't known is dropped.
+ * A resume that is not the master may also carry an `applicationId`: it is that application's tailored resume (at most one live per application). Additive, so no new version.
  */
 export const EXPORT_VERSION = 3;
 

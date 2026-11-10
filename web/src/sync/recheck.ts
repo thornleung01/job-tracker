@@ -89,7 +89,7 @@ export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise
 /** Deletes an application row together with what is keyed to it: its notes and steps, its cover letter, people corrections, and the links from feedback and emails. */
 export async function removeApplicationRow(db: JobTrackerDB, appId: number): Promise<void> {
   await db.activity.where("applicationId").equals(appId).delete();
-  await db.documents.where("applicationId").equals(appId).delete(); // its cover letter; resume versions are standalone and stay
+  await db.documents.where("applicationId").equals(appId).delete(); // its cover letter and its tailored resume; the master and other resume versions stay
   await db.contactEdits.where("key").startsWith(`${appId}|`).delete();
   await db.feedback.where("applicationId").equals(appId).modify({ applicationId: null });
   await db.emails.where("applicationId").equals(appId).modify({ applicationId: null });

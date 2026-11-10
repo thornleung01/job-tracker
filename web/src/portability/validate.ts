@@ -13,6 +13,7 @@ import { safeOfferDeadline, safeOfferSalary } from "../db/offer";
 import { safePostingUrl } from "../db/postingUrl";
 import { isConfidence, isEvent, isStage } from "../db/stages";
 import { iso } from "../db/time";
+import { isTailored } from "../sync/documents";
 import { sanitizeGoal } from "../sync/goal";
 import { sanitizeSavedViews } from "../sync/savedViews";
 import { sanitizeAppearance, sanitizeSync } from "../sync/settings";
@@ -288,7 +289,7 @@ const parseDocument: RowParser<DocumentRow> = (r, k, known) => {
   const basedOn = typeof r.basedOn === "number" && Number.isInteger(r.basedOn) && r.basedOn > 0 ? r.basedOn : undefined;
   const deletedAt = typeof r.deletedAt === "string" && ISO_TIME.test(r.deletedAt) && !Number.isNaN(new Date(r.deletedAt).getTime()) ? iso(r.deletedAt) : undefined;
   return {
-    id, kind, master: kind === "resume" && r.master === true, applicationId: kind === "cover" ? applicationId : null,
+    id, kind, master: kind === "resume" && r.master === true, applicationId: kind === "cover" || r.master !== true ? applicationId : null,
     title: str(r, "title", k, { max: MAX_DOC_TITLE_CHARS }) || (kind === "cover" ? "Cover letter" : "Resume"), sections,
     ...(basedOn !== undefined ? { basedOn } : {}), ...(source ? { source } : {}),
     createdAt: time(r, "createdAt", k) ?? "", updatedAt: time(r, "updatedAt", k) ?? "",
@@ -347,6 +348,13 @@ export function parseExportData(raw: unknown): ExportData {
   checkNoDuplicates(learnedRules, (r) => `${r.kind}\u0000${r.value}`, "learnedRules", check);
   checkNoDuplicates(contactEdits, (e) => e.key, "contactEdits", check);
   if (documents.filter((x) => x.master && !x.deletedAt).length > 1) check.fail("documents has more than one master resume.");
+  // One tailored resume per application, like one cover letter: a second live one is refused.
+  const tailoredFor = new Set<number>();
+  for (const x of documents) {
+    if (!isTailored(x) || x.deletedAt) continue;
+    if (tailoredFor.has(x.applicationId!)) check.fail(`documents has more than one tailored resume for application ${x.applicationId}.`);
+    tailoredFor.add(x.applicationId!);
+  }
 
   const settings: Record<string, unknown> = {};
   if (d.settings !== undefined && !isRecord(d.settings)) check.fail('"settings" must be an object.');

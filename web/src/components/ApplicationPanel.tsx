@@ -6,6 +6,7 @@ import { useQuery } from "../app/useQuery";
 import { STEP_GROUPS, addStep, deleteEntry, history, type HistoryItem } from "../sync/activity";
 import { deleteApplication, learnedNotice, notAnApplication } from "../sync/actions";
 import { documentLine } from "../sync/documentLine";
+import { getMaster } from "../sync/documents";
 import { titles as contactTitles } from "../sync/contacts";
 import { TRASH_DAYS } from "../sync/trash";
 import { EmailText } from "./EmailText";
@@ -42,7 +43,11 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
     titles: includeEmails ? await contactTitles(db, appId) : {},
   }), [db, appId, includeEmails, limit], { keepPrevious: true });   // "show more" raises `limit`: keep the list while it loads
   // One quiet line under the actions in list mode: the resume sent and the cover letter, each a way to the detail page.
-  const docs = useQuery(() => (includeEmails ? documentLine(db, appId) : null), [db, appId, includeEmails]);
+  const docs = useQuery(async () => {
+    if (!includeEmails) return null;
+    const line = await documentLine(db, appId);
+    return line && { ...line, master: Boolean(await getMaster(db)) };
+  }, [db, appId, includeEmails]);
   const act = useAction();
   // The one question open at a time, and the button that asked it (focus goes back there on cancel).
   const [ask, setAsk] = useState<{ kind: "entry"; item: HistoryItem; opener: HTMLElement } | { kind: "delete" | "not"; opener: HTMLElement } | null>(null);
@@ -191,6 +196,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
           {docs.resume !== null ? <>Resume: <a href={`#/app/${appId}`}>{docs.resume}</a></> : null}
           {docs.resume !== null ? " \u00b7 " : null}
           <a href={`#/app/${appId}`}>{docs.cover ? "Cover letter" : "Write a cover letter"}</a>
+          {docs.hasPosting && docs.master && !docs.tailored ? <>{" \u00b7 "}<a href={`#/app/${appId}`}>Tailor for this job</a></> : null}
         </p>
       ) : null}
       {ask?.kind === "delete" ? (

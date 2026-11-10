@@ -7,7 +7,7 @@ import { TRASH_DAYS } from "../../db/limits";
 import { deleteDocument, saveCoverLetter } from "../../sync/documents";
 import { InlineConfirm } from "../InlineConfirm";
 import type { ActionRunner } from "../useAction";
-import { greeting, letterSections, letterText } from "./letter";
+import { greeting, letterSections, letterText } from "../../sync/letter";
 
 interface Props {
   db: JobTrackerDB;

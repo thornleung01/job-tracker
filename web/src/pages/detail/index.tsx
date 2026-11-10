@@ -3,7 +3,9 @@ import { ExternalLink } from "lucide-react";
 import type { PageProps } from "../../app/pageProps";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
+import type { DocumentsDeps } from "../../components/documents/deps";
 import { DocumentsSection } from "../../components/documents/DocumentsSection";
+import { resumeLabel } from "../../components/documents/tailorReview";
 import { EmailText } from "../../components/EmailText";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { MailActions } from "../../components/MailActions";
@@ -34,7 +36,7 @@ import { TRASH_DAYS, deletedApplication, restoreApplication } from "../../sync/t
 import { plural } from "../../sync/text";
 import "./detail.css";
 
-export default function DetailPage({ db, params, query, navigate }: PageProps) {
+export default function DetailPage({ db, params, query, navigate, deps }: PageProps & { deps?: { documents?: Partial<DocumentsDeps> } }) {
   const id = Number(params.id);
   const data = useQuery(() => applicationDetail(db, id), [db, id]);
   // A deleted application has no detail (it is hidden everywhere), but its page says so and offers Restore.
@@ -48,7 +50,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
   // The resume sent, for the header line before an interview. A deleted resume has no line.
   const sentTitle = useQuery(async () => {
     const doc = app?.resumeId !== undefined ? await db.documents.get(app.resumeId) : undefined;
-    return doc && doc.kind === "resume" && !doc.deletedAt ? doc.title : "";
+    return doc && doc.kind === "resume" && !doc.deletedAt ? resumeLabel(doc) : "";
   }, [db, app?.resumeId]);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
@@ -304,7 +306,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
         )}
       </section>
 
-      <DocumentsSection db={db} app={app} people={data.people} act={act} />
+      <DocumentsSection db={db} app={app} people={data.people} act={act} deps={deps?.documents} />
 
       <section className="detail-section" aria-labelledby="h-notes">
         <h2 id="h-notes" className="section">Notes and steps</h2>

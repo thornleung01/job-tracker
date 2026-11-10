@@ -1,5 +1,6 @@
 // Resumes and cover letters. Resume versions are standalone: an application points at one with `resumeId`, and many can point
-// at the same. A cover letter belongs to one application. The master is the resume you copy versions from.
+// at the same. A cover letter belongs to one application, and so does a tailored resume (a resume with `applicationId` set): it is
+// not one of the reusable versions, is never counted against the cap, and goes with its application. The master is the resume you copy versions from.
 // A deleted document stays in Recently deleted for TRASH_DAYS (db/limits.ts), like an application (sync/trash.ts), and is hidden everywhere else.
 import { normalizeSections } from "../db/documentShape";
 import { MAX_DOC_TITLE_CHARS, MAX_POSTING_CHARS, MAX_RESUME_VERSIONS, TRASH_DAYS } from "../db/limits";
@@ -22,6 +23,9 @@ export const isLiveDocument = (d: Pick<DocumentRow, "deletedAt">): boolean => !d
 
 const cleanTitle = (title: string, fallback: string): string => title.replace(/\s+/g, " ").trim().slice(0, MAX_DOC_TITLE_CHARS) || fallback;
 
+/** A resume written for one application (not the master, not a reusable version). */
+export const isTailored = (d: Pick<DocumentRow, "kind" | "master" | "applicationId">): boolean => d.kind === "resume" && !d.master && d.applicationId !== null;
+
 /** Every document you haven't deleted, resumes first (master first), then cover letters, each oldest first. */
 export async function liveDocuments(db: JobTrackerDB): Promise<DocumentRow[]> {
   const rows = (await db.documents.toArray()).filter(isLiveDocument);
@@ -33,9 +37,25 @@ export async function getMaster(db: JobTrackerDB): Promise<DocumentRow | undefin
   return (await db.documents.where("kind").equals("resume").toArray()).find((d) => d.master && isLiveDocument(d));
 }
 
-/** The resume versions you can choose from: the master and its copies, live ones only. */
+/** The reusable resume versions you can choose from: the master and its copies, live ones only. A tailored resume is not here (see resumesForApplication). */
 export async function liveResumes(db: JobTrackerDB): Promise<DocumentRow[]> {
-  return (await liveDocuments(db)).filter((d) => d.kind === "resume");
+  return (await liveDocuments(db)).filter((d) => d.kind === "resume" && !isTailored(d));
+}
+
+/** Every live tailored resume, oldest first, whatever its application. The Resume page's tailored list needs the live applications too: see tailoredPage in sync/queries.ts. */
+export async function liveTailored(db: JobTrackerDB): Promise<DocumentRow[]> {
+  return (await liveDocuments(db)).filter(isTailored);
+}
+
+/** The application's own tailored resume, when it has one. */
+export async function getTailored(db: JobTrackerDB, appId: number): Promise<DocumentRow | undefined> {
+  return (await db.documents.where("applicationId").equals(appId).toArray()).find((d) => isTailored(d) && isLiveDocument(d));
+}
+
+/** What one application can choose from: the master, the reusable versions, then its own tailored resume. */
+export async function resumesForApplication(db: JobTrackerDB, appId: number): Promise<DocumentRow[]> {
+  const own = await getTailored(db, appId);
+  return [...(await liveResumes(db)), ...(own ? [own] : [])];
 }
 
 export async function getCoverLetter(db: JobTrackerDB, appId: number): Promise<DocumentRow | undefined> {
@@ -112,6 +132,47 @@ export async function copyResumeForApplication(db: JobTrackerDB, appId: number, 
   });
 }
 
+/**
+ * The one tailored resume for an application: written from `sections`, or the one you have replaced. It is named after the application,
+ * based on the master when there is one, and the application is pointed at it. It never counts against the cap on resume versions.
+ */
+export async function saveTailored(
+  db: JobTrackerDB, appId: number, sections: unknown, source: NonNullable<DocumentRow["source"]>, now: Date = new Date(),
+): Promise<number> {
+  const clean = normalizeSections(sections);
+  if (!clean.length) throw new DocumentError("Add some text to the resume first.");
+  return tx(db, async () => {
+    const app = await requireApplication(db, appId);
+    const existing = await getTailored(db, appId);
+    const master = await getMaster(db);
+    const at = iso(now);
+    let id: number;
+    if (existing) {
+      await db.documents.update(existing.id, { sections: clean, source, updatedAt: at });
+      id = existing.id;
+    } else {
+      id = await db.documents.add({
+        kind: "resume", master: false, applicationId: appId, title: cleanTitle(`Resume for ${app.company}${app.role ? `, ${app.role}` : ""} (tailored)`, "Resume (tailored)"),
+        sections: clean, ...(master ? { basedOn: master.id } : {}), source, createdAt: at, updatedAt: at,
+      });
+    }
+    await db.applications.update(appId, { resumeId: id });
+    return id;
+  });
+}
+
+/** Turns a tailored resume into a reusable version (it no longer belongs to the application, which keeps pointing at it). Refused at the cap. */
+export async function promoteTailored(db: JobTrackerDB, id: number, title?: string, now: Date = new Date()): Promise<void> {
+  await tx(db, async () => {
+    const doc = await db.documents.get(id);
+    if (!doc || !isLiveDocument(doc) || !isTailored(doc)) throw new MissingRecordError(`No tailored resume ${id}`);
+    if ((await liveResumes(db)).filter((d) => !d.master).length >= MAX_RESUME_VERSIONS) {
+      throw new DocumentError(`You can keep ${MAX_RESUME_VERSIONS} resume versions. Delete one to make another.`);
+    }
+    await db.documents.update(id, { applicationId: null, ...(title !== undefined ? { title: cleanTitle(title, doc.title) } : {}), updatedAt: iso(now) });
+  });
+}
+
 /** Chooses the resume version sent with an application, or none (null). */
 export async function setApplicationResume(db: JobTrackerDB, appId: number, resumeId: number | null): Promise<void> {
   await tx(db, async () => {
@@ -123,6 +184,7 @@ export async function setApplicationResume(db: JobTrackerDB, appId: number, resu
     }
     const doc = await db.documents.get(resumeId);
     if (!doc || doc.kind !== "resume" || !isLiveDocument(doc)) throw new DocumentError("That resume isn't there any more.");
+    if (isTailored(doc) && doc.applicationId !== appId) throw new DocumentError("That resume was tailored for another application.");
     await db.applications.update(appId, { resumeId });
   });
 }
@@ -178,7 +240,11 @@ export async function restoreDocument(db: JobTrackerDB, id: number): Promise<voi
       if (!app || app.deletedAt) throw new DocumentError("Restore the application first.");
       if (await getCoverLetter(db, doc.applicationId)) throw new DocumentError("That application has a newer cover letter already.");
     }
-    if (doc.kind === "resume" && !doc.master && (await liveResumes(db)).filter((d) => !d.master).length >= MAX_RESUME_VERSIONS) {
+    if (isTailored(doc)) {
+      const app = await db.applications.get(doc.applicationId!);
+      if (!app || app.deletedAt) throw new DocumentError("Restore the application first.");
+      if (await getTailored(db, doc.applicationId!)) throw new DocumentError("That application has a newer tailored resume already.");
+    } else if (doc.kind === "resume" && !doc.master && (await liveResumes(db)).filter((d) => !d.master).length >= MAX_RESUME_VERSIONS) {
       throw new DocumentError(`You can keep ${MAX_RESUME_VERSIONS} resume versions. Delete one to restore this.`);
     }
     const { deletedAt: _drop, ...rest } = doc;
