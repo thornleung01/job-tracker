@@ -9,8 +9,8 @@ import type { JobTrackerDB } from "../../src/db/schema";
 import { DAY_MS } from "../../src/db/time";
 import { deleteApplication, mergeApplications } from "../../src/sync/actions";
 import {
-  DocumentError, copyResumeForApplication, createVersion, deleteDocument, eraseDocument, getCoverLetter, listDeletedDocuments, purgeExpiredDocuments,
-  restoreDocument, saveCoverLetter, saveMaster, setApplicationResume, setPostingText, updateDocument,
+  DocumentError, createVersion, deleteDocument, eraseDocument, getCoverLetter, listDeletedDocuments, purgeExpiredDocuments,
+  restoreDocument, saveCoverLetter, setApplicationResume, setPostingText, updateDocument,
 } from "../../src/sync/documents";
 import { purgeExpired } from "../../src/sync/trash";
 import { closeAll, freshDb } from "./helpers";
@@ -165,37 +165,6 @@ describe("refusals", () => {
     await expect(saveCoverLetter(db, a, [])).rejects.toThrow("Write something first.");
     await expect(saveCoverLetter(db, a, [{ id: "", heading: " ", items: [{ id: "", text: "   " }] }])).rejects.toThrow(DocumentError);
     expect(await db.documents.count()).toBe(0);
-  });
-});
-
-describe("copyResumeForApplication", () => {
-  it("copies the resume it is given, titled for the company and role", async () => {
-    const db = freshDb();
-    const a = await app(db, "Acme", "Analyst");
-    await saveMaster(db, text("master"), "paste");
-    const other = await version(db, "Other");
-    const id = await copyResumeForApplication(db, a, other, NOW);
-    expect(await db.documents.get(id)).toMatchObject({ title: "Resume for Acme, Analyst", basedOn: other, source: "copy", sections: [{ items: [{ text: "Other" }] }] });
-    expect((await db.applications.get(a))!.resumeId).toBe(id);
-  });
-
-  it("titles the copy with the company alone when the application has no role", async () => {
-    const db = freshDb();
-    const a = await app(db, "Acme", "");
-    await saveMaster(db, text("master"), "paste");
-    expect((await db.documents.get(await copyResumeForApplication(db, a, undefined, NOW)))!.title).toBe("Resume for Acme");
-  });
-
-  it("refuses a cover letter, a deleted resume and a missing one, and changes nothing", async () => {
-    const db = freshDb();
-    const a = await app(db, "Acme");
-    await saveMaster(db, text("master"), "paste");
-    const letter = await saveCoverLetter(db, a, text("x"), undefined, NOW);
-    const gone = await version(db, "Gone");
-    await deleteDocument(db, gone, NOW);
-    for (const from of [letter, gone, 999]) await expect(copyResumeForApplication(db, a, from, NOW)).rejects.toThrow("Add your resume first.");
-    expect((await db.applications.get(a))!.resumeId).toBeUndefined();
-    expect(await db.documents.count()).toBe(3);
   });
 });
 

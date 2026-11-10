@@ -36,4 +36,5 @@
 .doc-covers li.doc-tailored { display: block; }
 .doc-tailored-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .doc-tailored-actions { margin: 0; }
+.doc-tailored-empty p { margin: 0 0 var(--gap); }
 .doc-tailored .notice { margin: var(--gap) 0 0; }

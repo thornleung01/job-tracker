@@ -58,4 +58,14 @@ describe("pageeditor.css", () => {
     expect(text).toMatch(/@media \(max-width: 720px\)\s*\{[^@]*--classic-fs:\s*16px/);
     expect(text).toContain("field-sizing: content");
   });
+
+  it("sizes the right-hand field to its text, never shrunk, and keeps the add row out of the flow so spacing matches the read-only sheet", async () => {
+    const text = await css();
+    expect(text).toMatch(/input\.pe-right\s*\{[^}]*flex:\s*none/);
+    expect(text).toMatch(/input\.pe-right \{ field-sizing: content/);
+    expect(text).toMatch(/\.doc-row > \.pe-grow\s*\{[^}]*min-width:\s*0/);
+    const base = text.slice(0, text.indexOf("@media (max-width: 720px), (hover: none)"));
+    expect(base).toMatch(/\.pe-add\s*\{[^}]*position:\s*absolute/);
+    expect(text.slice(text.indexOf("@media (max-width: 720px), (hover: none)"))).toMatch(/\.pe-add\s*\{[^}]*position:\s*static/);
+  });
 });

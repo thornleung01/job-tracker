@@ -17,10 +17,12 @@ interface Props {
   /** this application's people, for the greeting */
   people: readonly Contact[];
   act: ActionRunner;
+  /** the button that starts a letter when there is none; the Tailor workspace calls it "Start a letter" */
+  startLabel?: string;
 }
 
 /** The cover letter for this application: write it, edit it, copy it, print it or open it as a draft in Gmail or Outlook. */
-export function CoverLetter({ db, app, cover, people, act }: Props) {
+export function CoverLetter({ db, app, cover, people, act, startLabel = "Write a cover letter" }: Props) {
   const [text, setText] = useState<string | null>(null);   // the text box, while it is open
   const [asking, setAsking] = useState(false);
   const [copied, setCopied] = useState("");
@@ -102,7 +104,7 @@ export function CoverLetter({ db, app, cover, people, act }: Props) {
           ) : null}
         </>
       ) : (
-        <div className="row"><button type="button" data-write="" onClick={open} disabled={act.busy !== null}>Write a cover letter</button></div>
+        <div className="row"><button type="button" data-write="" onClick={open} disabled={act.busy !== null}>{startLabel}</button></div>
       )}
     </div>
   );

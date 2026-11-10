@@ -118,47 +118,71 @@ export async function updateDocument(
   });
 }
 
-/** Copies a resume for one application ("Resume for Acme, Analyst") and points the application at the copy. Returns the new version's id. */
-export async function copyResumeForApplication(db: JobTrackerDB, appId: number, fromId?: number, now: Date = new Date()): Promise<number> {
+/** The title of an application's tailored resume. */
+const tailoredTitle = (app: { company: string; role: string }): string =>
+  cleanTitle(`Resume for ${app.company}${app.role ? `, ${app.role}` : ""} (tailored)`, "Resume (tailored)");
+
+/**
+ * The one tailored resume for an application: written from `sections`, or the one you have replaced. It is named after the application,
+ * based on `basedOn` (the baseline it was tailored from; the master when not given), and the application is pointed at it. It never counts
+ * against the cap on resume versions. Replacing an existing one changes its baseline only when `basedOn` is given.
+ */
+export async function saveTailored(
+  db: JobTrackerDB, appId: number, sections: unknown, source: NonNullable<DocumentRow["source"]>, now: Date = new Date(), basedOn?: number,
+): Promise<number> {
+  const clean = normalizeSections(sections);
+  if (!clean.length) throw new DocumentError("Add some text to the resume first.");
   return tx(db, async () => {
     const app = await requireApplication(db, appId);
-    const from = fromId !== undefined ? await db.documents.get(fromId) : await getMaster(db);
-    if (!from || from.kind !== "resume" || !isLiveDocument(from)) throw new DocumentError("Add your resume first.");
-    const id = await createVersion(
-      db, { title: `Resume for ${app.company}${app.role ? `, ${app.role}` : ""}`, sections: from.sections, basedOn: from.id, source: "copy" }, now,
-    );
+    if (basedOn !== undefined) {
+      const baseline = await db.documents.get(basedOn);
+      if (!baseline || baseline.kind !== "resume" || !isLiveDocument(baseline) || isTailored(baseline)) throw new DocumentError("That resume isn't there any more.");
+    }
+    const existing = await getTailored(db, appId);
+    const baseId = basedOn ?? (await getMaster(db))?.id;
+    const at = iso(now);
+    let id: number;
+    if (existing) {
+      await db.documents.update(existing.id, { sections: clean, source, updatedAt: at, ...(basedOn !== undefined ? { basedOn } : {}) });
+      id = existing.id;
+    } else {
+      id = await db.documents.add({
+        kind: "resume", master: false, applicationId: appId, title: tailoredTitle(app),
+        sections: clean, ...(baseId !== undefined ? { basedOn: baseId } : {}), source, createdAt: at, updatedAt: at,
+      });
+    }
     await db.applications.update(appId, { resumeId: id });
     return id;
   });
 }
 
 /**
- * The one tailored resume for an application: written from `sections`, or the one you have replaced. It is named after the application,
- * based on the master when there is one, and the application is pointed at it. It never counts against the cap on resume versions.
+ * Starts the application's tailored resume as a copy of a baseline (the master or a reusable version), to edit by hand. Every line keeps its
+ * id (ids only need to be unique inside one document), so the copy can be compared with its baseline later. Refused when the application
+ * already has a tailored resume, or the baseline is deleted, not a resume, or tailored for another application.
  */
-export async function saveTailored(
-  db: JobTrackerDB, appId: number, sections: unknown, source: NonNullable<DocumentRow["source"]>, now: Date = new Date(),
-): Promise<number> {
-  const clean = normalizeSections(sections);
-  if (!clean.length) throw new DocumentError("Add some text to the resume first.");
+export async function startTailoredFromBaseline(db: JobTrackerDB, appId: number, baselineId: number, now: Date = new Date()): Promise<number> {
   return tx(db, async () => {
     const app = await requireApplication(db, appId);
-    const existing = await getTailored(db, appId);
-    const master = await getMaster(db);
+    const baseline = await db.documents.get(baselineId);
+    if (!baseline || baseline.kind !== "resume" || !isLiveDocument(baseline)) throw new DocumentError("That resume isn't there any more.");
+    if (isTailored(baseline) && baseline.applicationId !== appId) throw new DocumentError("That resume was tailored for another application.");
+    if (await getTailored(db, appId)) throw new DocumentError("This application already has a tailored resume.");
+    const sections = normalizeSections(baseline.sections);
+    if (!sections.length) throw new DocumentError("Add some text to the resume first.");
     const at = iso(now);
-    let id: number;
-    if (existing) {
-      await db.documents.update(existing.id, { sections: clean, source, updatedAt: at });
-      id = existing.id;
-    } else {
-      id = await db.documents.add({
-        kind: "resume", master: false, applicationId: appId, title: cleanTitle(`Resume for ${app.company}${app.role ? `, ${app.role}` : ""} (tailored)`, "Resume (tailored)"),
-        sections: clean, ...(master ? { basedOn: master.id } : {}), source, createdAt: at, updatedAt: at,
-      });
-    }
+    const id = await db.documents.add({
+      kind: "resume", master: false, applicationId: appId, title: tailoredTitle(app), sections, basedOn: baseline.id, source: "copy", createdAt: at, updatedAt: at,
+    });
     await db.applications.update(appId, { resumeId: id });
     return id;
   });
+}
+
+/** The resumes a tailored copy can start from: the master first, then the reusable versions, in the order liveResumes lists them. */
+export function baselineChoices(rows: readonly DocumentRow[]): DocumentRow[] {
+  const rank = (d: DocumentRow) => (d.master ? 0 : 1);
+  return rows.filter((d) => d.kind === "resume" && isLiveDocument(d) && !isTailored(d)).sort((a, b) => rank(a) - rank(b) || a.id - b.id);
 }
 
 /** Turns a tailored resume into a reusable version (it no longer belongs to the application, which keeps pointing at it). Refused at the cap. */

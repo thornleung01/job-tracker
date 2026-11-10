@@ -1,0 +1,64 @@
+/* The Tailor picker and workspace. Cards, buttons and fields come from the shared stylesheet; this file lays them out. */
+.tailor-empty { margin: var(--gap) 0; max-width: 68ch; }
+
+/* The picker: a search box over a list of cards, each with the job, two muted facts and one button. */
+.tailor-search { margin: 0 0 var(--gap); max-width: 420px; }
+.tailor-search input { width: 100%; box-sizing: border-box; }
+.tailor-picker { list-style: none; margin: 0; padding: 0; }
+.tailor-pick { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.tailor-pick-text { min-width: 0; }
+.tailor-pick-title { font-weight: 500; overflow-wrap: anywhere; }
+.tailor-pick-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 2px 0 0; }
+.tailor-pick > button { flex: none; }
+
+/* The workspace: the header, then the baseline on the left and the tailored copy on the right. */
+.tailor-head { margin: 0 0 var(--gap); }
+.tailor-head h1.page { margin-top: 4px; }
+.tailor-status { min-height: 1.4em; margin: 0 0 8px; }
+.tailor-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); align-items: start; }
+@media (min-width: 960px) {
+  .tailor-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.tailor-left, .tailor-right { min-width: 0; }
+.tailor-baseline-select { max-width: 360px; margin: 0 0 var(--gap); }
+.tailor-baseline-select select { width: 100%; }
+.tailor-baseline-sheet { min-width: 0; max-width: 100%; margin: 0 0 var(--gap); }
+.tailor-baseline-sheet .doc-sheet { max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+.tailor-posting { margin: 0 0 var(--gap); }
+.tailor-posting .doc-h, .tailor-copy-h, .tailor-list .doc-h, .posting-terms .doc-h { font: 500 1rem/1.375 var(--font-ui); margin: 0 0 8px; }
+.tailor-copy-h:focus { outline: none; }
+.tailor-tools, .tailor-start, .tailor-actions { margin: 0 0 var(--gap); }
+
+/* Words from the posting: each term with a mark and its words, so found or not is never colour alone. */
+.posting-terms { margin: 0 0 var(--gap); }
+.posting-terms-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.posting-terms-list li { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: var(--r-pill); background: var(--fog); }
+.posting-terms-list li.out { background: transparent; box-shadow: inset 0 0 0 1px var(--fog); color: var(--muted); }
+.posting-terms-list svg { flex: none; }
+
+/* Under the copy: what changed, what was left out, the AI's lines. */
+.tailor-list { margin: 0 0 var(--gap); }
+.tailor-list ul { list-style: none; margin: 0; padding: 0; }
+.tailor-entry { padding: 12px 0; border-top: 1px solid var(--line); }
+.tailor-entry.active { box-shadow: inset 3px 0 0 var(--ink); padding-left: 10px; }
+.tailor-entry-h { margin: 0 0 2px; }
+.tailor-text { margin: 0 0 8px; overflow-wrap: anywhere; }
+.tailor-changed { background: var(--hover); color: inherit; border-radius: 4px; padding: 0 2px; text-decoration: underline; text-decoration-style: dotted; }
+.tailor-flag { margin: 6px 0 0; font-weight: 500; }
+.tailor-use { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tailor-use input { width: 20px; height: 20px; margin: 0; }
+.tailor-unused li { margin: 4px 0 0; overflow-wrap: anywhere; }
+.tailor-none { margin: 0 0 var(--gap); }
+.tailor-letter .doc-letter-text { width: 100%; box-sizing: border-box; max-width: 68ch; margin-bottom: 12px; }
+
+@media (forced-colors: active) {
+  .tailor-changed { background: Mark; color: MarkText; }
+  .tailor-entry { border-color: CanvasText; }
+  .posting-terms-list li { border: 1px solid CanvasText; }
+}
+@media (max-width: 520px) {
+  .tailor-pick { align-items: flex-start; }
+  .tailor-use input { width: 24px; height: 24px; }
+  .tailor-use { min-height: var(--tap); }
+  .tailor-entry > button, .tailor-tools button, .tailor-actions button, .tailor-actions a.btn, .tailor-start button { min-height: var(--tap); }
+}

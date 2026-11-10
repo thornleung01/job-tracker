@@ -75,10 +75,12 @@ describe("tailorForApplication", () => {
     // the order inside the job: org, title, bullets, next org
     const work = draft.resume[3].items.map((i) => i.kind);
     expect(work).toEqual(["org", "title", "bullet", "bullet", "org", "title", "bullet"]);
-    // lines tie every tailored line to its master line, with fresh ids
+    // lines tie every tailored line to its master line, and a line that maps one-to-one keeps that line's id
     expect(draft.lines.map((l) => l.sourceId)).toEqual(["sum1", "k2", "k1", "b2", "b1", "b4"]);
     expect(draft.lines.every((l) => ids(draft.resume).includes(l.id))).toBe(true);
-    expect(draft.lines.every((l) => !MASTER.flatMap((s) => s.items).some((i) => i.id === l.id))).toBe(true);
+    expect(draft.lines.map((l) => l.id)).toEqual(["sum1", "k2", "k1", "b2", "b1", "b4"]);
+    expect(new Set(ids(draft.resume)).size).toBe(ids(draft.resume).length);
+    expect(draft.baselineId).toBeGreaterThan(0);
     expect(draft.lines.flatMap((l) => l.flags)).toEqual([]);
     expect(draft.unused).toEqual(["Built reconciliations for the finance team."]);
     // the letter: a greeting then the three paragraphs

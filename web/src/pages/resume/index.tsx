@@ -62,7 +62,7 @@ function ResumeHome({ db, query, deps }: PageProps & { deps?: ResumeDeps }) {
             <CoverLetters letters={data.docs.filter((d) => d.kind === "cover")} apps={apps} />
           </div>
           <div className="resume-view" hidden={view !== "tailored"}>
-            <TailoredList db={db} items={data.tailored} say={say} />
+            <TailoredList db={db} items={data.tailored} baselines={data.resumes} say={say} />
           </div>
         </>
       ) : null}

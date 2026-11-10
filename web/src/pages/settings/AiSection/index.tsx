@@ -58,7 +58,7 @@ export function AiSection({ db, deps, report }: Props) {
   return (
     <section className="card" id="ai" aria-labelledby="h-ai">
       <h2 className="sec" id="h-ai" tabIndex={-1}>AI</h2>
-      <p className="help">Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.</p>
+      <p className="help">Convert a resume and tailor it for a job. Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.</p>
       {status.state === "none" && !setup && <button onClick={() => setSetup(true)}>Set up key</button>}
       {status.state === "none" && setup && <KeyForm {...part} focusOnMount />}
       {status.state === "locked" && <UnlockForm {...part} last4={status.last4} model={status.model} onForget={forget} focusOnMount={justLocked} />}
