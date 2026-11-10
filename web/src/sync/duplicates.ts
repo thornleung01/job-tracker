@@ -22,9 +22,9 @@ export const DUPLICATES_MAX = 3;
  * - the same posting link (compared the way a link is saved), then
  * - the same company and the same role, both compared by the pipeline's own keys, so "Acme Inc." and "acme" match, or
  * - the same company, when no role has been typed.
- * Newest first within each. A link that is not a web address matches nothing.
+ * Newest first within each. A link that is not a web address matches nothing. With `strict`, a company alone (no readable role) is not a match.
  */
-export async function findDuplicates(db: JobTrackerDB, company: string, role: string, url = ""): Promise<DuplicateMatch[]> {
+export async function findDuplicates(db: JobTrackerDB, company: string, role: string, url = "", o: { strict?: boolean } = {}): Promise<DuplicateMatch[]> {
   const p = pipeline();
   const ckey = p.companyKey(squeeze(company).slice(0, MAX_COMPANY_CHARS));
   const rkey = p.roleKey(squeeze(role).slice(0, MAX_ROLE_CHARS));
@@ -39,7 +39,8 @@ export async function findDuplicates(db: JobTrackerDB, company: string, role: st
     const same = await db.applications.filter((a) => isLive(a) && a.postingUrl === link).toArray();
     for (const a of same.sort((x, y) => y.id - x.id)) keep(a);
   }
-  if (ckey) {
+  // `strict` is for callers that act on a match (bulk add skips the link): with no role to compare, the same company is not enough.
+  if (ckey && !(o.strict && !rkey)) {
     const ofCompany = (await db.applications.where("companyKey").equals(ckey).toArray()).filter(isLive);
     for (const a of ofCompany.sort((x, y) => y.id - x.id)) if (!rkey || a.roleKey === rkey) keep(a);
   }

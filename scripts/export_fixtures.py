@@ -231,6 +231,16 @@ def corpus_messages() -> list[Message]:
     out.append(mk("Thanks for applying to Acme", "We received your application. We will contact you if selected for an interview."))
     out.append(mk("We received your application", "Thank you for applying. Unfortunately we are unable to reply to every applicant, "
                   "but we will be in touch if your profile is a good match."))
+    # auto-acknowledgements that mention feedback or "not selected" (not rejections), and "unsuccessful" (a rejection)
+    out.append(mk("Thanks for applying to Acme", "Thank you for your application. Due to the volume we receive, we are unable to offer individual feedback.",
+                  sender="Acme Careers <no-reply@greenhouse.io>"))
+    out.append(mk("Thanks for applying to Acme", "Thank you for your application. We cannot offer feedback on every application.",
+                  sender="Acme Careers <no-reply@greenhouse.io>"))
+    out.append(mk("Thanks for applying to Acme", "We have received your application. If you are not selected, we will keep your resume on file.",
+                  sender="Acme Careers <no-reply@greenhouse.io>"))
+    out.append(mk("Your application to Acme", "Your application was unsuccessful on this occasion.", sender="HR <hr@acme.com>"))
+    for s in ("Careers <careers@jobs.rbc.ca>", "Jobs <jobs@mail.bmo.ca>", "Pat <pat@acme.com.au>", "Pat <pat@uhn.on.ca>"):
+        out.append(mk("Hello", sender=s))
     out.append(mk("Special offer: 40% off", "Limited time offer on career coaching. Apply now.", sender="Deals <deals@shop.com>"))
     out.append(mk("Order update", "Unfortunately your parcel is delayed.", sender="Shop <orders@shop.com>"))
     for subject, sender in params(tc.test_alerts_and_digests_excluded):
@@ -749,6 +759,8 @@ def build_links() -> None:
         add("replyLink", {"provider": p, "account": acct, "sender": s, "subject": subj, "webLink": None}, to_list(L.reply_link(p, acct, s, subj)))
     for p, acct, s, subj in product(["gmail", "outlook"], accounts[:3], senders[12:], subjects[6:9]):
         add("replyLink", {"provider": p, "account": acct, "sender": s, "subject": subj, "webLink": None}, to_list(L.reply_link(p, acct, s, subj)))
+    for acct in ["pat@olive.com", "me@hotmail.co.uk", "me@live.ca", "me@hotmail.com.au", "me@outlook.fr", "me@acme-outlook.com", "me@outlook.com.evil.com"]:
+        add("replyLink", {"provider": "outlook", "account": acct, "sender": "Pat <pat@acme.com>", "subject": "Hi", "webLink": None}, to_list(L.reply_link("outlook", acct, "Pat <pat@acme.com>", "Hi")))
     for w in webs:
         for acct in accounts[:5]:
             add("replyLink", {"provider": "outlook", "account": acct, "sender": "Pat <pat@acme.com>", "subject": "Hi", "webLink": w}, to_list(L.reply_link("outlook", acct, "Pat <pat@acme.com>", "Hi", w)))

@@ -22,8 +22,8 @@ import { EXPORT_FORMAT, EXPORT_VERSION, ImportError, type ExportData } from "./f
 
 type Rec = Record<string, unknown>;
 
-/** Most rows in one table. */
-const MAX_ROWS = 500_000;
+/** Most rows in one table. A real job search is a few thousand; a file claiming more is hostile or broken, and would be held in memory whole. */
+export const MAX_ROWS = 50_000;
 
 /**
  * The longest text each field may hold. What you can type is capped at the same lengths as saving (db/limits.ts: company,
@@ -272,7 +272,7 @@ const parseLearnedRule: RowParser<LearnedRuleRow> = (r, k) => {
 
 const parseContactEdit: RowParser<ContactEditRow> = (r, k) => {
   const key = str(r, "key", k, { max: MAX.personKey });
-  if (key && !isContactKey(key)) k.fail("key is not a person key.");
+  if (!isContactKey(key)) k.fail("key is not a person key.");
   return { key, name: nullableStr(r, "name", k, MAX.personName), title: nullableStr(r, "title", k, MAX.personTitle), hidden: flag(r, "hidden", k) };
 };
 

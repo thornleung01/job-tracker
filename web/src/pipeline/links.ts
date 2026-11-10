@@ -28,7 +28,15 @@ export function mailboxLink(
 
 export const NO_REPLY = py(String.raw`(?:^|[._-])(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|bounces?|notifications?)(?:[._-]|$)`, "i");
 export const ADDRESS_FULL = pyFull(String.raw`[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+`);
-const CONSUMER_OUTLOOK = ["outlook.com", "hotmail.com", "live.com", "msn.com"];
+const CONSUMER_OUTLOOK = ["outlook", "hotmail", "live", "msn"];
+
+/** A personal Microsoft address: outlook.com, hotmail.co.uk, live.ca ... The whole domain is compared, so olive.com is not live.com. */
+function consumerOutlook(account: string): boolean {
+  const labels = account.slice(account.lastIndexOf("@") + 1).trim().toLowerCase().split(".");
+  const rest = labels.slice(1);
+  const tld = rest[rest.length - 1] ?? "";
+  return CONSUMER_OUTLOOK.includes(labels[0]) && (rest.length === 1 || (rest.length === 2 && (rest[0] === "co" || rest[0] === "com"))) && tld.length >= 2 && tld.length <= 3;
+}
 const RE_PREFIX = py("re:", "iy");
 
 /** Is `to` a plausible address (the Python `_ADDRESS.fullmatch`)? */
@@ -59,7 +67,7 @@ export function replyLink(
     const acct = account || "";
     const work =
       Boolean(webLink && webLink.startsWith("https://outlook.office")) ||
-      (acct.includes("@") && !CONSUMER_OUTLOOK.some((d) => acct.toLowerCase().endsWith(d)));
+      (acct.includes("@") && !consumerOutlook(acct));
     const host = work ? "outlook.office.com/mail" : "outlook.live.com/mail/0";
     return ["Reply in Outlook", `https://${host}/deeplink/compose?to=${quote(to)}&subject=${quote(subj)}`];
   }

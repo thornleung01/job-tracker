@@ -118,6 +118,11 @@ export function extractCompanyRole(msg: Message): [string, string] {
   return [company || UNKNOWN_COMPANY, role || UNKNOWN_ROLE];
 }
 
+const SECOND_LEVEL = new Set([
+  "co", "com", "org", "net", "gov", "ac", "edu", "gob",
+  "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
+]);
+
 export function senderCompany(msg: Message): string {
   const rawName = msg.senderName || "";
   let name = cleanValue(sub(NOISE_WORDS_G, " ", rawName));
@@ -135,8 +140,10 @@ export function senderCompany(msg: Message): string {
   }
   const parts = domain.split(".");
   const n = parts.length;
+  // Under a two-letter country domain the company is one label further left only when the second-last label is a registry
+  // label (acme.co.uk, acme.com.au, hospital.on.ca); jobs.rbc.ca is rbc under a subdomain, not "jobs".
   const label =
-    n >= 3 && cpLen(parts[n - 1]) === 2 && cpLen(parts[n - 2]) <= 3 ? parts[n - 3] : n >= 2 ? parts[n - 2] : "";
+    n >= 3 && cpLen(parts[n - 1]) === 2 && SECOND_LEVEL.has(parts[n - 2]) ? parts[n - 3] : n >= 2 ? parts[n - 2] : "";
   // A person's name ("Jane Smith <jane@acme.com>") isn't the company; the domain is.
   if (name && label && fold(name).includes(fold(label))) return name;
   return capitalize(label);

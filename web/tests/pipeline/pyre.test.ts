@@ -211,3 +211,12 @@ describe("translate, one construct at a time", () => {
     it("ignore case widens i outside a set", () => expect(out("i", true)).toBe(String.raw`[iI\u{130}\u{131}]`));
   });
 });
+
+describe("a set whose range starts at i", () => {
+  it("compiles under ignore-case and still matches", () => {
+    expect(() => py("[i-z]+", "i")).not.toThrow();
+    expect(match(pyFull("[i-z]+", "i"), "SOJ")).not.toBeNull();
+    expect(match(pyFull("[a-i]+", "i"), "CAFE")).not.toBeNull();
+    expect(match(pyFull("[i]+", "i"), "\u0130\u0131")).not.toBeNull();
+  });
+});

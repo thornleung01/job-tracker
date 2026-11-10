@@ -94,7 +94,7 @@ async function addOne(
     // The check and the save are one transaction (nothing in it waits on the network), so another tab adding the same link can't slip in between.
     return await commit<LinkOutcome>(() => tx(db, async (): Promise<LinkOutcome> => {
       if (stopped()) return { status: "stopped" };
-      const [existing] = await findDuplicates(db, company, role, url);
+      const [existing] = await findDuplicates(db, company, role, url, { strict: true }); // an unreadable role must not drop a different job at the same company
       if (existing) return { status: "skipped", existing };
       // The posting text is the draft's description, kept as the job posting for this application.
       const description = read.description?.trim();

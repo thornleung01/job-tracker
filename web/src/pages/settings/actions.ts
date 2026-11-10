@@ -1,7 +1,7 @@
 // The logic behind the Settings buttons, kept out of the component so it can be tested with fakes.
 import type { JobTrackerDB } from "../../db/schema";
 import { localToday } from "../../db/time";
-import { importAll, importFromPythonExport, ImportError, PYTHON_FORMAT, type ImportSummary } from "../../portability";
+import { importAll, importFromPythonExport, ImportError, MAX_IMPORT_BYTES, PYTHON_FORMAT, type ImportSummary } from "../../portability";
 import { isCleanReport, reportProblems } from "../../components/syncprogress/result";
 import type { SyncReport } from "../../sync/mailbox";
 import { plural } from "../../sync/text";
@@ -31,7 +31,9 @@ export function describeSync(report: SyncReport): { ok: boolean; lines: string[]
 
 export type ImportKind = "web" | "python";
 
+/** Reads a chosen file as text. Throws ImportError, before reading anything, when the file is too big to be a Job Tracker export. */
 export function readFileText(file: Blob): Promise<string> {
+  if (file.size > MAX_IMPORT_BYTES) throw new ImportError([`The file is larger than ${MAX_IMPORT_BYTES / (1024 * 1024)} MB, which is too big to be a Job Tracker export. Choose a file exported from Job Tracker.`]);
   if (typeof file.text === "function") return file.text();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

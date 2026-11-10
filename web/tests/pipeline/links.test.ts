@@ -41,3 +41,18 @@ describe("replyLink", () => {
     (s) => expect(replyLink("gmail", "me@gmail.com", s, "x")).toBeNull(),
   );
 });
+
+describe("replyLink: which Outlook an account belongs to", () => {
+  const host = (account: string) => replyLink("outlook", account, "pat@acme.com", "Hi")![1].split("/deeplink")[0];
+  it.each([
+    ["me@outlook.com", "https://outlook.live.com/mail/0"],
+    ["me@hotmail.co.uk", "https://outlook.live.com/mail/0"],
+    ["me@live.ca", "https://outlook.live.com/mail/0"],
+    ["me@hotmail.com.au", "https://outlook.live.com/mail/0"],
+    ["me@Outlook.COM", "https://outlook.live.com/mail/0"],
+    ["pat@olive.com", "https://outlook.office.com/mail"],
+    ["pat@alive.com", "https://outlook.office.com/mail"],
+    ["pat@acme-outlook.com", "https://outlook.office.com/mail"],
+    ["pat@acme.com", "https://outlook.office.com/mail"],
+  ])("%s", (account, expected) => expect(host(account)).toBe(expected));
+});

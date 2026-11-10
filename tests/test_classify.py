@@ -138,3 +138,39 @@ def test_extract_falls_back_to_sender_name_then_domain():
     assert extract_company_role(mk("Hello", sender="Stark Industries Recruiting <hr@stark.com>"))[0] == "Stark Industries"
     assert extract_company_role(mk("Hello", sender="<hr@wayne.com>"))[0] == "Wayne"
     assert extract_company_role(mk("Hello", sender="<someone@gmail.com>"))[0] == UNKNOWN_COMPANY
+
+
+# --- auto-acknowledgements are not rejections; "unsuccessful" is -------------------
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Thank you for your application. Due to the volume we receive, we are unable to offer individual feedback.",
+        "Thank you for your application to the Data Analyst role. We cannot offer feedback on every application.",
+        "We have received your application for the Data Analyst role. If you are not selected, we will keep your resume on file for future openings.",
+    ],
+)
+def test_auto_acknowledgement_is_not_a_rejection(body):
+    r = classify(mk("Thanks for applying to Acme", body, "Acme Careers <no-reply@greenhouse.io>"))
+    assert r.related and r.event == "applied", r.reason
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Thank you for your interest. Unfortunately, we are unable to offer you the position at this time.",
+        "We regret to inform you that you have not been selected. We are unable to offer feedback, but we wish you luck.",
+        "Your application was unsuccessful on this occasion.",
+    ],
+)
+def test_real_rejections_still_reject(body):
+    r = classify(mk("Update on your application", body, "Acme Careers <no-reply@greenhouse.io>"))
+    assert r.related and r.event == "rejected", r.reason
+
+
+@pytest.mark.parametrize(
+    "sender,company",
+    [("Careers <careers@jobs.rbc.ca>", "Rbc"), ("Jobs <jobs@mail.bmo.ca>", "Bmo"), ("Pat <pat@acme.com.au>", "Acme"), ("Pat <pat@uhn.on.ca>", "Uhn")],
+)
+def test_company_under_a_country_domain(sender, company):
+    assert extract_company_role(mk("Hello", sender=sender))[0] == company

@@ -176,6 +176,8 @@ export async function mergeApplications(db: JobTrackerDB, appId: number, into: n
     }
     // keep the target's posting link, otherwise take the source's
     if (!dst.postingUrl && src.postingUrl) fields.postingUrl = src.postingUrl;
+    // what you made by hand stays yours after the merge, so a recheck never treats the merged row as untouched
+    if (src.manual) fields.manual = true;
     if (dst.interviewRounds === undefined && src.interviewRounds !== undefined) fields.interviewRounds = src.interviewRounds;
     if (!dst.offerSalary && src.offerSalary) fields.offerSalary = src.offerSalary;
     if (!dst.offerDeadline && src.offerDeadline) fields.offerDeadline = src.offerDeadline;
@@ -282,22 +284,23 @@ const RESTORE_MESSAGE: Record<Outcome, string> = {
  * Returns what happened and a sentence to show.
  */
 export async function ignoredIsReal(db: JobTrackerDB, ignoredId: number, now: Date = new Date()): Promise<{ outcome: RestoreOutcome; message: string }> {
-  const row = await tx(db, async () => {
+  // One transaction for the whole move: the stored copy of the body is only deleted once the email has been read again,
+  // so a failure part-way (quota, a closed tab) leaves the ignored email where it was.
+  return tx(db, async () => {
     const found = await db.ignoredMail.get(ignoredId);
     if (!found) throw new MissingRecordError(`No ignored email ${ignoredId}`);
     await recordFeedback(db, "job", { sender: found.sender, subject: found.subject, reason: "" }, null, now);
     const stored = await db.emails.where("[accountId+providerMsgId]").equals([found.accountId, found.providerMsgId]).first();
     if (stored && !stored.related) await db.emails.delete(stored.id);
     await db.ignoredMail.delete(ignoredId);
-    return found;
+    await learn.rebuild(db, now); // confirming the sender switches off the rules that hid it
+    const msg = messageFromRow({
+      providerMsgId: found.providerMsgId, threadId: found.threadId, sender: found.sender, subject: found.subject, receivedAt: found.receivedAt,
+      body: found.body, bulk: found.bulk, webLink: found.webLink,
+    });
+    const outcome = await processMessage(db, found.accountId, msg, undefined, now);
+    return { outcome, message: RESTORE_MESSAGE[outcome] };
   });
-  await learn.rebuild(db, now); // confirming the sender switches off the rules that hid it
-  const msg = messageFromRow({
-    providerMsgId: row.providerMsgId, threadId: row.threadId, sender: row.sender, subject: row.subject, receivedAt: row.receivedAt,
-    body: row.body, bulk: row.bulk, webLink: row.webLink,
-  });
-  const outcome = await processMessage(db, row.accountId, msg, undefined, now);
-  return { outcome, message: RESTORE_MESSAGE[outcome] };
 }
 
 /** Switches a learned rule off. Throws MissingRecordError when there is no such rule. */

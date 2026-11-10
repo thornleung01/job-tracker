@@ -168,3 +168,50 @@ describe("company and role extraction", () => {
     expect(extractCompanyRole(mk("Hello", "", "<someone@gmail.com>"))[0]).toBe(UNKNOWN_COMPANY);
   });
 });
+
+describe("auto-acknowledgements are not rejections", () => {
+  const ats = "Acme Careers <no-reply@greenhouse.io>";
+  it.each([
+    "Thank you for your application. Due to the volume we receive, we are unable to offer individual feedback.",
+    "Thank you for your application to the Data Analyst role. We cannot offer feedback on every application.",
+    "We have received your application for the Data Analyst role. If you are not selected, we will keep your resume on file for future openings.",
+    "Thanks for applying. If you're not selected for this role we'll keep your details for six months. Unfortunately we are not able to give feedback to every applicant.",
+  ])("%s", (body) => {
+    const r = classify(mk("Thanks for applying to Acme", body, ats));
+    expect(r.related && r.event, r.reason).toBe("applied");
+  });
+
+  it("real rejections still classify as rejected", () => {
+    for (const body of [
+      "Thank you for your interest. Unfortunately, we are unable to offer you the position at this time.",
+      "We regret to inform you that you have not been selected for the Data Analyst role. We are unable to offer feedback, but we wish you luck.",
+      "After careful review we have decided to move forward with other candidates.",
+      "We will not be moving forward with your application. If you are interested in future roles, apply again.",
+    ]) {
+      const r = classify(mk("Update on your application", body, ats));
+      expect(r.related && r.event, body).toBe("rejected");
+    }
+  });
+
+  it.each([
+    "Thank you for your interest in Acme. Your application was unsuccessful on this occasion.",
+    "Your application has been unsuccessful.",
+    "We are sorry, your application was not successful.",
+  ])("an 'unsuccessful' application is a rejection: %s", (body) => {
+    const r = classify(mk("Your application to Acme", body, "HR <hr@acme.com>"));
+    expect(r.related && r.event, r.reason).toBe("rejected");
+  });
+});
+
+describe("company from a two-letter country domain", () => {
+  it.each([
+    ["Careers <careers@jobs.rbc.ca>", "Rbc"],
+    ["Jobs <jobs@mail.bmo.ca>", "Bmo"],
+    ["Jane Smith <jane@jobs.acme.co.uk>", "Acme"],
+    ["Pat <pat@acme.com.au>", "Acme"],
+    ["Pat <pat@uhn.on.ca>", "Uhn"],
+    ["Pat <pat@shopify.ca>", "Shopify"],
+  ])("%s", (sender, company) => {
+    expect(extractCompanyRole(mk("Hello", "", sender))[0]).toBe(company);
+  });
+});

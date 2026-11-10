@@ -2,7 +2,7 @@
 //
 // Emails the rules once took for application updates (a newsletter that said "interview") are turned back into
 // ordinary mail and removed from Needs review. An application is only removed when nothing you did is attached to it:
-// it was made by a sync, you never locked or edited its stage, and you added no notes or steps. Applications you made
+// it was made by a sync, you never locked or edited its stage, and you added no notes, steps, offer details, interview rounds or people corrections. Applications you made
 // or touched are never changed.
 import { applyEvent, clearEmail } from "../db/repo";
 import { tx, type EmailRow, type JobTrackerDB } from "../db/schema";
@@ -28,7 +28,10 @@ async function isUntouched(db: JobTrackerDB, appId: number | null): Promise<bool
   if (!isLive(app)) return false;
   const notes = await db.activity.where("applicationId").equals(appId).count();
   const letters = await db.documents.where("applicationId").equals(appId).count();
-  return !app.manual && !app.locked && notes === 0 && letters === 0 && app.resumeId === undefined && !app.postingText;
+  // Offer details, interview rounds and people corrections are yours too, though none of them sets `manual`.
+  const people = await db.contactEdits.where("key").startsWith(`${appId}|`).count();
+  const typedIn = app.interviewRounds !== undefined || Boolean(app.offerSalary) || Boolean(app.offerDeadline);
+  return !app.manual && !app.locked && notes === 0 && letters === 0 && people === 0 && !typedIn && app.resumeId === undefined && !app.postingText;
 }
 
 export async function recheck(db: JobTrackerDB, now: Date = new Date()): Promise<RecheckResult> {

@@ -108,15 +108,22 @@ export function createHttp(provider: ProviderName, tokenSource: TokenSource, opt
       const { signal } = init;
       let retries = 0;
       let refreshed = false;
+      let rejected: { token: string; final: boolean } | undefined;
       for (;;) {
         ensureNotAborted(signal);
         while (cooling) await raceAbort(cooling, signal);
-        const token = await tokenSource(provider, signal);
+        const token = await tokenSource(provider, signal, rejected);
+        rejected = undefined;
         const doFetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
         const res = await doFetch(url, { method: "GET", headers: { ...baseHeaders, ...init.headers, Authorization: `Bearer ${token}` }, signal });
         if (res.status === 401) {
-          if (refreshed) throw new NotConnected(`${provider === "gmail" ? "Gmail" : "Outlook"} rejected the login. Reconnect it and try again.`);
+          if (refreshed) {
+            // A fresh token was refused too: tell the login code, so it shows the mailbox as disconnected instead of sending the dead token on every sync.
+            await tokenSource(provider, signal, { token, final: true }).catch(() => undefined);
+            throw new NotConnected(`${provider === "gmail" ? "Gmail" : "Outlook"} rejected the login. Reconnect it and try again.`);
+          }
           refreshed = true;
+          rejected = { token, final: false };
           continue;
         }
         if (res.ok) return res;

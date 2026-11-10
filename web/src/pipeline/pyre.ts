@@ -170,7 +170,8 @@ function readSet(source: string, open: number, ignoreCase: boolean): Piece {
     if (ch === "]") charClass += "\\]";
     else if (ch === "-" && lastWasShorthand) charClass += "\\-";
     else if (ch === "[") charClass += "\\[";
-    else if (ignoreCase && (ch === "i" || ch === "I")) charClass += DOTTED_I;
+    // Not at the start of a range ("[i-z]"): the expansion would put the extra letters between "i" and "-", an out-of-order range.
+    else if (ignoreCase && (ch === "i" || ch === "I") && !(source[i + 1] === "-" && source[i + 2] !== "]")) charClass += DOTTED_I;
     else charClass += ch;
     lastWasShorthand = false;
     i++;

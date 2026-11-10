@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MAX_RESUME_VERSIONS } from "../../src/db/limits";
 import type { DocItem, DocSection, JobTrackerDB } from "../../src/db/schema";
 import { itemText } from "../../src/db/documentShape";
@@ -123,5 +123,24 @@ describe("demo resumes", () => {
     await loadDemoData(db, NOW);
     const exported = JSON.parse(await exportAllAsJson(db, NOW)) as { data: { documents: unknown[] } };
     expect(exported.data.documents).toHaveLength(4);
+  });
+});
+
+describe("demo data is all or nothing and consistent", () => {
+  it("leaves nothing behind when adding the documents fails after the import", async () => {
+    const db = pool.open();
+    vi.spyOn(db.documents, "add").mockRejectedValue(new Error("QuotaExceededError"));
+    await expect(loadDemoData(db, NOW)).rejects.toThrow(/Quota/);
+    vi.restoreAllMocks();
+    expect(await db.applications.count()).toBe(0);
+    expect(await db.emails.count()).toBe(0);
+  });
+
+  it("an application with a fresh invitation shows that as its last activity", async () => {
+    const db = pool.open();
+    await loadDemoData(db, NOW);
+    const invites = await db.emails.filter((e) => e.providerMsgId.startsWith("demo-interview-")).toArray();
+    expect(invites.length).toBeGreaterThan(0);
+    for (const e of invites) expect((await db.applications.get(e.applicationId!))!.lastActivity).toBe(e.receivedAt);
   });
 });

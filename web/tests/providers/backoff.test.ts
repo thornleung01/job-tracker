@@ -74,6 +74,13 @@ describe("createHttp", () => {
     expect(s.calls.map((c) => c.headers.get("authorization"))).toEqual(["Bearer tok1", "Bearer tok2"]);
   });
 
+  it("tells the token source which token was rejected, and that a fresh one was rejected too", async () => {
+    const source = vi.fn(async (_p: string, _s?: AbortSignal, _r?: { token: string; final: boolean }) => "same");
+    const s = scriptedFetch(() => json({}, 401));
+    await expect(createHttp("gmail", source, { fetch: s.fetch }).get(URL_)).rejects.toBeInstanceOf(NotConnected);
+    expect(source.mock.calls.map((c) => c[2])).toEqual([undefined, { token: "same", final: false }, { token: "same", final: true }]);
+  });
+
   it("throws NotConnected when the retry is rejected too", async () => {
     const s = scriptedFetch(() => json({}, 401));
     await expect(createHttp("gmail", token, { fetch: s.fetch }).get(URL_)).rejects.toBeInstanceOf(NotConnected);

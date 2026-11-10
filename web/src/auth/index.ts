@@ -208,7 +208,10 @@ export function createAuth(deps: AuthDeps): Auth {
       const t = await acquire(provider, true);
       // A deliberate connect may pick a different Google account than before: that account becomes the one that is checked from now on.
       const address = provider === "gmail" ? await lookUpAddress(t.token) : null;
-      if (gen !== generation) throw new NotConnected("You were logged out. Log in and try again.");
+      if (gen !== generation) {
+        if (provider === "gmail") discardGoogleToken(t.token); // signed out while the address was being checked: the new token is never kept, so end it
+        throw new NotConnected("You were logged out. Log in and try again.");
+      }
       tokens.set(provider, t);
       if (address) mailboxes.set(provider, address);
       else mailboxes.delete(provider);
@@ -226,18 +229,36 @@ export function createAuth(deps: AuthDeps): Auth {
     if (gen !== generation) return; // logged out meanwhile: the caller drops the token
     const known = mailboxes.get(provider);
     if (known === undefined) {
-      mailboxes.set(provider, address); // the connect-time lookup failed: trust the first one that works
+      // The connect-time lookup failed, so nothing says which account was connected. Only the account you logged in with is
+      // assumed; any other one could be a different person's mailbox picked in the chooser, so it is refused.
+      const user = store.getSnapshot().user;
+      if (user?.provider === "google" && user.email?.toLowerCase() === address) {
+        mailboxes.set(provider, address);
+      } else {
+        discardGoogleToken(t.token);
+        throw new NotConnected(WRONG_ACCOUNT);
+      }
     } else if (known !== address) {
       discardGoogleToken(t.token);
       throw new NotConnected(WRONG_ACCOUNT);
     }
   }
 
-  const tokenSource: TokenSource = async (target, signal) => {
+  const tokenSource: TokenSource = async (target, signal, rejected) => {
     const provider = toMailProvider(target);
     if (signal?.aborted) throw abortError();
     const session = store.getSnapshot();
     if (session.status !== "signed-in") throw new NotConnected("Log in first, then try again.");
+    // The provider refused this token before it expired (revoked, or invalidated): forget it, so the retry gets a fresh one.
+    if (rejected && tokens.get(provider)?.token === rejected.token) {
+      tokens.delete(provider);
+      if (rejected.final) {
+        const text = `${PROVIDER_LABEL[provider]} rejected the login. Reconnect it and try again.`;
+        setMail(provider, false);
+        store.update({ error: text });
+        throw new NotConnected(text);
+      }
+    }
     const cached = tokens.get(provider);
     if (cached && cached.expiresAt - now() > EXPIRY_MARGIN_MS) return cached.token;
     if (!session.mail[provider]) throw new NotConnected(`${PROVIDER_LABEL[provider]} isn't connected. Reconnect it and try again.`);
