@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { $, $$, addApp, cleanup, freshDb, mountPage, text } from "../../pages/applications/harness";
 import type { PageProps } from "../../../src/app/pageProps";
 import { ApplicationPanel } from "../../../src/components/ApplicationPanel";
-import { greeting, letterSections, letterText } from "../../../src/components/documents/letter";
+import { greeting, letterSections, letterText } from "../../../src/sync/letter";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { documentLine } from "../../../src/sync/documentLine";
 import { createVersion, deleteDocument, saveCoverLetter, saveMaster } from "../../../src/sync/documents";
@@ -79,7 +79,7 @@ describe("documentLine", () => {
     const db = freshDb();
     const id = await addApp(db, "Acme");
     await saveMaster(db, sections, "paste");
-    expect(await documentLine(db, id)).toEqual({ resume: null, cover: false });
+    expect(await documentLine(db, id)).toEqual({ resume: null, cover: false, hasPosting: false, tailored: false });
   });
 
   it("names the resume sent and the letter, and (deleted) for a deleted resume", async () => {
@@ -89,9 +89,9 @@ describe("documentLine", () => {
     const version = await createVersion(db, { title: "Analyst v2", sections, basedOn: master });
     await db.applications.update(id, { resumeId: version });
     await saveCoverLetter(db, id, [{ heading: "", items: [{ text: "Hi" }] }]);
-    expect(await documentLine(db, id)).toEqual({ resume: "Analyst v2", cover: true });
+    expect(await documentLine(db, id)).toEqual({ resume: "Analyst v2", cover: true, hasPosting: false, tailored: false });
     await deleteDocument(db, version);
-    expect(await documentLine(db, id)).toEqual({ resume: "(deleted)", cover: true });
+    expect(await documentLine(db, id)).toEqual({ resume: "(deleted)", cover: true, hasPosting: false, tailored: false });
   });
 });
 

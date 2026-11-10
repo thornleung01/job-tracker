@@ -211,6 +211,8 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
 
   // Add an application by hand: one button opens the form under the filter card
   const add = useAction();
+  /** the application just added, when the Added notice can offer to tailor your resume for it (it has posting text and there is a master resume) */
+  const [tailorFor, setTailorFor] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
@@ -305,7 +307,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         ...(posting.current ? { postingText: posting.current } : {}),
         ...(sentResume ? { resumeId: Number(sentResume) } : {}),
       };
-      await addApplication(db, input);
+      setTailorFor(null);
+      const id = await addApplication(db, input);
+      if (posting.current && resumes.some((r) => r.master)) setTailorFor(id);
       const added = company.trim();
       link.reset();
       posting.current = "";
@@ -559,7 +563,9 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           <BulkAdd db={db} deps={{ parseJobUrl: lib.parseJobUrl, enrichJobDraft: lib.enrichJobDraft }}
                    resumes={resumes} resume={sentResume} onResume={chooseResume} onAddResume={() => navigate("/resume")} />
         </section>
-      ) : add.status ? <Notice>{add.status}</Notice> : null}
+      ) : add.status ? (
+        <Notice>{add.status}{tailorFor !== null ? <> <a href={`#/app/${tailorFor}`}>Tailor your resume for this job</a></> : null}</Notice>
+      ) : null}
 
       {views ? (
         <ViewChips db={db} views={views} currentUrl={listUrl({ ...filters, ...sorting, ...keep })} urlFor={(v) => listUrl({ ...v, ...keep })} navigate={navigate}

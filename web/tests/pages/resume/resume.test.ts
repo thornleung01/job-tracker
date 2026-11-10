@@ -52,7 +52,7 @@ describe("the Resume page with no master", () => {
     const { container } = await mount(db);
     expect(text($(container, "h1"))).toBe("Resume");
     const tabs = $$(container, "nav[aria-label=Show] a.tab");
-    expect(tabs.map(text)).toEqual(["Resumes", "Cover letters"]);
+    expect(tabs.map(text)).toEqual(["Resumes", "Cover letters", "Tailored"]);
     expect(tabs[0].getAttribute("aria-current")).toBe("true");
     const visible = $(container, ".resume-view:not([hidden])")!;
     expect($$(visible, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
@@ -218,9 +218,9 @@ describe("the master resume editor", () => {
     await settle();
     await type(fields(container, /^Heading of section 1/)[0], "Work history");
     await show("tab=cover");
-    expect($$(container, ".resume-view").map((v) => v.hasAttribute("hidden"))).toEqual([true, false]);
+    expect($$(container, ".resume-view").map((v) => v.hasAttribute("hidden"))).toEqual([true, false, true]);
     await show("");
-    expect($$(container, ".resume-view").map((v) => v.hasAttribute("hidden"))).toEqual([false, true]);
+    expect($$(container, ".resume-view").map((v) => v.hasAttribute("hidden"))).toEqual([false, true, true]);
     expect(values(container, /^Heading of section 1/)).toEqual(["Work history"]);
     await act(async () => root.unmount());
     container.remove();

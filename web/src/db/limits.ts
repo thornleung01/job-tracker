@@ -77,3 +77,5 @@ export const TRASH_DAYS = 30;
 export const MAX_AI_INPUT_CHARS = 120_000;
 /** The most characters of a reply that are read. A longer one is treated as cut off. */
 export const MAX_AI_OUTPUT_CHARS = 60_000;
+/** The most characters of the person's own note ("stress my reporting work") that Tailor sends. */
+export const MAX_TAILOR_NOTE_CHARS = 500;

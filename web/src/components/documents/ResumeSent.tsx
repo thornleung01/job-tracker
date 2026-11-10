@@ -2,14 +2,15 @@ import { useId, useState } from "react";
 import { normalizeSections } from "../../db/documentShape";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
 import { withoutEmptySections } from "../../documents/blankResume";
-import { copyResumeForApplication, setApplicationResume, updateDocument } from "../../sync/documents";
+import { copyResumeForApplication, isTailored, setApplicationResume, updateDocument } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
 import { ResumeEditing } from "./ResumeEditing";
+import { resumeLabel } from "./tailorReview";
 
 interface Props {
   db: JobTrackerDB;
   app: ApplicationRow;
-  /** the resumes you haven't deleted, master first */
+  /** the resumes this application can use: master first, your versions, then its own tailored one (resumesForApplication) */
   resumes: readonly DocumentRow[];
   act: ActionRunner;
 }
@@ -66,13 +67,14 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
       <div className="row">
         <select name="resume" aria-labelledby={labelId} value={chosen ? String(chosen.id) : ""} disabled={act.busy !== null} onChange={(e) => choose(e.target.value)}>
           <option value="">None</option>
-          {resumes.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+          {resumes.map((r) => <option key={r.id} value={r.id}>{resumeLabel(r)}</option>)}
         </select>
         {hasMaster ? (
           <button type="button" onClick={copy} {...act.button("resume-copy")}>Make a copy for this job</button>
         ) : (
           <a className="btn" href="#/resume">Add your resume</a>
         )}
+        {chosen && isTailored(chosen) ? <span className="badge score">Tailored</span> : null}
         {chosen ? (
           <>
             <button type="button" aria-expanded={editing} onClick={() => setEditing((on) => !on)} disabled={act.busy !== null}>Edit</button>
