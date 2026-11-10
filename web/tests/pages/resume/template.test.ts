@@ -42,7 +42,7 @@ describe("starting from the template", () => {
     const db = freshDb();
     const { container } = await mount(db);
     await click(button(container, "Start from the template"));
-    expect(text($(container, "h2"))).toBe("Master resume");
+    expect(text($(container, ".doc-card h2"))).toBe("Master resume");
     const shown = [...$$(container, "input, textarea").map((e) => (e as HTMLInputElement).value), text(container)].join("\n");
     for (const heading of Object.values(TEMPLATE_HEADINGS)) expect(shown.toLowerCase()).toContain(heading.toLowerCase());
     const placeholders = $$(container, "[placeholder]").map((e) => e.getAttribute("placeholder"));
@@ -66,7 +66,7 @@ describe("starting from the template", () => {
     expect(master.sections.map((s) => s.heading)).toEqual(["Header"]);
     expect(master.sections[0].items.map((i) => i.text)).toEqual(["Jordan Lee"]);
     for (const s of master.sections) for (const i of s.items) expect(i.text.trim() || i.label || i.right).toBeTruthy();
-    expect(text($(container, "h2"))).toBe("Master resume");
+    expect(text($(container, ".doc-card h2"))).toBe("Master resume");
   });
 
   it("Cancel on a blank template returns to the empty state at once, with no question", async () => {

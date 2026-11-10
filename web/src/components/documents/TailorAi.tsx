@@ -24,14 +24,16 @@ interface Props {
   run(opts: WriteOptions): Promise<void>;
   /** the copy has edits of the person's own, so a write asks before it replaces them */
   edited: boolean;
-  /** the strip is put away: after a draft, or Close */
-  onClose(): void;
+  /** the strip is put away: after a draft, or Close. Without it the strip has no Close (it is part of the page, like the Resume page's job step). */
+  onClose?(): void;
   /** another action is in flight (a save), so Write waits */
   disabled?: boolean;
+  /** the Write button's words */
+  writeLabel?: string;
 }
 
 /** The strip. It is mounted only while it is open. */
-export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }: Props) {
+export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false, writeLabel = "Write" }: Props) {
   const base = useId();
   const [status, setStatus] = useState<VaultStatus>(() => ai.vault.status(dbName));
   const [tone, setTone] = useState<TailorTone>("plain");
@@ -69,7 +71,7 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }:
         if (ask.signal.aborted) return;
         running.current = null;
         setWorking(false);
-        onClose();
+        onClose?.();
       },
       (e) => {
         if (ask.signal.aborted) return;   // Stop is not a failure
@@ -147,10 +149,10 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }:
       ) : null}
       <div className="row tailor-ai-actions">
         {ready ? (
-          <button type="button" className="primary" ref={writeButton} onClick={write} disabled={working || disabled || asking} aria-busy={working || undefined}>Write</button>
+          <button type="button" className="primary" ref={writeButton} onClick={write} disabled={working || disabled || asking} aria-busy={working || undefined}>{writeLabel}</button>
         ) : null}
         {working ? <button type="button" ref={stopButton} onClick={stop}>Stop</button> : null}
-        <button type="button" onClick={onClose} disabled={working}>Close</button>
+        {onClose ? <button type="button" onClick={onClose} disabled={working}>Close</button> : null}
         <span className="muted small" role="status">{working ? "Writing" : ""}</span>
       </div>
     </section>

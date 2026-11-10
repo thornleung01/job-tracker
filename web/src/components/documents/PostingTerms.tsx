@@ -2,6 +2,7 @@ import { Check, Minus } from "lucide-react";
 import { useMemo } from "react";
 import type { DocSection } from "../../db/schema";
 import { postingTerms } from "../../documents/postingTerms";
+import "./review.css";
 
 interface Props {
   posting: string;
