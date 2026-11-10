@@ -1,11 +1,12 @@
 // The lists under the tailored copy: what changed against the baseline (with Reset to baseline), what was left out (with Add back), and the AI's
-// lines to tick. Each is plain markup over data the workspace holds.
+// lines to tick. Each is plain markup over data the caller holds: the Tailor workspace and the Resume page's Review step.
 import { useId } from "react";
 import type { DocSection } from "../../db/schema";
 import type { BaselineCompare, WordPart } from "../../documents/compare";
-import { lineText } from "../../components/documents/tailorReview";
 import type { TailorDraft } from "../../sync/tailor";
 import { plural } from "../../sync/text";
+import { lineText } from "./tailorReview";
+import "./review.css";
 
 /** How much of a line is in a control's accessible name. */
 const NAME_CHARS = 60;

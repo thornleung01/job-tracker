@@ -47,17 +47,21 @@ async function choose(container: HTMLElement, f: File) {
 }
 
 describe("the Resume page with no master", () => {
-  it("shows the Resumes tab selected, and an empty state with the template first, then Upload a file and Paste text", async () => {
+  it("opens on step 1 with the template first, then Upload a file and Paste text, and Your documents below with the Resumes tab selected", async () => {
     const db = freshDb();
     const { container } = await mount(db);
     expect(text($(container, "h1"))).toBe("Resume");
+    const step = $(container, ".steps-open")!;
+    expect(text($(step, "h2"))).toBe("1Your resume");
+    expect($$(step, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
+    expect($(step, "button.primary")!.textContent).toBe("Start from the template");
+    expect(text($(container, "h2.docs-h"))).toBe("Your documents");
     const tabs = $$(container, "nav[aria-label=Show] a.tab");
     expect(tabs.map(text)).toEqual(["Resumes", "Cover letters", "Tailored"]);
     expect(tabs[0].getAttribute("aria-current")).toBe("true");
     const visible = $(container, ".resume-view:not([hidden])")!;
-    expect($$(visible, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
-    expect($(visible, "button.primary")!.textContent).toBe("Start from the template");
-    expect($$(visible, "h2")).toHaveLength(0);
+    expect(text(visible)).toBe("No master resume yet.");
+    expect($$(visible, "button")).toHaveLength(0);
   });
 
   it("shows pasted text split into sections to check, and saves nothing until Save as master resume", async () => {

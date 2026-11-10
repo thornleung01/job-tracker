@@ -26,7 +26,7 @@ import {
 } from "../../sync/documents";
 import { letterSections, letterText } from "../../sync/letter";
 import type { TailorDraft } from "../../sync/tailor";
-import { Changes, LeftOut, Ticks } from "./Review";
+import { Changes, LeftOut, Ticks } from "../../components/documents/Review";
 import "../../components/documents/documents.css";
 
 interface Props {
