@@ -5,6 +5,7 @@ import { MAX_DOC_HEADING_CHARS, MAX_DOC_ITEM_CHARS, MAX_DOC_ITEMS, MAX_DOC_LABEL
 import type { DocItem, DocItemKind, DocSection } from "../../db/schema";
 import { PLACEHOLDERS, placeholderFor, templateSectionOf } from "../../documents/blankResume";
 import { measureSheetHeight, pageVerdictText } from "./onepage";
+import { FitBox } from "./FitBox";
 import { useOnePage } from "./useOnePage";
 import "./resumesheet.css";
 import "./pageeditor.css";
@@ -18,6 +19,8 @@ interface Props {
   title?: string;
   /** the page-height probe, a seam for tests (jsdom has no layout). The default measures the typed text, not the fields. */
   measure?: (sheet: HTMLElement) => number;
+  /** the sheet keeps its real 816px width and is scaled down with CSS to fit a narrower column, so its wrapping (and the one-page check) match print */
+  fit?: boolean;
 }
 
 /** What each kind is called in the accessible names of its fields and buttons ("Bullet 2 of Work experience"). No kind is a plain line. */
@@ -171,7 +174,7 @@ export function measureEditableSheet(sheet: HTMLElement): number {
  * (`sections` and `onChange`) and never saves. The sheet works on the list it is given: a missing header is made on the first edit of the name or
  * contact line, and empty lines stay in the list until the caller saves (normalizeSections drops them then).
  */
-export function PageEditor({ sections, onChange, label, title, measure = measureEditableSheet }: Props) {
+export function PageEditor({ sections, onChange, label, title, measure = measureEditableSheet, fit = false }: Props) {
   const sheet = useRef<HTMLElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -398,8 +401,9 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
   const contactFields = Math.max(1, contact.length);
 
   return (
-    <div className="page-editor" ref={root}>
+    <div className={fit ? "page-editor fit" : "page-editor"} ref={root}>
       <p className="doc-fit muted pe-status" role="status">{verdict ? pageVerdictText(verdict) : ""}</p>
+      <FitBox on={fit}>
       <article ref={sheet} className="doc-sheet classic page-edit" role="group" aria-label={label}>
         <h1 className="page doc-name">
           <Multi
@@ -453,6 +457,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
           );
         })}
       </article>
+      </FitBox>
       <button
         type="button" className="quiet pe-add-section" data-pe-ctl="add-section" disabled={sections.length >= MAX_DOC_SECTIONS}
         onClick={() => {

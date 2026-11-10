@@ -47,12 +47,15 @@ async function choose(container: HTMLElement, f: File) {
 }
 
 describe("the Resume page with no master", () => {
-  it("opens on step 1 with the template first, then Upload a file and Paste text, and Your documents below with the Resumes tab selected", async () => {
+  it("opens on the Resume section with the template first, then Upload a file and Paste text, and Your documents below with the Resumes tab selected", async () => {
     const db = freshDb();
     const { container } = await mount(db);
     expect(text($(container, "h1"))).toBe("Resume");
-    const step = $(container, ".steps-open")!;
-    expect(text($(step, "h2"))).toBe("1Your resume");
+    const step = $(container, ".rs-section")!;
+    expect(text($(step, "h2"))).toBe("Resume");
+    expect(text($$(container, ".rs-section")[1])).toBe("JobAdd your resume first.");
+    expect($$(container, ".rs-section")[1].querySelector("a")!.getAttribute("href")).toBe("#/resume");
+    expect($(container, ".rs-split")).toBeNull();
     expect($$(step, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
     expect($(step, "button.primary")!.textContent).toBe("Start from the template");
     expect(text($(container, "h2.docs-h"))).toBe("Your documents");

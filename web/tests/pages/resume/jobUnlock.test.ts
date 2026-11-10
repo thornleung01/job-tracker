@@ -1,4 +1,4 @@
-// Step 2, The job: with a locked key and nothing read from a pasted job, one muted line and the passphrase to unlock it, right there.
+// Job: with a locked key and nothing read from a pasted job, one muted line and the passphrase to unlock it, right there.
 import "fake-indexeddb/auto";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,16 +48,16 @@ async function paste(c: HTMLElement, value: string) {
   await type(box, value);
   await settle();
 }
-const unlockLine = (c: HTMLElement) => $$(c, ".steps-unlock p").find((p) => text(p) === LINE);
+const unlockLine = (c: HTMLElement) => $$(c, ".rs-unlock p").find((p) => text(p) === LINE);
 
-describe("step 2, The job: a locked key", () => {
+describe("Job: a locked key", () => {
   it("shows the unlock line when the key is locked and the company and role stay empty, and unlocking removes it", async () => {
     const { container, fake } = await mountJobStep("locked");
     expect(unlockLine(container)).toBeUndefined();
     await paste(container, NAMELESS);
     expect(unlockLine(container)).toBeDefined();
     await type(label(container, "Key passphrase")!, "right");
-    await click(button($(container, ".steps-unlock")!, "Unlock"));
+    await click(button($(container, ".rs-unlock")!, "Unlock"));
     await waitFor(() => unlockLine(container) === undefined, "the line to go");
     expect(fake.unlock).toHaveBeenCalledWith(expect.any(String), "right");
   });

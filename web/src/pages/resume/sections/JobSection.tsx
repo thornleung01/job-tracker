@@ -1,9 +1,11 @@
-// Step 2, The job: the posting pasted in, an optional link, the company and role (read from the posting, marked to check until touched), the
-// posting's words, then a draft written with AI or a copy of the baseline to edit by hand. Nothing is saved here.
+// Job, the second section: the posting pasted in (left), then on the right an optional link, the company and role (read from the posting, marked to
+// check until touched) and the posting's words; under both, a draft written with AI or a copy of the baseline to edit by hand. Nothing is saved here.
+// Before there is a master it is one muted line that links to the way in.
 import { useEffect, useId, useRef, useState } from "react";
 import { PostingTerms } from "../../../components/documents/PostingTerms";
 import { TailorAi, type WriteOptions } from "../../../components/documents/TailorAi";
 import { useUnlock } from "../../../components/documents/useUnlock";
+import { Gate } from "../../../components/Gate";
 import { InlineConfirm } from "../../../components/InlineConfirm";
 import { Notice } from "../../../components/Notice";
 import { GATES } from "../../../app/gates";
@@ -15,22 +17,31 @@ import { parseJobUrl } from "../../../jobs";
 import { readJobFromPaste } from "../../../jobs/readJob";
 import { EMPTY_DRAFT } from "../../../jobs/types";
 import type { FlowAction, FlowState } from "../flowState";
-import type { StepsDeps } from "./deps";
+import type { SectionDeps } from "./deps";
 
 interface Props {
   db: JobTrackerDB;
   flow: FlowState;
   dispatch(a: FlowAction): void;
-  deps: StepsDeps;
-  baseline: DocumentRow;
+  deps: SectionDeps;
+  /** the resume the job is tailored from; undefined while there is no master */
+  baseline: DocumentRow | undefined;
   /** writes the draft with AI (TailorAi runs it, so Stop works) */
   write(opts: WriteOptions): Promise<void>;
   /** copies the baseline to edit by hand */
   byHand(): Promise<void>;
-  onBackToReview(): void;
 }
 
-export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onBackToReview }: Props) {
+export function JobSection(props: Props) {
+  return (
+    <section className="rs-section" aria-labelledby="rs-job-h">
+      <h2 className="rs-h" id="rs-job-h" tabIndex={-1}>Job</h2>
+      {props.baseline ? <JobForm {...props} baseline={props.baseline} /> : <p className="muted small rs-wait"><Gate gate="resume" /></p>}
+    </section>
+  );
+}
+
+function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & { baseline: DocumentRow }) {
   const base = useId();
   const act = useAction();
   const reading = useRef<AbortController | null>(null);
@@ -103,42 +114,47 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
   };
 
   return (
-    <>
-      <div className="fgroup steps-posting">
-        <label htmlFor={`${base}-posting`}>Paste the job description</label>
-        <textarea
-          id={`${base}-posting`} rows={10} value={flow.posting} maxLength={MAX_POSTING_CHARS}
-          onPaste={() => { pasted.current = true; }} onChange={(e) => onPosting(e.target.value)}
-        />
-      </div>
-      <PostingTerms posting={flow.posting} sections={baseline.sections} company={flow.company} />
+    <div className="card rs-card">
+      <div className="rs-job">
+        <div className="fgroup rs-posting">
+          <label htmlFor={`${base}-posting`}>Paste the job description</label>
+          <textarea
+            id={`${base}-posting`} rows={10} value={flow.posting} maxLength={MAX_POSTING_CHARS}
+            onPaste={() => { pasted.current = true; }} onChange={(e) => onPosting(e.target.value)}
+          />
+        </div>
 
-      <div className="row steps-link">
-        <div className="fgroup">
-          <label htmlFor={`${base}-url`}>Job link (optional)</label>
-          <input id={`${base}-url`} type="url" inputMode="url" value={flow.url} maxLength={MAX_URL_CHARS} aria-invalid={linkBad || undefined}
-                 aria-describedby={linkBad ? linkId : undefined} onChange={(e) => dispatch({ type: "field", name: "url", value: e.target.value })} />
-        </div>
-        <button type="button" onClick={fillFromLink} disabled={busy || !flow.url.trim() || linkBad} aria-busy={act.busy === "link" || undefined}>Fill from link</button>
-      </div>
-      {linkBad ? <p className="muted small steps-why" id={linkId} role="status">{POSTING_URL_MESSAGE}</p> : null}
+        <div className="rs-side">
+          <div className="rs-link">
+            <div className="fgroup">
+              <label htmlFor={`${base}-url`}>Job link (optional)</label>
+              <input id={`${base}-url`} type="url" inputMode="url" value={flow.url} maxLength={MAX_URL_CHARS} aria-invalid={linkBad || undefined}
+                     aria-describedby={linkBad ? linkId : undefined} onChange={(e) => dispatch({ type: "field", name: "url", value: e.target.value })} />
+            </div>
+            <button type="button" onClick={fillFromLink} disabled={busy || !flow.url.trim() || linkBad} aria-busy={act.busy === "link" || undefined}>Fill from link</button>
+          </div>
+          {linkBad ? <p className="muted small rs-why" id={linkId} role="status">{POSTING_URL_MESSAGE}</p> : null}
 
-      <div className="steps-fields">
-        <div className="fgroup">
-          <label htmlFor={`${base}-company`}>Company</label>
-          <input id={`${base}-company`} type="text" value={flow.company} maxLength={MAX_COMPANY_CHARS} autoComplete="off"
-                 aria-describedby={flow.guessed.company ? checkId : undefined} onChange={(e) => dispatch({ type: "field", name: "company", value: e.target.value })} />
-        </div>
-        <div className="fgroup">
-          <label htmlFor={`${base}-role`}>Role</label>
-          <input id={`${base}-role`} type="text" value={flow.role} maxLength={MAX_ROLE_CHARS} autoComplete="off"
-                 aria-describedby={flow.guessed.role ? checkId : undefined} onChange={(e) => dispatch({ type: "field", name: "role", value: e.target.value })} />
+          <div className="rs-fields">
+            <div className="fgroup">
+              <label htmlFor={`${base}-company`}>Company</label>
+              <input id={`${base}-company`} type="text" value={flow.company} maxLength={MAX_COMPANY_CHARS} autoComplete="off"
+                     aria-describedby={flow.guessed.company ? checkId : undefined} onChange={(e) => dispatch({ type: "field", name: "company", value: e.target.value })} />
+            </div>
+            <div className="fgroup">
+              <label htmlFor={`${base}-role`}>Role</label>
+              <input id={`${base}-role`} type="text" value={flow.role} maxLength={MAX_ROLE_CHARS} autoComplete="off"
+                     aria-describedby={flow.guessed.role ? checkId : undefined} onChange={(e) => dispatch({ type: "field", name: "role", value: e.target.value })} />
+            </div>
+          </div>
+          <p className="muted small rs-check" id={checkId} role="status">{readingAi ? "Reading the company and role" : guessed ? "Check these" : ""}</p>
+
+          <PostingTerms posting={flow.posting} sections={flow.resume ?? baseline.sections} company={flow.company} />
         </div>
       </div>
-      <p className="muted small steps-check" id={checkId} role="status">{readingAi ? "Reading the company and role" : guessed ? "Check these" : ""}</p>
 
       {needsUnlockToRead ? (
-        <form className="row steps-unlock" onSubmit={(e) => void unlockToRead.submit(e)}>
+        <form className="row rs-unlock" onSubmit={(e) => void unlockToRead.submit(e)}>
           <p className="muted small">Unlock your key to read these from the job.</p>
           <div className="fgroup">
             <label htmlFor={`${base}-pass`}>Key passphrase</label>
@@ -152,17 +168,17 @@ export function StepJob({ db, flow, dispatch, deps, baseline, write, byHand, onB
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       {act.status ? <p className="muted small" role="status">{act.status}</p> : null}
 
-      <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad} writeLabel="Write my resume and letter" />
-      <div className="row steps-actions">
+      <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad}
+                writeLabel={flow.draft ? "Rewrite with AI" : "Write with AI"} />
+      <div className="row rs-actions">
         <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
                 aria-describedby={why ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>
-        {flow.draft ? <button type="button" onClick={onBackToReview} disabled={busy || !company || linkBad}>Back to review</button> : null}
       </div>
-      {why ? <p className="muted small steps-why" id={whyId}>{why}</p> : null}
+      {why ? <p className="muted small rs-why" id={whyId}>{why}</p> : null}
       {replacing ? (
         <InlineConfirm title="Replace your edits?" help="Your draft will be replaced by a copy of your resume." confirmLabel="Replace my edits" act={act} actionKey="hand"
                        onConfirm={() => { setReplacing(false); void act.run("hand", byHand); }} onCancel={() => setReplacing(false)} />
       ) : null}
-    </>
+    </div>
   );
 }

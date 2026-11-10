@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from "react";
 import { isHeaderHeading } from "../../db/documentShape";
 import type { DocItem, DocSection } from "../../db/schema";
+import { FitBox } from "./FitBox";
 import "./resumesheet.css";
 
 /** "Label: text", the label bold. A line with no label is just its text. */
@@ -73,12 +74,13 @@ function classicLines(items: DocItem[]): ReactNode[] {
 
 /**
  * A resume as the owner's classic one-page sheet: the name and contact lines centred (from the header section, or `title` when there is none),
- * then each section under a ruled heading. Read only. It is the page itself, so it keeps its own serif black-on-white look in light and dark.
+ * then each section under a ruled heading. With `fit` it keeps its 816px width and is scaled down into a narrower column. Read only. It is the page itself, so it keeps its own serif black-on-white look in light and dark.
  */
-export function ResumeSheet({ sections, title, sheetRef }: { sections: DocSection[]; title: string; sheetRef?: Ref<HTMLElement> }) {
+export function ResumeSheet({ sections, title, sheetRef, fit = false }: { sections: DocSection[]; title: string; sheetRef?: Ref<HTMLElement>; fit?: boolean }) {
   const header = sections.find((s) => isHeaderHeading(s.heading) && s.items.length);
   const name = header ? header.items[0].text : title;
   return (
+    <FitBox on={fit}>
     <article ref={sheetRef} className="doc-sheet classic">
       <h1 className="page doc-name">{name}</h1>
       {header ? <div className="doc-contact">{header.items.slice(1).map((i) => <p key={i.id}>{i.text}</p>)}</div> : null}
@@ -91,5 +93,6 @@ export function ResumeSheet({ sections, title, sheetRef }: { sections: DocSectio
         ),
       )}
     </article>
+    </FitBox>
   );
 }

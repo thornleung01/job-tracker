@@ -15,30 +15,30 @@ import { clearFlow, useFlow } from "./flowState";
 import { PrintView } from "./PrintView";
 import type { ConvertFn } from "./ConvertPanel";
 import { ResumeTab } from "./ResumeTab";
-import { realStepsDeps, type StepsDeps } from "./steps/deps";
-import { Steps } from "./steps/Steps";
+import { realSectionDeps, type SectionDeps } from "./sections/deps";
+import { Sections } from "./sections/Sections";
 import { TailoredList } from "./TailoredList";
 import { useLeaveWhenUnsaved } from "./unsaved";
 import "./resume.css";
 
 export type ResumeView = "resumes" | "cover" | "tailored";
 
-/** The AI key, the conversion and what the steps reach out for, which tests replace with fakes (the real ones are the default). */
-export type ResumeDeps = Partial<{ ai: AiDeps; convert: ConvertFn } & StepsDeps>;
+/** The AI key, the conversion and what the sections reach out for, which tests replace with fakes (the real ones are the default). */
+export type ResumeDeps = Partial<{ ai: AiDeps; convert: ConvertFn } & SectionDeps>;
 
 /** #/resume shows the page, and #/resume/print/<id> shows one document ready to print. */
 export default function ResumePage(props: PageProps & { deps?: ResumeDeps }) {
   return props.params.id !== undefined ? <PrintView db={props.db} id={props.params.id} /> : <ResumeHome {...props} />;
 }
 
-/** The four steps, then Your documents: the master and versions, the cover letters and the tailored resumes. */
+/** Resume, Job and the tailored split, then Your documents: the master and versions, the cover letters and the tailored resumes. */
 function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDeps }) {
   const tab = query.get("tab");
   const view: ResumeView = tab === "cover" ? "cover" : tab === "tailored" ? "tailored" : "resumes";
   const data = useQuery(async () => ({
     docs: await liveDocuments(db), resumes: await liveResumes(db), tailored: await tailoredPage(db), apps: await liveApplications(db),
   }), [db]);
-  const all = useMemo(() => ({ ...realStepsDeps, convert: convertResume, ...deps }), [deps]);
+  const all = useMemo(() => ({ ...realSectionDeps, convert: convertResume, ...deps }), [deps]);
   const [flow, dispatch] = useFlow(db.name);
   const guard = useLeaveWhenUnsaved(navigate, () => {
     if (!flow.draft) return;
@@ -84,7 +84,7 @@ function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDe
                        onConfirm={guard.discard} onCancel={guard.stay} />
       ) : null}
       {data ? (
-        <Steps db={db} resumes={data.resumes} flow={flow} dispatch={dispatch} deps={all} report={guard.report} onShowMaster={showMaster} query={query} navigate={navigate} />
+        <Sections db={db} resumes={data.resumes} flow={flow} dispatch={dispatch} deps={all} report={guard.report} onShowMaster={showMaster} query={query} navigate={navigate} />
       ) : null}
       <h2 className="docs-h">Your documents</h2>
       <nav className="tabs" aria-label="Show">
