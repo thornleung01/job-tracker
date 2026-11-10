@@ -55,7 +55,7 @@ describe("the AI card", () => {
   it("is the AI section, with the intro and its link marked as the open section", async () => {
     await setup({ reveal: false });
     expect(q("nav[aria-label='Settings sections'] a[aria-current=page]")!.textContent).toBe("AI");
-    expect(card().textContent).toContain("Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.");
+    expect(card().textContent).toContain("Convert a resume and tailor it for a job. Only the text you choose to send goes to Anthropic. Your key stays on this device, locked with your passphrase.");
   });
 
   it("shows only the description and a Set up key button when there is no key", async () => {

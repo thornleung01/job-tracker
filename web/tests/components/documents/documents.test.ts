@@ -113,8 +113,8 @@ describe("the line under an open application", () => {
     const id = await addApp(db, "Acme");
     await saveMaster(db, sections, "paste");
     const { container } = await mount(db, id);
-    expect(text($(container, ".panel-docs"))).toBe("Write a cover letter");
-    expect($(container, ".panel-docs a")!.getAttribute("href")).toBe(`#/app/${id}`);
+    expect(text($(container, ".panel-docs"))).toBe("Write a cover letter · Tailor for this job");
+    expect($$(container, ".panel-docs a").map((a) => a.getAttribute("href"))).toEqual([`#/app/${id}`, `#/tailor/${id}`]);
   });
 
   it("shows the resume and the cover letter, each a link to the detail page", async () => {
@@ -125,8 +125,8 @@ describe("the line under an open application", () => {
     await db.applications.update(id, { resumeId: version });
     await saveCoverLetter(db, id, [{ heading: "", items: [{ text: "Hi" }] }]);
     const { container } = await mount(db, id);
-    expect(text($(container, ".panel-docs"))).toBe("Resume: Analyst v2 · Cover letter");
-    expect($$(container, ".panel-docs a").map((a) => a.getAttribute("href"))).toEqual([`#/app/${id}`, `#/app/${id}`]);
+    expect(text($(container, ".panel-docs"))).toBe("Resume: Analyst v2 · Cover letter · Tailor for this job");
+    expect($$(container, ".panel-docs a").map((a) => a.getAttribute("href"))).toEqual([`#/app/${id}`, `#/app/${id}`, `#/tailor/${id}`]);
   });
 
   it("shows the resume with a way to write a letter when it has none", async () => {
@@ -135,7 +135,7 @@ describe("the line under an open application", () => {
     const master = await saveMaster(db, sections, "paste");
     await db.applications.update(id, { resumeId: master });
     const { container } = await mount(db, id);
-    expect(text($(container, ".panel-docs"))).toBe("Resume: Master resume · Write a cover letter");
+    expect(text($(container, ".panel-docs"))).toBe("Resume: Master resume · Write a cover letter · Tailor for this job");
   });
 
   it("isn't on the detail page's own panel", async () => {

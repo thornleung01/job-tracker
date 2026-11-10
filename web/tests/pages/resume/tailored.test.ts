@@ -24,7 +24,8 @@ describe("the Tailored tab", () => {
     expect(tab(container, "Tailored").getAttribute("aria-current")).toBe("true");
     expect(tab(container, "Resumes").getAttribute("aria-current")).toBeNull();
     expect(panes(container).map((p) => p.hasAttribute("hidden"))).toEqual([true, true, false]);
-    expect(text(panes(container)[2])).toBe("No tailored resumes yet. Open an application with its job posting saved to make one.");
+    expect(text(panes(container)[2])).toBe("No tailored resumes yet.Tailor for a job");
+    expect($$(panes(container)[2], "a").find((a) => text(a) === "Tailor for a job")!.getAttribute("href")).toBe("#/tailor");
   });
 
   it("lists each tailored resume with its application, Make reusable and Print, and keeps it out of the Resumes tab", async () => {
@@ -37,6 +38,8 @@ describe("the Tailored tab", () => {
     const links = $$(item, "a");
     expect(links.find((l) => text(l) === "Acme, Analyst")!.getAttribute("href")).toBe(`#/app/${a}`);
     expect(links.find((l) => text(l) === "Print")!.getAttribute("href")).toBe(`#/resume/print/${t}`);
+    expect(links.find((l) => text(l) === "Open in Tailor")!.getAttribute("href")).toBe(`#/tailor/${a}`);
+    expect(text(item)).toContain("Based on: Master");
     expect(button(item, "Make reusable")).not.toBeNull();
     expect($$(panes(container)[0], ".doc-card h2").map(text).filter((h) => h.includes("tailored"))).toEqual([]);
   });
@@ -75,5 +78,43 @@ describe("the Tailored tab", () => {
     await deleteDocument(db, t);
     const { container } = await mount(db);
     expect($$(panes(container)[2], "li")).toHaveLength(0);
+  });
+});
+
+describe("Based on in the Tailored tab", () => {
+  /** A tailored copy for Acme whose baseline is `baseline`, and the text of its row. */
+  async function rowText(db: JobTrackerDB, baseline: number): Promise<string> {
+    const a = await addApp(db, "Acme");
+    const t = await saveTailored(db, a, body("Tailored"), "ai");
+    await db.documents.update(t, { basedOn: baseline });
+    const { container } = await mount(db);
+    return text($$(container, ".doc-covers li")[0]);
+  }
+
+  it("names the version a tailored copy was started from", async () => {
+    const db = freshDb();
+    const master = await saveMaster(db, body("Base"), "paste");
+    const v = await createVersion(db, { title: "Analyst v2", sections: body("v2"), basedOn: master });
+    expect(await rowText(db, v)).toContain("Based on: Analyst v2");
+  });
+
+  it("says a deleted baseline was deleted, and still lists the copy", async () => {
+    const db = freshDb();
+    const master = await saveMaster(db, body("Base"), "paste");
+    const v = await createVersion(db, { title: "Analyst v2", sections: body("v2"), basedOn: master });
+    await deleteDocument(db, v);
+    expect(await rowText(db, v)).toContain("Based on: a deleted resume");
+  });
+});
+
+describe("Tailor links on the Resumes tab", () => {
+  it("the master card goes to the picker, and each version goes to the picker with that baseline", async () => {
+    const db = freshDb();
+    const master = await saveMaster(db, body("Base"), "paste");
+    const v = await createVersion(db, { title: "Analyst v2", sections: body("v2"), basedOn: master });
+    const { container } = await mount(db, "/resume");
+    const link = (label: string) => $$(panes(container)[0], "a").find((a) => text(a) === label)!;
+    expect(link("Tailor for a job").getAttribute("href")).toBe("#/tailor");
+    expect(link("Tailor with this").getAttribute("href")).toBe(`#/tailor?baseline=${v}`);
   });
 });

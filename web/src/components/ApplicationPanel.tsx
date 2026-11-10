@@ -196,7 +196,7 @@ export function ApplicationPanel({ db, appId, company, includeEmails, navigate, 
           {docs.resume !== null ? <>Resume: <a href={`#/app/${appId}`}>{docs.resume}</a></> : null}
           {docs.resume !== null ? " \u00b7 " : null}
           <a href={`#/app/${appId}`}>{docs.cover ? "Cover letter" : "Write a cover letter"}</a>
-          {docs.hasPosting && docs.master && !docs.tailored ? <>{" \u00b7 "}<a href={`#/app/${appId}`}>Tailor for this job</a></> : null}
+          {docs.master && !docs.tailored ? <>{" \u00b7 "}<a href={`#/tailor/${appId}`}>Tailor for this job</a></> : null}
         </p>
       ) : null}
       {ask?.kind === "delete" ? (

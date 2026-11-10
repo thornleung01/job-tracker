@@ -118,20 +118,6 @@ export async function updateDocument(
   });
 }
 
-/** Copies a resume for one application ("Resume for Acme, Analyst") and points the application at the copy. Returns the new version's id. */
-export async function copyResumeForApplication(db: JobTrackerDB, appId: number, fromId?: number, now: Date = new Date()): Promise<number> {
-  return tx(db, async () => {
-    const app = await requireApplication(db, appId);
-    const from = fromId !== undefined ? await db.documents.get(fromId) : await getMaster(db);
-    if (!from || from.kind !== "resume" || !isLiveDocument(from)) throw new DocumentError("Add your resume first.");
-    const id = await createVersion(
-      db, { title: `Resume for ${app.company}${app.role ? `, ${app.role}` : ""}`, sections: from.sections, basedOn: from.id, source: "copy" }, now,
-    );
-    await db.applications.update(appId, { resumeId: id });
-    return id;
-  });
-}
-
 /** The title of an application's tailored resume. */
 const tailoredTitle = (app: { company: string; role: string }): string =>
   cleanTitle(`Resume for ${app.company}${app.role ? `, ${app.role}` : ""} (tailored)`, "Resume (tailored)");
