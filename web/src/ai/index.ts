@@ -13,6 +13,8 @@ export { isSummarySection, masterText, readMaster } from "./master";
 export type { MasterJob, MasterLine, TailorMaster } from "./master";
 export { buildSections, checkAgainstSource, checkTailored, parseConvertReply, parseTailorReply } from "./verify";
 export type { CheckedLine, CheckedTailor, ConvertFlag, TailorReply } from "./verify";
+export { extractJobRequest, parseExtractReply, verifyExtract } from "./extractJob";
+export type { ExtractedJob } from "./extractJob";
 
 /** The real vault and the real API call. Pages and use cases take `deps?: Partial<AiDeps>` and fall back to this, so tests pass fakes. */
 export const realAiDeps: AiDeps = { vault: realVault, complete: callClaude };
