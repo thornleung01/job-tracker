@@ -1,0 +1,23 @@
+/* Plain-CSS replacement for the utility classes the stage starter uses. The app has no Tailwind. Copy next to the page and import it
+   from the page: import "./stage.css". Controls sit outside #gif-stage, so they are styled for the app's light ground. */
+.stage-wrap { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 1200px; margin: 0 auto; }
+.stage-frame { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1); }
+.stage-capture { position: relative; overflow: hidden; }
+.stage-abs { position: absolute; }
+.stage-origin { left: 0; top: 0; }
+.stage-card { position: absolute; display: flex; flex-direction: column; overflow: hidden; }
+.stage-label { margin: 0; font-size: 25px; line-height: 30px; color: rgba(0, 0, 0, 0.5); }
+.stage-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 32px; }
+.stage-btn { height: 36px; padding: 0 20px; border: 0; border-radius: 999px; background: rgba(0, 0, 0, 0.06); color: rgba(0, 0, 0, 0.6);
+  font: 500 14px/1 var(--font-ui); letter-spacing: 0.14px; cursor: pointer; transition: color 0.16s; }
+.stage-btn:hover { color: #000; }
+.stage-btn.is-on { background: rgba(0, 0, 0, 0.14); color: #000; }
+.stage-btn-primary { background: #000; color: #fff; }
+.stage-btn-primary:hover { color: #fff; }
+.stage-readout { font-size: 12px; line-height: 16px; letter-spacing: 0.18px; color: rgba(0, 0, 0, 0.5); }
+.stage-guides { position: absolute; inset: 0; pointer-events: none; }
+.stage-guide-h { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(91, 136, 217, 0.3); }
+.stage-guide-v { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(91, 136, 217, 0.3); }
+.stage-guide-safe { position: absolute; border: 1px dashed rgba(226, 43, 24, 0.45); }
+.stage-guide-box { position: absolute; border: 1px dashed rgba(91, 136, 217, 0.5); }
+@media (prefers-reduced-motion: reduce) { .stage-btn { transition: none; } }
