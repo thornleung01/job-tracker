@@ -1,5 +1,5 @@
 // Settings > Recently deleted: Restore, Delete now (asks first, Escape puts focus back), Empty recently deleted.
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Lets one test say what another tab did in the meantime: "already restored" or "already erased". Unset, the real functions run.
@@ -175,8 +175,13 @@ describe("Recently deleted", () => {
   it("tells you when it can't restore, and keeps the row", async () => {
     const { db, acme } = await setup();
     const { container } = await mountPage(Page, db);
-    await db.applications.delete(acme);   // erased by another tab while this one was open
-    await click($(rowOf(container, "Acme"), "button[aria-label='Restore Acme']"));
+    const restore = $(rowOf(container, "Acme"), "button[aria-label='Restore Acme']") as HTMLButtonElement;
+    // Erased by another tab while this one was open. Delete and click inside one act() so the list can't
+    // redraw without the row in between, which a slow runner otherwise does.
+    await act(async () => {
+      await db.applications.delete(acme);
+      restore.click();
+    });
     expect(text($(container, ".notice.err"))).toBe("That no longer exists. Go back to the list and try again.");
   });
 });
