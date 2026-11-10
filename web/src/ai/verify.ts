@@ -275,6 +275,8 @@ export function parseTailorReply(json: unknown): TailorReply {
 /** A line of the tailored resume: where it came from, what it says, and what the person should look at before keeping it. */
 export interface CheckedLine {
   sourceId: string;
+  /** every master line this one replaces, when more than one (a summary written on several lines) */
+  sourceIds?: string[];
   label: string;
   text: string;
   changed: boolean;
@@ -284,6 +286,8 @@ export interface CheckedTailor {
   /** null when the master has no summary: nothing is added */
   summary: CheckedLine | null;
   skills: CheckedLine[];
+  /** master skill lines the model left out (none when it sent no valid skill: then all are kept) */
+  droppedSkills: MasterLine[];
   /** one entry for every job of the master, in its order */
   jobs: { orgId: string; bullets: CheckedLine[]; dropped: MasterLine[] }[];
   cover: { paragraphs: string[]; flags: string[] };
@@ -302,12 +306,14 @@ function unfoundClaims(text: string, src: SourceIndex, srcFolded: string, skipFi
 const note = (missing: string[]): string[] => (missing.length ? [`Not in your resume: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : []);
 
 const GREETING = /^dear\b/i;
-const SIGN_OFF = /^(?:sincerely|regards|best regards|kind regards|warm regards|best|thank you|thanks|yours truly|respectfully)\b[^.!?]{0,60}[,.!]?$/i;
+const SIGN_OFF_PHRASES = "sincerely|regards|best regards|kind regards|warm regards|best|cheers|yours truly|yours sincerely|respectfully|thank you|thanks";
+/** Only a known phrase on its own ("Sincerely,"), a known phrase and a short name ("Sincerely, Jordan"), or a short line that ends in a comma. Never a full sentence. */
+const SIGN_OFF = new RegExp(`^(?:(?:${SIGN_OFF_PHRASES})[,.!]?|(?:${SIGN_OFF_PHRASES}),\\s*[^.!?,]{1,40}|[^.!?,]{1,40},)$`, "i");
 /** The paragraphs without a greeting or sign-off the model wrote anyway: the app adds its own greeting. */
 function bodyParagraphs(paragraphs: readonly string[]): string[] {
   const out = [...paragraphs];
   while (out.length && GREETING.test(out[0])) out.shift();
-  while (out.length && SIGN_OFF.test(out[out.length - 1]) && out[out.length - 1].length <= 80) out.pop();
+  while (out.length && SIGN_OFF.test(out[out.length - 1].trim())) out.pop();
   return out;
 }
 
@@ -338,7 +344,7 @@ export function checkTailored(
   let summary: CheckedLine | null = null;
   if (master.summaryId) {
     const from: MasterLine = { id: master.summaryId, label: "", text: master.summary };
-    summary = reply.summary ? line(from, "", reply.summary, true) : kept(from);
+    summary = { ...(reply.summary ? line(from, "", reply.summary, true) : kept(from)), sourceIds: master.summaryIds };
   }
 
   const skillById = new Map(master.skills.map((s) => [s.id, s]));
@@ -350,8 +356,9 @@ export function checkTailored(
     skillSeen.add(from.id);
     skills.push(line(from, from.label, s.text, false));
   }
-  skills = skills.slice(0, master.skills.length);
   if (!skills.length) skills = master.skills.map(kept);
+  const skillsUsed = new Set(skills.map((s) => s.sourceId));
+  const droppedSkills = master.skills.filter((s) => !skillsUsed.has(s.id));
 
   const replyJobs = new Map<string, TailorReply["jobs"][number]>();
   for (const j of reply.jobs) if (!replyJobs.has(j.orgId)) replyJobs.set(j.orgId, j);
@@ -379,5 +386,5 @@ export function checkTailored(
     const missing = unfoundClaims(p, coverSrc, coverFolded, true);
     return missing.length ? [`Paragraph ${i + 1} has details not in your resume or the job: ${missing.slice(0, CLAIM_NOTE_DETAILS).join(", ")}`] : [];
   });
-  return { summary, skills, jobs, cover: { paragraphs, flags: coverFlags } };
+  return { summary, skills, droppedSkills, jobs, cover: { paragraphs, flags: coverFlags } };
 }

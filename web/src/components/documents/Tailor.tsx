@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { TAILOR_TONES, type TailorTone, type VaultStatus } from "../../ai";
 import { MAX_TAILOR_NOTE_CHARS } from "../../db/limits";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
-import { letterSections, letterText } from "../../documents/letter";
+import { letterSections, letterText } from "../../sync/letter";
 import type { TailorDraft } from "../../sync/tailor";
 import { plural } from "../../sync/text";
 import { Notice } from "../Notice";
@@ -12,10 +12,12 @@ import { messageFor, useAction } from "../useAction";
 import type { DocumentsDeps } from "./deps";
 import { pageVerdictText, measureSheetHeight } from "./onepage";
 import { ResumeSheet } from "./ResumeSheet";
-import { composeResume, diffWords, initialTicks, lineText, type WordPart } from "./tailorReview";
+import { composeResume, diffWords, initialTicks, lineText, sourcesOf, type WordPart } from "./tailorReview";
 import { useOnePage } from "./useOnePage";
 import "./tailor.css";
 
+/** How much of a line is in its checkbox's accessible name. */
+const NAME_CHARS = 60;
 const TONE_LABELS: Record<TailorTone, string> = { plain: "Plain", warm: "Warm", formal: "Formal" };
 
 interface Props {
@@ -58,10 +60,14 @@ function LineRow({ master, text, flags, ticked, onTick }: {
           <p className="tailor-text"><Words parts={diff.after} /></p>
         </div>
       </div>
-      {flags.map((f) => <p key={f} className="small tailor-flag">{f}</p>)}
+      {flags.map((f, i) => <p key={f} id={`${id}-flag-${i}`} className="small tailor-flag">{f}</p>)}
       <div className="tailor-use">
-        <input id={id} type="checkbox" checked={ticked} onChange={(e) => onTick(e.target.checked)} />
-        <label htmlFor={id}>Use</label>
+        <input
+          id={id} type="checkbox" checked={ticked} onChange={(e) => onTick(e.target.checked)}
+          aria-label={`Use: ${text.length > NAME_CHARS ? `${text.slice(0, NAME_CHARS).trimEnd()}...` : text}`}
+          aria-describedby={flags.length ? flags.map((_, i) => `${id}-flag-${i}`).join(" ") : undefined}
+        />
+        <label htmlFor={id} aria-hidden="true">Use</label>
       </div>
     </li>
   );
@@ -80,9 +86,23 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
   const [cover, setCover] = useState("");
   const running = useRef<AbortController | null>(null);
   const reviewHead = useRef<HTMLHeadingElement>(null);
+  const stopButton = useRef<HTMLButtonElement>(null);
+  const actionButton = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  /** where focus goes when a run ends or the question closes: the review heading after a draft, the action button otherwise */
+  const focusAfter = useRef<"review" | "action" | null>(null);
+  const [asking, setAsking] = useState(false);
   const sheet = useRef<HTMLElement>(null);
   useEffect(() => () => running.current?.abort(), []);
 
+  const edited = draft !== null && cover !== letterText(draft.cover);
+  const tryAgain = () => {
+    if (edited && !asking) setAsking(true);
+    else {
+      setAsking(false);
+      start();
+    }
+  };
   const start = () => {
     // The ref, not the state: two clicks in the same moment both see `working` as false.
     if (running.current) return;
@@ -94,6 +114,7 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
       (next) => {
         if (ask.signal.aborted) return;
         running.current = null;
+        focusAfter.current = "review";
         setWorking(false);
         setDraft(next);
         setTicks(initialTicks(next.lines));
@@ -102,6 +123,7 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
       (e) => {
         if (ask.signal.aborted) return;   // Stop is not a failure
         running.current = null;
+        focusAfter.current = "action";
         setWorking(false);
         setError(messageFor(e));
         setStatus(deps.ai.vault.status(db.name));   // the key may have been locked from elsewhere since the panel opened
@@ -111,12 +133,21 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
   const stop = () => {
     running.current?.abort();
     running.current = null;
+    focusAfter.current = "action";
     setWorking(false);
   };
 
+  // Write and Try again are disabled while it runs, so focus moves to Stop, then to where the person continues.
   useEffect(() => {
-    if (draft) reviewHead.current?.focus();
-  }, [draft]);
+    if (working) stopButton.current?.focus();
+    else if (focusAfter.current) {
+      (focusAfter.current === "review" ? reviewHead : actionButton).current?.focus();
+      focusAfter.current = null;
+    }
+  }, [working, draft, asking]);
+  useEffect(() => {
+    if (asking) confirmButton.current?.focus();
+  }, [asking]);
 
   const composed = useMemo(() => (draft ? composeResume(draft, master.sections, ticks) : []), [draft, master.sections, ticks]);
   const verdict = useOnePage(sheet, [composed], measure ?? measureSheetHeight);
@@ -138,7 +169,7 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
   const flagged = draft ? draft.lines.filter((l) => l.flags.length > 0).length : 0;
 
   return (
-    <div className="card doc-card tailor-panel" aria-label="Tailor for this job">
+    <section className="card doc-card tailor-panel" aria-label="Tailor for this job">
       <h3 className="doc-h">Tailor for {app.company}{app.role ? `, ${app.role}` : ""}</h3>
       {!ready ? (
         <p className="tailor-key">
@@ -174,11 +205,10 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
               <ul className="tailor-lines">
                 {s.items.filter((i) => lines.has(i.id)).map((i) => {
                   const line = lines.get(i.id)!;
-                  const from = original.get(line.sourceId);
                   return (
                     <LineRow
-                      key={i.id} master={from ? lineText(from) : ""} text={lineText(i)} flags={line.flags}
-                      ticked={ticks[line.id] !== false} onTick={(on) => setTicks({ ...ticks, [line.id]: on })}
+                      key={i.id} master={sourcesOf(line).flatMap((id) => original.get(id) ?? []).map(lineText).join("\n")} text={lineText(i)} flags={line.flags}
+                      ticked={ticks[line.id] !== false} onTick={(on) => setTicks((t) => ({ ...t, [line.id]: on }))}
                     />
                   );
                 })}
@@ -205,13 +235,19 @@ export function Tailor({ db, app, master, deps, onSaved, onCancel, measure }: Pr
         {draft ? (
           <button type="button" className="primary" onClick={save} {...own.button("tailor-save")} disabled={busy}>Save both</button>
         ) : ready ? (
-          <button type="button" className="primary" onClick={start} disabled={busy} aria-busy={working || undefined}>Write them</button>
+          <button type="button" className="primary" ref={actionButton} onClick={start} disabled={busy} aria-busy={working || undefined}>Write them</button>
         ) : null}
-        {draft && ready ? <button type="button" onClick={start} disabled={busy} aria-busy={working || undefined}>Try again</button> : null}
+        {draft && ready && asking ? (
+          <span role="group" aria-label="Write again" className="row">
+            <span className="small">Discard your edits and write again?</span>
+            <button type="button" ref={confirmButton} onClick={tryAgain} disabled={busy}>Discard and write again</button>
+            <button type="button" onClick={() => { focusAfter.current = "action"; setAsking(false); }}>Keep my edits</button>
+          </span>
+        ) : draft && ready ? <button type="button" ref={actionButton} onClick={tryAgain} disabled={busy} aria-busy={working || undefined}>Try again</button> : null}
         <button type="button" onClick={onCancel} disabled={busy}>Cancel</button>
-        {working ? <button type="button" onClick={stop}>Stop</button> : null}
+        {working ? <button type="button" ref={stopButton} onClick={stop}>Stop</button> : null}
         <span className="muted small doc-status" role="status">{working ? "Writing" : ""}</span>
       </div>
-    </div>
+    </section>
   );
 }

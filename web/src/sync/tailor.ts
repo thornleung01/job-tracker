@@ -5,7 +5,7 @@ import {
   AiError, DEFAULT_MODEL, checkTailored, masterText, parseTailorReply, readMaster, tailorRequest,
   type AiDeps, type CheckedLine, type CheckedTailor, type Complete, type TailorMaster, type TailorTone,
 } from "../ai";
-import { greeting } from "../documents/letter";
+import { greeting } from "./letter";
 import { newItemId, normalizeSections } from "../db/documentShape";
 import { ActionError } from "../db/errors";
 import { MAX_AI_INPUT_CHARS } from "../db/limits";
@@ -32,6 +32,8 @@ export interface TailorOptions {
 export interface TailorLine {
   id: string;
   sourceId: string;
+  /** every master line this one replaces, when more than one (a summary written on several lines) */
+  sourceIds?: string[];
   changed: boolean;
   /** what the person should look at: details the master doesn't have. A flagged line starts unticked. */
   flags: string[];
@@ -56,7 +58,7 @@ function buildResume(master: readonly DocSection[], parts: TailorMaster, checked
   const lines: TailorLine[] = [];
   const add = (from: CheckedLine, kind?: "bullet" | "skill"): DocItem => {
     const item = textLine(from, kind);
-    lines.push({ id: item.id, sourceId: from.sourceId, changed: from.changed, flags: from.flags });
+    lines.push({ id: item.id, sourceId: from.sourceId, ...(from.sourceIds && from.sourceIds.length > 1 ? { sourceIds: from.sourceIds } : {}), changed: from.changed, flags: from.flags });
     return item;
   };
   const jobs = new Map(checked.jobs.map((j) => [j.orgId, j]));
@@ -137,7 +139,10 @@ export async function tailorForApplication(
     lines,
     cover: buildCover(greeting(people), checked.cover.paragraphs),
     coverFlags: checked.cover.flags,
-    unused: checked.jobs.flatMap((j) => j.dropped.map((b) => b.text)),
+    unused: [
+      ...checked.droppedSkills.map((s) => (s.label ? `${s.label}: ${s.text}` : s.text)),
+      ...checked.jobs.flatMap((j) => j.dropped.map((b) => b.text)),
+    ],
   };
 }
 

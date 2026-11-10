@@ -162,7 +162,7 @@ export const TAILOR_SYSTEM = [
   "- Choose, order and lightly reword the master's lines so the most relevant ones for this posting come first. Use the posting's own words only where the master already says the same thing.",
   "- `summary`: a short professional summary built from the master's summary and lines. Empty string when the master has no summary.",
   "- `skills`: the master's skill lines that fit this job, most relevant first. `sourceId` is the master line's id. `text` is the values, lightly reworded or cut down to the relevant ones.",
-  "- `jobs`: one entry per job in the master, using its `orgId`, in the master's order. For each, choose and order its bullets. `sourceId` is the master bullet's id, `label` is a short lead-in (the master's own label when it has one), `text` is the bullet.",
+  "- `jobs`: one entry per job in the master, using the job's `id` as `orgId`, in the master's order. For each, choose and order its bullets. `sourceId` is the master bullet's id, `label` is a short lead-in (the master's own label when it has one), `text` is the bullet.",
   "- Never use more bullets than the master has for a job, and keep at least one bullet for every job. Never move a bullet to a different job.",
   "- Never change, drop or add a company, a job title, a date, a school or the header. They are not part of your reply.",
   "",

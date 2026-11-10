@@ -2,8 +2,8 @@
 // text that is copied or put in a mail.
 import { newItemId } from "../db/documentShape";
 import type { DocSection } from "../db/schema";
-import type { Contact } from "../sync/contacts";
-import { firstName } from "../sync/followUpDraft";
+import type { Contact } from "./contacts";
+import { firstName } from "./followUpDraft";
 
 const GREETED = new Set(["recruiter", "hiring", "people"]);
 

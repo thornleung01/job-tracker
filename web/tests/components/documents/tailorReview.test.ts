@@ -38,6 +38,19 @@ describe("initialTicks", () => {
   });
 });
 
+describe("composeResume with a multi-line summary", () => {
+  const twoLines: DocSection[] = [{ id: "ms", heading: "Summary", items: [{ id: "m1", text: "First line." }, { id: "m2", text: "Second line." }] }];
+  const one = {
+    resume: [{ id: "ds", heading: "Summary", items: [{ id: "d1", text: "One new line." }] }] as DocSection[],
+    lines: [{ id: "d1", sourceId: "m1", sourceIds: ["m1", "m2"], changed: true, flags: [] }] as TailorLine[],
+  };
+
+  it("puts back every original line when the summary is unticked, and keeps the new one when ticked", () => {
+    expect(itemTexts(composeResume(one, twoLines, { d1: false }))).toEqual(["First line.", "Second line."]);
+    expect(itemTexts(composeResume(one, twoLines, { d1: true }))).toEqual(["One new line."]);
+  });
+});
+
 describe("composeResume", () => {
   it("keeps every new line when all are ticked", () => {
     const ticks = Object.fromEntries(draft.lines.map((l) => [l.id, true]));

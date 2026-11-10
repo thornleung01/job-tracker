@@ -80,6 +80,20 @@ describe("checkTailored: ids and placement", () => {
     expect(check(r).skills[0].label).toBe("Analytics");
   });
 
+  it("lists the skill lines the model left out, and none when it used them all or sent no valid one", () => {
+    const r = goodReply();
+    r.skills = [{ sourceId: "k2", text: "SQL, Python" }];
+    expect(check(r).droppedSkills.map((s) => s.id)).toEqual(["k1"]);
+    expect(check().droppedSkills).toEqual([]);
+    r.skills = [{ sourceId: "zzz", text: "Fake" }];
+    expect(check(r).droppedSkills).toEqual([]);
+  });
+
+  it("ties a multi-line summary to every one of its master lines", () => {
+    const parts = { ...PARTS, summaryIds: ["sum1", "sum2"] };
+    expect(checkTailored(parts, goodReply(), CTX).summary).toMatchObject({ sourceId: "sum1", sourceIds: ["sum1", "sum2"] });
+  });
+
   it("keeps the master's summary when the model sends none, and adds none when the master has none", () => {
     const r = goodReply();
     r.summary = "";
@@ -144,6 +158,19 @@ describe("checkTailored: the cover letter", () => {
     const r = goodReply();
     r.cover.paragraphs = ["Dear Hiring Manager,", ...r.cover.paragraphs, "Sincerely, Jordan"];
     expect(check(r).cover.paragraphs).toEqual(goodReply().cover.paragraphs);
+  });
+
+  it("keeps a closing paragraph that is a full sentence, and drops a short sign-off line", () => {
+    for (const closing of ["Thank you for considering my application.", "Thanks for your time, and I look forward to talking.", "Best of luck with the search."]) {
+      const r = goodReply();
+      r.cover.paragraphs = [...goodReply().cover.paragraphs, closing];
+      expect(check(r).cover.paragraphs.at(-1)).toBe(closing);
+    }
+    for (const signOff of ["Sincerely,", "Best regards,", "Thank you,", "Kind regards", "Yours truly, Jordan Lee", "With appreciation,"]) {
+      const r = goodReply();
+      r.cover.paragraphs = [...goodReply().cover.paragraphs, signOff];
+      expect(check(r).cover.paragraphs).toEqual(goodReply().cover.paragraphs);
+    }
   });
 
   it("is a bad reply when nothing is left", () => {

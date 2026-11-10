@@ -32,6 +32,23 @@ function deps(json: unknown, opts: { key?: string | null; status?: VaultStatus }
 const textsOf = (sections: { items: { id: string; text: string; kind?: string; label?: string; right?: string }[] }[]) => sections.flatMap((s) => s.items);
 const ids = (sections: Parameters<typeof textsOf>[0]) => textsOf(sections).map((i) => i.id);
 
+describe("tailorForApplication: multi-line summary and skills the model leaves out", () => {
+  it("carries every summary line id, and lists an omitted skill line as left out", async () => {
+    const db = freshDb();
+    const two = MASTER.map((s) => s.id === "sec-s" ? { ...s, items: [...s.items, { id: "sum2", text: "Also mentors two juniors." }] } : s);
+    await saveMaster(db, two, "paste", NOW);
+    const appId = await createApplication(db, { company: "Acme Corp", companyKey: "acme", role: "Data Analyst", roleKey: "data analyst", stage: "Applied", when: "2026-11-01T12:00:00Z" });
+    await setPostingText(db, appId, "Acme needs a data analyst who can report weekly.");
+    const reply = goodReply();
+    reply.skills = [{ sourceId: "k2", text: "SQL, Python" }];
+    const draft = await tailorForApplication(db, appId, deps(reply));
+    const summary = draft.lines.find((l) => l.sourceId === "sum1")!;
+    expect(summary.sourceIds).toEqual(["sum1", "sum2"]);
+    expect(draft.resume[1].items).toHaveLength(1);
+    expect(draft.unused).toContain("Analytics: Excel, Tableau, Power BI");
+  });
+});
+
 describe("tailorForApplication", () => {
   it("builds a draft from the master and the verified reply, and saves nothing", async () => {
     const { db, appId } = await setup();

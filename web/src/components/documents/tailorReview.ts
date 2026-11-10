@@ -41,6 +41,9 @@ export function initialTicks(lines: readonly TailorLine[]): Record<string, boole
   return Object.fromEntries(lines.map((l) => [l.id, l.flags.length === 0]));
 }
 
+/** Every master line a draft line came from: usually one, all of a multi-line summary's lines for the summary. */
+export const sourcesOf = (line: Pick<TailorLine, "sourceId" | "sourceIds">): string[] => line.sourceIds?.length ? line.sourceIds : [line.sourceId];
+
 /**
  * The resume to save: the draft, where each unticked line goes back to the master's line it came from. A line the master has no match for
  * stays as it is, and a master line is never placed twice (when a ticked line already came from it, the unticked one is dropped).
@@ -50,17 +53,17 @@ export function composeResume(
 ): DocSection[] {
   const lines = new Map(draft.lines.map((l) => [l.id, l]));
   const original = new Map(master.flatMap((s) => s.items).map((i) => [i.id, i]));
-  const placed = new Set(draft.lines.filter((l) => ticks[l.id] !== false).map((l) => l.sourceId));
+  const placed = new Set(draft.lines.filter((l) => ticks[l.id] !== false).flatMap(sourcesOf));
   return draft.resume.map((section) => ({
     ...section,
     items: section.items.flatMap((item): DocItem[] => {
       const line = lines.get(item.id);
       if (!line || ticks[line.id] !== false) return [item];
-      const back = original.get(line.sourceId);
-      if (!back) return [item];
-      if (placed.has(back.id)) return [];
-      placed.add(back.id);
-      return [{ ...back }];
+      const back = sourcesOf(line).flatMap((id) => original.get(id) ?? []);
+      if (!back.length) return [item];
+      const restored = back.filter((b) => !placed.has(b.id));
+      for (const b of restored) placed.add(b.id);
+      return restored.map((b) => ({ ...b }));
     }),
   }));
 }

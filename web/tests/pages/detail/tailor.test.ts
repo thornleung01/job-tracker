@@ -182,6 +182,46 @@ describe("the review", () => {
     expect(fake.complete).toHaveBeenCalledTimes(2);
   });
 
+  it("asks before Try again throws away an edited letter", async () => {
+    const second = goodReply();
+    second.summary = "A second summary of the same facts about retail analytics.";
+    const { container, fake } = await setup({ deps: { replies: [goodReply(), second] } });
+    await openReview(container);
+    await type($(container, "textarea.tailor-cover"), "Dear Acme,\n\nMy own words.");
+    await click(button(panel(container)!, "Try again"));
+    expect(text(panel(container))).toContain("Discard your edits and write again?");
+    expect(fake.complete).toHaveBeenCalledTimes(1);
+    await click(button(panel(container)!, "Keep my edits"));
+    expect(($(container, "textarea.tailor-cover") as HTMLTextAreaElement).value).toContain("My own words.");
+    expect(button(panel(container)!, "Try again")).not.toBeNull();
+    await click(button(panel(container)!, "Try again"));
+    await click(button(panel(container)!, "Discard and write again"));
+    await waitFor(() => text($(container, ".tailor-review")).includes("A second summary"), "the new draft");
+    expect(($(container, "textarea.tailor-cover") as HTMLTextAreaElement).value).not.toContain("My own words.");
+    expect(fake.complete).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives each Use checkbox its own name from the line, and points it at the flag", async () => {
+    const { container } = await setup({ deps: { replies: [flaggedReply()] } });
+    await openReview(container);
+    expect(panel(container)!.tagName).toBe("SECTION");
+    const boxes = $$(container, ".tailor-line input[type=checkbox]") as HTMLInputElement[];
+    const names = boxes.map((b) => b.getAttribute("aria-label")!);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((n) => n.startsWith("Use: ") && n.length <= 5 + 63)).toBe(true);
+    const flagged = useBox(container, "Snowflake");
+    expect(flagged.getAttribute("aria-label")).toContain("Automated reporting with Snowflake");
+    const flag = container.ownerDocument.getElementById(flagged.getAttribute("aria-describedby")!.split(" ")[0])!;
+    expect(text(flag)).toMatch(/Snowflake/);
+    expect(useBox(container, "Owned the seasonal plan").hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("moves focus to the review heading when the draft arrives", async () => {
+    const { container } = await setup();
+    await openReview(container);
+    expect(container.ownerDocument.activeElement).toBe($(container, ".tailor-h"));
+  });
+
   it("sends the chosen tone and note", async () => {
     const { container, fake } = await setup();
     await click(button(section(container), ASK));

@@ -18,6 +18,8 @@ export interface MasterJob {
 export interface TailorMaster {
   /** the id of the summary's first line, "" when the master has no summary */
   summaryId: string;
+  /** the ids of all the summary's plain lines (empty when there is no summary) */
+  summaryIds: string[];
   summary: string;
   skills: MasterLine[];
   jobs: MasterJob[];
@@ -31,12 +33,13 @@ const line = (i: DocItem): MasterLine => ({ id: i.id, label: i.label ?? "", text
 export const isSummarySection = (s: DocSection): boolean => !isHeaderHeading(s.heading) && SUMMARY_HEADING.test(s.heading);
 
 export function readMaster(sections: readonly DocSection[]): TailorMaster {
-  const master: TailorMaster = { summaryId: "", summary: "", skills: [], jobs: [] };
+  const master: TailorMaster = { summaryId: "", summaryIds: [], summary: "", skills: [], jobs: [] };
   for (const section of sections) {
     if (isHeaderHeading(section.heading)) continue;
     if (isSummarySection(section)) {
       const plain = section.items.filter((i) => !i.kind && i.text);
       master.summaryId = plain[0]?.id ?? "";
+      master.summaryIds = plain.map((i) => i.id);
       master.summary = plain.map((i) => i.text).join("\n");
       continue;
     }

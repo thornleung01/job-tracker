@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { $, $$, addApp, cleanup, freshDb, mountPage, text } from "../../pages/applications/harness";
 import type { PageProps } from "../../../src/app/pageProps";
 import { ApplicationPanel } from "../../../src/components/ApplicationPanel";
-import { greeting, letterSections, letterText } from "../../../src/documents/letter";
+import { greeting, letterSections, letterText } from "../../../src/sync/letter";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { documentLine } from "../../../src/sync/documentLine";
 import { createVersion, deleteDocument, saveCoverLetter, saveMaster } from "../../../src/sync/documents";
