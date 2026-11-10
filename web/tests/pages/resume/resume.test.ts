@@ -58,7 +58,8 @@ describe("the Resume page with no master", () => {
     expect($(container, ".rs-split")).toBeNull();
     expect($$(step, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
     expect($(step, "button.primary")!.textContent).toBe("Start from the template");
-    expect(text($(container, "h2.docs-h"))).toBe("Your documents");
+    expect(text($(container, ".rs-docs > summary"))).toBe("Your documents");
+    expect(($(container, ".rs-docs") as HTMLDetailsElement).open).toBe(false);
     const tabs = $$(container, "nav[aria-label=Show] a.tab");
     expect(tabs.map(text)).toEqual(["Resumes", "Cover letters", "Tailored"]);
     expect(tabs[0].getAttribute("aria-current")).toBe("true");

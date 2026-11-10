@@ -1,10 +1,12 @@
-// Tailored resume | Tailored cover letter, side by side once there is a draft: the copy on the page (scaled into its column) with its change marks
-// and one-page check, the letter beside it, a quiet strip for Rewrite with AI and Start over, one disclosure for what changed, and the action bar.
-// Under 1100px they stack; on a phone one shows at a time behind a two-tab switch. Nothing here is saved until Save.
+// Tailored for {company}, once there is a draft: the heading carries Rewrite with AI and Start over, then Tailored resume | Tailored cover letter side
+// by side (the copy on the page, scaled into its larger column, with its change marks and one-page check; the letter beside it, as tall as the sheet),
+// one disclosure for what changed, and the action bar. Under 1100px they stack; on a phone one shows at a time behind a two-tab switch, and the
+// resume is read only behind one Edit button. Nothing here is saved until Save.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BaselineMarks } from "../../../components/documents/BaselineMarks";
 import { Changes, LeftOut, Ticks } from "../../../components/documents/Review";
 import { ResumeEditing } from "../../../components/documents/ResumeEditing";
+import { ResumeSheet } from "../../../components/documents/ResumeSheet";
 import { TailorAi, type WriteOptions } from "../../../components/documents/TailorAi";
 import { InlineConfirm } from "../../../components/InlineConfirm";
 import { useAction } from "../../../components/useAction";
@@ -32,6 +34,8 @@ export function TailoredSplit({ db, flow, dispatch, deps, baseline, write, onSta
   const act = useAction();
   const phone = usePhone();
   const [active, setActive] = useState<string | null>(null);
+  // On a phone the sheet is read only, with one Edit button that switches the pane to the page editor.
+  const [editing, setEditing] = useState(false);
   const [rewriting, setRewriting] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [copied, setCopied] = useState("");
@@ -71,15 +75,19 @@ export function TailoredSplit({ db, flow, dispatch, deps, baseline, write, onSta
 
   const showResume = !phone || flow.view === "resume";
   const showLetter = !phone || flow.view === "cover";
+  const company = flow.company.trim();
 
   return (
-    <section className="rs-split" id="rs-split" aria-label="Tailored resume and cover letter">
-      <div className="rs-strip">
-        <button type="button" className="quiet" ref={rewriteButton} onClick={() => setRewriting((v) => !v)} aria-expanded={rewriting} disabled={busy}>Rewrite with AI</button>
-        <button type="button" className="quiet" onClick={() => setRestarting(true)} disabled={busy || restarting}>Start over</button>
+    <section className="rs-split" id="rs-split" aria-labelledby="rs-result-h">
+      <div className="rs-result-head">
+        <h2 className="rs-h" id="rs-result-h">{company ? `Tailored for ${company}` : "Tailored resume"}</h2>
+        <div className="rs-strip">
+          <button type="button" className="quiet" ref={rewriteButton} onClick={() => setRewriting((v) => !v)} aria-expanded={rewriting} disabled={busy}>Rewrite with AI</button>
+          <button type="button" className="quiet" onClick={() => setRestarting(true)} disabled={busy || restarting}>Start over</button>
+        </div>
       </div>
       {rewriting ? (
-        <TailorAi dbName={db.name} ai={deps.ai} run={write} edited={flow.edited} disabled={busy} writeLabel="Rewrite"
+        <TailorAi dbName={db.name} ai={deps.ai} run={write} edited={flow.edited} disabled={busy} writeLabel="Rewrite" primary={false}
                   onClose={() => { setRewriting(false); setTimeout(() => rewriteButton.current?.focus(), 0); }} />
       ) : null}
       {restarting ? (
@@ -97,29 +105,26 @@ export function TailoredSplit({ db, flow, dispatch, deps, baseline, write, onSta
       <div className="rs-cols">
         {showResume ? (
           <div className="rs-col rs-col-resume">
-            <h2 className="rs-h rs-h-doc">Tailored resume</h2>
-            <div className="documents rs-sheet" ref={editor}>
-              <BaselineMarks compare={diff} on onActive={setActive}>
-                <ResumeEditing sections={resume} onChange={(next) => dispatch({ type: "edit", resume: next })} label="Tailored resume" title={baseline.title} fit />
-              </BaselineMarks>
+            <div className="rs-pane-head">
+              <h3 className="rs-h-doc">Tailored resume</h3>
+              {phone ? <button type="button" className="rs-edit" onClick={() => setEditing((v) => !v)}>{editing ? "Done" : "Edit"}</button> : null}
             </div>
-            <details className="rs-changes" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-              <summary className="disclosure">
-                <span className="chev" aria-hidden="true"></span>
-                Changes from your baseline ({changes})
-              </summary>
-              <div className="documents rs-changes-body">
-                {draft.lines.length ? <Ticks draft={draft} ticks={flow.ticks} onTick={(id, on) => dispatch({ type: "tick", id, on, baseline: baseline.sections })} /> : null}
-                <LeftOut compare={diff} disabled={busy} onAddBack={(id) => { focusLine.current = id; dispatch({ type: "edit", resume: addBackLine(resume, baseline.sections, id) }); }} />
-                <Changes compare={diff} sections={resume} activeId={active} disabled={busy}
-                         onReset={(id) => { focusLine.current = id; dispatch({ type: "edit", resume: resetLine(resume, baseline.sections, id) }); }} />
-              </div>
-            </details>
+            <div className="documents rs-sheet" ref={editor}>
+              {phone && !editing ? (
+                <ResumeSheet sections={resume} title={baseline.title} />
+              ) : (
+                <BaselineMarks compare={diff} on onActive={setActive}>
+                  <ResumeEditing sections={resume} onChange={(next) => dispatch({ type: "edit", resume: next })} label="Tailored resume" title={baseline.title} fit />
+                </BaselineMarks>
+              )}
+            </div>
           </div>
         ) : null}
         {showLetter ? (
           <div className="rs-col rs-col-letter">
-            <h2 className="rs-h rs-h-doc">Tailored cover letter</h2>
+            <div className="rs-pane-head">
+              <h3 className="rs-h-doc">Tailored cover letter</h3>
+            </div>
             <div className="documents rs-letter">
               {letter?.flags.map((f) => <p key={f} className="small tailor-flag">{f}</p>)}
               <label className="sr" htmlFor="rs-letter">Cover letter</label>
@@ -134,6 +139,21 @@ export function TailoredSplit({ db, flow, dispatch, deps, baseline, write, onSta
           </div>
         ) : null}
       </div>
+
+      {showResume ? (
+        <details className="rs-changes" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+          <summary className="disclosure">
+            <span className="chev" aria-hidden="true"></span>
+            Changes from your baseline ({changes})
+          </summary>
+          <div className="documents rs-changes-body">
+            {draft.lines.length ? <Ticks draft={draft} ticks={flow.ticks} onTick={(id, on) => dispatch({ type: "tick", id, on, baseline: baseline.sections })} /> : null}
+            <LeftOut compare={diff} disabled={busy} onAddBack={(id) => { focusLine.current = id; setEditing(true); dispatch({ type: "edit", resume: addBackLine(resume, baseline.sections, id) }); }} />
+            <Changes compare={diff} sections={resume} activeId={active} disabled={busy}
+                     onReset={(id) => { focusLine.current = id; setEditing(true); dispatch({ type: "edit", resume: resetLine(resume, baseline.sections, id) }); }} />
+          </div>
+        </details>
+      ) : null}
 
       <ActionBar db={db} flow={flow} baselineId={baseline.id} dispatch={dispatch} deps={deps} />
     </section>

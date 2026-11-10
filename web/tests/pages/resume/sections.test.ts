@@ -68,6 +68,9 @@ async function withMaster(saved: Saved = "none", o: { replies?: unknown[]; to?: 
 
 const sections = (c: HTMLElement) => $$(c, ".rs-section").map((s) => text($(s, "h2")));
 const split = (c: HTMLElement) => $(c, ".rs-split");
+const docs = (c: HTMLElement) => $(c, ".rs-docs") as HTMLDetailsElement;
+/** the buttons that are primary on the page itself: Your documents (closed) has its own Save in the master card */
+const primaries = (c: HTMLElement) => $$(c, "button.primary").filter((b) => !b.closest(".rs-docs")).map(text);
 const bar = (c: HTMLElement) => $(c, ".rs-bar")!;
 const labelled = (c: ParentNode, label: string) => {
   const l = $$(c, "label").find((x) => text(x) === label);
@@ -102,18 +105,21 @@ describe("Resume, with no master", () => {
     await click(button(container, "Save"));
     await waitFor(() => postingBox(container) !== null, "the Job section");
     await waitFor(() => document.activeElement === $(container, "#rs-job-h"), "focus on Job");
-    expect(text($(container, ".rs-master-sum"))).toMatch(/^Master resume · updated \w{3} \d+$/);
+    expect(sections(container)).toEqual(["Job"]);
+    expect(text($(container, ".rs-master-sum"))).toMatch(/^Using: Master resume · updated \w{3} \d+$/);
   });
 });
 
 describe("Resume, with a master", () => {
-  it("is one compact row with Edit, which goes to the master under Your documents", async () => {
+  it("is one line at the top of the Job card with Edit, which opens the master under Your documents", async () => {
     const { container } = await withMaster();
-    expect(sections(container)).toEqual(["Resume", "Job"]);
-    expect(text($(container, ".rs-master-sum"))).toMatch(/^Master resume · updated \w{3} \d+$/);
+    expect(sections(container)).toEqual(["Job"]);
+    expect(text($(container, ".rs-card .rs-master-sum"))).toMatch(/^Using: Master resume · updated \w{3} \d+$/);
     expect($(container, ".rs-master select")).toBeNull();
+    expect(docs(container).open).toBe(false);
     await click(button(container, "Edit"));
     await waitFor(() => document.activeElement === $(container, "#resume-master-h"), "the master's heading");
+    expect(docs(container).open).toBe(true);
   });
 
   it("offers a Based on choice once there are versions, master first", async () => {
@@ -192,7 +198,7 @@ describe("Job", () => {
     // one Rewrite with AI, in the split's strip: the Job section's AI row goes once there is a draft
     const rewrites = $$(container, "button").filter((b) => text(b) === "Rewrite with AI");
     expect(rewrites).toHaveLength(1);
-    expect(rewrites[0].closest(".rs-strip")).not.toBeNull();
+    expect(rewrites[0].closest(".rs-result-head")).not.toBeNull();
     expect(button($(container, ".rs-job")!.closest(".rs-card")!, "Write with AI")).toBeNull();
   });
 
@@ -234,14 +240,14 @@ describe("the split", () => {
     const { container } = await withMaster("none");
     await paste(container, POSTING);
     await byHand(container);
-    expect($$(split(container)!, "h2").map(text)).toEqual(["Tailored resume", "Tailored cover letter"]);
+    expect($$(split(container)!, "h2").map(text)).toEqual(["Tailored for Acme Corp"]);
+    expect($$(split(container)!, "h3").map(text)).toEqual(["Tailored resume", "Tailored cover letter"]);
     expect($$(container, ".rs-cols > .rs-col")).toHaveLength(2);
-    expect($(container, ".rs-wide")).not.toBeNull();
     expect($(container, ".steps-strip")).toBeNull();
     for (const gone of ["Next", "Back", "Change", "Back to review", "Try again"]) expect(button(container, gone)).toBeNull();
     expect($(container, ".doc-switch[aria-label='Which document']")).toBeNull();
     expect((labelled(container, "Cover letter") as HTMLTextAreaElement).value).toContain("Dear hiring team at Acme Corp,");
-    expect(text($(container, "h2.docs-h"))).toBe("Your documents");
+    expect(text($(container, ".rs-docs > summary"))).toBe("Your documents · master");
   });
 
   it("starts a flagged line unticked with the baseline's words, and a tick puts the AI's line in", async () => {
@@ -315,11 +321,11 @@ describe("the split", () => {
     const sw = $(container, ".doc-switch[aria-label='Which document']")!;
     expect($$(sw, "button").map(text)).toEqual(["Resume", "Cover letter"]);
     expect($$(container, ".rs-col")).toHaveLength(1);
-    expect(text($(container, ".rs-col h2"))).toBe("Tailored resume");
+    expect(text($(container, ".rs-col h3"))).toBe("Tailored resume");
     expect(button(sw, "Resume")!.getAttribute("aria-pressed")).toBe("true");
     await click(button(sw, "Cover letter"));
     expect($$(container, ".rs-col")).toHaveLength(1);
-    expect(text($(container, ".rs-col h2"))).toBe("Tailored cover letter");
+    expect(text($(container, ".rs-col h3"))).toBe("Tailored cover letter");
     expect((labelled(container, "Cover letter") as HTMLTextAreaElement).value).toContain("Dear hiring team");
     expect($(container, ".rs-bar")).not.toBeNull();
   });
@@ -696,5 +702,115 @@ describe("the page across a reload and a link", () => {
     let stopped = false;
     await act(async () => void (stopped = blockLeave("#/people")));
     expect(stopped).toBe(true);
+  });
+});
+
+describe("the page's layout", () => {
+  it("shows the master once: one line in the Job card, with the master editor only inside Your documents", async () => {
+    const { container } = await withMaster("none");
+    await paste(container, POSTING);
+    await byHand(container);
+    expect($$(container, ".rs-master")).toHaveLength(1);
+    expect($(container, ".rs-master")!.closest(".rs-card")).not.toBeNull();
+    expect($$(container, "h2").filter((h) => text(h) === "Resume")).toHaveLength(0);
+    expect($$(container, "#resume-master-h")).toHaveLength(1);
+    expect($(container, "#resume-master-h")!.closest(".rs-docs")).not.toBeNull();
+  });
+
+  it("orders the headings Resume, Job, Tailored for the company, and falls back to Tailored resume without one", async () => {
+    const { container } = await withMaster("none");
+    const outside = () => $$(container, "h1, h2").filter((h) => !h.closest(".rs-docs")).map(text);
+    expect(outside()).toEqual(["Resume", "Job"]);
+    await paste(container, POSTING);
+    await byHand(container);
+    expect(outside()).toEqual(["Resume", "Job", "Tailored for Acme Corp"]);
+    const head = $(container, ".rs-result-head")!;
+    expect($$(head, "button").map(text)).toEqual(["Rewrite with AI", "Start over"]);
+    expect(head.contains($(container, "#rs-result-h"))).toBe(true);
+    await type(labelled(container, "Company"), "");
+    expect(outside()).toEqual(["Resume", "Job", "Tailored resume"]);
+  });
+
+  it("keeps Your documents closed, saying what is in it", async () => {
+    const { container } = await withMaster("none", { prepare: async (db) => void (await createVersion(db, { title: "Data version", sections: MASTER })) });
+    expect(docs(container).open).toBe(false);
+    expect(text($(container, ".rs-docs > summary"))).toBe("Your documents · master, 1 version");
+    await click($(container, ".rs-docs > summary"));
+    expect(docs(container).open).toBe(true);
+  });
+
+  it.each([["the Cover letters tab link", "/resume?tab=cover", "Cover letters"], ["the Tailored tab link", "/resume?tab=tailored", "Tailored"]])(
+    "opens Your documents for %s and keeps that tab",
+    async (_name, to, tab) => {
+      const { container } = await withMaster("none", { to });
+      expect(docs(container).open).toBe(true);
+      expect($(container, "nav[aria-label=Show] a[aria-current=true]")!.textContent).toBe(tab);
+    },
+  );
+
+  it("opens Your documents for ?step=job&baseline=<id>, and keeps it open after Tailor with this", async () => {
+    const db = freshDb();
+    await saveMaster(db, MASTER, "paste");
+    const version = await createVersion(db, { title: "Data version", sections: MASTER });
+    const linked = await mount(db, makeDeps().deps, `/resume?step=job&baseline=${version}`);
+    expect(docs(linked.container).open).toBe(true);
+    sessionStorage.clear();
+    const plain = await mount(db, makeDeps().deps);
+    expect(docs(plain.container).open).toBe(false);
+    await click($(plain.container, ".rs-docs > summary"));
+    await click($$(plain.container, "a.btn").find((a) => /^Tailor with this resume/.test(a.getAttribute("aria-label") ?? "")) ?? null);
+    expect(docs(plain.container).open).toBe(true);
+  });
+
+  it("opens Your documents when the Print view's Back link returns to the page", async () => {
+    const db = freshDb();
+    const master = await saveMaster(db, MASTER, "paste");
+    await mountPage((props: PageProps) => createElement(ResumePage, { ...props, deps: makeDeps().deps }), db, `/resume/print/${master}`, { id: String(master) });
+    const back = await mount(db, makeDeps().deps);
+    expect(docs(back.container).open).toBe(true);
+  });
+
+  it("has exactly one primary button at a time, and Save is the only one once there is a draft", async () => {
+    const none = await withMaster("none");
+    expect(primaries(none.container)).toEqual(["Start by hand"]);
+    await paste(none.container, POSTING);
+    expect(primaries(none.container)).toEqual(["Start by hand"]);
+    await byHand(none.container);
+    expect(primaries(none.container)).toEqual(["Save"]);
+    await click(button(none.container, "Save"));
+    await waitFor(() => button(bar(none.container), "Saved") !== null, "the save");
+    expect(primaries(none.container)).toEqual(["Saved"]);
+    await cleanup();
+
+    const locked = await withMaster("locked");
+    expect(primaries(locked.container)).toEqual(["Start by hand"]);
+    await cleanup();
+
+    const open = await withMaster("unlocked");
+    expect(primaries(open.container)).toEqual(["Write with AI"]);
+    expect(button(open.container, "Start by hand")!.className).toBe("");
+    await paste(open.container, POSTING);
+    await click(button(open.container, "Write with AI"));
+    await waitFor(() => split(open.container) !== null, "the split");
+    expect(primaries(open.container)).toEqual(["Save"]);
+    await click(button(open.container, "Rewrite with AI"));
+    expect(primaries(open.container)).toEqual(["Save"]);
+  });
+
+  it("on a phone shows the tailored resume read only, with one Edit button for the page editor and Done to go back", async () => {
+    phone();
+    const { container } = await withMaster("none");
+    await paste(container, POSTING);
+    await byHand(container);
+    const pane = () => $(container, ".rs-col-resume")!;
+    expect($(pane(), ".doc-sheet.classic")).not.toBeNull();
+    expect($$(pane(), "input, textarea, .pe-controls, .pe-add")).toHaveLength(0);
+    expect($$(pane(), "button").map(text)).toEqual(["Edit"]);
+    await click(button(pane(), "Edit"));
+    expect($$(pane(), "input, textarea").length).toBeGreaterThan(0);
+    expect($$(pane(), "button").map(text)).toContain("Done");
+    await click(button(pane(), "Done"));
+    expect($$(pane(), "input, textarea")).toHaveLength(0);
+    expect($(container, ".doc-switch[aria-label='Which document']")).not.toBeNull();
   });
 });
