@@ -64,7 +64,8 @@ export interface BaselineCompare {
 const textOf = (item: Pick<DocItem, "label" | "text" | "right">): string =>
   [item.label ? `${item.label}${item.text ? ":" : ""}` : "", item.text, item.right ?? ""].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 
-const sameLine = (a: DocItem, b: DocItem): boolean => (a.label ?? "") === (b.label ?? "") && a.text === b.text && (a.right ?? "") === (b.right ?? "");
+const sameLine = (a: DocItem, b: DocItem): boolean =>
+  (a.kind ?? "") === (b.kind ?? "") && (a.label ?? "") === (b.label ?? "") && a.text === b.text && (a.right ?? "") === (b.right ?? "");
 
 export function compareToBaseline(tailored: readonly DocSection[], baseline: readonly DocSection[]): BaselineCompare {
   const home = new Map<string, DocItem>();
@@ -74,7 +75,8 @@ export function compareToBaseline(tailored: readonly DocSection[], baseline: rea
   const kept = new Set<string>();
   for (const section of tailored) {
     const base = baseSections.get(section.id);
-    if (section.heading && (!base || base.heading !== section.heading)) {
+    // a heading cleared to "" against a baseline heading is a change; a blank heading with no baseline section is nothing to mark
+    if (base ? base.heading !== section.heading : section.heading) {
       lines[section.id] = base
         ? { status: "changed", baselineText: base.heading, diff: diffWords(base.heading, section.heading) }
         : { status: "new" };

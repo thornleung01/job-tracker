@@ -73,6 +73,13 @@ describe("the picker", () => {
     expect(withBaseline.visited).toEqual([`/tailor/${mid2}?baseline=7`]);
   });
 
+  it("leaves the chosen baseline off for an application that already has a copy", async () => {
+    const { db, fresh } = await seed();
+    const { container, visited } = await mountPage(Page, db, "/tailor?baseline=7");
+    await click(button(rows(container)[0], "Open"));
+    expect(visited).toEqual([`/tailor/${fresh}`]);
+  });
+
   it("says so, with a link to Add application, when there are no applications", async () => {
     const db = freshDb();
     const { container } = await mountPage(Page, db, "/tailor");

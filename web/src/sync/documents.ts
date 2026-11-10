@@ -134,6 +134,10 @@ export async function saveTailored(
   if (!clean.length) throw new DocumentError("Add some text to the resume first.");
   return tx(db, async () => {
     const app = await requireApplication(db, appId);
+    if (basedOn !== undefined) {
+      const baseline = await db.documents.get(basedOn);
+      if (!baseline || baseline.kind !== "resume" || !isLiveDocument(baseline) || isTailored(baseline)) throw new DocumentError("That resume isn't there any more.");
+    }
     const existing = await getTailored(db, appId);
     const baseId = basedOn ?? (await getMaster(db))?.id;
     const at = iso(now);

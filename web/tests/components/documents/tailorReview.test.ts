@@ -1,7 +1,7 @@
 // The logic of the tailor review: which lines start ticked, which words are marked, and the resume that is composed from the ticks.
 import { describe, expect, it } from "vitest";
 import type { DocSection } from "../../../src/db/schema";
-import { composeResume, diffWords, initialTicks, lineText, resumeLabel } from "../../../src/components/documents/tailorReview";
+import { composeResume, initialTicks, lineText, resumeLabel } from "../../../src/components/documents/tailorReview";
 import type { TailorLine } from "../../../src/sync/tailor";
 
 const master: DocSection[] = [
@@ -95,22 +95,6 @@ describe("composeResume", () => {
     const before = JSON.stringify([draft, master]);
     composeResume(draft, master, { "d-b1": false });
     expect(JSON.stringify([draft, master])).toBe(before);
-  });
-});
-
-describe("diffWords", () => {
-  it("marks only the words that differ, on each side", () => {
-    const d = diffWords("Built dashboards for sales", "Built sales dashboards quickly");
-    expect(d.before.filter((p) => p.changed).map((p) => p.text)).toEqual(expect.arrayContaining(["for"]));
-    expect(d.after.filter((p) => p.changed).map((p) => p.text)).toContain("quickly");
-    expect(d.before.map((p) => p.text).join(" ")).toBe("Built dashboards for sales");
-    expect(d.after.map((p) => p.text).join(" ")).toBe("Built sales dashboards quickly");
-  });
-
-  it("marks nothing for the same text, and everything against nothing", () => {
-    expect(diffWords("same words", "same  words").after.every((p) => !p.changed)).toBe(true);
-    expect(diffWords("", "all new").after.every((p) => p.changed)).toBe(true);
-    expect(diffWords("all old", "").before.every((p) => p.changed)).toBe(true);
   });
 });
 

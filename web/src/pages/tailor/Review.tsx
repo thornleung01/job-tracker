@@ -36,10 +36,17 @@ export function Changes({ compare, sections, activeId, disabled, onReset }: Chan
     ...(compare.lines[s.id]?.status === "changed" || compare.lines[s.id]?.status === "new" ? [{ id: s.id, item: null as null, where: s.heading || "Header", section: true }] : []),
     ...s.items.flatMap((item) => (compare.lines[item.id] && compare.lines[item.id].status !== "same" ? [{ id: item.id, item, where: s.heading || "Header", section: false }] : [])),
   ]);
-  if (!entries.length) return <p className="small muted tailor-none" role="status">No changes from the baseline.</p>;
   const changed = entries.filter((e) => compare.lines[e.id].status === "changed").length;
   const added = entries.length - changed;
+  // The live region is always in the page and the sentence is put into it, so a change that empties the list is announced.
+  const none = (
+    <div role="status">{entries.length ? null : <p className="small muted tailor-none">No changes from the baseline.</p>}</div>
+  );
+  // Both returns are a fragment of the same shape, so the region is kept between them rather than replaced.
+  if (!entries.length) return <>{none}{null}</>;
   return (
+    <>
+    {none}
     <section className="tailor-list" aria-labelledby="tailor-changes-h">
       <h3 id="tailor-changes-h" className="doc-h">Changes from your baseline</h3>
       <p className="small muted" role="status">{[changed ? `${changed} changed` : "", added ? `${added} new` : ""].filter(Boolean).join(", ")}</p>
@@ -66,6 +73,7 @@ export function Changes({ compare, sections, activeId, disabled, onReset }: Chan
         })}
       </ul>
     </section>
+    </>
   );
 }
 

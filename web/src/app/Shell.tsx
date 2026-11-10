@@ -1,5 +1,6 @@
 import { Settings } from "lucide-react";
-import type { RefObject } from "react";
+import type { MouseEvent, RefObject } from "react";
+import { blockLeave } from "./leaveGuard";
 import { ROUTES } from "./routes";
 import type { PageName } from "./router";
 
@@ -23,6 +24,12 @@ export function currentNav(page: PageName): PageName {
   return page === "detail" || page === "review" ? "applications" : page;
 }
 
+/** A plain click on a nav link asks the open page's leave guard first (unsaved work); a new-tab or modified click is left to the browser. */
+const guarded = (path: string) => (e: MouseEvent<HTMLAnchorElement>) => {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  if (blockLeave(hrefFor(path))) e.preventDefault();
+};
+
 export function Header({ page }: { page: PageName }) {
   const current = currentNav(page);
   const settings = ROUTES.find((r) => r.page === "settings")!;
@@ -31,12 +38,13 @@ export function Header({ page }: { page: PageName }) {
       <div className="brand">Job Tracker</div>
       <nav aria-label="Main">
         {ROUTES.filter((r) => r.nav).map((r) => (
-          <a key={r.page} href={hrefFor(r.path)} aria-current={current === r.page ? "page" : undefined}>
+          <a key={r.page} href={hrefFor(r.path)} onClick={guarded(r.path)} aria-current={current === r.page ? "page" : undefined}>
             {r.nav}
           </a>
         ))}
         <a
           href={hrefFor(settings.path)}
+          onClick={guarded(settings.path)}
           className="icon-link"
           aria-label="Settings"
           title="Settings"

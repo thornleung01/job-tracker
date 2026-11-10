@@ -1,5 +1,4 @@
-// The passphrase form for a locked key, for the places that unlock it in place (the Tailor workspace's AI strip). It is the same behaviour as the
-// Resume page's convert panel (pages/resume/convertHooks.ts, which a component can't import).
+// The passphrase form for a locked key, for the places that unlock it in place: the Tailor workspace's AI strip and the Resume page's convert panel.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { AiDeps } from "../../ai";
 import { messageFor } from "../useAction";
@@ -10,7 +9,7 @@ export function useUnlock(vault: AiDeps["vault"], db: string, onUnlocked: () => 
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
-  // Unlocking can't be cancelled, so a result that arrives after the strip went away is ignored with this.
+  // Unlocking can't be cancelled, so a result that arrives after the form went away is ignored with this.
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -35,7 +34,7 @@ export function useUnlock(vault: AiDeps["vault"], db: string, onUnlocked: () => 
       if (mounted.current) setError(messageFor(err));
     } finally {
       if (mounted.current) {
-        setPassphrase("");
+        setPassphrase("");   // never keep it around after it has been used
         setUnlocking(false);
       }
     }

@@ -1,6 +1,6 @@
 // The step between reading a resume and checking it: shows exactly what would be sent to Anthropic and offers the AI conversion (with the person's
 // own key) or the simple rule-based one. Nothing is sent until Convert with AI is pressed, and nothing is saved here: a result goes to onConverted,
-// the review on the Resume page. A locked key is opened here with its passphrase (useUnlockForm), and the conversion itself is useConvertRun.
+// the review on the Resume page. A locked key is opened here with its passphrase (useUnlock), and the conversion itself is useConvertRun.
 import { useId, useState } from "react";
 import { AI_MESSAGES, type AiDeps, type VaultStatus } from "../../ai";
 import { Notice } from "../../components/Notice";
@@ -8,7 +8,8 @@ import { MAX_AI_INPUT_CHARS } from "../../db/limits";
 import type { JobTrackerDB } from "../../db/schema";
 import type { ConvertResult, convertResume } from "../../sync/convert";
 import { plural } from "../../sync/text";
-import { useConvertRun, useUnlockForm } from "./convertHooks";
+import { useUnlock } from "../../components/documents/useUnlock";
+import { useConvertRun } from "./convertHooks";
 import type { Incoming } from "./Importer";
 import "./convert.css";
 
@@ -31,7 +32,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
   const refreshStatus = () => setStatus(ai.vault.status(db.name));
   const boxId = useId();
   const tooLong = incoming.text.length > MAX_AI_INPUT_CHARS;
-  const unlock = useUnlockForm(ai.vault, db.name, refreshStatus);
+  const unlock = useUnlock(ai.vault, db.name, refreshStatus);
   const run = useConvertRun(convert, ai, db.name, incoming.text, tooLong, onConverted, refreshStatus);
 
   const isUnlocked = status.state === "unlocked";
@@ -48,9 +49,9 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
         <form className="row convert-unlock" onSubmit={(e) => void unlock.submit(e)}>
           <div className="fgroup">
             <label htmlFor={`${boxId}-pass`}>Passphrase</label>
-            <input id={`${boxId}-pass`} ref={unlock.field} type="password" autoComplete="off" value={unlock.passphraseInput} onChange={(e) => unlock.setPassphraseInput(e.target.value)} disabled={unlock.unlocking} />
+            <input id={`${boxId}-pass`} ref={unlock.field} type="password" autoComplete="off" value={unlock.passphrase} onChange={(e) => unlock.setPassphrase(e.target.value)} disabled={unlock.unlocking} />
           </div>
-          <button type="submit" disabled={unlock.unlocking || !unlock.passphraseInput} aria-busy={unlock.unlocking || undefined}>Unlock</button>
+          <button type="submit" disabled={unlock.unlocking || !unlock.passphrase} aria-busy={unlock.unlocking || undefined}>Unlock</button>
         </form>
       ) : null}
       {unlock.error ? <Notice tone="err">{unlock.error}</Notice> : null}

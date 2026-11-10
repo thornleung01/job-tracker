@@ -3,9 +3,6 @@
 import type { DocItem, DocSection, DocumentRow } from "../../db/schema";
 import type { TailorDraft, TailorLine } from "../../sync/tailor";
 
-// The word diff lives in documents/compare.ts (pure); it is re-exported here for the callers that already import it from this file.
-export { diffWords, type WordPart } from "../../documents/compare";
-
 /** A line as one string: "Label: text" when it has a label. */
 export const lineText = (item: Pick<DocItem, "label" | "text">): string => (item.label ? `${item.label}: ${item.text}` : item.text);
 

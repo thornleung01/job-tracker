@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { vi } from "vitest";
 import type { PageProps } from "../../../src/app/pageProps";
 import { DEFAULT_MODEL, type AiDeps, type AiRequest, type Vault, type VaultStatus } from "../../../src/ai";
+import type { JobTrackerDB } from "../../../src/db/schema";
 import { ActionError } from "../../../src/db/errors";
 import type { DocumentsDeps } from "../../../src/components/documents/deps";
 import type { JobDraft } from "../../../src/jobs/types";
@@ -42,6 +43,8 @@ export interface SetupOptions {
   versions?: string[];
   /** open with ?baseline= set to this version (an index into `versions`) */
   baselineIndex?: number;
+  /** runs after the data is made and before the page mounts (a saved copy or letter, a deleted version) */
+  prepare?(ctx: { db: JobTrackerDB; id: number; master: number | undefined; versions: number[] }): Promise<void>;
 }
 
 export async function setup(o: SetupOptions = {}) {
@@ -52,6 +55,7 @@ export async function setup(o: SetupOptions = {}) {
   if (o.posting !== null) await setPostingText(db, id, o.posting ?? POSTING);
   const versions: number[] = [];
   for (const title of o.versions ?? []) versions.push(await createVersion(db, { title, sections: MASTER }));
+  await o.prepare?.({ db, id, master, versions });
   const fake = fakeAi(o.saved, o.replies);
   const enrichJobDraft = o.enrich ?? vi.fn(async (d: JobDraft) => d);
   const deps: Partial<DocumentsDeps> = { ai: fake.ai, enrichJobDraft };

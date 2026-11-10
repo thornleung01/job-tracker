@@ -43,8 +43,18 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }:
   const stopButton = useRef<HTMLButtonElement>(null);
   const writeButton = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
-  const unlock = useUnlock(ai.vault, dbName, () => setStatus(ai.vault.status(dbName)));
+  // The passphrase field goes away when the key opens, which would drop focus to the page: Write takes it (once it is on the page).
+  const [justUnlocked, setJustUnlocked] = useState(false);
+  const unlock = useUnlock(ai.vault, dbName, () => {
+    setStatus(ai.vault.status(dbName));
+    setJustUnlocked(true);
+  });
   useEffect(() => () => running.current?.abort(), []);
+  useEffect(() => {
+    if (!justUnlocked || status.state !== "unlocked") return;
+    writeButton.current?.focus();
+    setJustUnlocked(false);
+  }, [justUnlocked, status.state]);
 
   const start = () => {
     // The ref, not the state: two clicks in the same moment both see `working` as false.
