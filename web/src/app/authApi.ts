@@ -5,6 +5,7 @@ import type { IdentityProvider } from "../auth/user";
 import { lockAllVaults } from "../ai";
 import { signOutAndForget } from "../sync/mailbox";
 import type { ProviderName } from "../types";
+import { clearAllFlows } from "./resumeFlowStorage";
 
 export interface ShellAuth {
   getSession(): Session;
@@ -25,6 +26,9 @@ export const defaultAuth: ShellAuth = {
   // The shell reads the result from the session, so the user isn't returned here.
   signIn: (provider, opts) => signIn(provider, opts).then(() => undefined),
   takePendingSync,
-  // The remembered mailbox addresses go with the tokens, and the unlocked AI key is locked again.
-  signOut: signOutAndForget(signOut, lockAllVaults),
+  // The remembered mailbox addresses go with the tokens, the unlocked AI key is locked again and the Resume page's saved job is dropped.
+  signOut: signOutAndForget(signOut, () => {
+    lockAllVaults();
+    clearAllFlows();
+  }),
 };

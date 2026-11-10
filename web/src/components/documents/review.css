@@ -1,0 +1,37 @@
+/* The tailor review's lists (what changed, what was left out, the AI's lines to tick) and Words from the posting. Shared by the Tailor workspace
+   and the Resume page's steps, so it loads with the components rather than with either page. */
+.tailor-list .doc-h, .posting-terms .doc-h { font: 500 1rem/1.375 var(--font-ui); margin: 0 0 8px; }
+
+/* Words from the posting: each term with a mark and its words, so found or not is never colour alone. */
+.posting-terms { margin: 0 0 var(--gap); }
+.posting-terms-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.posting-terms-list li { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: var(--r-pill); background: var(--fog); }
+.posting-terms-list li.out { background: transparent; box-shadow: inset 0 0 0 1px var(--fog); color: var(--muted); }
+.posting-terms-list svg { flex: none; }
+
+/* Under the copy: what changed, what was left out, the AI's lines. */
+.tailor-list { margin: 0 0 var(--gap); }
+.tailor-list ul { list-style: none; margin: 0; padding: 0; }
+.tailor-entry { padding: 12px 0; border-top: 1px solid var(--line); }
+.tailor-entry.active { background: var(--fog); border-radius: var(--r-seg); padding-left: 10px; padding-right: 10px; }
+.tailor-entry-h { margin: 0 0 2px; }
+.tailor-text { margin: 0 0 8px; overflow-wrap: anywhere; }
+.tailor-changed { background: var(--hover); color: inherit; border-radius: 4px; padding: 0 2px; text-decoration: underline; text-decoration-style: dotted; }
+.tailor-flag { margin: 6px 0 0; font-weight: 500; }
+.tailor-use { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tailor-use input { width: 20px; height: 20px; margin: 0; }
+.tailor-unused li { margin: 4px 0 0; overflow-wrap: anywhere; }
+.tailor-none { margin: 0 0 var(--gap); }
+
+@media (forced-colors: active) {
+  .tailor-changed { background: Mark; color: MarkText; }
+  .tailor-entry { border-color: CanvasText; }
+  .posting-terms-list li { border: 1px solid CanvasText; }
+}
+@media (max-width: 520px) {
+  .tailor-use input { width: 24px; height: 24px; }
+  /* The whole row is the target: an overlay inside the label (so a tap on it ticks the box) makes it 44px high. */
+  .tailor-use { position: relative; width: fit-content; min-height: var(--tap); padding-right: 16px; }
+  .tailor-use label::after { content: ""; position: absolute; inset: 0; cursor: pointer; }
+  .tailor-entry > button { min-height: var(--tap); }
+}

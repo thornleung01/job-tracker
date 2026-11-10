@@ -1,6 +1,6 @@
-// Tailors the master resume and writes a cover letter for one application with AI, then checks the result against the master. Nothing is
-// saved by tailorForApplication: the person reviews the draft first and saveTailorDraft stores it once they accept. Only the job, the posting
-// and the master go to the model. The greeting's name is read from the person's own contacts here and never leaves the device.
+// Tailors the master resume and writes a cover letter for one job (tailorForJob) or one application (tailorForApplication) with AI, then
+// checks the result against the master. Nothing is saved here: the person reviews the draft first, and saveTailorDraft (or saveTailoredJob
+// in tailorFlow.ts) stores it once they accept. Only the job, the posting and the master go to the model. The greeting's name is read from the person's own contacts here and never leaves the device.
 import {
   AiError, DEFAULT_MODEL, checkTailored, masterText, parseTailorReply, readMaster, tailorRequest,
   type AiDeps, type CheckedLine, type CheckedTailor, type Complete, type TailorMaster, type TailorTone,
@@ -10,9 +10,10 @@ import { newItemId, normalizeSections } from "../db/documentShape";
 import { ActionError } from "../db/errors";
 import { MAX_AI_INPUT_CHARS } from "../db/limits";
 import { requireApplication } from "../db/repo";
-import { tx, type DocItem, type DocSection, type JobTrackerDB } from "../db/schema";
-import { derive } from "./contacts";
+import { tx, type DocItem, type DocSection, type DocumentRow, type JobTrackerDB } from "../db/schema";
+import { derive, type Contact } from "./contacts";
 import { getMaster, isTailored, saveCoverLetter, saveTailored } from "./documents";
+import { squeeze } from "./text";
 
 /** A request the tailoring refuses, with a sentence that is safe to show. */
 export class TailorError extends ActionError {
@@ -127,19 +128,47 @@ function buildCover(greetingLine: string, paragraphs: readonly string[]): DocSec
   return [{ id: newItemId(), heading: "", items: [greetingLine, ...paragraphs].map((text) => ({ id: newItemId(), text })) }];
 }
 
+/** What tailoring needs from the AI side: the vault and the call, and optionally a call that replaces `ai.complete`. */
+export interface TailorDeps {
+  ai: AiDeps;
+  complete?: Complete;
+}
+
+/** The job to tailor for. It needs no application: the Resume page tailors for a pasted job before it is added to Applications. */
+export interface JobInput {
+  company: string;
+  role: string;
+  posting: string;
+  /** the live reusable resume to tailor from, instead of the master (TailorOptions.baselineId is used when this is left out) */
+  baselineId?: number;
+  /** the people known at the company, for the greeting. Left out (no application yet), the letter greets the company's hiring team. */
+  people?: readonly Pick<Contact, "name" | "kind" | "mentionedOnly">[];
+}
+
+/** The letter's first line: the people's greeting when they are known, otherwise "Dear hiring team at {Company},". */
+function jobGreeting(company: string, people: JobInput["people"]): string {
+  if (people) return greeting(people);
+  const name = squeeze(company);
+  return name ? `Dear hiring team at ${name},` : greeting([]);
+}
+
+/** The resume to start from: the master, or the chosen baseline. Throws a TailorError when it is missing, deleted, or tailored. */
+async function readBaseline(db: JobTrackerDB, baselineId: number | undefined): Promise<DocumentRow> {
+  const baseline = baselineId === undefined ? await getMaster(db) : await db.documents.get(baselineId);
+  if (baselineId === undefined && !baseline) throw new TailorError("Add your master resume first.");
+  if (!baseline || baseline.kind !== "resume" || baseline.deletedAt || isTailored(baseline)) throw new TailorError("That resume isn't there any more.");
+  return baseline;
+}
+
 /**
- * Tailors the master resume and writes a cover letter for application `appId`. Throws a TailorError when there is no master or no posting
- * text, an AiError for everything the AI side can say (no key, locked, a refusal, a reply that can't be read), or the caller's abort unchanged.
- * Saves nothing.
+ * Tailors the master resume (or the chosen baseline) and writes a cover letter for one job. Throws a TailorError when there is no master, no
+ * company or no posting text, an AiError for everything the AI side can say (no key, locked, a refusal, a reply that can't be read), or the
+ * caller's abort unchanged. Saves nothing.
  */
-export async function tailorForApplication(
-  db: JobTrackerDB, appId: number, deps: { ai: AiDeps; complete?: Complete }, opts: TailorOptions = {},
-): Promise<TailorDraft> {
-  const app = await requireApplication(db, appId);
-  const master = opts.baselineId === undefined ? await getMaster(db) : await db.documents.get(opts.baselineId);
-  if (opts.baselineId === undefined && !master) throw new TailorError("Add your master resume first.");
-  if (!master || master.kind !== "resume" || master.deletedAt || isTailored(master)) throw new TailorError("That resume isn't there any more.");
-  const posting = app.postingText?.trim() ?? "";
+export async function tailorForJob(db: JobTrackerDB, job: JobInput, deps: TailorDeps, opts: TailorOptions = {}): Promise<TailorDraft> {
+  const master = await readBaseline(db, job.baselineId ?? opts.baselineId);
+  if (!squeeze(job.company)) throw new TailorError("Enter a company name.");
+  const posting = job.posting.trim();
   if (!posting) throw new TailorError("Add the job posting first.");
 
   const { vault } = deps.ai;
@@ -150,26 +179,50 @@ export async function tailorForApplication(
 
   const parts = readMaster(master.sections);
   const request = tailorRequest(
-    { job: { company: app.company, role: app.role, posting }, master: parts, tone: opts.tone, note: opts.note },
+    { job: { company: job.company, role: job.role, posting }, master: parts, tone: opts.tone, note: opts.note },
     status.state === "none" ? DEFAULT_MODEL : status.model,
   );
   if (request.user.length > MAX_AI_INPUT_CHARS) throw new AiError("tooLong");
 
   const reply = await complete(key, request, { signal: opts.signal });
-  const checked = checkTailored(parts, parseTailorReply(reply.json), { masterSource: masterText(master.sections), company: app.company, role: app.role });
+  const checked = checkTailored(parts, parseTailorReply(reply.json), { masterSource: masterText(master.sections), company: job.company, role: job.role });
   const { resume, lines } = buildResume(master.sections, parts, checked);
-  const people = await derive(db, appId);
   return {
     baselineId: master.id,
     resume,
     lines,
-    cover: buildCover(greeting(people), checked.cover.paragraphs),
+    cover: buildCover(jobGreeting(job.company, job.people), checked.cover.paragraphs),
     coverFlags: checked.cover.flags,
     unused: [
       ...checked.droppedSkills.map((s) => (s.label ? `${s.label}: ${s.text}` : s.text)),
       ...checked.jobs.flatMap((j) => j.dropped.map((b) => b.text)),
     ],
   };
+}
+
+/**
+ * Tailors for application `appId`: its company, role and posting text, and the people in its mail for the greeting. Throws as tailorForJob
+ * does, and a MissingRecordError when the application is gone. Saves nothing.
+ */
+export async function tailorForApplication(db: JobTrackerDB, appId: number, deps: TailorDeps, opts: TailorOptions = {}): Promise<TailorDraft> {
+  const app = await requireApplication(db, appId);
+  // The baseline is checked before the posting, so a missing master is what the person hears first.
+  await readBaseline(db, opts.baselineId);
+  const posting = app.postingText?.trim() ?? "";
+  if (!posting) throw new TailorError("Add the job posting first.");
+  const people = await derive(db, appId);
+  return tailorForJob(db, { company: app.company, role: app.role, posting, people }, deps, opts);
+}
+
+/**
+ * "Start by hand": the baseline's sections as they are (every line keeps its id, so the copy can be compared with it later) and a letter
+ * that is only the greeting. No AI and no key. Throws a TailorError when the baseline is missing, deleted, tailored or empty. Saves nothing.
+ */
+export async function draftFromBaseline(db: JobTrackerDB, baselineId: number, company: string): Promise<TailorDraft> {
+  const baseline = await readBaseline(db, baselineId);
+  const resume = normalizeSections(baseline.sections);
+  if (!resume.length) throw new TailorError("Add some text to the resume first.");
+  return { baselineId: baseline.id, resume, lines: [], cover: buildCover(jobGreeting(company, undefined), []), coverFlags: [], unused: [] };
 }
 
 /** Stores what the person accepted: the application's tailored resume and its cover letter, both marked as made with AI, in one transaction. */

@@ -5,9 +5,35 @@ import ApplicationsPage from "../../../src/pages/applications";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
 
-// Undo stays on screen for 8 s. The test that waits for it to go shortens it, and the others keep the real length.
+// Undo stays on screen for 8 s. The tests that wait for it to go hold its timer (holdUndoTimer), and the others keep the real length.
 const undo = vi.hoisted(() => ({ ms: 8000 }));
 vi.mock("../../../src/components/undo", () => ({ get UNDO_MS() { return undo.ms; } }));
+
+/**
+ * Holds the Undo timer instead of running it, so a test can end its time once Undo is on screen. A short real timer raced the render on a
+ * slow runner: Undo (or Restore) could be set and cleared before it was ever drawn ("Timed out waiting for Undo"). The Undo timer is the
+ * only one with this delay; every other timer runs as usual. The spy is undone by restoreAllMocks after each test.
+ */
+function holdUndoTimer(): { end: () => Promise<void> } {
+  undo.ms = 424_242;
+  const realSetTimeout = globalThis.setTimeout;
+  let held: (() => void) | null = null;
+  vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: TimerHandler, ms?: number, ...args: unknown[]) => {
+    if (ms === undo.ms && typeof fn === "function") {
+      held = () => fn(...args);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }
+    return realSetTimeout(fn, ms, ...args);
+  }) as typeof setTimeout);
+  return {
+    async end() {
+      expect(held, "the Undo timer was set").not.toBeNull();
+      await act(async () => {
+        held!();
+      });
+    },
+  };
+}
 
 afterEach(async () => {
   undo.ms = 8000;
@@ -193,7 +219,7 @@ describe("the bulk bar", () => {
   });
 
   it("takes Restore away after 8 seconds, leaving the sentence", async () => {
-    undo.ms = 150;
+    const timer = holdUndoTimer();
     const db = freshDb();
     await seed(db);
     const { container } = await mountPage(ApplicationsPage, db);
@@ -201,6 +227,7 @@ describe("the bulk bar", () => {
     await click(button(container, "Delete"));
     await click(button(container, "Delete 1 application"));
     await waitFor(() => button(container, "Restore") !== null, "Restore");
+    await timer.end();
     await waitFor(() => button(container, "Restore") === null, "Restore to go");
     expect(text($(container, ".notice"))).toBe("Deleted 1 application. It stays in Recently deleted for 30 days.");
   });
@@ -421,8 +448,9 @@ describe("Undo after a bulk stage change", () => {
   it("goes away when its time is up, leaving the result line", async () => {
     const db = freshDb();
     await seed(db);
-    undo.ms = 150;
+    const timer = holdUndoTimer();
     const container = await setAcmeAndBeta(db);
+    await timer.end();
     await waitFor(() => button(container, "Undo") === null, "Undo to go");
     expect(text($(container, ".notice"))).toBe("2 applications set to Interview.");
   });

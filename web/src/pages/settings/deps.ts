@@ -2,6 +2,7 @@
 // two file downloads. SettingsPage merges a test's partial deps over `defaultDeps`.
 import { realAiDeps, type AiDeps } from "../../ai";
 import { lockAllVaults } from "../../ai";
+import { clearAllFlows } from "../../app/resumeFlowStorage";
 import * as realAuth from "../../auth";
 import type { Session } from "../../auth/session";
 import { createProvider, getAddress } from "../../providers";
@@ -34,7 +35,10 @@ export const defaultDeps: SettingsDeps = {
   auth: {
     getSession: realAuth.getSession,
     subscribe: realAuth.subscribe,
-    signOut: signOutAndForget(realAuth.signOut, lockAllVaults),
+    signOut: signOutAndForget(realAuth.signOut, () => {
+      lockAllVaults();
+      clearAllFlows();
+    }),
     connectMail: realAuth.connectMail,
     tokenSource: realAuth.tokenSource,
   },

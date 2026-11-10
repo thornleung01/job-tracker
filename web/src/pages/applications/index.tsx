@@ -570,7 +570,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
                    resumes={resumes} resume={sentResume} onResume={chooseResume} onAddResume={() => navigate("/resume")} />
         </section>
       ) : add.status ? (
-        <Notice>{add.status}{tailorFor !== null ? <> <a href={`#/tailor/${tailorFor}`}>Tailor your resume for this job</a></> : null}</Notice>
+        <Notice>{add.status}{tailorFor !== null ? <> <a href={`#/resume?app=${tailorFor}`}>Tailor your resume for this job</a></> : null}</Notice>
       ) : null}
 
       {views ? (

@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { registerLeaveGuard } from "../../app/leaveGuard";
+import { useMemo, useState, type FormEvent } from "react";
 import { realAiDeps, type AiDeps } from "../../ai";
 import { InlineConfirm } from "../../components/InlineConfirm";
 import { Notice } from "../../components/Notice";
 import { useAction } from "../../components/useAction";
 import { MAX_DOC_TITLE_CHARS, TRASH_DAYS } from "../../db/limits";
 import type { DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
-import { convertResume, type ConvertResult } from "../../sync/convert";
-import { createVersion, deleteDocument, saveMaster, updateDocument } from "../../sync/documents";
+import { convertResume } from "../../sync/convert";
+import { createVersion, deleteDocument, updateDocument } from "../../sync/documents";
 import { plural } from "../../sync/text";
-import { ConvertPanel, type ConvertFn } from "./ConvertPanel";
-import { FlagList } from "./FlagList";
+import type { ConvertFn } from "./ConvertPanel";
 import { Importer, type Incoming } from "./Importer";
 import { ResumeEditing } from "../../components/documents/ResumeEditing";
-import { blankResume, cleanForSave, isBlankTemplate } from "../../documents/blankResume";
+import { cleanForSave } from "../../documents/blankResume";
 import { rereadAsTemplate } from "../../documents/reread";
+import { Intake, useIntake } from "./intake";
+import { useReportUnsaved, type ReportUnsaved } from "./unsaved";
 
 interface CardProps {
   db: JobTrackerDB;
@@ -23,54 +23,14 @@ interface CardProps {
   used: number;
   /** say something on the page, and move focus to it when the control that had focus is gone */
   say(message: string, removed?: boolean): void;
-  /** tells the tab whether this card holds text that is typed and not saved (see useLeaveWhenUnsaved) */
-  report(key: string, unsaved: boolean): void;
+  /** tells the page whether this card holds text that is typed and not saved (see unsaved.ts) */
+  report: ReportUnsaved;
 }
 
 /** What you have typed and not saved. null means nothing is pending, and the saved text shows. */
 function useUnsavedSections(doc: DocumentRow) {
   const [draft, setDraft] = useState<DocSection[] | null>(null);
   return { sections: draft ?? doc.sections, dirty: draft !== null, set: setDraft };
-}
-
-/** Keeps the tab told whether this card has unsaved text, and takes the report back when the card goes. */
-function useReportUnsaved(report: CardProps["report"], key: string, unsaved: boolean) {
-  useEffect(() => {
-    report(key, unsaved);
-    return () => report(key, false);
-  }, [report, key, unsaved]);
-}
-
-/**
- * The Resume page's cards (the master and versions, the review of a new master, the template) each keep text that is not saved until Save.
- * Leaving the page with any of it asks first, like the Tailor workspace does: closing or reloading the tab, and a move to another page in the app.
- * `leaving` is where the person was headed, null when not asking.
- */
-function useLeaveWhenUnsaved(navigate: (to: string) => void) {
-  const unsaved = useRef(new Set<string>());
-  const discarding = useRef(false);
-  const [leaving, setLeaving] = useState<string | null>(null);
-  const [any, setAny] = useState(false);
-  const report = useCallback((key: string, on: boolean) => {
-    if (on) unsaved.current.add(key);
-    else unsaved.current.delete(key);
-    setAny(unsaved.current.size > 0);
-  }, []);
-  useEffect(() => {
-    if (!any) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [any]);
-  useEffect(
-    () => registerLeaveGuard({ isDirty: () => unsaved.current.size > 0 && !discarding.current, onBlocked: (to) => setLeaving(to.replace(/^#/, "")) }),
-    [],
-  );
-  const discard = () => {
-    discarding.current = true;
-    if (leaving) navigate(leaving);
-  };
-  return { report, leaving, discard, stay: () => setLeaving(null) };
 }
 
 function Status({ text }: { text: string | null }) {
@@ -104,89 +64,6 @@ function EditorBlock({ db, doc, label, draft, act, onSaved, onCancel, saveLabel 
         <Status text={act.busy === null ? act.status : null} />
       </div>
     </>
-  );
-}
-
-/** What the review shows: the sections to check, where they came from, and for an AI conversion what it wasn't sure about. */
-interface ReviewDraft {
-  sections: DocSection[];
-  source: NonNullable<DocumentRow["source"]>;
-  ai?: ConvertResult;
-}
-
-/** A new master resume to check: the split text is editable, and Save as master resume is the only thing that stores it. */
-function MasterReview({ db, draft, existing, heading, onDone, onAgain, onSimple, report }: {
-  db: JobTrackerDB; draft: ReviewDraft; existing: boolean; heading?: string; onDone(): void; onAgain(): void; onSimple(): void; report: CardProps["report"];
-}) {
-  const [sections, setSections] = useState(draft.sections);
-  const act = useAction();
-  // Cancel, Convert again and the simple converter all throw away what was edited here, so they ask first when something was.
-  const edited = JSON.stringify(sections) !== JSON.stringify(draft.sections);
-  useReportUnsaved(report, "review", edited);
-  const [dropping, setDropping] = useState<(() => void) | null>(null);
-  const dropOrAsk = (go: () => void) => (edited ? setDropping(() => go) : go());
-  const card = useRef<HTMLDivElement>(null);
-  const title = useRef<HTMLHeadingElement>(null);
-  const save = () =>
-    void act.run("save", async () => {
-      await saveMaster(db, cleanForSave(sections), draft.source);
-      onDone();
-    });
-  return (
-    <div className="card doc-card convert-review" ref={card}>
-      <h2 className="section" ref={title} tabIndex={-1}>{heading ?? (existing ? "Replace your master resume" : "Check your resume")}</h2>
-      {draft.ai ? (
-        <>
-          <p className="muted small convert-summary">Converted with AI. Check each line before you save.</p>
-          <FlagList flags={draft.ai.flags} converted={draft.sections} sections={sections} root={card} heading={title} />
-        </>
-      ) : null}
-      <ResumeEditing sections={sections} onChange={setSections} label="Resume text to check" title="Master resume" />
-      {draft.ai?.unused.length ? (
-        <details className="convert-unused">
-          <summary className="disclosure"><span className="chev" aria-hidden="true"></span>Not used from your file</summary>
-          <p className="muted small">{draft.ai.unused.join(", ")}</p>
-        </details>
-      ) : null}
-      {act.error ? <Notice tone="err">{act.error}</Notice> : null}
-      <div className="row doc-save">
-        <button type="button" className="primary" onClick={save} {...act.button("save")}>Save as master resume</button>
-        {draft.ai ? <button type="button" onClick={() => dropOrAsk(onAgain)} disabled={act.busy !== null || dropping !== null}>Convert again</button> : null}
-        {draft.ai ? <button type="button" onClick={() => dropOrAsk(onSimple)} disabled={act.busy !== null || dropping !== null}>Use the simple converter</button> : null}
-        <button type="button" onClick={() => dropOrAsk(onDone)} disabled={act.busy !== null || dropping !== null}>Cancel</button>
-      </div>
-      {dropping ? (
-        <InlineConfirm title="Discard your edits?" help="You changed this text. Nothing has been saved." confirmLabel="Discard edits" act={act} actionKey="discard"
-                       onConfirm={dropping} onCancel={() => setDropping(null)} />
-      ) : null}
-    </div>
-  );
-}
-
-/** A blank copy of the template to type into. Nothing is stored until Save, and Save stays off until there is some text. */
-function TemplateStart({ db, onDone, report }: { db: JobTrackerDB; onDone(): void; report: CardProps["report"] }) {
-  const [sections, setSections] = useState(blankResume);
-  const [confirming, setConfirming] = useState(false);
-  const act = useAction();
-  useReportUnsaved(report, "template", !isBlankTemplate(sections));
-  const save = () =>
-    void act.run("save", async () => {
-      await saveMaster(db, cleanForSave(sections), "template");
-      onDone();
-    });
-  return (
-    <div className="card doc-card">
-      <h2 className="section">Master resume</h2>
-      <ResumeEditing sections={sections} onChange={setSections} label="Master resume" title="Master resume" scaffold />
-      {act.error ? <Notice tone="err">{act.error}</Notice> : null}
-      <div className="row doc-save">
-        <button type="button" className="primary" onClick={save} disabled={act.busy !== null || isBlankTemplate(sections)} aria-busy={act.busy === "save" || undefined}>Save</button>
-        <button type="button" onClick={() => (isBlankTemplate(sections) ? onDone() : setConfirming(true))} disabled={act.busy !== null || confirming}>Cancel</button>
-      </div>
-      {confirming ? (
-        <InlineConfirm title="Discard what you typed?" help="Nothing has been saved." confirmLabel="Discard" act={act} actionKey="discard" onConfirm={onDone} onCancel={() => setConfirming(false)} />
-      ) : null}
-    </div>
   );
 }
 
@@ -237,7 +114,7 @@ function MasterCard({ db, doc, used, report, onIncoming, onReread }: Omit<CardPr
   };
   return (
     <div className="card doc-card">
-      <h2 className="section">{doc.title}</h2>
+      <h2 className="section" id="resume-master-h" tabIndex={-1}>{doc.title}</h2>
       <Used id={doc.id} used={used} />
       <div className="row doc-actions">
         <Importer fileLabel="Replace with a file" onRead={onIncoming} primary={false} />
@@ -247,7 +124,7 @@ function MasterCard({ db, doc, used, report, onIncoming, onReread }: Omit<CardPr
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       <div className="row doc-actions">
         <button type="button" aria-expanded={making} onClick={() => { setMaking((m) => !m); setTitle(""); act.clear(); }}>Make a version</button>
-        <a className="btn" href="#/tailor">Tailor for a job</a>
+        <a className="btn" href="#/resume?step=job">Tailor for a job</a>
         <a className="btn" href={`#/resume/print/${doc.id}`}>Print</a>
       </div>
       {making ? (
@@ -311,7 +188,7 @@ function VersionCard({ db, doc, used, say, report }: CardProps) {
         {editing ? null : <button type="button" onClick={() => setEditing(true)} disabled={act.busy !== null}>Edit</button>}
         <button type="button" onClick={() => { setRenaming(true); setName(doc.title); }} disabled={act.busy !== null || renaming}>Rename</button>
         <button type="button" onClick={duplicate} {...act.button("duplicate")}>Duplicate</button>
-        <a className="btn" href={`#/tailor?baseline=${doc.id}`} aria-label={`Tailor with this resume: ${doc.title}`}>Tailor with this</a>
+        <a className="btn" href={`#/resume?step=job&baseline=${doc.id}`} aria-label={`Tailor with this resume: ${doc.title}`}>Tailor with this</a>
         <a className="btn" href={`#/resume/print/${doc.id}`}>Print</a>
         <button type="button" className="danger" onClick={() => setConfirming(true)} disabled={act.busy !== null || confirming}>Delete</button>
         {!editing ? <Status text={act.busy === null ? act.status : null} /> : null}
@@ -325,74 +202,31 @@ function VersionCard({ db, doc, used, say, report }: CardProps) {
   );
 }
 
-/** A file or pasted text on its way in. `draft` exists only once there is something to review, and `incoming` is kept so Convert again and the simple converter can start from the same text. */
-interface Pending {
-  incoming: Incoming;
-  draft: ReviewDraft | null;
-  /** an old resume read again: the review is titled "Check your resume" even though a master exists */
-  reread?: boolean;
-}
-
 interface TabProps {
   db: JobTrackerDB;
   resumes: DocumentRow[];
   usage: ReadonlyMap<number, number>;
   say(message: string, removed?: boolean): void;
-  navigate(to: string): void;
+  /** the page's record of unsaved text, which asks before leaving */
+  report: ReportUnsaved;
   /** the AI key and the conversion, replaced in tests */
   deps?: Partial<{ ai: AiDeps; convert: ConvertFn }>;
 }
 
-export function ResumeTab({ db, resumes, usage, say, navigate, deps }: TabProps) {
-  const guard = useLeaveWhenUnsaved(navigate);
-  const leaveAct = useAction();
+/** The master and version editors. Before there is a master the page's first step brings one in, so this tab has only a line. */
+export function ResumeTab({ db, resumes, usage, say, report, deps }: TabProps) {
   const master = resumes.find((d) => d.master);
   const versions = resumes.filter((d) => !d.master);
   const ai = deps?.ai ?? realAiDeps;
   const convert = deps?.convert ?? convertResume;
-  // A file or pasted text goes to the convert panel first, then to the review. `reviewKey` gives the review a fresh start each time its sections are swapped.
-  const [pending, setPending] = useState<Pending | null>(null);
-  const [reviewKey, setReviewKey] = useState(0);
-  const review = (next: ReviewDraft) => {
-    setPending((p) => p && { ...p, draft: next });
-    setReviewKey((n) => n + 1);
-  };
-  const [templating, setTemplating] = useState(false);
-  const startReading = (incoming: Incoming) => setPending({ incoming, draft: null });
-  // An old resume read again goes straight to the review, so nothing is stored until Save.
-  const startReread = (sections: DocSection[]) => {
-    // saving keeps how the master first came in, so re-reading does not turn an upload or a template into a paste
-    const source = master?.source ?? "paste";
-    setPending({ incoming: { sections, text: "", source: source === "upload" ? "upload" : "paste" }, draft: { sections, source }, reread: true });
-    setReviewKey((n) => n + 1);
-  };
-  const done = () => setPending(null);
-  const useSimple = () => pending && review({ sections: pending.incoming.sections, source: pending.incoming.source });
+  // "Replace with a file" and the re-read offer go to the convert panel, then to the review; nothing is stored until Save.
+  const intake = useIntake(master);
   return (
     <>
-      {pending && !pending.draft ? (
-        <ConvertPanel db={db} incoming={pending.incoming} ai={ai} convert={convert} onCancel={done} onSimple={useSimple}
-                      onConverted={(result) => review({ sections: result.sections, source: "ai", ai: result })} />
-      ) : null}
-      {guard.leaving ? (
-        <InlineConfirm title="Leave without saving?" help="Text you typed on this page hasn't been saved." confirmLabel="Discard changes" act={leaveAct} actionKey="leave"
-                       onConfirm={guard.discard} onCancel={guard.stay} />
-      ) : null}
-      {pending?.draft ? (
-        <MasterReview key={`review-${reviewKey}`} db={db} draft={pending.draft} existing={Boolean(master)} heading={pending.reread ? "Check your resume" : undefined} onDone={done}
-                      onAgain={() => setPending({ ...pending, draft: null })} onSimple={useSimple} report={guard.report} />
-      ) : null}
-      {!master && !pending && templating ? <TemplateStart db={db} onDone={() => setTemplating(false)} report={guard.report} /> : null}
-      {!master && !pending && !templating ? (
-        <div className="card doc-card doc-empty">
-          <div className="doc-choices">
-            <button type="button" className="primary" onClick={() => setTemplating(true)}>Start from the template</button>
-            <Importer fileLabel="Upload a file" onRead={startReading} primary={false} />
-          </div>
-        </div>
-      ) : null}
-      {master ? <MasterCard key={master.id} db={db} doc={master} used={usage.get(master.id) ?? 0} onIncoming={startReading} onReread={startReread} report={guard.report} /> : null}
-      {versions.map((v) => <VersionCard key={v.id} db={db} doc={v} used={usage.get(v.id) ?? 0} say={say} report={guard.report} />)}
+      <Intake db={db} intake={intake} existing={Boolean(master)} ai={ai} convert={convert} report={report} />
+      {master ? <MasterCard key={master.id} db={db} doc={master} used={usage.get(master.id) ?? 0} onIncoming={intake.start} onReread={intake.reread} report={report} />
+        : <p className="muted doc-none">No master resume yet.</p>}
+      {versions.map((v) => <VersionCard key={v.id} db={db} doc={v} used={usage.get(v.id) ?? 0} say={say} report={report} />)}
     </>
   );
 }

@@ -25,7 +25,7 @@ describe("the Tailored tab", () => {
     expect(tab(container, "Resumes").getAttribute("aria-current")).toBeNull();
     expect(panes(container).map((p) => p.hasAttribute("hidden"))).toEqual([true, true, false]);
     expect(text(panes(container)[2])).toBe("No tailored resumes yet.Tailor for a job");
-    expect($$(panes(container)[2], "a").find((a) => text(a) === "Tailor for a job")!.getAttribute("href")).toBe("#/tailor");
+    expect($$(panes(container)[2], "a").find((a) => text(a) === "Tailor for a job")!.getAttribute("href")).toBe("#/resume?step=job");
   });
 
   it("lists each tailored resume with its application, Make reusable and Print, and keeps it out of the Resumes tab", async () => {
@@ -114,7 +114,7 @@ describe("Tailor links on the Resumes tab", () => {
     const v = await createVersion(db, { title: "Analyst v2", sections: body("v2"), basedOn: master });
     const { container } = await mount(db, "/resume");
     const link = (label: string) => $$(panes(container)[0], "a").find((a) => text(a) === label)!;
-    expect(link("Tailor for a job").getAttribute("href")).toBe("#/tailor");
-    expect(link("Tailor with this").getAttribute("href")).toBe(`#/tailor?baseline=${v}`);
+    expect(link("Tailor for a job").getAttribute("href")).toBe("#/resume?step=job");
+    expect(link("Tailor with this").getAttribute("href")).toBe(`#/resume?step=job&baseline=${v}`);
   });
 });

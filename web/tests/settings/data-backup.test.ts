@@ -3,6 +3,7 @@ import { createElement as h } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BackupDeps } from "../../src/backup/deps";
 import type { FileHandleLike, HandleStore } from "../../src/backup/fileBackup";
+import { flowKey } from "../../src/app/resumeFlowStorage";
 import { readBackupState, recordBackup } from "../../src/backup/state";
 import type { StorageStatus } from "../../src/backup/storage";
 import type { JobTrackerDB } from "../../src/db/schema";
@@ -142,6 +143,20 @@ describe("export records the last backup", () => {
     await waitFor(() => noticeText().startsWith("All your data was deleted"));
     expect(readBackupState(db.name)).toEqual({ lastBackupAt: null, snoozedAt: null });
     expect(store.map.size).toBe(0);
+  });
+});
+
+describe("Delete all my data and the Resume page's saved job", () => {
+  it("removes this database's item from session storage and leaves other keys alone", async () => {
+    const { db } = await setup();
+    sessionStorage.setItem(flowKey(db.name), "{}");
+    sessionStorage.setItem("unrelated", "x");
+    await click(byText("Delete all my data")!);
+    await click(byText("Delete everything")!);
+    await waitFor(() => noticeText().startsWith("All your data was deleted"));
+    expect(sessionStorage.getItem(flowKey(db.name))).toBeNull();
+    expect(sessionStorage.getItem("unrelated")).toBe("x");
+    sessionStorage.clear();
   });
 });
 
