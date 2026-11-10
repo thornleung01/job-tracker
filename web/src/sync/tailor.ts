@@ -5,7 +5,7 @@ import {
   AiError, DEFAULT_MODEL, checkTailored, masterText, parseTailorReply, readMaster, tailorRequest,
   type AiDeps, type CheckedLine, type CheckedTailor, type Complete, type TailorMaster, type TailorTone,
 } from "../ai";
-import { greeting } from "../components/documents/letter";
+import { greeting } from "../documents/letter";
 import { newItemId, normalizeSections } from "../db/documentShape";
 import { ActionError } from "../db/errors";
 import { MAX_AI_INPUT_CHARS } from "../db/limits";
