@@ -7,74 +7,42 @@ import { MailActions } from "../../components/MailActions";
 import { MailMeta } from "../../components/MailMeta";
 import { eventLabel } from "../../components/eventLabel";
 import { Notice } from "../../components/Notice";
-import { TimeText, dayText } from "../../components/TimeText";
+import { TimeText } from "../../components/TimeText";
 import { clearFlash, peekFlash } from "../../components/flash";
 import { useAction, type ActionRunner } from "../../components/useAction";
 import { useNoticeFocus } from "../../components/useNoticeFocus";
 import { STAGES, type Stage } from "../../db/stages";
 import type { JobTrackerDB } from "../../db/schema";
-import { ignoredIsReal, learnedNotice, resolveReview, undoRule } from "../../sync/actions";
+import { learnedNotice, resolveReview } from "../../sync/actions";
 import { mailboxLink, replyLink } from "../../sync/links";
 import { reviewPage, type ReviewItem } from "../../sync/queries";
 import "./review.css";
 
 export default function ReviewPage({ db }: PageProps) {
   const data = useQuery(() => reviewPage(db), [db]);
-  const act = useAction();
   const [notice, setNotice] = useState<string | null>(() => peekFlash());
   useEffect(() => clearFlash(), []);
   const result = useNoticeFocus();
 
   if (!data) return <h1 className="page">Needs review</h1>;
 
-  // Settling an email or undoing a rule removes the button that was pressed, so the result takes focus.
+  // Settling an email removes the button that was pressed, so the result takes focus.
   const tell = (message: string) => {
     setNotice(message || null);
     if (message) result.focus();
   };
-  const undo = (id: number) => act.run(`undo-${id}`, async () => tell(await undoRule(db, id)));
-  const restore = (id: number) => act.run(`real-${id}`, async () => tell((await ignoredIsReal(db, id)).message));
 
   return (
     <>
       <h1 className="page">Needs review</h1>
       <div ref={result.box}>{notice ? <Notice>{notice}</Notice> : null}</div>
-      {act.error ? <Notice tone="err">{act.error}</Notice> : null}
 
       {data.emails.map((e) => <ReviewCard key={e.id} db={db} email={e} apps={data.apps} onDone={tell} />)}
-      {!data.emails.length ? <p className="muted">Nothing to review.</p> : null}
-
-      <section className="card" id="learned" aria-labelledby="h-learned">
-        <h2 id="h-learned" className="section">What the app has learned</h2>
-        {data.learned.length ? (
-          <>
-            <p className="help">These come from your answers. They apply to new and saved emails. Undo any that are wrong.</p>
-            {data.learned.map((r) => (
-              <div className="row review-line" key={r.id}>
-                <span>{r.text}</span>
-                <button type="button" className="small" aria-label={`Undo: ${r.text}`} onClick={() => void undo(r.id)} {...act.button(`undo-${r.id}`)}>Undo</button>
-              </div>
-            ))}
-          </>
-        ) : (
-          <p className="muted flush-p">Nothing yet. When an email here isn't about a job, choose <b>Not job mail</b>. On an application, choose <b>Not an application</b> to do the same and remove it.</p>
-        )}
-      </section>
-
-      {data.ignored.length ? (
-        <section className="card" id="ignored" aria-labelledby="h-ignored">
-          <h2 id="h-ignored" className="section">Ignored because of what the app learned</h2>
-          <p className="help">Kept for 30 days in case a rule was too strict. If one of these was a real job email, choose Restore email. The rule is undone and the email is read again.</p>
-          {data.ignored.map((m) => (
-            <div className="row review-line" key={m.id}>
-              <span className="what">
-                <b>{m.subject || "(no subject)"}</b>
-                <span className="small muted who">{m.sender} {"·"} {dayText(m.receivedAt, "short")}</span>
-              </span>
-              <button type="button" className="small" aria-label={`Restore email: ${m.subject || "(no subject)"}`} onClick={() => void restore(m.id)} {...act.button(`real-${m.id}`)}>Restore email</button>
-            </div>
-          ))}
-        </section>
+      {!data.emails.length ? (
+        <>
+          <p className="muted">Nothing to review.</p>
+          <p className="muted">Rules the app has learned are in <a href="#/settings/mail">Settings</a>.</p>
+        </>
       ) : null}
     </>
   );

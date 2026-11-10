@@ -31,11 +31,12 @@ tr.app-row.is-current td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
 .filters .show-group > legend { padding: 0 0 6px 4px; font-size: 0.875rem; font-weight: 500; color: var(--muted); }
 .show-group-boxes { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .card.filter-card { margin-bottom: var(--gap); }
-/* One quiet status row: the count and the review link on the left, the weekly goal on the right. */
+/* One quiet status row: the count on the left, the weekly goal on the right. */
 .status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 24px; margin: 0 0 var(--pad); }
 .status-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; }
 .status-row .result-line { margin: 0; min-height: 0; }
-.review-link { margin: 0; }
+.add-bookmarklet { margin-top: var(--gap); }
+.add-bookmarklet > summary { cursor: pointer; min-height: var(--tap-sm); display: flex; align-items: center; font-weight: 500; }
 .save-view-trigger { min-height: var(--tap-sm); padding: 0 14px; font-size: 0.875rem; }
 .view-chips { margin-bottom: var(--pad); }
 .card.compare-offers { margin-bottom: var(--pad); }

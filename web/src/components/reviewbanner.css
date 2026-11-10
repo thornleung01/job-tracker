@@ -1,0 +1,5 @@
+/* A quiet row on the page background, not a card. */
+.review-banner { display: flex; align-items: center; gap: 8px; margin: 0 0 var(--pad); color: var(--muted); font-size: 0.875rem; }
+.review-banner p { margin: 0; }
+.review-banner svg { flex: none; }
+.review-banner .btn { margin-left: 4px; }

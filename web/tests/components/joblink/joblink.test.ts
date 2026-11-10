@@ -61,7 +61,7 @@ const stub = (o: Partial<JobLinkFill> = {}): JobLinkFill => ({
   readPastedText: vi.fn(), result: "", checking: false, hints: { company: null, role: null }, unreadable: false, edited: vi.fn(), adopt: vi.fn(), reset: vi.fn(), ...o,
 });
 
-async function mount(link: JobLinkFill, navigate = vi.fn()) {
+async function mount(link: JobLinkFill) {
   if (root) {
     await act(async () => root!.unmount());
     box!.remove();
@@ -69,7 +69,7 @@ async function mount(link: JobLinkFill, navigate = vi.fn()) {
   box = document.createElement("div");
   document.body.append(box);
   root = createRoot(box);
-  await act(async () => root!.render(h("form", null, h(JobLinkField, { link, navigate }))));
+  await act(async () => root!.render(h("form", null, h(JobLinkField, { link }))));
   return box;
 }
 
@@ -114,17 +114,13 @@ describe("JobLinkField", () => {
     expect(el.querySelector("label[for=add-paste]")?.textContent).toBe("Paste the job posting text");
   });
 
-  it("links to Settings through navigate, and only when nothing could be read", async () => {
-    const navigate = vi.fn();
-    let el = await mount(stub(), navigate);
+  it("points to the bookmarklet below, and only when nothing could be read", async () => {
+    let el = await mount(stub());
     expect(el.querySelector("a")).toBeNull();
-    el = await mount(stub({ unreadable: true }), navigate);
-    const a = el.querySelector("a")!;
-    const ev = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
-    await act(async () => a.dispatchEvent(ev));
-    expect(ev.defaultPrevented).toBe(true);
-    expect(navigate).toHaveBeenCalledWith("/settings");
-    expect(el.textContent).toContain("LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet in Settings.");
+    expect(el.textContent).not.toContain("bookmarklet");
+    el = await mount(stub({ unreadable: true }));
+    expect(el.querySelector("a")).toBeNull();
+    expect(el.textContent).toContain("LinkedIn, Indeed or a company site? Use the Save to Job Tracker bookmarklet under Save jobs from any site, below.");
   });
 });
 

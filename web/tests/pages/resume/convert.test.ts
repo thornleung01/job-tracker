@@ -114,7 +114,7 @@ describe("the convert panel", () => {
     await paste(container);
     expect(button(container, "Convert with AI")).toBeNull();
     expect(text(panel(container))).toContain("Add your Anthropic key in Settings to convert with AI.");
-    expect($$(panel(container), "a").find((a) => text(a) === "Settings")!.getAttribute("href")).toBe("#/settings");
+    expect($$(panel(container), "a").find((a) => text(a) === "Settings")!.getAttribute("href")).toBe("#/settings/ai");
     expect(button(container, "Use the simple converter")!.classList.contains("primary")).toBe(true);
   });
 

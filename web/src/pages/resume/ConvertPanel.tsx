@@ -43,7 +43,7 @@ export function ConvertPanel({ db, incoming, ai, convert, onConverted, onSimple,
       <textarea id={boxId} className="convert-text" readOnly rows={10} value={incoming.text} />
       <p className="muted small convert-count">{plural(incoming.text.length, "character")}</p>
       {tooLong ? <Notice tone="err">{AI_MESSAGES.tooLong}</Notice> : null}
-      {hasNoKey ? <p className="convert-key">Add your Anthropic key in <a href="#/settings">Settings</a> to convert with AI.</p> : null}
+      {hasNoKey ? <p className="convert-key">Add your Anthropic key in <a href="#/settings/ai">Settings</a> to convert with AI.</p> : null}
       {status.state === "locked" ? (
         <form className="row convert-unlock" onSubmit={(e) => void unlock.submit(e)}>
           <div className="fgroup">

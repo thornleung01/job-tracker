@@ -3,11 +3,11 @@ import { buildBookmarkletSource } from "../jobs/bookmarklet";
 import "./bookmarkletcard.css";
 
 /**
- * Settings section for the "Save to Job Tracker" bookmarklet. The link is for dragging to the bookmarks bar; the Copy
+ * Section for the "Save to Job Tracker" bookmarklet, shown in the Add application area (embedded: no card or heading, the disclosure supplies it). The link is for dragging to the bookmarks bar; the Copy
  * button is the keyboard path. React refuses javascript: URLs in href, so the attribute is set on the element directly.
  * Clicking the link inside this page does nothing (the page's own CSP blocks it), so click is cancelled.
  */
-export function BookmarkletCard() {
+export function BookmarkletCard({ embedded = false }: { embedded?: boolean } = {}) {
   const source = useMemo(() => buildBookmarkletSource(window.location.origin + import.meta.env.BASE_URL), []);
   const link = useRef<HTMLAnchorElement>(null);
   const [status, setStatus] = useState("");
@@ -26,8 +26,8 @@ export function BookmarkletCard() {
   }
 
   return (
-    <section className="card" id="bookmarklet" aria-labelledby="h-bookmarklet">
-      <h2 className="sec" id="h-bookmarklet">Save jobs from any site</h2>
+    <section className={embedded ? undefined : "card"} id="bookmarklet" aria-labelledby={embedded ? undefined : "h-bookmarklet"}>
+      {embedded ? null : <h2 className="sec" id="h-bookmarklet">Save jobs from any site</h2>}
       <p>Add a bookmark to your browser. Choose it on any job posting to open Job Tracker with the details filled in.</p>
       <div className="row field-block">
         <a ref={link} className="btn bookmarklet-link" draggable="true" aria-describedby="bookmarklet-drag" onClick={(e) => e.preventDefault()}>

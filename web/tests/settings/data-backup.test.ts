@@ -63,8 +63,8 @@ async function setup(opts: Options = {}) {
     backup,
     ai: fakeAiDeps().deps,
   };
-  await render(h(SettingsView, { db, user: ada, params: {}, query: new URLSearchParams(), navigate: () => undefined, deps }));
-  await waitFor(() => q("#appearance input[type=radio]"));
+  await render(h(SettingsView, { db, user: ada, params: { section: "data" }, query: new URLSearchParams(), navigate: () => undefined, deps }));
+  await waitFor(() => q("#data"));
   return { db, download, downloadCsv, picker, store, file };
 }
 

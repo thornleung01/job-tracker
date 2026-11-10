@@ -78,17 +78,6 @@ describe("the print stylesheet", () => {
   });
 });
 
-describe("the phone nav", () => {
-  it("clips the full label instead of removing it, so the link keeps its accessible name", async () => {
-    const text = await css("styles/base.css");
-    const phone = text.slice(text.indexOf("@media (max-width: 520px)"));
-    expect(phone).toMatch(/nav a \.nav-full \{[^}]*clip-path: inset\(50%\)/);
-    expect(phone).not.toMatch(/\.nav-full \{[^}]*display: none/);
-    expect(phone).toMatch(/nav a \.nav-short \{ display: inline; \}/);
-    expect(text).toMatch(/nav a \.nav-short \{ display: none; \}/);
-  });
-});
-
 describe("the editor stylesheet", () => {
   it("keeps every rule under .doc-editor, so the Resume page and the detail page can share it", async () => {
     const text = (await css("components/documents/sectionseditor.css")).replace(/\/\*[\s\S]*?\*\//g, "");

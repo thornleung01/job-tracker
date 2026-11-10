@@ -8,7 +8,8 @@ export const ROUTES = [
   { path: "/resume", page: "resume", nav: "Resume" },
   { path: "/resume/print/:id", page: "resume", nav: null },
   { path: "/statistics", page: "statistics", nav: "Statistics" },
-  { path: "/review", page: "review", nav: "Needs review" },
+  { path: "/review", page: "review", nav: null },
   { path: "/settings", page: "settings", nav: null },
+  { path: "/settings/:section", page: "settings", nav: null },
   { path: "/setup", page: "setup", nav: null },
 ] as const;

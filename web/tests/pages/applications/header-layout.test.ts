@@ -90,16 +90,15 @@ describe("the page header: title row, one filter row, one status row", () => {
     expect(await loadSavedViews(db)).toMatchObject([{ name: "Applied only", stage: "Applied" }]);
   });
 
-  it("merges the count, the review notice and the weekly goal into one status row", async () => {
+  it("merges the count and the weekly goal into one status row, with the review banner above the list", async () => {
     const db = freshDb();
     const { account } = await seedThree(db);
     await addMail(db, account, null, { review: true });
     const { container } = await mountPage(ApplicationsPage, db);
     const row = $(container, ".status-row")!;
     expect(text($(row, ".result-line"))).toContain("Showing 3 applications");
-    const review = $(row, ".review-link")!;
-    expect(review.getAttribute("role")).toBe("status");
-    expect(text($(review, "a"))).toBe("1 email needs review");
+    const review = $(container, ".review-banner")!;
+    expect(text($(review, "p"))).toBe("1 email needs a look");
     expect($(review, "a")!.getAttribute("href")).toBe("#/review");
     expect(button(row, "Set a weekly goal")).not.toBeNull();
     // there is no longer a bordered notice for it
@@ -110,7 +109,7 @@ describe("the page header: title row, one filter row, one status row", () => {
     const db = freshDb();
     await seedThree(db);
     const { container } = await mountPage(ApplicationsPage, db);
-    expect($(container, ".review-link")).toBeNull();
+    expect($(container, ".review-banner")).toBeNull();
   });
 
   it("keeps the weekly goal working from the status row, and gives its form the full row", async () => {

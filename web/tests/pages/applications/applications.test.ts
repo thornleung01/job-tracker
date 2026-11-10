@@ -192,19 +192,31 @@ describe("filters", () => {
     expect($(filtered.container, ".notice")).toBeNull();
   });
 
-  it("links to Needs review when mail is waiting", async () => {
+  it("shows the review banner above the list, and not in the status row", async () => {
     const db = freshDb();
     const { account } = await seedThree(db);
     await addMail(db, account, null, { review: true });
     await addMail(db, account, null, { review: true });
     const { container } = await mountPage(ApplicationsPage, db);
-    const notice = $(container, ".review-link")!;
-    expect(notice.getAttribute("role")).toBe("status");
-    expect(text($(notice, "a"))).toBe("2 emails need review");
-    expect($(notice, "a")?.getAttribute("href")).toBe("#/review");
-    // the explanation stays in the page for screen readers, as the link's description
-    const why = document.getElementById($(notice, "a")!.getAttribute("aria-describedby")!)!;
-    expect(text(why)).toBe("We weren't sure which application they belong to.");
+    const banner = $(container, ".review-banner")!;
+    expect(banner.getAttribute("role")).toBeNull();
+    expect(text(banner)).toBe("2 emails need a look" + "Review emails");
+    expect($(banner, "a")?.getAttribute("href")).toBe("#/review");
+    expect($(container, ".status-row .review-banner")).toBeNull();
+    expect($(container, ".review-link")).toBeNull();
+  });
+
+  it("offers the bookmarklet as a collapsed disclosure inside the Add application form", async () => {
+    const db = freshDb();
+    await seedThree(db);
+    const { container } = await mountPage(ApplicationsPage, db);
+    expect($(container, "details.add-bookmarklet")).toBeNull();
+    await click(Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Add application")!);
+    const details = $(container, "#add-application details.add-bookmarklet") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(text($(details, "summary"))).toBe("Save jobs from any site");
+    expect($(details, "h2")).toBeNull();
+    expect($(details, "a.bookmarklet-link")).not.toBeNull();
   });
 });
 

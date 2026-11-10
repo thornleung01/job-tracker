@@ -8,7 +8,3 @@
 .review-form > select, .review-form > input { flex: 1 1 0; }
 @media (max-width: 640px) { .review-form { flex-wrap: wrap; } .review-form > * { flex: 1 1 100%; } }
 .review-form input { min-width: 0; }
-.review-line { justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
-.review-line .what { min-width: 0; overflow-wrap: anywhere; }
-.review-line .what b { font-weight: 700; }
-.review-line .who { display: block; }

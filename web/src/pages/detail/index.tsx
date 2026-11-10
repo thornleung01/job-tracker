@@ -122,7 +122,7 @@ export default function DetailPage({ db, params, query, navigate }: PageProps) {
         <p className="muted">{gone.company}{gone.role ? ` · ${gone.role}` : ""}. It stays in Recently deleted for {plural(gone.daysLeft, "more day")}.</p>
         <div className="row">
           <button type="button" className="primary" onClick={restoreDeleted} {...act.button("restore")}>Restore</button>
-          <a className="btn" href="#/settings">Recently deleted</a>
+          <a className="btn" href="#/settings/data">Recently deleted</a>
         </div>
       </>
     );
