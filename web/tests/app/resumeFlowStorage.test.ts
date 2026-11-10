@@ -1,6 +1,6 @@
 // The Resume page's saved job lives in session storage under one key per database; log out and Delete all my data clear it.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearAllFlows, clearFlow, flowKey } from "../../src/app/resumeFlowStorage";
+import { clearAllFlows, clearFlow, docsOpenKey, flowKey } from "../../src/app/resumeFlowStorage";
 
 afterEach(() => {
   sessionStorage.clear();
@@ -23,6 +23,18 @@ describe("clearing the saved job", () => {
     clearAllFlows();
     expect(sessionStorage.length).toBe(1);
     expect(sessionStorage.getItem("jobtracker:other")).toBe("3");
+  });
+
+  it("clears the open state of Your documents with the saved job", () => {
+    sessionStorage.setItem(flowKey("a"), "1");
+    sessionStorage.setItem(docsOpenKey("a"), "1");
+    sessionStorage.setItem(docsOpenKey("b"), "1");
+    clearFlow("a");
+    expect(sessionStorage.getItem(docsOpenKey("a"))).toBeNull();
+    expect(sessionStorage.getItem(docsOpenKey("b"))).toBe("1");
+    sessionStorage.setItem("jobtracker:other", "3");
+    clearAllFlows();
+    expect(sessionStorage.length).toBe(1);
   });
 
   it("never throws when storage is off", () => {

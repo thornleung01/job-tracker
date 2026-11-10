@@ -1,4 +1,5 @@
-// The Resume page's three sections, top to bottom: Resume, Job, and (once there is a draft) Tailored resume | Tailored cover letter. There are no
+// The Resume page's sections, top to bottom: Job (the master is one line in its card; with no master the Resume intake comes first) and, once there
+// is a draft, Tailored for {company}: Tailored resume | Tailored cover letter. There are no
 // steps to move through: what shows is derived from what exists (flowState.deriveStep). The work in progress is the flow, which the page holds so a
 // reload and the leave guard both see it.
 import { useEffect, useRef, type Dispatch } from "react";
@@ -12,7 +13,7 @@ import { deriveStep, type FlowAction, type FlowState } from "../flowState";
 import { FLOW_KEY, useReportUnsaved, type ReportUnsaved } from "../unsaved";
 import type { SectionDeps } from "./deps";
 import { JobSection } from "./JobSection";
-import { ResumeSection } from "./ResumeSection";
+import { MasterSummary, ResumeSection } from "./ResumeSection";
 import { TailoredSplit } from "./TailoredSplit";
 import "../split.css";
 
@@ -91,7 +92,7 @@ export function Sections({ db, resumes, flow, dispatch, deps, report, onShowMast
       if (app && !app.deletedAt) {
         dispatch({ type: "prefill", appId: app.id, company: app.company, role: app.role, posting: app.postingText ?? "", url: app.postingUrl ?? "" });
         focusJob.current = true;
-      } else if (stepParam === "job" || chosen) focusJob.current = true;
+      } else if (stepParam === "job" || baselineParam !== null) focusJob.current = true;
       navigate(tabParam ? `/resume?tab=${encodeURIComponent(tabParam)}` : "/resume", { replace: true });
     })();
     return () => {
@@ -125,18 +126,18 @@ export function Sections({ db, resumes, flow, dispatch, deps, report, onShowMast
 
   return (
     <div className="rs">
-      <ResumeSection
-        db={db} ai={deps.ai} convert={deps.convert} report={report} master={master} baselines={baselines} baseline={baseline} locked={flow.draft !== null}
-        onBaseline={(id) => dispatch({ type: "baseline", id })} onEdit={onShowMaster} onSaved={() => { focusJob.current = true; }}
+      {master && baseline ? null : <ResumeSection db={db} ai={deps.ai} convert={deps.convert} report={report} onSaved={() => { focusJob.current = true; }} />}
+      <JobSection
+        db={db} flow={flow} dispatch={dispatch} deps={deps} baseline={baseline} write={write} byHand={byHand}
+        head={master && baseline ? (
+          <MasterSummary master={master} baselines={baselines} baseline={baseline} locked={flow.draft !== null} onBaseline={(id) => dispatch({ type: "baseline", id })} onEdit={onShowMaster} />
+        ) : null}
       />
-      <JobSection db={db} flow={flow} dispatch={dispatch} deps={deps} baseline={baseline} write={write} byHand={byHand} />
       {baselineGone && master && flow.draft ? (
         <p className="muted small rs-gone" role="status">The resume this draft was based on was deleted, so your master resume is used instead.</p>
       ) : null}
       {(step === "split" || step === "saved") && baseline && flow.draft && flow.resume ? (
-        <div className="rs-wide">
-          <TailoredSplit db={db} flow={{ ...flow, draft: flow.draft, resume: flow.resume }} dispatch={dispatch} deps={deps} baseline={baseline} write={write} onStartOver={startOver} />
-        </div>
+        <TailoredSplit db={db} flow={{ ...flow, draft: flow.draft, resume: flow.resume }} dispatch={dispatch} deps={deps} baseline={baseline} write={write} onStartOver={startOver} />
       ) : null}
     </div>
   );

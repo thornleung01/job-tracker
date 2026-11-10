@@ -1,6 +1,9 @@
-/* The Resume page: three sections (Resume, Job, the tailored split) and the action bar. Cards, buttons and fields come from the shared stylesheet; this
-   file lays them out. The split gets a wider container than the page (about 1360px), two columns above 1100px, one under it, and on a phone one
+/* The Resume page: Job, the tailored split with its action bar, then Your documents, all in one wide column (the page's own content is wider than
+   the app's page width, which the header keeps, so Job, the split, the bar and Your documents share the same left and right edges). Cards, buttons and fields come from the shared
+   stylesheet; this file lays them out. The split is two columns above 1100px (the resume the larger share), one under it, and on a phone one
    document at a time behind the two-tab switch (.doc-switch). The bar's state reads from its words, never from colour alone. */
+/* 1240px wide, centred on the page: 76px past each side of the header's 1088px, less as the window narrows, and none once the window is that narrow */
+.rs-page { margin-inline: calc(-1 * clamp(0px, (100vw - 1120px) / 2, 76px)); }
 .rs { margin: 0 0 var(--section); }
 .rs-section { margin: 0 0 var(--gap); }
 .rs-h { font-size: 1.25rem; line-height: 1.4; margin: 0 0 12px; }
@@ -10,7 +13,8 @@
 .rs-wait { margin: 0; }
 .rs-gone { margin: 0 0 var(--gap); }
 
-/* Resume: the master as one compact row. */
+/* The top of the Job card: the master as one line. */
+.rs-card-head { margin: 0 0 var(--gap); padding: 0 0 12px; border-bottom: 1px solid var(--line); }
 .rs-master { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0; }
 .rs-master-sum { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
 .rs-based { flex-direction: row; align-items: center; gap: 8px; }
@@ -39,21 +43,24 @@ button.rs-edit { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875rem
 .rs-card > .notice { margin: var(--gap) 0 0; }
 .rs-card > .small[role="status"] { margin: 12px 0 0; }
 
-/* The split, in a container wider than the page. */
-.rs-wide { width: min(1360px, calc(100vw - 32px)); margin-left: calc(50% - min(1360px, 100vw - 32px) / 2); margin-top: var(--section); }
-.rs-split { position: relative; }
-.rs-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 var(--gap); }
+/* The split: a heading row that carries Rewrite with AI and Start over, then the two panes. */
+.rs-split { position: relative; margin-top: var(--section); }
+.rs-result-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 var(--gap); }
+.rs-result-head .rs-h { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.rs-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .rs-strip button { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875rem; }
 .rs-split > .tailor-ai, .rs-split > .inline-confirm { margin: 0 0 var(--gap); }
-.rs-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
-.rs-col { min-width: 0; }
-.rs-h-doc { font-size: 1rem; line-height: 1.375; margin: 0 0 8px; }
+.rs-cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px 24px; align-items: stretch; }
+.rs-col { min-width: 0; display: flex; flex-direction: column; }
+.rs-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--tap-sm); margin: 0 0 8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+.rs-h-doc { font-size: 1rem; line-height: 1.375; font-weight: 500; margin: 0; }
 .rs-sheet { min-width: 0; }
 .rs-sheet .page-editor .pe-status { margin: 0 0 8px; }
 .rs-sheet .page-editor .pe-add-section { margin-bottom: 0; }
-.rs-letter { max-width: 68ch; }
-.rs-letter .doc-letter-text { width: 100%; margin-bottom: 12px; min-height: 24rem; }
-.rs-changes { margin: 16px 0 0; max-width: 68ch; }
+/* the letter box is as tall as the sheet beside it (the row's height), and never shorter than 24rem */
+.rs-letter { flex: 1 1 auto; display: flex; flex-direction: column; }
+.rs-letter .doc-letter-text { flex: 1 1 auto; width: 100%; margin-bottom: 12px; min-height: 24rem; resize: none; }
+.rs-changes { margin: 16px 0 0; }
 .rs-changes-body { padding-top: 8px; }
 
 /* The action bar: sticky to the bottom of the screen while the split is on it. */
@@ -74,12 +81,11 @@ button.rs-inline { min-height: var(--tap-sm); padding: 0 16px; font-size: 0.875r
 .rs-saved:focus { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
 /* The sticky bar covers the foot of the page: a focused field scrolls clear of it (its height is set by ActionBar), and the page leaves room under it. */
 html:has(.rs-bar) { scroll-padding-bottom: calc(var(--rs-bar-h, 96px) + 24px); }
-.rs-wide { padding-bottom: 12px; }
+.rs-split { padding-bottom: 12px; }
 
 @media (max-width: 1100px) {
   .rs-cols { grid-template-columns: minmax(0, 1fr); }
-  .rs-letter, .rs-changes { max-width: 8.5in; margin-inline: auto; }
-  .rs-col-resume > h2, .rs-col-letter > h2 { max-width: 8.5in; margin-inline: auto; }
+  .rs-letter .doc-letter-text { flex: none; resize: vertical; }
 }
 @media (max-width: 720px) {
   .rs-job { grid-template-columns: minmax(0, 1fr); }
@@ -87,7 +93,7 @@ html:has(.rs-bar) { scroll-padding-bottom: calc(var(--rs-bar-h, 96px) + 24px); }
   .rs-posting textarea { min-height: 12rem; }
   .rs-link { flex-wrap: wrap; }
   .rs-link .fgroup { flex-basis: 100%; }
-  .rs-strip button, .rs-card .row button, button.rs-edit, button.rs-inline, .rs-based select, .rs-pick select, .rs-where a { min-height: var(--tap); }
+  .rs-strip button, .rs-pane-head button, .rs-card .row button, button.rs-edit, button.rs-inline, .rs-based select, .rs-pick select, .rs-where a { min-height: var(--tap); }
   .rs-bar { bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; }
   .rs-bar-btns { width: 100%; }
   .rs-bar-btns button { flex: 1 1 0; }
@@ -96,5 +102,9 @@ html:has(.rs-bar) { scroll-padding-bottom: calc(var(--rs-bar-h, 96px) + 24px); }
   .rs-bar { border: 1px solid CanvasText; }
 }
 
-/* Your documents, under the sections. */
-h2.docs-h { font-size: 1.25rem; line-height: 1.4; margin: 0 0 16px; }
+/* Your documents: a closed disclosure at the foot of the page, opened by anything that points into it. */
+.rs-docs { margin: var(--section) 0 0; }
+.rs-docs > summary.disclosure { font-size: 1.25rem; line-height: 1.4; }
+.rs-docs-h { font: inherit; margin: 0; }
+.rs-docs-unsaved { margin-left: auto; color: var(--muted); font-weight: 400; }
+.rs-docs[open] > summary.disclosure { margin-bottom: var(--gap); }

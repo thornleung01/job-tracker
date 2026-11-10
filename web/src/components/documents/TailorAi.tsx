@@ -31,10 +31,12 @@ interface Props {
   disabled?: boolean;
   /** the Write button's words */
   writeLabel?: string;
+  /** Write is the page's primary button (the default); false when another button on the page is, like Save under a draft */
+  primary?: boolean;
 }
 
 /** The strip. It is mounted only while it is open. */
-export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false, writeLabel = "Write" }: Props) {
+export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false, writeLabel = "Write", primary = true }: Props) {
   const base = useId();
   const [status, setStatus] = useState<VaultStatus>(() => ai.vault.status(dbName));
   const [tone, setTone] = useState<TailorTone>("plain");
@@ -150,7 +152,7 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false, w
       ) : null}
       <div className="row tailor-ai-actions">
         {ready ? (
-          <button type="button" className="primary" ref={writeButton} onClick={write} disabled={working || disabled || asking} aria-busy={working || undefined}>{writeLabel}</button>
+          <button type="button" className={primary ? "primary" : undefined} ref={writeButton} onClick={write} disabled={working || disabled || asking} aria-busy={working || undefined}>{writeLabel}</button>
         ) : null}
         {working ? <button type="button" ref={stopButton} onClick={stop}>Stop</button> : null}
         {onClose ? <button type="button" onClick={onClose} disabled={working}>Close</button> : null}

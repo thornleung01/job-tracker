@@ -1,7 +1,7 @@
-// Job, the second section: the posting pasted in (left), then on the right an optional link, the company and role (read from the posting, marked to
+// Job: the posting pasted in (left), then on the right an optional link, the company and role (read from the posting, marked to
 // check until touched) and the posting's words; under both, a draft written with AI or a copy of the baseline to edit by hand. Nothing is saved here.
-// Before there is a master it is one muted line that links to the way in.
-import { useEffect, useId, useRef, useState } from "react";
+// With a master, the top of the card is one line saying which resume is used. Before there is one, the card is a muted line that links to the way in.
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { PostingTerms } from "../../../components/documents/PostingTerms";
 import { TailorAi, type WriteOptions } from "../../../components/documents/TailorAi";
 import { useUnlock } from "../../../components/documents/useUnlock";
@@ -30,6 +30,8 @@ interface Props {
   write(opts: WriteOptions): Promise<void>;
   /** copies the baseline to edit by hand */
   byHand(): Promise<void>;
+  /** the line at the top of the card that says which resume is used (none before there is a master) */
+  head: ReactNode;
 }
 
 export function JobSection(props: Props) {
@@ -41,7 +43,7 @@ export function JobSection(props: Props) {
   );
 }
 
-function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & { baseline: DocumentRow }) {
+function JobForm({ db, flow, dispatch, deps, baseline, write, byHand, head }: Props & { baseline: DocumentRow }) {
   const base = useId();
   const act = useAction();
   const reading = useRef<AbortController | null>(null);
@@ -55,7 +57,8 @@ function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & 
   const company = flow.company.trim();
   const posting = flow.posting.trim();
   const keyState = deps.ai.vault.status(db.name).state;
-  const noKey = keyState === "none";
+  // The one primary: the strip's Write with AI while the key is open, else Start by hand, and neither once there is a draft (Save is the primary then).
+  const handIsPrimary = keyState !== "unlocked" && !flow.draft;
   const busy = act.busy !== null;
   const guessed = flow.guessed.company || flow.guessed.role;
   const checkId = `${base}-check`;
@@ -115,6 +118,7 @@ function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & 
 
   return (
     <div className="card rs-card">
+      {head ? <div className="rs-card-head">{head}</div> : null}
       <div className="rs-job">
         <div className="fgroup rs-posting">
           <label htmlFor={`${base}-posting`}>Paste the job description</label>
@@ -171,7 +175,7 @@ function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & 
       {/* once there is a draft, the split's strip has the one Rewrite with AI */}
       {flow.draft ? null : <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={false} disabled={busy || !company || !posting || linkBad} writeLabel="Write with AI" />}
       <div className="row rs-actions">
-        <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
+        <button type="button" className={handIsPrimary ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
                 aria-describedby={why ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>
       </div>
       {why ? <p className="muted small rs-why" id={whyId}>{why}</p> : null}
