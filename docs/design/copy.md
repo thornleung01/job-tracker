@@ -286,8 +286,9 @@ gate). New gate: add a `GateKey`.
 - The same action in two places (Setup tab and its own tab) uses the same label.
 - Count or target in the label only to tell similar buttons apart (an `aria-label` may add it: "Reconnect account Gmail a@b.com").
 - The primary is the one that moves the person forward; at most one `primary` per row or card.
-- Not every step is outcome-named yet: the Resume steps use "Next", "Back" and "Save" (DESIGN.md). Treat that as accepted, not as a
-  model for new buttons.
+- Not every button is outcome-named yet: the Resume page's action bar uses a bare "Download" and "Save" (the line beside them says
+  where Save goes), and its AI button reads "Write with AI". There is no "Next" or "Back" on the page any more. Treat the bare verbs as
+  accepted, not as a model for new buttons.
 ### 6.5 "Not now", "Skip", "Dismiss", "Undo"
 Verified in code:
 - **Not now**: a decision that comes back, nothing permanent. Used on the local-data offer (`LocalDataOffer.tsx`; hidden until the

@@ -331,8 +331,11 @@ Both. `table.list`, `tr.app-row` in `base.css`; `ApplicationPanel.tsx` and `appl
 ### Disclosures
 Both. `base.css`. A **section disclosure** (`summary.disclosure`: Table view, Compare offers) has the Lucide chevron and a 44px row. A **quiet disclosure** (`details.more`) tucks a secondary form under a muted line. An **action disclosure** (`details.action`) is a secondary pill in an action row that opens full width beneath it, turning tertiary while open; `.primary` gives it the primary gradient. The chevron rotates 0 to 90 degrees over 0.16s.
 
-### Steps strip
-Hosted. `pages/resume/steps/StepStrip.tsx`, `pages/resume/steps.css`. A wrapping flex list of four items at `--tap`, each with a 24px mark: an outlined number (not reached), accent fill (current) or `--fog` with a tick (done), plus the state in words. Finished steps collapse to one line with a small "Change". The open step's heading takes focus on each step change and shows a visible ring.
+### Tailored split
+Hosted. `pages/resume/sections/TailoredSplit.tsx`, `pages/resume/split.css`. Two titled panes side by side, "Tailored resume" and "Tailored cover letter", in a wider container (about 1360px) with columns `minmax(0, 1.55fr) minmax(0, 1fr)`. Each pane is a plain section under a 500 heading, not a card each. The resume sheet keeps its real 816px width and is scaled down with `transform: scale()` when its column is narrower (`ResumeSheet` and `PageEditor` take an optional `fit` prop), so wrapping and the one-page check match print. Under about 1100px the panes stack; under 720px they become one pane at a time behind a `.doc-switch` (Resume, Cover letter, `aria-pressed`), the only toggle on the page. Secondary lists ("Changes from your baseline (n)", Left out, ticks) sit in one section disclosure under the sheet.
+
+### Sticky action bar
+Hosted. `pages/resume/sections/ActionBar.tsx`, in `split.css`. A bar under the split that sticks to the bottom of the viewport (`position: sticky; bottom: 0`) while the split is on screen and rests under it otherwise. Surface fill with `--raise`, the card radius, 16px padding, and `safe-area-inset-bottom` on a phone. Left, one muted 0.875rem line saying where the primary action goes, with a quiet text action to change it, or a small select when several match. Right, a secondary pill and one primary pill, at `--tap` (44px) on a phone, where the line wraps above the buttons. Results (saved, page count, characters replaced) are muted lines or a Notice in the bar, never a toast. Do not put more than one primary in it.
 
 ### Setup row and setup card
 Hosted. `components/setup/SetupRow.tsx` + `setuprow.css`; `SetupCard.tsx` + `setupcard.css`. A hairline-divided list inside one card; each row is a 24px mark (a 2px Field line ring when open, filled ink with a tick when done), a 500 title, a 0.875rem state word ("Connected", "Not yet"), a muted line on what it unlocks, and its own buttons. The card is a flex row: title, muted next-step line, a primary "Continue", a quiet "Dismiss".
@@ -358,7 +361,7 @@ Each screen has its own section in [docs/design/screens.md](docs/design/screens.
 
 - [Applications list](docs/design/screens.md#applications-list): add, filter, quick edit, bulk, saved views, goal, offers, shortcuts
 - [Application detail](docs/design/screens.md#application-detail): actions, rounds, offer details, documents, history
-- [Resume page and its steps](docs/design/screens.md#resume-page-and-its-steps): four steps, Your documents, convert panel, print view, Tailor
+- [Resume page](docs/design/screens.md#resume-page): Resume, Job, the tailored split, action bar (Download and Save), Your documents, convert panel, print view, Tailor
 - [Settings and Setup](docs/design/screens.md#settings-and-setup): sections, Data, Recently deleted, AI card
 - [Log in and setup guide](docs/design/screens.md#log-in-and-setup-guide)
 - [Jobs and Calendar](docs/design/screens.md#jobs-and-calendar)

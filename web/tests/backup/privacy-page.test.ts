@@ -52,6 +52,7 @@ describe("the privacy page", () => {
     ["the Setup tab's two choices are stored in the database and travel with the export", "which of its steps you skipped (the mailbox or the AI key) and whether you closed the Finish setting up card"],
     ["Setup sends nothing and its choices travel with Export and Import", "the two Setup choices travel with Export data and Import"],
     ["with no mailbox a line replaces the draft buttons", "a short line that links to Settings, Mail takes the place of the buttons"],
+    ["Download makes the PDFs in the browser and sends nothing", "Download makes the PDFs in your browser; nothing is sent."],
     ["the offer counts only what you can see but copies the rest", "The offer counts only the applications you haven't deleted"],
   ])("says that %s", (_what, words) => {
     expect(page).toContain(words);
