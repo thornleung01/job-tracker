@@ -1,6 +1,7 @@
 // The Resume page's work in progress: the pasted job, the draft and its ticks, the letter and where it will be saved. A reducer, so every change is
 // one plain step, and a copy in session storage per database, so a reload keeps it. Nothing here reaches the database: Save does (ActionBar).
-// There are no steps to move between: what the page shows is derived from what exists (deriveStep).
+// There is nothing to move between: what the page shows is derived from what exists (deriveStep). `?step=job` in the address is a legacy deep-link
+// param (it scrolls to Job), not state.
 import { useEffect, useReducer } from "react";
 import { clearFlow, flowKey } from "../../app/resumeFlowStorage";
 import { applyTick } from "../../components/documents/tailorTicks";
@@ -28,8 +29,8 @@ export interface LetterDraft {
 /** What Save made, for the saved bar. */
 export interface SavedJob {
   appId: number;
+  /** the tailored resume, for the Print resume link */
   resumeId: number;
-  coverId: number | null;
   company: string;
   /** the letter as saved, for the Gmail or Outlook draft */
   letter: string;
@@ -90,6 +91,8 @@ export type FlowAction =
   | { type: "target"; target: Target }
   | { type: "prefill"; appId: number; company: string; role: string; posting: string; url: string }
   | { type: "saved"; saved: SavedJob }
+  /** the application Save made is gone (deleted since, found on reload): the draft counts as unsaved again */
+  | { type: "savedGone" }
   | { type: "reset" };
 
 const letterOf = (draft: TailorDraft): LetterDraft => ({
@@ -139,6 +142,8 @@ export function flowReducer(s: FlowState, a: FlowAction): FlowState {
     case "saved":
       // the draft stays on the page and later Saves go to the same application
       return { ...s, saved: a.saved, dirty: false, target: a.saved.appId };
+    case "savedGone":
+      return s.saved === null ? s : { ...s, saved: null, dirty: false, target: s.target === s.saved.appId ? "default" : s.target };
     case "reset":
       return emptyFlow(s.baselineId);
   }
@@ -172,7 +177,7 @@ function readDraft(v: unknown): TailorDraft | null {
 /** What Save made, read back, or null when any part is the wrong type. */
 function readSaved(v: unknown): SavedJob | null {
   if (!isObj(v) || id(v.appId) === null || id(v.resumeId) === null || typeof v.company !== "string" || typeof v.letter !== "string") return null;
-  return { appId: v.appId as number, resumeId: v.resumeId as number, coverId: id(v.coverId), company: v.company, letter: v.letter };
+  return { appId: v.appId as number, resumeId: v.resumeId as number, company: v.company, letter: v.letter };
 }
 
 /** The flow saved for this database, or a fresh one when there is none, storage is off, or what is there isn't this version's shape. Never throws. */

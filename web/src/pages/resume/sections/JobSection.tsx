@@ -168,8 +168,8 @@ function JobForm({ db, flow, dispatch, deps, baseline, write, byHand }: Props & 
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       {act.status ? <p className="muted small" role="status">{act.status}</p> : null}
 
-      <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={flow.draft !== null && flow.edited} disabled={busy || !company || !posting || linkBad}
-                writeLabel={flow.draft ? "Rewrite with AI" : "Write with AI"} />
+      {/* once there is a draft, the split's strip has the one Rewrite with AI */}
+      {flow.draft ? null : <TailorAi key={unlocks} dbName={db.name} ai={deps.ai} run={write} edited={false} disabled={busy || !company || !posting || linkBad} writeLabel="Write with AI" />}
       <div className="row rs-actions">
         <button type="button" className={noKey ? "primary" : undefined} onClick={startByHand} disabled={busy || !company || replacing || linkBad}
                 aria-describedby={why ? whyId : undefined} aria-busy={act.busy === "hand" || undefined}>Start by hand</button>

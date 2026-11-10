@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { PHONE } from "../../app/usePhone";
 import { SHEET_WIDTH_PX } from "./onepage";
 import "./fitbox.css";
-
-const PHONE = "(max-width: 720px)";
 
 interface Fit {
   scale: number;
@@ -29,6 +28,9 @@ export function FitBox({ on, children }: { on: boolean; children: ReactNode }) {
       const width = box.clientWidth;
       // no layout (a test) or a phone: leave the sheet alone
       const scale = phone || width <= 0 ? 1 : Math.min(1, width / SHEET_WIDTH_PX);
+      // Width first, then height: the sheet wraps at its real 8.5in only once the scaled class is on it, so the class goes on before the height is read
+      // (React writes the same class a moment later), and the first measure is already right.
+      if (scale < 1) sheet.classList.add("is-scaled");
       const next: Fit = scale === 1 ? { scale: 1, height: null } : { scale, height: Math.ceil(sheet.offsetHeight * scale) };
       setFit((prev) => (prev.scale === next.scale && prev.height === next.height ? prev : next));
     };

@@ -25,7 +25,7 @@ interface Props {
   run(opts: WriteOptions): Promise<void>;
   /** the copy has edits of the person's own, so a write asks before it replaces them */
   edited: boolean;
-  /** the strip is put away: after a draft, or Close. Without it the strip has no Close (it is part of the page, like the Resume page's job step). */
+  /** the strip is put away: after a draft, or Close. Without it the strip has no Close (it is part of the page, like the Resume page's Job section). */
   onClose?(): void;
   /** another action is in flight (a save), so Write waits */
   disabled?: boolean;

@@ -14,6 +14,7 @@ import { addBackLine, compareToBaseline, resetLine } from "../../../documents/co
 import type { FlowAction, FlowState } from "../flowState";
 import { ActionBar } from "./ActionBar";
 import type { SectionDeps } from "./deps";
+import { LetterMail } from "./LetterMail";
 
 interface Props {
   db: JobTrackerDB;
@@ -126,6 +127,8 @@ export function TailoredSplit({ db, flow, dispatch, deps, baseline, write, onSta
               <div className="row">
                 <button type="button" onClick={() => void copy()}>Copy text</button>
                 <span className="small muted" role="status">{copied}</span>
+                {/* only once an application exists to address the draft from, so never before Save */}
+                {flow.saved && !flow.dirty && flow.saved.letter ? <LetterMail db={db} appId={flow.saved.appId} letter={flow.saved.letter} /> : null}
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-const PHONE = "(max-width: 720px)";
+/** The phone breakpoint, for anything that must agree with usePhone (FitBox leaves the sheet unscaled on a phone). */
+export const PHONE = "(max-width: 720px)";
 
 const subscribe = (on: () => void) => {
   if (typeof matchMedia !== "function") return () => undefined;

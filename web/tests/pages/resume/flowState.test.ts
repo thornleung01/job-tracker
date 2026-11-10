@@ -17,7 +17,7 @@ describe("flowReducer", () => {
   const section = { id: "s1", heading: "SUMMARY", items: [{ id: "i1", text: "Analyst" }] };
   const draft = { baselineId: 3, resume: [section], lines: [], cover: [section], coverFlags: [], unused: [] };
   const drafted = () => flowReducer(emptyFlow(), { type: "drafted", draft, resume: [section], ticks: {}, byHand: true });
-  const saved = { appId: 4, resumeId: 5, coverId: 6, company: "Acme", letter: "Hi" };
+  const saved = { appId: 4, resumeId: 5, company: "Acme", letter: "Hi" };
 
   it("derives what the page shows: the way in, the job, the split, then the saved split until an edit", () => {
     expect(deriveStep(emptyFlow(), false)).toBe("resume");
@@ -40,6 +40,21 @@ describe("flowReducer", () => {
     expect(loadFlow("db1")).toMatchObject({ saved, dirty: false, draft: { baselineId: 3 } });
     storeFlow("db1", flowReducer(s, { type: "letter", text: "x" }));
     expect(loadFlow("db1")).toMatchObject({ saved, dirty: true });
+  });
+
+  it("makes the draft unsaved again when the application it was saved to is gone, and Save then goes by the default", () => {
+    const s = flowReducer(drafted(), { type: "saved", saved });
+    expect(s.target).toBe(4);
+    const gone = flowReducer(s, { type: "savedGone" });
+    expect(gone).toMatchObject({ saved: null, dirty: false, target: "default" });
+    expect(deriveStep(gone, true)).toBe("split");
+    expect(flowReducer(flowReducer(s, { type: "target", target: "new" }), { type: "savedGone" }).target).toBe("new");
+    expect(flowReducer(gone, { type: "savedGone" })).toBe(gone);
+  });
+
+  it("does not store or need a cover letter id on the saved mark", () => {
+    storeFlow("db1", flowReducer(drafted(), { type: "saved", saved: { ...saved, coverId: 6 } as typeof saved }));
+    expect(loadFlow("db1").saved).toEqual(saved);
   });
 });
 

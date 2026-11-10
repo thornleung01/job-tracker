@@ -12,6 +12,7 @@ import type { JobDraft } from "../../../src/jobs/types";
 import ResumePage, { type ResumeDeps } from "../../../src/pages/resume";
 import { createVersion, deleteDocument, getCoverLetter, getTailored, saveMaster, saveTailored, setPostingText } from "../../../src/sync/documents";
 import { addApplication } from "../../../src/sync/actions";
+import { upsertAccount } from "../../../src/db/repo";
 import { readJob } from "../../../src/sync/readJob";
 import { draftFromBaseline, tailorForJob } from "../../../src/sync/tailor";
 import { existingDocs, jobMatches, saveTailoredJob } from "../../../src/sync/tailorFlow";
@@ -188,7 +189,11 @@ describe("Job", () => {
     expect(fake.complete).toHaveBeenCalledTimes(1);
     expect(deps.tailorForJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ company: "Acme Corp", role: "Data Analyst", posting: POSTING }), expect.anything(), expect.anything());
     expect(text($(container, "#tailor-ticks-h"))).toBe("Lines from the AI");
-    expect(button($(container, ".rs-job")!.closest(".rs-card")!, "Rewrite with AI")).not.toBeNull();
+    // one Rewrite with AI, in the split's strip: the Job section's AI row goes once there is a draft
+    const rewrites = $$(container, "button").filter((b) => text(b) === "Rewrite with AI");
+    expect(rewrites).toHaveLength(1);
+    expect(rewrites[0].closest(".rs-strip")).not.toBeNull();
+    expect(button($(container, ".rs-job")!.closest(".rs-card")!, "Write with AI")).toBeNull();
   });
 
   it("shows a plain sentence for a link that isn't a web address, and keeps the actions off until it is fixed", async () => {
@@ -332,7 +337,7 @@ describe("the action bar", () => {
 
   it("says it adds a new application when there is no match, and Save stores both documents on it", async () => {
     const { container, db, deps } = await toBar();
-    expect(text($(bar(container), ".rs-where"))).toBe("Adds Acme Corp, Data Analyst to your applications");
+    expect(text($(bar(container), ".rs-where"))).toBe("Adds Acme Corp, Data Analyst to your applications (Applied, today)");
     expect($$(bar(container), "button").map(text)).toEqual(["Download", "Save"]);
     expect(button(bar(container), "Download")!.className).not.toContain("primary");
     expect(button(bar(container), "Save")!.className).toBe("primary");
@@ -354,14 +359,21 @@ describe("the action bar", () => {
     await waitFor(() => $(container, ".rs-where a") !== null, "the saved bar");
     const { appId } = await deps.saveTailoredJob.mock.results[0].value;
     const where = $(bar(container), ".rs-where")!;
-    expect(text(where)).toBe("Saved to Acme CorpOpen applicationEdit in TailorTailor another job");
-    expect($$(where, "a").map((a) => [text(a), a.getAttribute("href")])).toEqual([["Open application", `#/app/${appId}`], ["Edit in Tailor", `#/tailor/${appId}`]]);
+    expect(text($(bar(container), ".rs-saved"))).toBe("Saved to Acme Corp");
+    expect(text(where)).toBe("Open applicationEdit in TailorPrint resumeTailor another job");
+    const { resumeId } = await deps.saveTailoredJob.mock.results[0].value;
+    expect($$(where, "a").map((a) => [text(a), a.getAttribute("href")])).toEqual([
+      ["Open application", `#/app/${appId}`], ["Edit in Tailor", `#/tailor/${appId}`], ["Print resume", `#/resume/print/${resumeId}`],
+    ]);
+    expect(document.activeElement).toBe($(bar(container), ".rs-saved"));
+    expect($(bar(container), ".rs-saved")!.getAttribute("role")).toBe("status");
+    expect($(bar(container), ".rs-saved")!.getAttribute("tabindex")).toBe("-1");
     expect((button(bar(container), "Saved") as HTMLButtonElement).disabled).toBe(true);
     expect(split(container)).not.toBeNull();
     expect(sheetValues(container)).toContain("Jordan Lee");
 
     await type($$(container, ".rs-sheet input")[0], "Jordan Q. Lee");
-    expect((button(bar(container), "Save") as HTMLButtonElement).disabled).toBe(false);
+    await waitFor(() => (button(bar(container), "Save") as HTMLButtonElement | null)?.disabled === false, "Save to come back on");
     expect(text($(bar(container), ".rs-where"))).toBe("Saves to Acme Corp, Data Analyst (already in your applications)Add as new instead");
     await click(button(bar(container), "Save"));   // no question: it is the copy this page just saved
     await waitFor(() => deps.saveTailoredJob.mock.calls.length === 2, "the second save");
@@ -445,6 +457,50 @@ describe("the action bar", () => {
     expect($(bar(container), ".rs-note a")!.getAttribute("href")).toBe("#/settings/mail");
   });
 
+  it("offers the Gmail draft beside Copy text and in the bar once saved, and never before Save", async () => {
+    onTestFinished(hostedBuild());
+    const { container } = await toBar({ prepare: async (db) => void (await upsertAccount(db, "gmail", "me@gmail.com")) });
+    expect($$(container, "a").filter((a) => text(a).startsWith("Draft letter"))).toHaveLength(0);
+    await click(button(bar(container), "Save"));
+    await waitFor(() => $$(container, "a.btn").filter((a) => text(a) === "Draft letter in Gmail").length === 2, "both links");
+    expect($(container, ".rs-letter a.btn")!.getAttribute("href")).toMatch(/^https:\/\//);
+    expect($(bar(container), "a.btn")!.getAttribute("href")).toBe($(container, ".rs-letter a.btn")!.getAttribute("href"));
+    await type($$(container, ".rs-sheet input")[0], "Edited");   // the saved letter is no longer the draft's
+    expect($$(container, "a.btn").filter((a) => text(a).startsWith("Draft letter"))).toHaveLength(0);
+  });
+
+  it("drops the saved bar after a reload when the application is gone, and keeps it when it is there", async () => {
+    const first = await toBar();
+    await click(button(bar(first.container), "Save"));
+    await waitFor(() => $(first.container, ".rs-saved")!.textContent !== "", "the saved line");
+    const { appId } = await first.deps.saveTailoredJob.mock.results[0].value;
+    // same database, same page again: the saved mark comes back and is checked
+    const { deps } = makeDeps();
+    const again = await mount(first.db, deps);
+    await waitFor(() => $(again.container, ".rs-saved") !== null, "the bar");
+    expect(text($(again.container, ".rs-saved"))).toBe("Saved to Acme Corp");
+    await first.db.applications.update(appId, { deletedAt: "2026-11-01T00:00:00Z" });
+    const third = await mount(first.db, makeDeps().deps);
+    await waitFor(() => $(third.container, ".rs-bar") !== null && text($(third.container, ".rs-saved")) === "" && button(bar(third.container), "Save") !== null, "an unsaved bar");
+    expect(text($(bar(third.container), ".rs-where"))).not.toContain("Open application");
+    expect((button(bar(third.container), "Save") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("gives the page the bar's height as scroll padding so a focused field scrolls clear of it", async () => {
+    const observers: { cb: () => void }[] = [];
+    vi.stubGlobal("ResizeObserver", class { cb: () => void; constructor(cb: () => void) { this.cb = cb; observers.push(this); } observe() {} disconnect() {} });
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 88.2 } as DOMRect);
+    onTestFinished(() => rect.mockRestore());
+    const { container } = await toBar();
+    expect(document.documentElement.style.getPropertyValue("--rs-bar-h")).toBe("89px");
+    rect.mockReturnValue({ height: 120 } as DOMRect);
+    act(() => observers.forEach((o) => o.cb()));
+    expect(document.documentElement.style.getPropertyValue("--rs-bar-h")).toBe("120px");
+    await cleanup();
+    expect(document.documentElement.style.getPropertyValue("--rs-bar-h")).toBe("");
+    expect(container).toBeDefined();
+  });
+
   it("shows a failed save as a plain sentence and keeps Save on", async () => {
     const { container, deps } = await toBar();
     const { ActionError } = await import("../../../src/db/errors");
@@ -470,14 +526,27 @@ describe("the action bar", () => {
       expect(files.map((f) => f.name)).toEqual(["Resume – Acme Corp – Data Analyst.pdf", "Cover letter – Acme Corp – Data Analyst.pdf"]);
       expect(deps.saveTailoredJob).not.toHaveBeenCalled();
       expect(await db.applications.count()).toBe(0);
-      expect($$(bar(container), ".rs-note")).toHaveLength(0);
+      expect($$(bar(container), ".rs-note").map(text)).toEqual(["Saved 2 PDFs to your downloads. If only one appeared, allow downloads for this site."]);
+    });
+
+    it("keeps the notes region in the bar from the start, empty, so what arrives in it is read out", async () => {
+      const { container } = await toBar();
+      const region = $(bar(container), ".rs-notes")!;
+      expect(region.getAttribute("role")).toBe("status");
+      expect(text(region)).toBe("");
+      expect(text($(bar(container), ".rs-saved"))).toBe("");
+      await click(button(bar(container), "Download"));
+      await waitFor(() => text(region) !== "", "the note");
+      expect($(bar(container), ".rs-notes")).toBe(region);
     });
 
     it("says when the resume runs to more than one page, and when characters couldn't go in", async () => {
       const { container, deps } = await toBar({ pdf: { resume: { pages: 2, replacedChars: false }, letter: { pages: 1, replacedChars: true } } });
       await click(button(bar(container), "Download"));
-      await waitFor(() => $$(bar(container), ".rs-note").length === 2, "the notes");
-      expect($$(bar(container), ".rs-note").map(text)).toEqual(["Your resume runs to 2 pages.", "Some characters couldn't go in the PDF."]);
+      await waitFor(() => $$(bar(container), ".rs-note").length === 3, "the notes");
+      expect($$(bar(container), ".rs-note").map(text)).toEqual([
+        "Saved 2 PDFs to your downloads. If only one appeared, allow downloads for this site.", "Your resume runs to 2 pages.", "Some characters couldn't go in the PDF.",
+      ]);
       expect(deps.downloadPdfs).toHaveBeenCalledTimes(1);
       await type($$(container, ".rs-sheet input")[0], "Edited");   // the notes were about the draft as it was
       expect($$(bar(container), ".rs-note")).toHaveLength(0);
@@ -490,6 +559,7 @@ describe("the action bar", () => {
       await waitFor(() => deps.downloadPdfs.mock.calls.length === 1, "the download");
       expect(deps.letterPdf).not.toHaveBeenCalled();
       expect((deps.downloadPdfs.mock.calls[0] as unknown as [unknown[]])[0]).toHaveLength(1);
+      await waitFor(() => $$(bar(container), ".rs-note").map(text).join() === "Saved 1 PDF to your downloads.", "the single note");
       await click(button(bar(container), "Save"));
       await waitFor(() => $(container, ".rs-where a") !== null, "the saved bar");
       await click(button(bar(container), "Download"));

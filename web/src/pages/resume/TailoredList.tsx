@@ -57,7 +57,7 @@ function Row({ db, item, baselines, say }: { db: JobTrackerDB; item: TailoredIte
   );
 }
 
-/** The resumes tailored for one application each, newest first. Each opens in the Tailor workspace; new ones start from the Resume page steps. */
+/** The resumes tailored for one application each, newest first. Each opens in the Tailor workspace; new ones start from the Resume page. */
 export function TailoredList({ db, items, baselines, say }: Props) {
   if (!items.length) {
     return (

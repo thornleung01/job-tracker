@@ -48,6 +48,22 @@ export function Sections({ db, resumes, flow, dispatch, deps, report, onShowMast
   const baseline = baselineGone ? master : pick(flow.draft?.baselineId) ?? pick(flow.baselineId) ?? master;
   useReportUnsaved(report, FLOW_KEY, flow.draft !== null && (flow.saved === null || flow.dirty));
 
+  // A saved mark kept across a reload (or left while the application was deleted elsewhere) is checked against the database: the application and
+  // the tailored resume must still be there and live, else the draft is unsaved again and the bar says nothing false.
+  const savedApp = flow.saved?.appId ?? null;
+  const savedResume = flow.saved?.resumeId ?? null;
+  useEffect(() => {
+    if (savedApp === null || savedResume === null) return;
+    let live = true;
+    void (async () => {
+      const [app, resume] = await Promise.all([db.applications.get(savedApp), db.documents.get(savedResume)]);
+      if (live && (!app || app.deletedAt || !resume || resume.deletedAt)) dispatch({ type: "savedGone" });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [db, savedApp, savedResume, dispatch]);
+
   // After the first master is saved, focus goes to Job (the master's row arrives a moment after its save).
   const focusJob = useRef(false);
   useEffect(() => {
