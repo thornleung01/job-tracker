@@ -83,7 +83,7 @@ security "Your key is stored only locked with your passphrase, and the key and t
 - **Headers, titles, buttons, labels: no end punctuation.** Exceptions: a real question ("Replace your edits?") or one "!" on a
   genuinely positive card. A header that is two sentences punctuates the first and not the last.
 - **Sentences (summaries, errors, gates, help lines) take a full stop.**
-- En dash (–): ranges and negatives, no spaces. Em dash (—): an aside, with spaces, rare (heavy use reads as machine-written). Hyphen
+- En dash (–): ranges and negatives, no spaces. No em dash (—) anywhere in UI copy: it reads as machine-written, so use a comma, a colon or a new sentence (PRODUCT.md and DESIGN.md hold the same rule). Hyphen
   (-): compound adjectives (tax-free), phone numbers.
 - Oxford comma in lists of three or more. Avoid ampersands and semicolons; start a new sentence.
 - Quote UI names the person must find: Choose "Add application". Straight quotes in code strings; typographic are fine in static HTML.
