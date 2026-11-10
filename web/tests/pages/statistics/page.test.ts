@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
 import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { hostedBuild } from "../../support/hosted";
 import StatisticsPage from "../../../src/pages/statistics";
 import { createApplication, upsertAccount } from "../../../src/db/repo";
 import { saveSettings } from "../../../src/sync/settings";
@@ -70,9 +71,11 @@ async function seed() {
 }
 
 describe("statistics page: sentence", () => {
-  it("says there is nothing to chart with no applications", async () => {
+  it("says there is nothing to chart with no applications, and links the mailbox gate in a hosted build", async () => {
+    onTestFinished(hostedBuild());
     await render(freshDb());
-    expect(host.textContent).toContain("No applications to chart. Sync your mailbox or add an application on the Applications page.");
+    expect(host.textContent).toContain("No applications to chart. Add an application on the Applications page. Connect your mailbox in Settings.");
+    expect(q("a[href='#/settings/mail']")!.textContent).toBe("Connect your mailbox in Settings.");
     expect(q("svg")).toBeNull();
     expect(q(".lede")).toBeNull();
   });

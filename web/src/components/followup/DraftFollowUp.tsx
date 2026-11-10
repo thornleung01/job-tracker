@@ -1,4 +1,4 @@
-import { DRAFT_NEEDS_MAILBOX } from "../../app/gates";
+import { DraftNeedsMailbox } from "./DraftNeedsMailbox";
 import type { MailLink } from "../../sync/links";
 import "./followup.css";
 
@@ -16,7 +16,7 @@ interface Props {
  * person reads it, changes it and sends it themselves. Only an https link is ever shown; with no mailbox there is one muted line instead.
  */
 export function DraftFollowUp({ link, to, primary }: Props) {
-  if (!link) return <span className="small muted">{DRAFT_NEEDS_MAILBOX}</span>;
+  if (!link) return <DraftNeedsMailbox />;
   if (!link.url.startsWith("https://")) return null;
   const service = link.label.replace("Draft follow-up in ", "");
   return (

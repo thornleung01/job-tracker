@@ -49,6 +49,9 @@ describe("the privacy page", () => {
     ["Delete all my data removes the locked key", "Forget key in Settings and Delete all my data both remove it"],
     ["log out locks the key", "logging out locks it again"],
     ["the vault is a local storage item", "jobtracker:ai:vault: followed by the name of your database"],
+    ["the Setup tab's two choices are stored in the database and travel with the export", "which of its steps you skipped (the mailbox or the AI key) and whether you closed the Finish setting up card"],
+    ["Setup sends nothing and its choices travel with Export and Import", "the two Setup choices travel with Export data and Import"],
+    ["with no mailbox a line replaces the draft buttons", "a short line that links to Settings, Mail takes the place of the buttons"],
     ["the offer counts only what you can see but copies the rest", "The offer counts only the applications you haven't deleted"],
   ])("says that %s", (_what, words) => {
     expect(page).toContain(words);

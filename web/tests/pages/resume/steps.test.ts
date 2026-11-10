@@ -2,7 +2,8 @@
 // and the rest) has its own tests; here they are the real ones wrapped in spies, or fakes where a test needs to see exactly what was asked.
 import "fake-indexeddb/auto";
 import { act, createElement } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { hostedBuild } from "../../support/hosted";
 import type { PageProps } from "../../../src/app/pageProps";
 import { blockLeave } from "../../../src/app/leaveGuard";
 import type { JobTrackerDB } from "../../../src/db/schema";
@@ -254,6 +255,23 @@ describe("step 4, Add to applications", () => {
     await click(button($(container, ".inline-confirm")!, "Replace and save"));
     await waitFor(() => deps.saveTailoredJob.mock.calls.length === 1, "the save");
     expect(deps.saveTailoredJob.mock.calls[0][1].useId).toBe(id);
+  });
+
+  it("says the letter needs a mailbox on the done screen when mail is available but none is connected, and nothing in the demo", async () => {
+    const { container: demo } = await toStep4();
+    await click(button(demo, "Save"));
+    await waitFor(() => openHeading(demo) === "Saved to Acme Corp", "the done screen");
+    await settle();
+    expect($(demo, ".steps-open .muted")).toBeNull();
+    await cleanup();
+
+    onTestFinished(hostedBuild());
+    const { container } = await toStep4();
+    await click(button(container, "Save"));
+    await waitFor(() => openHeading(container) === "Saved to Acme Corp", "the done screen");
+    await waitFor(() => $(container, ".steps-open .muted a") !== null, "the hint");
+    expect(text($(container, ".steps-open .muted"))).toBe("Connect your mailbox to draft this in Gmail or Outlook.");
+    expect($(container, ".steps-open .muted a")!.getAttribute("href")).toBe("#/settings/mail");
   });
 
   it("links onward when saved, and Tailor another job opens a cleared job step", async () => {

@@ -40,15 +40,14 @@ interface MailProps {
 }
 
 export function MailRow(props: MailProps) {
-  const { account, step, onSkip } = props;
+  const { account, step, accounts, mail } = props;
+  // Linked accounts count as done, but "Connected" is only true when this tab holds a session for one of them.
+  const ready = account !== null && (accounts ?? []).some((a) => a.active && isConnected(account, a, mail));
   const body = account ? <SignedInMail {...props} account={account} /> : (
-    <>
-      {step.state === "done" && <p className="setup-detail">{step.detail}</p>}
-      <p className="setup-detail">This demo can't connect mail. Your data stays in this browser.</p>
-      {step.state === "missing" && <div className="row"><button className="quiet" onClick={onSkip}>Skip, I'll add applications by hand</button></div>}
-    </>
+    <p className="setup-detail">This demo can't connect mail. Your data stays in this browser.</p>
   );
-  return <SetupRow id="setup-mailbox" title="Mailbox" state={step.state} word={stateWord(step.state, "Connected")} unlocks="Finds your applications in your email.">{body}</SetupRow>;
+  const word = !account && step.state === "done" ? "Not available" : stateWord(step.state, ready ? "Connected" : "Linked");
+  return <SetupRow id="setup-mailbox" title="Mailbox" state={step.state} word={word} unlocks="Finds your applications in your email.">{body}</SetupRow>;
 }
 
 function SignedInMail({ db, account, accounts, mail, providers, auth, deps, step, report, onSkip }: MailProps & { account: AuthUser }) {
@@ -123,7 +122,7 @@ export function AiRow({ db, deps, step, report, onChange, onSkip }: AiProps) {
         <div className="row">
           <button onClick={() => setSetup(true)}>Set up key</button>
           <GetKeyLink />
-          {step.state === "missing" && <button className="quiet" onClick={() => { onSkip(); }}>Not now</button>}
+          {step.state === "missing" && <button className="quiet" onClick={onSkip}>Not now</button>}
         </div>
       )}
       {status.state === "none" && setup && (
@@ -153,11 +152,13 @@ interface BackupProps {
   deps: Pick<SettingsDeps, "download" | "backup">;
   step: StepState;
   report: Reporter;
+  /** the backup file changed: the status is read again (a chosen file isn't a database write) */
+  onChange(): void;
 }
 
 const realBackup = realBackupDeps();
 
-export function BackupRow({ db, deps, step, report }: BackupProps) {
+export function BackupRow({ db, deps, step, report, onChange }: BackupProps) {
   const act = useAction();
   const { fileBackup, fileName, backUpButton, chooseButton, exportData, backUpNow, chooseTarget, smallerConfirm } = useBackup(db, deps.backup ?? realBackup, deps, report, act);
   return (
@@ -165,7 +166,7 @@ export function BackupRow({ db, deps, step, report }: BackupProps) {
       {step.state === "done" && <p className="setup-detail">{step.detail}</p>}
       <div className="row">
         {fileBackup && fileName && <button ref={backUpButton} {...act.button("backup")} onClick={() => void backUpNow()}>Back up now</button>}
-        {fileBackup && !fileName && <button ref={chooseButton} {...act.button("choose")} onClick={() => void chooseTarget()}>Choose a backup file</button>}
+        {fileBackup && !fileName && <button ref={chooseButton} {...act.button("choose")} onClick={() => void chooseTarget().finally(onChange)}>Choose a backup file</button>}
         <button onClick={() => void exportData()}>Export data</button>
       </div>
       {smallerConfirm}

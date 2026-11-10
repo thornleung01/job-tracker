@@ -33,9 +33,21 @@ describe("setupStatus", () => {
     expect(s.steps.mailbox.detail).toBe("No mailbox connected");
   });
 
-  it("says the demo can't connect mail", async () => {
+  it("treats the mailbox as done by nature in the demo, which can't connect mail", async () => {
     const s = await setupStatus(freshDb(), fakeDeps({ mailAvailable: () => false }), NOW);
-    expect(s.steps.mailbox).toEqual({ state: "missing", detail: "This demo can't connect mail" });
+    expect(s.steps.mailbox).toEqual({ state: "done", detail: "Not available in this demo" });
+    expect(s.next).toBe("resume");
+    expect(s.done).toBe(1);
+  });
+
+  it("keeps a linked account done when this tab has no session, and says to reconnect", async () => {
+    const db = freshDb();
+    await upsertAccount(db, "gmail", "you@gmail.com");
+    const out = await setupStatus(db, fakeDeps({ connectedHere: () => false }), NOW);
+    expect(out.steps.mailbox).toEqual({ state: "done", detail: "Gmail · you@gmail.com · reconnect to sync" });
+    expect(out.next).toBe("resume");
+    const on = await setupStatus(db, fakeDeps({ connectedHere: () => true }), NOW);
+    expect(on.steps.mailbox.detail).toBe("Gmail · you@gmail.com");
   });
 
   it("mailbox is done with one detail per active account, and a disconnected account doesn't count", async () => {

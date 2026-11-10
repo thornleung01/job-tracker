@@ -42,7 +42,7 @@ describe("SetupCard", () => {
     const cases: [Record<StepKey, "done" | "missing">, string][] = [
       [{ mailbox: "missing", resume: "missing", aiKey: "missing", backup: "missing" }, "Next: connect your mailbox"],
       [{ mailbox: "done", resume: "missing", aiKey: "missing", backup: "missing" }, "Next: add your resume"],
-      [{ mailbox: "done", resume: "done", aiKey: "missing", backup: "missing" }, "Next: add your Anthropic key"],
+      [{ mailbox: "done", resume: "done", aiKey: "missing", backup: "missing" }, "Optional: add your Anthropic key"],
       [{ mailbox: "done", resume: "done", aiKey: "done", backup: "missing" }, "Next: back up your data"],
     ];
     for (const [states, next] of cases) {

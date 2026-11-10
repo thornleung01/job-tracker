@@ -98,6 +98,7 @@ describe("SyncBanner", () => {
     expect(el.getAttribute("role")).toBe("status");
     expect(el.classList.contains("notice")).toBe(true);
     expect(el.textContent).toContain("Reconnect to sync your mailbox.");
+    expect(el.querySelector("a")!.getAttribute("href")).toBe("#/settings/mail");
     const buttons = Array.from(el.querySelectorAll("button"));
     expect(buttons.map((b) => b.textContent)).toEqual(["Reconnect and sync"]);
     expect(buttons[0].classList.contains("primary")).toBe(true);
@@ -196,6 +197,7 @@ describe("SyncBanner first sync after login", () => {
     const { db, connectMail, createProvider } = await setup({ accounts: [], inactive: [["gmail", "me@gmail.com"]], pending: "gmail", autoStart: true });
     await waitFor(() => banner()?.textContent?.includes("Gmail is switched off in Settings."));
     expect(banner()!.getAttribute("role")).toBe("status");
+    expect(banner()!.querySelector("a")!.getAttribute("href")).toBe("#/settings/mail");
     expect(banner()!.textContent).not.toMatch(/[–—;]/);
     expect(connectMail).not.toHaveBeenCalled();
     expect(createProvider).not.toHaveBeenCalled();

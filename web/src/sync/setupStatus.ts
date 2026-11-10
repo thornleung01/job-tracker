@@ -8,6 +8,7 @@
 import type { JobTrackerDB } from "../db/schema";
 import { getSetting, setSetting } from "../db/repo";
 import { isBackupStale } from "../backup/schedule";
+import type { ProviderName } from "../types";
 import { PROVIDER_LABEL } from "./accountLabel";
 import { getMaster } from "./documents";
 import { SETUP_CARD_KEY, SETUP_SKIPS_KEY, sanitizeSetupCard, sanitizeSetupSkips } from "./settings";
@@ -37,6 +38,11 @@ export interface SetupDeps {
   backupFile(dbName: string): Promise<string | null>;
   /** false in a build that can't connect a mailbox (the demo) */
   mailAvailable(): boolean;
+  /**
+   * Whether this tab holds a live session for the account (sessions are lost on every reload). Left out where there is no signed-in
+   * person to ask (the card on Applications): an account then just counts as linked.
+   */
+  connectedHere?(account: { provider: ProviderName; address: string }): boolean;
 }
 
 export const STEP_ORDER: readonly StepKey[] = ["mailbox", "resume", "aiKey", "backup"];
@@ -53,10 +59,15 @@ export async function setupStatus(db: JobTrackerDB, deps: SetupDeps, now: Date =
   ]);
 
   const active = accounts.filter((a) => a.active).sort((a, b) => a.id - b.id);
+  // A linked account is "done" even when this tab has lost its session: sessions vanish on every reload, so calling it missing
+  // would make the card nag after each one. The detail says the truth instead. In the demo there is no mail to connect: done by nature.
+  const linked = active.map((a) => `${PROVIDER_LABEL[a.provider]} · ${a.address}`).join(", ");
+  const needsReconnect = deps.connectedHere !== undefined && !active.some((a) => deps.connectedHere!(a));
   const mailbox: StepState =
-    active.length > 0 ? { state: "done", detail: active.map((a) => `${PROVIDER_LABEL[a.provider]} · ${a.address}`).join(", ") }
+    active.length > 0 ? { state: "done", detail: needsReconnect ? `${linked} · reconnect to sync` : linked }
+    : !deps.mailAvailable() ? { state: "done", detail: "Not available in this demo" }
     : skips.mailbox ? { state: "skipped", detail: "Skipped" }
-    : { state: "missing", detail: deps.mailAvailable() ? "No mailbox connected" : "This demo can't connect mail" };
+    : { state: "missing", detail: "No mailbox connected" };
 
   const resume: StepState = master
     ? { state: "done", detail: `Master resume · updated ${shortDate(master.updatedAt)}` }

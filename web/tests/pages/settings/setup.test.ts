@@ -4,6 +4,7 @@ import "fake-indexeddb/auto";
 import { createElement as h } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_USER } from "../../../src/app/localUser";
+import type { BackupDeps } from "../../../src/backup/deps";
 import { recordBackup } from "../../../src/backup/state";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
@@ -23,7 +24,7 @@ afterEach(() => {
 
 const sections = [{ kind: "summary", heading: "Summary", lines: [{ text: "Analyst." }] }];
 
-async function open(opts: { db?: JobTrackerDB; user?: typeof ada | typeof LOCAL_USER; section?: string; saved?: "locked" | "unlocked"; storage?: MemoryStorage } = {}) {
+async function open(opts: { db?: JobTrackerDB; user?: typeof ada | typeof LOCAL_USER; section?: string; saved?: "locked" | "unlocked"; storage?: MemoryStorage; backup?: BackupDeps } = {}) {
   const db = opts.db ?? freshDb();
   const { deps: ai } = fakeAiDeps(opts.storage);
   if (opts.saved) {
@@ -45,6 +46,7 @@ async function open(opts: { db?: JobTrackerDB; user?: typeof ada | typeof LOCAL_
     download,
     downloadCsv: vi.fn(),
     ai,
+    ...(opts.backup ? { backup: opts.backup } : {}),
   };
   const params: Record<string, string> = opts.section ? { section: opts.section } : {};
   await render(h(SettingsView, { db, user: opts.user ?? ada, params, query: new URLSearchParams(), navigate: () => undefined, deps }));
@@ -119,10 +121,13 @@ describe("Setup tab: the mailbox row", () => {
     const db = freshDb();
     await upsertAccount(db, "gmail", "me@gmail.com");
     await open({ db });
-    await waitFor(() => word("Mailbox") === "Connected");
+    await waitFor(() => word("Mailbox") === "Linked");
     expect(row("Mailbox").textContent).toContain("Not connected in this tab. Reconnect to sync.");
-    expect(byText("Reconnect account")).not.toBeNull();
+    expect(byText("Reconnect account", "button", row("Mailbox"))).not.toBeNull();
     expect(byText("Sync now")).toBeNull();
+    // still done: sessions are lost on every reload, so the card must not nag after each one
+    expect(row("Mailbox").className).toContain("done");
+    expect(count()).toBe("1 of 4 done");
   });
 
   it("Skip counts the row as done by choice, and Show skipped steps again undoes it", async () => {
@@ -138,6 +143,7 @@ describe("Setup tab: the mailbox row", () => {
     expect(document.activeElement).toBe(q("#setup-mailbox"));
     await click(byText("Show skipped steps again")!);
     await waitFor(() => word("Mailbox") === "Not yet");
+    expect(document.activeElement).toBe(q("#setup-mailbox"));
     expect(count()).toBe("0 of 4 done");
     expect(byText("Show skipped steps again")).toBeNull();
     expect((await db.settings.get("setupSkips"))).toBeUndefined();
@@ -225,6 +231,23 @@ describe("Setup tab: all four and the card's dismissal setting", () => {
   });
 });
 
+describe("Setup tab: the backup row after choosing a file", () => {
+  it("shows the chosen file as done even though nothing could be written to it yet", async () => {
+    const handle = { name: "jobs.json", queryPermission: async () => "granted" as const, getFile: async () => ({ text: async () => "" }), createWritable: async () => ({ write: async () => undefined, close: async () => undefined }) };
+    const map = new Map<string, typeof handle>();
+    const backup: BackupDeps = {
+      file: { store: { get: async (k) => map.get(k) ?? null, put: async (k, v) => void map.set(k, v as typeof handle), delete: async (k) => void map.delete(k) }, showSaveFilePicker: vi.fn(async () => handle) },
+      storage: async () => ({ persisted: "unknown", usage: null, quota: null }),
+    };
+    await open({ backup });
+    await waitFor(() => word("Backup") === "Not yet");
+    await click(byText("Choose a backup file")!);
+    // an empty database: nothing is written, so no backup is recorded, but the file is chosen
+    await waitFor(() => word("Backup") === "Backed up");
+    expect(row("Backup").textContent).toContain("Backup file · jobs.json");
+  });
+});
+
 describe("Setup tab: the demo build", () => {
   it("says the demo can't connect mail, offers no Connect buttons and no link to the owner guide", async () => {
     await open({ user: LOCAL_USER });
@@ -233,14 +256,16 @@ describe("Setup tab: the demo build", () => {
     expect(byText("Connect Gmail")).toBeNull();
     expect(byText("Connect Outlook")).toBeNull();
     expect(document.body.innerHTML).not.toContain("#/setup");
-    expect(byText("Skip, I'll add applications by hand")).not.toBeNull();
+    expect(byText("Skip, I'll add applications by hand")).toBeNull();
+    expect(word("Mailbox")).toBe("Not available");
+    expect(row("Mailbox").className).toContain("done");
   });
 
   it("also opens from #/settings/setup", async () => {
     await open({ user: LOCAL_USER, section: "setup" });
     await waitFor(() => rows().length === 4);
     await settle();
-    expect(count()).toBe("0 of 4 done");
+    expect(count()).toBe("1 of 4 done");
   });
 });
 

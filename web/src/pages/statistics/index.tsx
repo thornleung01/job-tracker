@@ -4,6 +4,8 @@ import { FLOW_PERIODS, PERIODS, loadSettings } from "../../sync/settings";
 import { flowSummary, type FlowData } from "../../sync/stats";
 import { statistics, type Statistics } from "../../sync/statistics";
 import { useQuery } from "../../app/useQuery";
+import { Gate } from "../../components/Gate";
+import { isLocalMode } from "../../config";
 import { ImageUnsupportedError, imageFileName, renderPng } from "./exportPng";
 import { layoutSankey } from "./layout";
 import { downloadBlob } from "../../app/download";
@@ -292,7 +294,7 @@ export default function StatisticsPage({ db, query, navigate }: PageProps) {
           ) : (
             <div className="card viz-root">
               <p className="muted" style={{ margin: "8px 0" }}>
-                No applications to chart{view.account || view.days ? " for this filter" : ""}. Sync your mailbox or add an application on the Applications page.
+                No applications to chart{view.account || view.days ? " for this filter" : ""}. Add an application on the Applications page.{isLocalMode() ? null : <> <Gate gate="mailbox" /></>}
               </p>
             </div>
           )}

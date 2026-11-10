@@ -1,6 +1,7 @@
 // The Documents section on the application detail page: the resume sent, the cover letter and the job posting.
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { hostedBuild } from "../../support/hosted";
 import { $, $$, addApp, addMail, button, cleanup, click, freshDb, mountPage, text, type, waitFor } from "../applications/harness";
 import DetailPage from "../../../src/pages/detail";
 import { MAX_POSTING_CHARS } from "../../../src/db/limits";
@@ -311,6 +312,7 @@ describe("the Documents section", () => {
     });
 
     it("has no draft link without a mailbox", async () => {
+      onTestFinished(hostedBuild());
       const { db, id, container } = await setup();
       await db.accounts.clear();
       await saveCoverLetter(db, id, [{ heading: "", items: [{ text: "Hi." }] }]);

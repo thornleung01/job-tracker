@@ -9,7 +9,7 @@ import "./setupcard.css";
 export const NEXT_STEP_TEXT: Record<StepKey, string> = {
   mailbox: "Next: connect your mailbox",
   resume: "Next: add your resume",
-  aiKey: "Next: add your Anthropic key",
+  aiKey: "Optional: add your Anthropic key",
   backup: "Next: back up your data",
 };
 

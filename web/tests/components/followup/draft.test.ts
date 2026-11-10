@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { $, $$, addApp, addMail, click, cleanup, freshDb, mountPage, row, text } from "../../pages/applications/harness";
 import ApplicationsPage from "../../../src/pages/applications";
 import DetailPage from "../../../src/pages/detail";
 import { upsertAccount } from "../../../src/db/repo";
 import type { JobTrackerDB } from "../../../src/db/schema";
+import { hostedBuild } from "../../support/hosted";
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -78,7 +79,14 @@ describe("Draft follow-up", () => {
     expect(draftButton(container)).toBeDefined();
   });
 
-  it("is replaced by one muted line when no mail account is connected", async () => {
+  it("says nothing in the demo build, which can't connect mail", async () => {
+    const { db, id } = await seed(null);
+    const container = await openRow(db);
+    expect($(container, `#panel-${id} .app-actions .muted`)).toBeNull();
+  });
+
+  it("is replaced by one muted line, linked to Settings Mail, when no mail account is connected", async () => {
+    onTestFinished(hostedBuild());
     const { db, id } = await seed(null);
     const container = await openRow(db);
     const panel = $(container, `#panel-${id}`)!;
@@ -87,6 +95,7 @@ describe("Draft follow-up", () => {
     const page = await mountPage(DetailPage, db, `/app/${id}`, { id: String(id) });
     expect(draftButton(page.container)).toBeUndefined();
     expect(text($(page.container, ".app-actions .muted"))).toBe("Connect your mailbox to draft this in Gmail or Outlook.");
+    expect($(page.container, ".app-actions .muted a")!.getAttribute("href")).toBe("#/settings/mail");
   });
 
   it("still opens a draft, with no recipient, for an application with no emails", async () => {
