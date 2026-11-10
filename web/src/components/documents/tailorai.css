@@ -1,0 +1,11 @@
+/* The AI strip: a quiet block under the tailored copy's header, not a card of its own. */
+.tailor-ai { margin: 0 0 var(--gap); padding: var(--pad); background: var(--linen); border-radius: var(--r); }
+.tailor-ai .tailor-ai-line { margin: 0 0 12px; }
+.tailor-ai .tailor-ai-options, .tailor-ai .tailor-ai-unlock { align-items: flex-end; margin-bottom: 12px; }
+.tailor-ai .tailor-ai-note { flex: 1 1 220px; }
+.tailor-ai .tailor-ai-note input { width: 100%; box-sizing: border-box; }
+.tailor-ai .notice { margin: 0 0 12px; }
+.tailor-ai .inline-confirm { margin: 0 0 12px; background: var(--surface); }
+@media (max-width: 520px) {
+  .tailor-ai .tailor-ai-actions button { min-height: var(--tap); }
+}

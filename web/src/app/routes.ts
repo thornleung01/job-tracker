@@ -7,6 +7,8 @@ export const ROUTES = [
   { path: "/people", page: "people", nav: "People" },
   { path: "/resume", page: "resume", nav: "Resume" },
   { path: "/resume/print/:id", page: "resume", nav: null },
+  { path: "/tailor", page: "tailor", nav: null },
+  { path: "/tailor/:id", page: "tailor", nav: null },
   { path: "/statistics", page: "statistics", nav: "Statistics" },
   { path: "/review", page: "review", nav: null },
   { path: "/settings", page: "settings", nav: null },

@@ -1,0 +1,9 @@
+/* Margin bars beside the lines that differ from the baseline. Solid is changed, dashed is a line the baseline doesn't have. */
+.bm-wrap { position: relative; }
+.bm-wrap.on { padding-left: 14px; }
+.bm-bar { position: absolute; width: 0; border-left: 3px solid var(--ink); border-radius: 2px; opacity: 0.55; pointer-events: none; }
+.bm-bar.new { border-left-style: dashed; }
+.bm-bar.active { opacity: 1; border-left-width: 4px; }
+@media (forced-colors: active) {
+  .bm-bar { border-left-color: CanvasText; opacity: 1; }
+}
