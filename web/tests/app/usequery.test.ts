@@ -128,3 +128,24 @@ describe("useQuery when its deps change", () => {
     expect(seen).not.toContain("loading");
   });
 });
+
+describe("useQuery with unchanged data", () => {
+  it("keeps the very same result object when a write leaves the read unchanged", async () => {
+    const db = freshDb();
+    await addApp(db, "Acme");
+    const seen: unknown[] = [];
+    function Acme() {
+      const rows = useQuery(async () => (await db.applications.toArray()).filter((a) => a.company === "Acme").map((a) => ({ id: a.id, company: a.company })), [db]);
+      if (rows) seen.push(rows);
+      return h("p", { id: "acme" }, rows === undefined ? "loading" : String(rows.length));
+    }
+    await render(h(Acme));
+    await waitFor(() => q("#acme")!.textContent === "1");
+    await addApp(db, "Beta");
+    await addApp(db, "Gamma");
+    await sleep(200);
+    expect(new Set(seen).size).toBe(1);
+    await addApp(db, "Acme");
+    await waitFor(() => q("#acme")!.textContent === "2");
+  });
+});

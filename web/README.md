@@ -243,7 +243,7 @@ Everything the hosted app keeps in the browser, apart from tokens (those are in 
 
 | Where | Name | What |
 |---|---|---|
-| IndexedDB | `jobtracker:<iss>:<sub>` (one per logged-in user), or `jobtracker:local` in demo mode | All your data. Tables: accounts, applications (a deleted one has `deletedAt`), emails, activity, feedback, ignoredMail, learnedRules, contactEdits, documents (resumes and cover letters, a deleted one has `deletedAt`), settings. The settings table also holds `appearance`, `sync`, `savedViews` and `weeklyGoal` |
+| IndexedDB | `jobtracker:<iss>:<sub>` (one per logged-in user), or `jobtracker:local` in demo mode | All your data. Tables: accounts, applications (a deleted one has `deletedAt`), emails, activity, feedback, ignoredMail, learnedRules, contactEdits, documents (resumes and cover letters, a deleted one has `deletedAt`), settings. The settings table also holds `appearance`, `sync`, `savedViews`, `weeklyGoal` and `settleMark` (what the last Needs review re-check looked at, so a sync with no new mail skips it). Emails carry a helper field `review` (1 while waiting in Needs review) behind an index, so counts never read email text; exports leave it out |
 | IndexedDB | `jobtracker-backup-files` | The handle of the chosen backup file, per account database name |
 | Local storage | `jobtracker:lastProvider` | The provider you last logged in with |
 | Local storage | `jobtracker:carryover-done` | You have already brought earlier applications into an account |
