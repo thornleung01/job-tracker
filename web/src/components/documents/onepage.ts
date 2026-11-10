@@ -2,13 +2,14 @@
 import { plural } from "../../sync/text";
 
 const PX_PER_INCH = 96;
-/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. Keep in sync with print.css (@page classic). */
+/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. Keep in sync with pages/resume/print.css (@page classic). */
 export const PRINTABLE_HEIGHT_PX = (11 - 2 * 0.5) * PX_PER_INCH;
-/** The printed text column: 8.5in wide minus the same margins. Keep in sync with print.css (@page classic). */
+/** The printed text column: 8.5in wide minus the same margins. Keep in sync with pages/resume/print.css (@page classic). */
 export const PRINT_WIDTH_PX = (8.5 - 2 * 0.5) * PX_PER_INCH;
 /** The classic template's body text: 10.5pt (14px) on a 1.25 line height. */
 const CLASSIC_FONT_PX = 14;
-/** One body line. Keep in sync with print.css (.doc-sheet.classic: 10.5pt on a 1.25 line height). */
+/* The sheet height is measured from the DOM, so section spacing and bullet size need no constant here: CLASSIC_LINE_PX only turns the overflow into a number of lines. */
+/** One body line. Keep in sync with resumesheet.css (.doc-sheet.classic: 10.5pt on a 1.25 line height). */
 export const CLASSIC_LINE_PX = CLASSIC_FONT_PX * 1.25;
 
 export interface PageVerdict {
@@ -39,7 +40,7 @@ export function measureSheetHeight(sheet: HTMLElement): number {
     position: "absolute", left: "-10000px", top: "0", visibility: "hidden", pointerEvents: "none",
     width: `${PRINT_WIDTH_PX}px`, maxWidth: "none", margin: "0", padding: "0", boxSizing: "content-box", fontSize: `${CLASSIC_FONT_PX}px`,
   });
-  // On a narrow screen print.css shrinks the type with the viewport (--classic-fs), but the page prints at 10.5pt. A custom property
+  // On a narrow screen resumesheet.css shrinks the type with the viewport (--classic-fs), but the page prints at 10.5pt. A custom property
   // can't go through Object.assign.
   copy.style.setProperty("--classic-fs", "10.5pt");
   document.body.append(copy);

@@ -1,9 +1,11 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRef } from "react";
 import { useQuery } from "../../app/useQuery";
-import { isHeaderHeading, sectionsToText } from "../../db/documentShape";
-import type { DocItem, DocumentRow, JobTrackerDB } from "../../db/schema";
+import { sectionsToText } from "../../db/documentShape";
+import type { DocumentRow, JobTrackerDB } from "../../db/schema";
 import { downloadText } from "../settings/actions";
-import { CLASSIC_LINE_PX, PRINTABLE_HEIGHT_PX, measureSheetHeight, pageVerdict, pageVerdictText, type PageVerdict } from "./onepage";
+import { ResumeSheet } from "../../components/documents/ResumeSheet";
+import { measureSheetHeight, pageVerdictText } from "../../components/documents/onepage";
+import { useOnePage } from "../../components/documents/useOnePage";
 import "./print.css";
 
 /** "Resume for data roles" becomes "resume-for-data-roles.txt". */
@@ -26,74 +28,6 @@ const missing = (
   </>
 );
 
-/** "Label: text", the label bold. A line with no label is just its text. */
-function LabelledText({ item }: { item: DocItem }) {
-  return (
-    <>
-      {item.label ? <><strong>{item.label}:</strong> </> : null}
-      {item.text}
-    </>
-  );
-}
-
-/** A job or school (bold, its location on the right) or a title (italic, its dates on the right). */
-function Row({ item }: { item: DocItem }) {
-  const isTitle = item.kind === "title";
-  const Tag = isTitle ? "em" : "strong";
-  return (
-    <div className={isTitle ? "doc-row doc-title" : "doc-row doc-org"}>
-      <Tag>{item.text}</Tag>
-      {item.right ? <Tag className="doc-right">{item.right}</Tag> : null}
-    </div>
-  );
-}
-
-/**
- * One resume section's lines in the owner's template. Consecutive bullets share one list. A section of several plain lines and nothing else
- * (a resume from before kinds) stays a plain list, as it always was. A lone plain line, like a summary, is a paragraph.
- * A legacy section shows `i.text` only: a line without a kind never carries a label (the importer and editor drop it), so there is none to show.
- */
-function classicLines(items: DocItem[]): ReactNode[] {
-  const legacy = items.length > 1 && items.every((i) => !i.kind);
-  const out: ReactNode[] = [];
-  let run: DocItem[] = [];
-  const flush = () => {
-    if (!run.length) return;
-    out.push(
-      <ul key={run[0].id} className={legacy ? undefined : "doc-bullets"}>
-        {run.map((i) => <li key={i.id}>{legacy ? i.text : <LabelledText item={i} />}</li>)}
-      </ul>,
-    );
-    run = [];
-  };
-  for (const i of items) {
-    if (legacy) {
-      run.push(i);
-      continue;
-    }
-    switch (i.kind) {
-      case "bullet":
-        run.push(i);
-        break;
-      case "org":
-      case "school":
-      case "title":
-        flush();
-        out.push(<Row key={i.id} item={i} />);
-        break;
-      case "skill":
-        flush();
-        out.push(<p key={i.id}><LabelledText item={i} /></p>);
-        break;
-      default:
-        flush();
-        out.push(<p key={i.id}>{i.text}</p>);
-    }
-  }
-  flush();
-  return out;
-}
-
 /**
  * One document as a clean single column, for printing or saving as PDF. Any live resume or cover letter id works.
  * `measure` is the page-height probe, a seam for tests (jsdom has no layout).
@@ -102,31 +36,12 @@ export function PrintView({ db, id, measure = measureSheetHeight }: { db: JobTra
   const n = /^\d+$/.test(id) ? Number(id) : NaN;
   const doc = useQuery(async () => (Number.isSafeInteger(n) ? (await db.documents.get(n)) ?? null : null), [db, n]);
   const sheet = useRef<HTMLElement>(null);
-  const [verdict, setVerdict] = useState<PageVerdict | null>(null);
   const resume = !!doc && !doc.deletedAt && doc.kind === "resume";
-  // Advisory only: the screen render approximates print, so the browser's own print preview has the last word.
-  useLayoutEffect(() => {
-    const el = sheet.current;
-    if (!resume || !el) return;
-    const check = () => {
-      const next = pageVerdict(measure(el), PRINTABLE_HEIGHT_PX, CLASSIC_LINE_PX);
-      // the second measurement usually agrees with the first: keep the same state so nothing re-renders
-      setVerdict((prev) => (prev && prev.fits === next.fits && prev.overByLines === next.overByLines ? prev : next));
-    };
-    check();
-    let live = true;
-    // fonts arriving late change the line breaks
-    // (document.fonts is optional because jsdom has none)
-    void document.fonts?.ready.then(() => live && check());
-    return () => {
-      live = false;
-    };
-  }, [resume, doc, measure]);
+  // Advisory only. The sheet ref is set for a resume alone, so a cover letter is never measured.
+  const verdict = useOnePage(sheet, [resume, doc], measure);
   if (doc === undefined) return <h1 className="page">Resume</h1>;
   if (doc === null || doc.deletedAt) return missing;
   const letter = doc.kind === "cover";
-  const header = letter ? undefined : doc.sections.find((s) => isHeaderHeading(s.heading) && s.items.length);
-  const name = header ? header.items[0].text : doc.title;
   return (
     <div className="doc-print">
       <div className="doc-print-bar">
@@ -137,18 +52,19 @@ export function PrintView({ db, id, measure = measureSheetHeight }: { db: JobTra
           <button type="button" onClick={() => downloadText(textFilename(doc.title), documentText(doc), "text/plain")}>Download as text</button>
         </div>
       </div>
-      <article ref={sheet} className={letter ? "doc-sheet" : "doc-sheet classic"}>
-        <h1 className={letter ? "page sr" : "page doc-name"}>{name}</h1>
-        {header ? <div className="doc-contact">{header.items.slice(1).map((i) => <p key={i.id}>{i.text}</p>)}</div> : null}
-        {doc.sections.map((s) =>
-          s === header ? null : (
+      {letter ? (
+        <article className="doc-sheet">
+          <h1 className="page sr">{doc.title}</h1>
+          {doc.sections.map((s) => (
             <section key={s.id} className="doc-block">
               {s.heading ? <h2>{s.heading}</h2> : null}
-              {letter ? s.items.map((i) => <p key={i.id}>{i.text}</p>) : classicLines(s.items)}
+              {s.items.map((i) => <p key={i.id}>{i.text}</p>)}
             </section>
-          ),
-        )}
-      </article>
+          ))}
+        </article>
+      ) : (
+        <ResumeSheet sections={doc.sections} title={doc.title} sheetRef={sheet} />
+      )}
     </div>
   );
 }
