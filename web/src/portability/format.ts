@@ -13,6 +13,7 @@ export const EXPORT_FORMAT = "jobtracker-export";
  * 3 added `documents` (resumes and cover letters) and, on applications, `postingText` and `resumeId`.
  * Older files are still read: a file without `documents` has none.
  * A resume line may also carry `kind`, `label` and `right` (see DocItem): additive, so they needed no new version, and a kind that isn't known is dropped.
+ * A resume's `source` may also be "template" (typed into the blank template): additive too, and a source that isn't known is dropped.
  */
 export const EXPORT_VERSION = 3;
 

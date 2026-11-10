@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ResumePage from "../../../src/pages/resume";
 import { createElement } from "react";
 import { documentText, PrintView, textFilename } from "../../../src/pages/resume/PrintView";
-import { CLASSIC_LINE_PX, PRINTABLE_HEIGHT_PX, PRINT_WIDTH_PX, measureSheetHeight, pageVerdict, pageVerdictText } from "../../../src/pages/resume/onepage";
+import { CLASSIC_LINE_PX, PRINTABLE_HEIGHT_PX, PRINT_WIDTH_PX, measureSheetHeight, pageVerdict, pageVerdictText } from "../../../src/components/documents/onepage";
 import type { PageProps } from "../../../src/app/pageProps";
 import type { JobTrackerDB } from "../../../src/db/schema";
 import { createVersion, deleteDocument, saveCoverLetter, saveMaster, updateDocument } from "../../../src/sync/documents";

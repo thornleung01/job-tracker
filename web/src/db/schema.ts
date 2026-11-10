@@ -173,8 +173,8 @@ export interface DocumentRow {
   sections: DocSection[];
   /** the document it was copied or tailored from */
   basedOn?: number;
-  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, and tailoring will use it too) */
-  source?: "upload" | "paste" | "copy" | "ai";
+  /** how it was made: "upload" (read from a file), "paste" (pasted text), "copy" (a version made from another resume), "ai" (Convert with your own key, and tailoring will use it too), "template" (typed into the blank template) */
+  source?: "upload" | "paste" | "copy" | "ai" | "template";
   createdAt: string;
   updatedAt: string;
   /** when you deleted it (ISO): it stays in Recently deleted for 30 days, hidden everywhere else. Not indexed. */

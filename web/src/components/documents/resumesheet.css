@@ -1,0 +1,23 @@
+/* The classic resume template, the owner's one-page format: a serif sheet on white US letter, a centered name and contact line, ruled headings,
+   job and school rows with the right-hand value aligned right, and bold-label bullets. It is a document format, not app UI, so it keeps its own
+   font and colours (black on white) in light and dark, and its name and headings are capitals. Every rule sits under .doc-sheet.classic.
+   The size is 10.5pt on a 1.25 line height, which is what onepage.ts measures with. On a narrow screen the type and padding scale down. */
+.doc-sheet.classic {
+  --classic-fs: min(10.5pt, 2.75vw);
+  --classic-font: "Times New Roman", "Times", Georgia, serif;
+  background: white; color: black; max-width: 8.5in; padding: min(0.5in, 6vw); border-radius: var(--r);
+  font: 400 var(--classic-fs)/1.25 var(--classic-font); letter-spacing: 0;
+}
+.doc-sheet.classic h1.doc-name { font: 700 calc(var(--classic-fs) * 1.6)/1.2 var(--classic-font); letter-spacing: 0; text-transform: uppercase; text-align: center; margin: 0 0 2pt; }
+.doc-sheet.classic .doc-contact { margin: 0 0 8pt; }
+.doc-sheet.classic .doc-contact p { margin: 0; text-align: center; }
+.doc-sheet.classic .doc-block { margin: 0 0 7pt; }
+.doc-sheet.classic .doc-block h2 { font: 700 var(--classic-fs)/1.25 var(--classic-font); letter-spacing: 0; text-transform: uppercase; margin: 10pt 0 3pt; padding-bottom: 1pt; border-bottom: 0.75pt solid black; }
+.doc-sheet.classic .doc-block p { margin: 0 0 2pt; white-space: pre-line; }
+.doc-sheet.classic .doc-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; }
+.doc-sheet.classic .doc-right { text-align: right; flex: none; }
+.doc-sheet.classic .doc-bullets { list-style: none; margin: 1pt 0 0; padding: 0; display: block; }
+.doc-sheet.classic .doc-bullets + .doc-title, .doc-sheet.classic .doc-bullets + .doc-org { margin-top: 4pt; }
+.doc-sheet.classic .doc-bullets li { position: relative; padding-left: 1.5em; margin: 0 0 1pt; text-align: justify; }
+.doc-sheet.classic .doc-bullets li::before { content: "\25CF"; position: absolute; left: 0.35em; font-size: 1em; line-height: inherit; }
+.doc-sheet.classic .doc-block ul:not(.doc-bullets) { padding-left: 1.5em; gap: 1pt; }

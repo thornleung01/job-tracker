@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PageProps } from "../../../src/app/pageProps";
 import type { AuthUser } from "../../../src/auth/user";
 import ResumePage from "../../../src/pages/resume";
@@ -11,7 +11,11 @@ import { createVersion, getMaster, liveResumes, saveCoverLetter, saveMaster } fr
 import { file, makeDocx } from "../../documents/fixtures";
 import { $, $$, addApp, button, cleanup, click, freshDb, mountPage, settle, text, type, waitFor } from "../applications/harness";
 
-afterEach(cleanup);
+beforeEach(() => localStorage.setItem("jobtracker:resume-editing", "list"));   // the editor defaults to the on-page one; these tests drive the list editor
+afterEach(async () => {
+  localStorage.removeItem("jobtracker:resume-editing");
+  await cleanup();
+});
 
 const user: AuthUser = { iss: "https://accounts.google.com", sub: "1", provider: "google", email: "me@example.com" };
 
@@ -43,7 +47,7 @@ async function choose(container: HTMLElement, f: File) {
 }
 
 describe("the Resume page with no master", () => {
-  it("shows the Resumes tab selected, and an empty state with only Upload a file and Paste text", async () => {
+  it("shows the Resumes tab selected, and an empty state with the template first, then Upload a file and Paste text", async () => {
     const db = freshDb();
     const { container } = await mount(db);
     expect(text($(container, "h1"))).toBe("Resume");
@@ -51,7 +55,8 @@ describe("the Resume page with no master", () => {
     expect(tabs.map(text)).toEqual(["Resumes", "Cover letters"]);
     expect(tabs[0].getAttribute("aria-current")).toBe("true");
     const visible = $(container, ".resume-view:not([hidden])")!;
-    expect($$(visible, "button").map(text)).toEqual(["Upload a file", "Paste text"]);
+    expect($$(visible, "button").map(text)).toEqual(["Start from the template", "Upload a file", "Paste text"]);
+    expect($(visible, "button.primary")!.textContent).toBe("Start from the template");
     expect($$(visible, "h2")).toHaveLength(0);
   });
 
