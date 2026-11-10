@@ -12,7 +12,7 @@ import { MAX_AI_INPUT_CHARS } from "../db/limits";
 import { requireApplication } from "../db/repo";
 import { tx, type DocItem, type DocSection, type JobTrackerDB } from "../db/schema";
 import { derive } from "./contacts";
-import { getMaster, saveCoverLetter, saveTailored } from "./documents";
+import { getMaster, isTailored, saveCoverLetter, saveTailored } from "./documents";
 
 /** A request the tailoring refuses, with a sentence that is safe to show. */
 export class TailorError extends ActionError {
@@ -26,6 +26,8 @@ export interface TailorOptions {
   tone?: TailorTone;
   note?: string;
   signal?: AbortSignal;
+  /** the live reusable resume to tailor from, instead of the master */
+  baselineId?: number;
 }
 
 /** One AI-written line of the resume draft. `id` is the line's id in `draft.resume`, `sourceId` the master line it came from. */
@@ -40,6 +42,8 @@ export interface TailorLine {
 }
 
 export interface TailorDraft {
+  /** the resume the draft was tailored from: the master, or the version chosen as the baseline */
+  baselineId: number;
   resume: DocSection[];
   lines: TailorLine[];
   cover: DocSection[];
@@ -95,7 +99,27 @@ function buildResume(master: readonly DocSection[], parts: TailorMaster, checked
     });
     return { ...section, items };
   });
-  return { resume, lines };
+  return keepSourceIds(resume, lines, master);
+}
+
+/**
+ * A line that maps one-to-one to a baseline line takes that line's id, so the saved copy can be compared with its baseline. Ids stay unique
+ * in the document: a baseline id already on a line the copy carried over as it was, or claimed by an earlier line, is not used twice.
+ */
+function keepSourceIds(resume: DocSection[], lines: TailorLine[], baseline: readonly DocSection[]): { resume: DocSection[]; lines: TailorLine[] } {
+  const known = new Set(baseline.flatMap((s) => s.items.map((i) => i.id)));
+  const written = new Set(lines.map((l) => l.id));
+  const taken = new Set(resume.flatMap((s) => s.items.filter((i) => !written.has(i.id)).map((i) => i.id)));
+  const rename = new Map<string, string>();
+  for (const line of lines) {
+    if ((line.sourceIds?.length ?? 0) > 1 || !known.has(line.sourceId) || taken.has(line.sourceId)) continue;
+    taken.add(line.sourceId);
+    rename.set(line.id, line.sourceId);
+  }
+  return {
+    resume: resume.map((s) => ({ ...s, items: s.items.map((i) => (rename.has(i.id) ? { ...i, id: rename.get(i.id)! } : i)) })),
+    lines: lines.map((l) => (rename.has(l.id) ? { ...l, id: rename.get(l.id)! } : l)),
+  };
 }
 
 /** The letter as the editor keeps it: one section, the greeting first, then a paragraph per line. */
@@ -112,8 +136,9 @@ export async function tailorForApplication(
   db: JobTrackerDB, appId: number, deps: { ai: AiDeps; complete?: Complete }, opts: TailorOptions = {},
 ): Promise<TailorDraft> {
   const app = await requireApplication(db, appId);
-  const master = await getMaster(db);
-  if (!master) throw new TailorError("Add your master resume first.");
+  const master = opts.baselineId === undefined ? await getMaster(db) : await db.documents.get(opts.baselineId);
+  if (opts.baselineId === undefined && !master) throw new TailorError("Add your master resume first.");
+  if (!master || master.kind !== "resume" || master.deletedAt || isTailored(master)) throw new TailorError("That resume isn't there any more.");
   const posting = app.postingText?.trim() ?? "";
   if (!posting) throw new TailorError("Add the job posting first.");
 
@@ -135,6 +160,7 @@ export async function tailorForApplication(
   const { resume, lines } = buildResume(master.sections, parts, checked);
   const people = await derive(db, appId);
   return {
+    baselineId: master.id,
     resume,
     lines,
     cover: buildCover(greeting(people), checked.cover.paragraphs),
@@ -148,12 +174,12 @@ export async function tailorForApplication(
 
 /** Stores what the person accepted: the application's tailored resume and its cover letter, both marked as made with AI, in one transaction. */
 export async function saveTailorDraft(
-  db: JobTrackerDB, appId: number, draft: { resume: DocSection[]; cover: DocSection[] }, now: Date = new Date(),
+  db: JobTrackerDB, appId: number, draft: { resume: DocSection[]; cover: DocSection[]; baselineId?: number }, now: Date = new Date(),
 ): Promise<{ resumeId: number; coverId: number }> {
   const resume = normalizeSections(draft.resume);
   const cover = normalizeSections(draft.cover);
   return tx(db, async () => ({
-    resumeId: await saveTailored(db, appId, resume, "ai", now),
+    resumeId: await saveTailored(db, appId, resume, "ai", now, draft.baselineId),
     coverId: await saveCoverLetter(db, appId, cover, "ai", now),
   }));
 }

@@ -3,35 +3,8 @@
 import type { DocItem, DocSection, DocumentRow } from "../../db/schema";
 import type { TailorDraft, TailorLine } from "../../sync/tailor";
 
-/** A word from a line, `changed` when the other line doesn't have it in that place. */
-export interface WordPart {
-  text: string;
-  changed: boolean;
-}
-
-const words = (text: string): string[] => text.split(/\s+/).filter(Boolean);
-
-/** The words of `before` and of `after`, each marked where the two differ (the longest run of words they share is left unmarked). */
-export function diffWords(before: string, after: string): { before: WordPart[]; after: WordPart[] } {
-  const a = words(before);
-  const b = words(after);
-  const table: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i--) {
-    for (let j = b.length - 1; j >= 0; j--) table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
-  }
-  const left: WordPart[] = [];
-  const right: WordPart[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) {
-      left.push({ text: a[i++], changed: false });
-      right.push({ text: b[j++], changed: false });
-    } else if (j >= b.length || (i < a.length && table[i + 1][j] >= table[i][j + 1])) left.push({ text: a[i++], changed: true });
-    else right.push({ text: b[j++], changed: true });
-  }
-  return { before: left, after: right };
-}
+// The word diff lives in documents/compare.ts (pure); it is re-exported here for the callers that already import it from this file.
+export { diffWords, type WordPart } from "../../documents/compare";
 
 /** A line as one string: "Label: text" when it has a label. */
 export const lineText = (item: Pick<DocItem, "label" | "text">): string => (item.label ? `${item.label}: ${item.text}` : item.text);
