@@ -96,7 +96,7 @@ export default function SetupGuide() {
   const root = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    document.title = "Set up · Job Tracker";
+    document.title = "Site setup · Job Tracker";
   }, []);
 
   // Land on the heading, like every other page. The signed-in shell does this after a navigation too: harmless to do twice.
@@ -116,7 +116,7 @@ export default function SetupGuide() {
 
   return (
     <div className="setup" ref={root}>
-      <h1 className="page">Set up mail sync</h1>
+      <h1 className="page">Site setup (for the site owner)</h1>
 
       <section className="card" aria-labelledby="h-setup-status">
         <h2 className="sec" id="h-setup-status">This site now</h2>

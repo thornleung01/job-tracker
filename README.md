@@ -10,7 +10,7 @@ There are two editions that share one visual system and one classifier.
 | Runs on | Your PC, bound to `127.0.0.1`. Made for Windows 10 or 11 | Your browser, no server |
 | Mail login | A desktop-app OAuth client you create ([SETUP.md](SETUP.md)) | Google or Microsoft login in the page ([web/README.md](web/README.md)) |
 | Data | `data\tracker.db`. Login tokens are encrypted with Windows DPAPI | IndexedDB in your browser, one database per logged-in user. Tokens are kept in memory only |
-| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters (resumes print in a one-page classic template), optional AI (with your own Anthropic key) to convert an uploaded resume into your template and to tailor a resume and cover letter to a job, bulk actions, Recently deleted, backups, CSV export, a guided setup page |
+| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters (resumes print in a one-page classic template), optional AI (with your own Anthropic key) to convert an uploaded resume into your template and to tailor a resume and cover letter to a job, bulk actions, Recently deleted, backups, CSV export, a step-by-step Setup tab in Settings with a reminder card, a guide to the one-time site setup for the site owner |
 | Docs | [SETUP.md](SETUP.md) | [web/README.md](web/README.md) and the [privacy page](web/public/privacy.html) |
 
 Product and design decisions for both are in [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md).

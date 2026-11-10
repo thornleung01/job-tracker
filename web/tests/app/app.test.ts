@@ -131,23 +131,59 @@ describe("signed out", () => {
     expect(document.querySelector("[aria-describedby]")).toBeNull();
   });
 
-  it("footer links to the privacy page and to #/setup", async () => {
+  it("footer links to the privacy page, and to the owner's site setup only when the site has no client IDs", async () => {
     const { auth } = fakeAuth();
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    expect(q<HTMLAnchorElement>(".signin-footer a[href='#/setup']")!.textContent).toBe("Site setup");
+    expect(q(".signin-footer a[href='#/setup']")).toBeNull();
+    expect(q<HTMLAnchorElement>(".signin-footer a[href='./privacy.html']")!.textContent).toBe("Privacy");
+    cleanupRendered();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
+    expect(q<HTMLAnchorElement>(".signin-footer a[href='#/setup']")!.textContent).toBe("Site setup (for the site owner)");
     expect(q<HTMLAnchorElement>(".signin-footer a[href='./privacy.html']")!.textContent).toBe("Privacy");
   });
 
-  it("offers to log in without the mailbox after an error, and calls signIn with mail false", async () => {
+  it("shows the owner's site setup link when the address has ?setup, in either place", async () => {
+    const { auth } = fakeAuth();
+    for (const url of ["/?setup", "/#/?setup", "/?x=1&setup=1"]) {
+      window.history.replaceState(null, "", url);
+      await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+      expect(q(".signin-footer a[href='#/setup']"), url).not.toBeNull();
+      cleanupRendered();
+    }
+    window.history.replaceState(null, "", "/?setups=1");
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    expect(q(".signin-footer a[href='#/setup']")).toBeNull();
+  });
+
+  it("always offers to log in without the mailbox, and calls signIn with mail false", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
+    const skip = byText("Log in without connecting your mailbox", "button")!;
+    expect(skip.className).toBe("signin-skip");
+    await click(skip);
+    expect(auth.signIn).toHaveBeenLastCalledWith("google", { mail: false });
+  });
+
+  it("logs in without the mailbox through the only provider the site has", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: true } }));
+    await click(byText("Log in without connecting your mailbox", "button")!);
+    expect(auth.signIn).toHaveBeenLastCalledWith("microsoft", { mail: false });
+  });
+
+  it("keeps the no-mailbox login after an error and retries with the provider that failed", async () => {
     const { auth } = fakeAuth();
     auth.signIn.mockRejectedValueOnce(new Error("Your organization has to approve mail access. You can log in without it."));
     await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: true, microsoft: true } }));
-    expect(byText("Log in without connecting your mailbox")).toBeNull();
     await click(byText("Continue with Microsoft")!);
-    const skip = await waitFor(() => byText("Log in without connecting your mailbox"));
-    await click(skip);
+    await click(byText("Log in without connecting your mailbox", "button")!);
     expect(auth.signIn).toHaveBeenLastCalledWith("microsoft", { mail: false });
-    await waitFor(() => byText("Log in without connecting your mailbox") === null);
+  });
+
+  it("has no no-mailbox login when no login is set up", async () => {
+    const { auth } = fakeAuth();
+    await render(h(SignIn, { auth, session: auth.getSession(), configured: { google: false, microsoft: false } }));
+    expect(byText("Log in without connecting your mailbox")).toBeNull();
   });
 
   it("shows the session error as an error notice", async () => {
@@ -531,7 +567,7 @@ describe("sync banner in the signed-in shell", () => {
 });
 
 describe("site setup page", () => {
-  const guide = () => q("h1.page")?.textContent === "Set up mail sync";
+  const guide = () => q("h1.page")?.textContent === "Site setup (for the site owner)";
 
   it("replaces the login page when signed out at #/setup, with no auth calls", async () => {
     window.location.hash = "#/setup";
@@ -551,7 +587,7 @@ describe("site setup page", () => {
     const { auth } = fakeAuth();
     await render(h(App, { local: false, auth, openDb: openTestDb }));
     await waitFor(guide);
-    expect(document.title).toBe("Set up · Job Tracker");
+    expect(document.title).toBe("Site setup · Job Tracker");
     await waitFor(() => document.activeElement === q("h1"));
     const main = q("main")!;
     expect(main.id).toBe("main");
