@@ -57,13 +57,13 @@ function Row({ db, item, baselines, say }: { db: JobTrackerDB; item: TailoredIte
   );
 }
 
-/** The resumes tailored for one application each, newest first. Tailoring happens in the Tailor workspace. */
+/** The resumes tailored for one application each, newest first. Each opens in the Tailor workspace; new ones start from the Resume page steps. */
 export function TailoredList({ db, items, baselines, say }: Props) {
   if (!items.length) {
     return (
       <div className="doc-tailored-empty">
         <p className="muted">No tailored resumes yet.</p>
-        <a className="btn" href="#/tailor">Tailor for a job</a>
+        <a className="btn" href="#/resume?step=job">Tailor for a job</a>
       </div>
     );
   }

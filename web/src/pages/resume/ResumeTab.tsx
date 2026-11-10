@@ -247,7 +247,7 @@ function MasterCard({ db, doc, used, report, onIncoming, onReread }: Omit<CardPr
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       <div className="row doc-actions">
         <button type="button" aria-expanded={making} onClick={() => { setMaking((m) => !m); setTitle(""); act.clear(); }}>Make a version</button>
-        <a className="btn" href="#/tailor">Tailor for a job</a>
+        <a className="btn" href="#/resume?step=job">Tailor for a job</a>
         <a className="btn" href={`#/resume/print/${doc.id}`}>Print</a>
       </div>
       {making ? (
