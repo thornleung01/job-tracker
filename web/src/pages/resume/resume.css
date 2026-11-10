@@ -8,6 +8,12 @@
 .doc-status { min-width: 4ch; }
 .doc-empty .importer { margin: 0; }
 .doc-empty .row { margin: 0; }
+.doc-choices { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.doc-choices .importer { flex: 1 1 100%; }
+.doc-choices .importer > .row { flex-wrap: wrap; }
+
+.doc-reread { align-items: center; gap: 8px; margin: 0 0 var(--gap); }
+.doc-reread p { margin: 0; flex: 1 1 260px; }
 
 .importer-paste { margin-top: var(--gap); }
 .importer-paste .row { margin-top: 12px; }
