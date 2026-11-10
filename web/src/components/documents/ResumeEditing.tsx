@@ -45,6 +45,12 @@ export function ResumeEditing({ sections, onChange, label, title, scaffold = fal
   const [touched, setTouched] = useState(false);
   const scaffolded = useMemo(() => (scaffold && !touched ? withScaffold(sections) : sections), [scaffold, touched, sections]);
 
+  /** Every edit, on the page or in the list, hands the draft over and ends the scaffolding. */
+  const edited = (next: DocSection[]) => {
+    setTouched(true);
+    onChange(next);
+  };
+
   const choose = (next: Mode) => {
     setMode(next);
     rememberMode(next);
@@ -59,13 +65,10 @@ export function ResumeEditing({ sections, onChange, label, title, scaffold = fal
       {mode === "page" ? (
         <PageEditor
           sections={scaffolded} label={label} title={title}
-          onChange={(next) => {
-            setTouched(true);
-            onChange(next);
-          }}
+          onChange={edited}
         />
       ) : (
-        <SectionsEditor sections={sections} onChange={onChange} label={label} />
+        <SectionsEditor sections={sections} onChange={edited} label={label} />
       )}
     </div>
   );

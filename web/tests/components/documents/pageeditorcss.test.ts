@@ -27,13 +27,30 @@ describe("pageeditor.css", () => {
     expect(print).toMatch(/::placeholder\s*\{\s*color:\s*transparent/);
   });
 
-  it("shows the controls on hover and focus-within, and always on a phone", async () => {
+  it("shows the controls on hover and focus-within, and always on a phone, with 44px hit areas", async () => {
     const text = await css();
     expect(text).toMatch(/\.pe-line:hover > \.pe-controls/);
     expect(text).toMatch(/\.pe-line:focus-within > \.pe-controls/);
     const phone = text.slice(text.indexOf("@media (max-width: 720px), (hover: none)"));
     expect(phone).toMatch(/\.pe-controls\s*\{[^}]*opacity:\s*1/);
-    expect(phone).toMatch(/\.pe-ctl\s*\{[^}]*width:\s*44px;\s*height:\s*44px/);
+    expect(phone).toMatch(/\.pe-addbtn\s*\{[^}]*min-height:\s*44px/);
+    expect(text).toMatch(/\.pe-ctl\s*\{[^}]*width:\s*44px;\s*height:\s*44px/);
+    expect(text).toMatch(/\.pe-addbtn::after\s*\{[^}]*top:\s*-8px;[^}]*bottom:\s*-8px/);
+  });
+
+  it("leaves no gap between a line and its controls, so the hover survives the move", async () => {
+    const text = await css();
+    expect(text).not.toMatch(/calc\(100% \+ \d+px\)/);
+    expect(text).toMatch(/\.pe-controls::before\s*\{[^}]*content:\s*""/);
+  });
+
+  it("puts the controls in the margin only when the editor is 900px wide or more, else on the line", async () => {
+    const text = await css();
+    expect(text).toMatch(/\.page-editor\s*\{\s*container:\s*pe \/ inline-size/);
+    const wide = text.slice(text.indexOf("@container pe (min-width: 900px)"));
+    expect(wide).toMatch(/\.pe-controls\s*\{[^}]*left:\s*100%/);
+    // the base rule keeps them inside the line's right edge
+    expect(text.slice(0, text.indexOf("@container"))).toMatch(/\.pe-controls\s*\{[^}]*right:\s*0/);
   });
 
   it("uses 16px type on a phone so fields never zoom the page, and sizes fields with field-sizing", async () => {

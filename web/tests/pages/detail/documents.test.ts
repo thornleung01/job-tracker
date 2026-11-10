@@ -116,6 +116,18 @@ describe("the Documents section", () => {
       expect(notice(container)).toContain("Saved.");
     });
 
+    it("saving after clearing every line of a section does not store a lone heading", async () => {
+      const { db, id, container } = await setup();
+      await click(button(section(container), "Make a copy for this job"));
+      await openList(container);
+      const resumeId = (await row(db, id)).resumeId!;
+      const clear = $$(section(container), "button").find((b) => b.getAttribute("aria-label") === "Remove line 1" && b.closest('section[aria-label="Skills"]') !== null)!;
+      await click(clear);
+      await click(button(section(container), "Save"));
+      await waitFor(() => sheet(container) === null);
+      expect((await db.documents.get(resumeId))!.sections.map((s) => s.heading)).toEqual(["Experience"]);
+    });
+
     it("leaves the master alone when only the copy is edited", async () => {
       const { db, container, master } = await setup();
       await click(button(section(container), "Make a copy for this job"));

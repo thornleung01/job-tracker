@@ -45,13 +45,16 @@ function addOrder(items: DocItem[], heading: string): ("" | DocItemKind)[] {
   return [...first, ...ALL.filter((k) => !first.includes(k))];
 }
 
-/** Text pasted into a field is plain: newlines become spaces in a one-line field, and what is pasted is cut to the field's limit. */
-function pasteInto(single: boolean, max: number, set: (v: string) => void) {
+/** Every field is one logical line (a long one wraps, but holds no newline), so it matches what the sheet and the one-page check print. */
+const oneLine = (text: string) => text.replace(/\s*[\r\n]+\s*/g, " ");
+
+/** Text pasted into a field is plain: newlines become spaces, and what is pasted is cut to the field's limit. */
+function pasteInto(max: number, set: (v: string) => void) {
   return (e: ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const el = e.currentTarget;
     e.preventDefault();
     let text = e.clipboardData.getData("text/plain");
-    text = single ? text.replace(/\s*[\r\n]+\s*/g, " ") : text.replace(/\r\n?/g, "\n");
+    text = oneLine(text);
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? start;
     text = text.slice(0, Math.max(0, max - (el.value.length - (end - start))));
@@ -80,33 +83,39 @@ function Single({ fkey, field, value, label, placeholder, max, className, onValu
   return (
     <input
       type="text" className={`pe-field ${className}`} data-pe={fkey} data-field={field} aria-label={label} placeholder={placeholder} value={value} maxLength={max} size={size}
-      onChange={(e) => onValue(e.target.value)} onPaste={pasteInto(true, max, onValue)} onKeyDown={onKeyDown}
+      onChange={(e) => onValue(e.target.value)} onPaste={pasteInto(max, onValue)} onKeyDown={onKeyDown}
     />
   );
 }
 
 const nativeSizing = () => typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
 
-/** A field that grows with its text: `field-sizing: content` where there is one, the textarea's scroll height where there is not. */
+/**
+ * A field that grows with its text and wraps it, `field-sizing: content` where there is one, the textarea's scroll height where there is not.
+ * It is a textarea only to wrap: it never holds a newline (Enter is the caller's, a pasted or typed newline becomes a space).
+ */
 function Multi({ fkey, field, value, label, placeholder, max, className, onValue, onKeyDown }: FieldProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
+  const fit = useRef(() => {});
+  fit.current = () => {
     const el = ref.current;
     if (!el || nativeSizing()) return;
-    const fit = () => {
-      el.style.height = "auto";
-      if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
-    };
-    fit();
-    // a narrower or wider sheet re-wraps the text
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
-    observer?.observe(el);
-    return () => observer?.disconnect();
-  }, [value]);
+    el.style.height = "auto";
+    if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
+  };
+  useLayoutEffect(() => fit.current(), [value]);
+  // observed once: a narrower or wider sheet re-wraps the text
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || nativeSizing() || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => fit.current());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   return (
     <textarea
       ref={ref} rows={1} className={`pe-field ${className}`} data-pe={fkey} data-field={field} aria-label={label} placeholder={placeholder} value={value} maxLength={max}
-      onChange={(e) => onValue(e.target.value)} onPaste={pasteInto(false, max, onValue)} onKeyDown={onKeyDown}
+      onChange={(e) => onValue(oneLine(e.target.value))} onPaste={pasteInto(max, onValue)} onKeyDown={onKeyDown}
     />
   );
 }
@@ -161,10 +170,11 @@ export function measureEditableSheet(sheet: HTMLElement): number {
  */
 export function PageEditor({ sections, onChange, label, title, measure = measureEditableSheet }: Props) {
   const sheet = useRef<HTMLElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
   useEffect(() => {
     if (!focusKey) return;
-    const el = sheet.current?.querySelector<HTMLElement>(`[data-pe="${focusKey}"], [data-pe-ctl="${focusKey}"]`);
+    const el = root.current?.querySelector<HTMLElement>(`[data-pe="${focusKey}"], [data-pe-ctl="${focusKey}"]`);
     el?.focus();
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.setSelectionRange(el.value.length, el.value.length);
     setFocusKey(null);
@@ -207,6 +217,31 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     const at = keys.findIndex((k) => k.startsWith(`${itemId}:`));
     if (at > 0) setFocusKey(keys[at - 1]);
   };
+  /** Add a contact line to the header (made when there is none) and focus it. */
+  const addContact = () => {
+    const items = [...(header?.items ?? [])];
+    while (items.length < 2) items.push({ id: newItemId(), text: "" });
+    const item: DocItem = { id: newItemId(), text: "" };
+    items.push(item);
+    if (header) onChange(sections.map((s) => (s === header ? { ...s, items } : s)));
+    else onChange([{ id: newItemId(), heading: HEADER_HEADING, items }, ...sections]);
+    setFocusKey(`${item.id}:text`);
+  };
+  const removeContact = (id: string) => {
+    focusBefore(id);
+    onChange(sections.map((s) => (s === header ? { ...s, items: s.items.filter((x) => x.id !== id) } : s)));
+  };
+  /** Remove a section, then focus the next section's heading, else the Add section button, else the previous section's heading. */
+  const removeSection = (id: string) => {
+    const shown = sections.filter((s) => s !== header);
+    const at = shown.findIndex((s) => s.id === id);
+    const next = shown[at + 1];
+    const previous = shown[at - 1];
+    if (next) setFocusKey(`${next.id}:heading`);
+    else if (sections.length - 1 < MAX_DOC_SECTIONS) setFocusKey("add-section");
+    else if (previous) setFocusKey(`${previous.id}:heading`);
+    onChange(sections.filter((x) => x.id !== id));
+  };
   const enterMovesOn = (key: string) => (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || composing(e)) return;
     e.preventDefault();
@@ -239,12 +274,14 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     setFocusKey(`${id}:${by === -1 ? (to > 0 ? "up" : "down") : to < count - 1 ? "down" : "up"}`);
   };
 
-  /** Enter in a bullet or skill adds one below; Backspace in an empty one removes it. Shift+Enter is a newline. */
+  /** Enter in a bullet or skill adds one below (in any other line it moves on); Backspace in an empty one removes it. A line holds no newline, so Shift+Enter does nothing. */
   const lineKeys = (sid: string, item: DocItem, k: number) => (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (composing(e)) return;
-    if (e.key === "Enter" && !e.shiftKey && hasLabel(item.kind)) {
+    if (e.key === "Enter") {
       e.preventDefault();
-      addItem(sid, item.kind!, k + 1);
+      if (e.shiftKey) return;
+      if (hasLabel(item.kind)) addItem(sid, item.kind!, k + 1);
+      else focusAfter(`${item.id}:text`);
     } else if (e.key === "Backspace" && hasLabel(item.kind) && !item.text && !item.label) {
       e.preventDefault();
       removeItem(sid, item.id);
@@ -255,14 +292,12 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     const where = s.heading || `section ${si + 1}`;
     const name = `${NOUN[legacy ? "" : item.kind ?? ""]} ${k + 1} of ${where}`;
     const kind = legacy ? undefined : item.kind;
-    const textField = (multi: boolean) => {
-      const props: FieldProps = {
-        fkey: `${item.id}:text`, field: item.id, value: item.text, label: capital(name), placeholder: placeholderFor(s.heading, kind, "text", k), max: MAX_DOC_ITEM_CHARS,
-        className: "pe-grow", onValue: (text) => setItem(s.id, item.id, (x) => ({ ...x, text })),
-        onKeyDown: multi ? lineKeys(s.id, item, k) : enterMovesOn(`${item.id}:text`),
-      };
-      return multi ? <Multi {...props} /> : <Single {...props} />;
-    };
+    const textField = () => (
+      <Multi
+        fkey={`${item.id}:text`} field={item.id} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
+        className="pe-grow" onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={lineKeys(s.id, item, k)}
+      />
+    );
     const labelField = () => {
       const ph = placeholderFor(s.heading, kind, "label");
       return (
@@ -295,7 +330,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
         return (
           <div key={item.id} className={`pe-line ${title ? "doc-title" : "doc-org"}`}>
             <div className="doc-row">
-              <Single
+              <Multi
                 fkey={`${item.id}:text`} field={item.id} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
                 className={`pe-grow ${tone}`} onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={enterMovesOn(`${item.id}:text`)}
               />
@@ -312,22 +347,22 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
       case "skill":
         return (
           <div key={item.id} className="pe-line pe-p">
-            <div className="pe-inline">{labelField()}{textField(true)}</div>
+            <div className="pe-inline">{labelField()}{textField()}</div>
             {controls}
           </div>
         );
       case "bullet":
         return (
           <li key={item.id} className="pe-line">
-            <div className="pe-inline">{labelField()}{textField(true)}</div>
+            <div className="pe-inline">{labelField()}{textField()}</div>
             {controls}
           </li>
         );
       default:
         return legacy ? (
-          <li key={item.id} className="pe-line">{textField(true)}{controls}</li>
+          <li key={item.id} className="pe-line">{textField()}{controls}</li>
         ) : (
-          <div key={item.id} className="pe-line pe-p">{textField(true)}{controls}</div>
+          <div key={item.id} className="pe-line pe-p">{textField()}{controls}</div>
         );
     }
   };
@@ -360,11 +395,11 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
   const contactFields = Math.max(1, contact.length);
 
   return (
-    <div className="page-editor">
+    <div className="page-editor" ref={root}>
       <p className="doc-fit muted pe-status" role="status">{verdict ? pageVerdictText(verdict) : ""}</p>
       <article ref={sheet} className="doc-sheet classic page-edit" role="group" aria-label={label}>
         <h1 className="page doc-name">
-          <Single
+          <Multi
             fkey={header?.items[0] ? `${header.items[0].id}:text` : "name"} field={header?.items[0]?.id} value={header?.items[0]?.text ?? ""} label="Name" placeholder={namePlaceholder}
             max={MAX_DOC_ITEM_CHARS} className="pe-center" onValue={(t) => setHeaderText(0, t)} onKeyDown={enterMovesOn(header?.items[0] ? `${header.items[0].id}:text` : "name")}
           />
@@ -374,13 +409,25 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
             const item = contact[n];
             const key = item ? `${item.id}:text` : `contact${n}`;
             return (
-              <Single
-                key={`contact${n}`} fkey={key} field={item?.id} value={item?.text ?? ""} label={n === 0 ? "Contact line" : `Contact line ${n + 1}`}
-                placeholder={n === 0 ? PLACEHOLDERS.contact : ""} max={MAX_DOC_ITEM_CHARS} className="pe-center"
-                onValue={(t) => setHeaderText(n + 1, t)} onKeyDown={enterMovesOn(key)}
-              />
+              <div key={`contact${n}`} className="pe-line">
+                <Single
+                  fkey={key} field={item?.id} value={item?.text ?? ""} label={n === 0 ? "Contact line" : `Contact line ${n + 1}`}
+                  placeholder={n === 0 ? PLACEHOLDERS.contact : ""} max={MAX_DOC_ITEM_CHARS} className="pe-center"
+                  onValue={(t) => setHeaderText(n + 1, t)} onKeyDown={enterMovesOn(key)}
+                />
+                {n > 0 && item ? (
+                  <div className="pe-controls">
+                    <button type="button" className="pe-ctl" data-pe-ctl={`${item.id}:remove`} aria-label={`Remove contact line ${n + 1}`} onClick={() => removeContact(item.id)}>
+                      <X size={16} strokeWidth={3} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             );
           })}
+          <div className="pe-add" role="group" aria-label="Add to header">
+            <button type="button" className="pe-addbtn" disabled={(header?.items.length ?? 0) >= MAX_DOC_ITEMS} onClick={addContact}>Add contact line</button>
+          </div>
         </div>
         {sections.map((s, si) => {
           if (s === header) return null;
@@ -389,7 +436,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
           return (
             <section key={s.id} className="doc-block">
               <h2>
-                <Single
+                <Multi
                   fkey={`${s.id}:heading`} field={s.id} value={s.heading} label={`Heading of section ${si + 1}`} placeholder="Section heading" max={MAX_DOC_HEADING_CHARS}
                   className="pe-heading" onValue={(heading) => setSection(s.id, (x) => ({ ...x, heading }))} onKeyDown={enterMovesOn(`${s.id}:heading`)}
                 />
@@ -401,7 +448,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
                     Add {ADD_NAME[kind]}
                   </button>
                 ))}
-                <button type="button" className="pe-addbtn pe-remove" aria-label={`Remove section ${where}`} onClick={() => onChange(sections.filter((x) => x.id !== s.id))}>
+                <button type="button" className="pe-addbtn pe-remove" aria-label={`Remove section ${where}`} onClick={() => removeSection(s.id)}>
                   Remove section
                 </button>
               </div>
@@ -410,7 +457,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
         })}
       </article>
       <button
-        type="button" className="quiet pe-add-section" disabled={sections.length >= MAX_DOC_SECTIONS}
+        type="button" className="quiet pe-add-section" data-pe-ctl="add-section" disabled={sections.length >= MAX_DOC_SECTIONS}
         onClick={() => {
           const next: DocSection = { id: newItemId(), heading: "", items: [{ id: newItemId(), text: "" }] };
           onChange([...sections, next]);

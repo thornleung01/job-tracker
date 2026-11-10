@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
+import { normalizeSections } from "../../db/documentShape";
 import type { ApplicationRow, DocSection, DocumentRow, JobTrackerDB } from "../../db/schema";
+import { withoutEmptySections } from "../../documents/blankResume";
 import { copyResumeForApplication, setApplicationResume, updateDocument } from "../../sync/documents";
 import type { ActionRunner } from "../useAction";
 import { ResumeEditing } from "./ResumeEditing";
@@ -52,7 +54,7 @@ export function ResumeSent({ db, app, resumes, act }: Props) {
   const save = (sections: DocSection[]) => {
     if (!chosen) return;
     void act.run("resume-edit", async () => {
-      await updateDocument(db, chosen.id, { sections });
+      await updateDocument(db, chosen.id, { sections: withoutEmptySections(normalizeSections(sections)) });
       setEditing(false);
       return "Saved.";
     });

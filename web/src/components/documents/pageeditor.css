@@ -1,7 +1,6 @@
 /* The resume editor that is the page itself: the classic sheet (resumesheet.css gives its fonts, spacing and markup) with every text a borderless field.
    The sheet is a document format, so it keeps its black-on-white look in light and dark, and so do the fields and the buttons that sit on it.
    Screen only: the controls, the add rows and the placeholders never print. */
-.page-editor { padding: 0 44px; }
 .page-editor .pe-status { margin: 0 0 8px; min-height: 1.4em; }
 .page-editor .pe-add-section { margin: 0 0 var(--section); }
 
@@ -36,21 +35,35 @@
 /* the clone the one-page check measures swaps each field for its text */
 .doc-sheet.classic.page-edit .pe-text { white-space: pre-wrap; }
 
-/* The line's move and remove buttons float in the page's margin, on their own white chip, so they read on the app background in dark too. */
-.doc-sheet.classic.page-edit .pe-controls { position: absolute; left: calc(100% + 4px); top: 50%; transform: translateY(-50%); display: flex; gap: 0; padding: 0;
+/* The line's move and remove buttons sit on their own white chip, so they read on the app background in dark too. Each button is 44px square (the glyph
+   stays 16px). The chip appears on hover and focus, and nothing separates it from the line, so the pointer never leaves the line on its way to it.
+   Where it goes depends on the room the editor has (a container query on .page-editor, so the detail page's card counts too): 900px or more
+   and it floats in the margin to the right of the sheet, narrower and it sits over the right end of the line, so nothing overflows or scrolls sideways. */
+.page-editor { container: pe / inline-size; }
+.doc-sheet.classic.page-edit .pe-controls { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 1; display: flex; gap: 0; padding: 0;
   background: white; color: black; border-radius: var(--r-seg); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); opacity: 0; pointer-events: none; }
+/* a strip on the chip's left edge keeps the hover alive across any gap */
+.doc-sheet.classic.page-edit .pe-controls::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 8px; }
 .doc-sheet.classic.page-edit .pe-line:hover > .pe-controls, .doc-sheet.classic.page-edit .pe-line:focus-within > .pe-controls { opacity: 1; pointer-events: auto; }
-.doc-sheet.classic.page-edit .pe-ctl { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; background: transparent;
+.doc-sheet.classic.page-edit .pe-ctl { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-height: 0; padding: 0; background: transparent;
   box-shadow: none; color: black; border-radius: var(--r-seg); }
 .doc-sheet.classic.page-edit .pe-ctl:hover:not(:disabled) { background: rgba(0, 0, 0, 0.1); }
 .doc-sheet.classic.page-edit .pe-ctl:disabled { opacity: 0.3; }
 .doc-sheet.classic.page-edit .pe-ctl:focus-visible, .doc-sheet.classic.page-edit .pe-addbtn:focus-visible { outline: 2px solid black; outline-offset: 1px; }
+@container pe (min-width: 900px) {
+  .doc-sheet.classic.page-edit { margin-right: 84px; }
+  .doc-sheet.classic.page-edit .pe-controls { right: auto; left: 100%; }
+  .doc-sheet.classic.page-edit .pe-controls::before { right: auto; left: -8px; }
+}
 
-/* The add row at the end of a section: small quiet buttons, the likely next line first. */
-.doc-sheet.classic.page-edit .pe-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 4pt 0 0; opacity: 0; }
-.doc-sheet.classic.page-edit .doc-block:hover .pe-add, .doc-sheet.classic.page-edit .doc-block:focus-within .pe-add { opacity: 1; }
-.doc-sheet.classic.page-edit .pe-addbtn { min-height: 28px; padding: 0 12px; background: rgba(0, 0, 0, 0.06); color: black; box-shadow: none; border-radius: var(--r-pill);
+/* The add row at the end of a section: small quiet buttons, the likely next line first. Each is 28px to look at and 44px to hit (a ::after). */
+.doc-sheet.classic.page-edit .pe-add { display: flex; flex-wrap: wrap; gap: 16px 6px; margin: 4pt 0 0; opacity: 0; }
+.doc-sheet.classic.page-edit .doc-contact .pe-add { justify-content: center; }
+.doc-sheet.classic.page-edit .doc-block:hover .pe-add, .doc-sheet.classic.page-edit .doc-block:focus-within .pe-add,
+.doc-sheet.classic.page-edit .doc-contact:hover .pe-add, .doc-sheet.classic.page-edit .doc-contact:focus-within .pe-add { opacity: 1; }
+.doc-sheet.classic.page-edit .pe-addbtn { position: relative; min-height: 28px; padding: 0 12px; background: rgba(0, 0, 0, 0.06); color: black; box-shadow: none; border-radius: var(--r-pill);
   font: 500 13px/1 var(--font-ui); letter-spacing: 0; }
+.doc-sheet.classic.page-edit .pe-addbtn::after { content: ""; position: absolute; left: 0; right: 0; top: -8px; bottom: -8px; }
 .doc-sheet.classic.page-edit .pe-addbtn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.12); }
 .doc-sheet.classic.page-edit .pe-addbtn:disabled { opacity: 0.4; }
 .doc-sheet.classic.page-edit .pe-remove { margin-left: auto; background: transparent; }
@@ -58,11 +71,12 @@
 /* A phone, or any screen you can't hover: the controls and the add row are always there, in the flow, with 44px targets. The fields stay 16px or
    larger so iOS doesn't zoom the page when one is focused, so the sheet uses 16px type here instead of scaling down. */
 @media (max-width: 720px), (hover: none) {
-  .page-editor { padding: 0; }
+  .doc-sheet.classic.page-edit { margin-right: 0; }
   .doc-sheet.classic.page-edit .pe-controls { position: static; transform: none; opacity: 1; pointer-events: auto; justify-content: flex-end; background: none; box-shadow: none; }
-  .doc-sheet.classic.page-edit .pe-ctl { width: 44px; height: 44px; }
+  .doc-sheet.classic.page-edit .pe-controls::before { content: none; }
   .doc-sheet.classic.page-edit .pe-add { opacity: 1; }
   .doc-sheet.classic.page-edit .pe-addbtn { min-height: 44px; padding: 0 16px; }
+  .doc-sheet.classic.page-edit .pe-addbtn::after { content: none; }
 }
 @media (max-width: 720px) {
   .doc-sheet.classic.page-edit { --classic-fs: 16px; padding: 16px; }
@@ -71,7 +85,7 @@
 }
 
 @media print {
-  .page-editor { padding: 0; }
+  .doc-sheet.classic.page-edit { margin-right: 0; }
   .page-editor .pe-status, .page-editor .pe-add-section, .doc-sheet.classic.page-edit .pe-controls, .doc-sheet.classic.page-edit .pe-add { display: none; }
   .doc-sheet.classic.page-edit .pe-field { border-bottom-color: transparent; background: transparent; }
   .doc-sheet.classic.page-edit .pe-field::placeholder { color: transparent; }

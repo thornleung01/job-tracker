@@ -91,10 +91,10 @@ describe("PageEditor rendering", () => {
     expect(sheet.getAttribute("role")).toBe("group");
     expect(sheet.getAttribute("aria-label")).toBe("Test resume");
     expect(get(c, "Name").value).toBe("Jordan Lee");
-    expect($(c, "h1.doc-name input")).toBe(get(c, "Name"));
+    expect($(c, "h1.doc-name textarea")).toBe(get(c, "Name"));
     expect(get(c, "Contact line").value).toBe("Toronto | jordan@example.com");
     expect(get(c, "Heading of section 2").value).toBe("Work experience");
-    expect($(c, "h2 input")).toBe(get(c, "Heading of section 2"));
+    expect($(c, "h2 textarea")).toBe(get(c, "Heading of section 2"));
     expect(get(c, "Job 1 of Work experience").value).toBe("Acme");
     expect(get(c, "Location of job 1 of Work experience").value).toBe("Toronto");
     expect(get(c, "Job title 2 of Work experience").value).toBe("Analyst");
@@ -237,11 +237,81 @@ describe("adding, removing and moving", () => {
   });
 });
 
+describe("long text, section removal, contact lines", () => {
+  it("name, headings, jobs, titles and schools wrap (text areas), and Enter in them moves on without a newline", () => {
+    const c = mount(sample());
+    for (const n of ["Name", "Heading of section 2", "Job 1 of Work experience", "Job title 2 of Work experience"]) expect(get(c, n).tagName).toBe("TEXTAREA");
+    const ev = press(get(c, "Job 1 of Work experience"), "Enter");
+    expect(ev.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(get(c, "Location of job 1 of Work experience"));
+    expect(latest[1].items[0].text).toBe("Acme");
+    paste(get(c, "Job 1 of Work experience"), "A\nB");
+    expect(latest[1].items[0].text).not.toContain("\n");
+  });
+
+  it("Remove section moves focus to the next section's heading", () => {
+    const c = mount(sample());
+    click(get(c, "Remove section Work experience"));
+    expect(document.activeElement).toBe(get(c, "Heading of section 2"));
+    expect(get(c, "Heading of section 2").value).toBe("Skills");
+  });
+
+  it("Remove section on the last section moves focus to the Add section button", () => {
+    const c = mount(sample());
+    click(get(c, "Remove section Summary"));
+    expect(document.activeElement).toBe(buttonText(c, "Add section"));
+  });
+
+  it("adds a contact line to the header and focuses it, and removes lines beyond the first", () => {
+    const c = mount(sample());
+    expect(named(c, "Remove contact line 1")).toBeNull();
+    click(buttonText(c, "Add contact line"));
+    expect(latest[0].items).toHaveLength(3);
+    expect(document.activeElement).toBe(get(c, "Contact line 2"));
+    type(get(c, "Contact line 2"), "linkedin.com/in/jo");
+    expect(latest[0].items[2].text).toBe("linkedin.com/in/jo");
+    click(get(c, "Remove contact line 2"));
+    expect(latest[0].items.map((i) => i.id)).toEqual(["n", "c"]);
+    expect(document.activeElement).toBe(get(c, "Contact line"));
+  });
+
+  it("makes the header when Add contact line is the first edit", () => {
+    const c = mount(sample().slice(1));
+    click(buttonText(c, "Add contact line"));
+    expect(latest[0].heading).toBe("Header");
+    expect(latest[0].items).toHaveLength(3);
+  });
+});
+
+describe("the auto-sizing fallback", () => {
+  it("observes each field once, not again on every keystroke", () => {
+    const made: unknown[] = [];
+    class RO {
+      constructor() {
+        made.push(this);
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", RO);
+    try {
+      const c = mount(sample());
+      const before = made.length;
+      expect(before).toBeGreaterThan(0);
+      type(get(c, "Bullet 3 of Work experience"), "a");
+      type(get(c, "Bullet 3 of Work experience"), "ab");
+      expect(made.length).toBe(before);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("keyboard and paste", () => {
-  it("Shift+Enter in a bullet is a newline, Enter adds a bullet below it and focuses it", () => {
+  it("Shift+Enter in a bullet does nothing (no newline), Enter adds a bullet below it and focuses it", () => {
     const c = mount(sample());
     const shift = press(get(c, "Bullet 3 of Work experience"), "Enter", { shiftKey: true });
-    expect(shift.defaultPrevented).toBe(false);
+    expect(shift.defaultPrevented).toBe(true);
     expect(latest[1].items).toHaveLength(4);
     const ev = press(get(c, "Bullet 3 of Work experience"), "Enter");
     expect(ev.defaultPrevented).toBe(true);
@@ -278,7 +348,7 @@ describe("keyboard and paste", () => {
     expect(document.activeElement).toBe(get(c, "Contact line"));
   });
 
-  it("pastes plain text: newlines become spaces in one-line fields, stay in text areas", () => {
+  it("pastes plain text: newlines become spaces in every field, and typed newlines too", () => {
     const c = mount(sample());
     const input = get(c, "Heading of section 3");
     input.setSelectionRange(0, input.value.length);
@@ -287,7 +357,16 @@ describe("keyboard and paste", () => {
     const area = get(c, "Bullet 3 of Work experience");
     area.setSelectionRange(area.value.length, area.value.length);
     paste(area, " and\r\nmore");
-    expect(latest[1].items[2].text).toBe("Cut close time and\nmore");
+    expect(latest[1].items[2].text).toBe("Cut close time and more");
+    type(area, "one\ntwo");
+    expect(latest[1].items[2].text).toBe("one two");
+  });
+
+  it("Enter in a plain line moves on instead of adding a newline", () => {
+    const c = mount(sample());
+    const ev = press(get(c, "Line 1 of Summary"), "Enter");
+    expect(ev.defaultPrevented).toBe(true);
+    expect(latest[3].items[0].text).toBe("Analyst with five years");
   });
 
   it("cuts a paste at the field's limit", () => {
@@ -395,5 +474,15 @@ describe("ResumeEditing", () => {
     const c = edit([{ id: "s", heading: "Summary", items: [{ id: "p", text: "Hi" }] }]);
     expect(named(c, "Job 1 of Work experience")).toBeNull();
     expect(get(c, "Line 1 of Summary").value).toBe("Hi");
+  });
+
+  it("an edit in list mode also ends the scaffolding, so the page does not bring the template back", () => {
+    const c = edit(sample(), { scaffold: true });
+    expect(get(c, "Heading of section 5").value).toBe("Education");
+    click(switchButton(c, "Edit as list"));
+    type(get(c, "Heading of section 4"), "Profile");
+    click(switchButton(c, "Edit on page"));
+    expect(latest.map((s) => s.heading)).toEqual(["Header", "Work experience", "Skills", "Profile"]);
+    expect(named(c, "Heading of section 5")).toBeNull();
   });
 });

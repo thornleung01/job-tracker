@@ -48,7 +48,7 @@ function EditorBlock({ db, doc, label, draft, act, onSaved, onCancel, saveLabel 
 }) {
   const save = () =>
     void act.run("save", async () => {
-      await updateDocument(db, doc.id, { sections: draft.sections });
+      await updateDocument(db, doc.id, { sections: withoutEmptySections(normalizeSections(draft.sections)) });
       draft.set(null);
       onSaved?.();
       return "Saved";
@@ -69,7 +69,7 @@ function EditorBlock({ db, doc, label, draft, act, onSaved, onCancel, saveLabel 
 /** What the review shows: the sections to check, where they came from, and for an AI conversion what it wasn't sure about. */
 interface Draft {
   sections: DocSection[];
-  source: "upload" | "paste" | "ai" | "template";
+  source: NonNullable<DocumentRow["source"]>;
   ai?: ConvertResult;
 }
 
@@ -83,7 +83,7 @@ function Review({ db, draft, existing, title: heading, onDone, onAgain, onSimple
   const title = useRef<HTMLHeadingElement>(null);
   const save = () =>
     void act.run("save", async () => {
-      await saveMaster(db, sections, draft.source);
+      await saveMaster(db, withoutEmptySections(normalizeSections(sections)), draft.source);
       onDone();
     });
   return (
@@ -116,6 +116,7 @@ function Review({ db, draft, existing, title: heading, onDone, onAgain, onSimple
 /** A blank copy of the template to type into. Nothing is stored until Save, and Save stays off until there is some text. */
 function TemplateStart({ db, onDone }: { db: JobTrackerDB; onDone(): void }) {
   const [sections, setSections] = useState(blankResume);
+  const [confirming, setConfirming] = useState(false);
   const act = useAction();
   const save = () =>
     void act.run("save", async () => {
@@ -129,22 +130,42 @@ function TemplateStart({ db, onDone }: { db: JobTrackerDB; onDone(): void }) {
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       <div className="row doc-save">
         <button type="button" className="primary" onClick={save} disabled={act.busy !== null || isBlankTemplate(sections)} aria-busy={act.busy === "save" || undefined}>Save</button>
-        <button type="button" onClick={onDone} disabled={act.busy !== null}>Cancel</button>
+        <button type="button" onClick={() => (isBlankTemplate(sections) ? onDone() : setConfirming(true))} disabled={act.busy !== null || confirming}>Cancel</button>
       </div>
+      {confirming ? (
+        <InlineConfirm title="Discard what you typed?" help="Nothing has been saved." confirmLabel="Discard" act={act} actionKey="discard" onConfirm={onDone} onCancel={() => setConfirming(false)} />
+      ) : null}
     </div>
   );
 }
 
+const dismissKey = (id: number) => `jobtracker:reread-dismissed:${id}`;
+/** Dismissed for this master until the tab is closed (sessionStorage); false when storage is unavailable. */
+function readDismissed(id: number): boolean {
+  try {
+    return sessionStorage.getItem(dismissKey(id)) === "1";
+  } catch {
+    return false;
+  }
+}
+function rememberDismissed(id: number): void {
+  try {
+    sessionStorage.setItem(dismissKey(id), "1");
+  } catch {
+    // no storage: it stays dismissed until the card is remounted
+  }
+}
+
 /** For a resume saved before the template: a quiet offer to read it again, which opens the review. It stores nothing itself. */
-function RereadOffer({ sections, onReread }: { sections: DocSection[]; onReread(next: DocSection[]): void }) {
-  const [dismissed, setDismissed] = useState(false);
+function RereadOffer({ id, sections, onReread }: { id: number; sections: DocSection[]; onReread(next: DocSection[]): void }) {
+  const [dismissed, setDismissed] = useState(() => readDismissed(id));
   const better = useMemo(() => rereadAsTemplate(sections), [sections]);
   if (!better || dismissed) return null;
   return (
     <div className="row doc-reread">
       <p className="muted small">This resume was saved before the template. Re-read it as the template?</p>
       <button type="button" onClick={() => onReread(better)}>Re-read</button>
-      <button type="button" onClick={() => setDismissed(true)}>Dismiss</button>
+      <button type="button" onClick={() => { rememberDismissed(id); setDismissed(true); }}>Dismiss</button>
     </div>
   );
 }
@@ -169,7 +190,7 @@ function MasterCard({ db, doc, used, onIncoming, onReread }: Omit<CardProps, "sa
       <div className="row doc-actions">
         <Importer fileLabel="Replace with a file" onRead={onIncoming} primary={false} />
       </div>
-      <RereadOffer sections={doc.sections} onReread={onReread} />
+      <RereadOffer id={doc.id} sections={doc.sections} onReread={onReread} />
       <EditorBlock db={db} doc={doc} label={doc.title} draft={draft} act={act} />
       {act.error ? <Notice tone="err">{act.error}</Notice> : null}
       <div className="row doc-actions">
@@ -282,7 +303,9 @@ export function ResumeTab({ db, resumes, usage, say, deps }: TabProps) {
   const startReading = (incoming: Incoming) => setPending({ incoming, draft: null });
   // An old resume read again goes straight to the review, so nothing is stored until Save.
   const startReread = (sections: DocSection[]) => {
-    setPending({ incoming: { sections, text: "", source: "paste" }, draft: { sections, source: "paste" }, reread: true });
+    // saving keeps how the master first came in, so re-reading does not turn an upload or a template into a paste
+    const source = master?.source ?? "paste";
+    setPending({ incoming: { sections, text: "", source: source === "upload" ? "upload" : "paste" }, draft: { sections, source }, reread: true });
     setReviewKey((n) => n + 1);
   };
   const done = () => setPending(null);

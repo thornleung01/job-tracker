@@ -2,9 +2,9 @@
 import { plural } from "../../sync/text";
 
 const PX_PER_INCH = 96;
-/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. Keep in sync with pages/resume/print.css (@page classic). */
+/** US letter is 11in tall; the classic template's page margin is 0.5in on each side. At 96 px per inch that leaves 960px of page. Keep in sync with the `@page classic` margin in pages/resume/print.css. */
 export const PRINTABLE_HEIGHT_PX = (11 - 2 * 0.5) * PX_PER_INCH;
-/** The printed text column: 8.5in wide minus the same margins. Keep in sync with pages/resume/print.css (@page classic). */
+/** The printed text column: 8.5in wide minus the same margins. Keep in sync with the `@page classic` margin in pages/resume/print.css (the classic sheet rules themselves are in resumesheet.css). */
 export const PRINT_WIDTH_PX = (8.5 - 2 * 0.5) * PX_PER_INCH;
 /** The classic template's body text: 10.5pt (14px) on a 1.25 line height. */
 const CLASSIC_FONT_PX = 14;
