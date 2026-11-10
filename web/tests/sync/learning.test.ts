@@ -52,7 +52,7 @@ describe("the whole loop", () => {
     const email = (await db.emails.toArray())[0];
     await resolveReview(db, email.id, { action: "dismiss" });
     const fb = (await db.feedback.toArray())[0];
-    expect([fb.verdict, fb.senderEmail, fb.senderDomain, fb.subject]).toEqual(["not_job", "hi@coachco.io", "coachco.io", "Re: your application"]);
+    expect([fb.verdict, fb.senderEmail, fb.senderDomain, fb.subject]).toEqual(["not_job", "hi@coachco.io", "coachco.io", ""]);
     expect(fb.reason.startsWith("body:")).toBe(true);
   });
 });

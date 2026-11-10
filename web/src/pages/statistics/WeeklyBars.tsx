@@ -5,8 +5,9 @@ import { paceNote, type Pace, type WeekCount } from "../../sync/statistics";
 import { ChartFrame } from "./ChartFrame";
 import "./pace.css";
 
-/** Pace chart geometry, in viewBox units (the svg scales to the card). */
+/** Pace chart geometry, in viewBox units. The width follows the card (ChartFrame `size`), so the 12px text is 12px on a phone; W is the width before it is measured. */
 export const W = 480;
+const MAX_W = 600;
 const H = 200;
 const GUTTER = 54; // room for the "0", the max and "Goal 5" labels
 const TOP = 20;
@@ -36,14 +37,14 @@ const spanOf = (l: XLabel): [number, number] => {
   return l.anchor === "end" ? [l.x - w, l.x] : [l.x - w / 2, l.x + w / 2];
 };
 
-function xLabels(weeks: readonly WeekCount[], slot: number, year: boolean): XLabel[] {
+function xLabels(weeks: readonly WeekCount[], slot: number, year: boolean, w: number): XLabel[] {
   const last = weeks.length - 1;
   const at = (i: number): XLabel => {
     const isLast = i === last;
     const now = weeks[i].current;
     return {
       text: now ? NOW_LABEL : dayLabel(weeks[i].start, year),
-      x: isLast ? W : GUTTER + slot * i + slot / 2,
+      x: isLast ? w : GUTTER + slot * i + slot / 2,
       anchor: now || isLast ? "end" : "middle",
       now,
     };
@@ -72,8 +73,6 @@ export function WeeklyBars({ pace }: { pace: Pace }) {
   const year = spansYears(weeks);
   const max = Math.max(1, goal ?? 0, ...weeks.map((w) => w.count));
   const yOf = (v: number) => BASE - (v / max) * PLOT_H;
-  const slot = (W - GUTTER) / weeks.length;
-  const barW = Math.min(MAX_BAR, Math.max(2, Math.min(slot * 0.65, slot - 2)));
   const now = weeks.find((w) => w.current);
 
   const takeaway = [
@@ -135,20 +134,23 @@ export function WeeklyBars({ pace }: { pace: Pace }) {
   );
 
   return (
-    <ChartFrame title="Pace" note={paceNote(pace) ?? undefined} keys={rows.map((r) => r.key)} table={table}>
-      {(bind) => (
-        <svg className="chart pace-chart" viewBox={`0 0 ${W} ${H}`} role="group" aria-label={takeaway}>
+    <ChartFrame title="Pace" note={paceNote(pace) ?? undefined} keys={rows.map((r) => r.key)} table={table} size={{ fallback: W, max: MAX_W }}>
+      {(bind, w) => {
+        const slot = (w - GUTTER) / weeks.length;
+        const barW = Math.min(MAX_BAR, Math.max(2, Math.min(slot * 0.65, slot - 2)));
+        return (
+        <svg className="chart pace-chart" viewBox={`0 0 ${w} ${H}`} role="group" aria-label={takeaway}>
           <defs>
             <clipPath id={clip}>
-              <rect x={GUTTER} y={0} width={W - GUTTER} height={BASE} />
+              <rect x={GUTTER} y={0} width={w - GUTTER} height={BASE} />
             </clipPath>
           </defs>
           <g className="axis" aria-hidden="true">
-            {showMaxLine ? <line className="gridline" x1={GUTTER} x2={W} y1={yOf(max)} y2={yOf(max)} /> : null}
-            <line className="gridline" x1={GUTTER} x2={W} y1={BASE} y2={BASE} />
+            {showMaxLine ? <line className="gridline" x1={GUTTER} x2={w} y1={yOf(max)} y2={yOf(max)} /> : null}
+            <line className="gridline" x1={GUTTER} x2={w} y1={BASE} y2={BASE} />
             <text className="y-label" x={GUTTER - 8} y={BASE + 4} textAnchor="end">0</text>
             {showMax ? <text className="y-label" x={GUTTER - 8} y={yOf(max) + 4} textAnchor="end">{max}</text> : null}
-            {xLabels(weeks, slot, year).map((l) => (
+            {xLabels(weeks, slot, year, w).map((l) => (
               <text key={l.text + l.x} className={l.now ? "x-label now-label" : "x-label"} x={l.x} y={LABEL_Y} textAnchor={l.anchor}>{l.text}</text>
             ))}
           </g>
@@ -173,7 +175,7 @@ export function WeeklyBars({ pace }: { pace: Pace }) {
           </g>
           {goal !== null && goalY !== null && goalLabelY !== null ? (
             <g aria-hidden="true">
-              <line className="goal-line" x1={GUTTER} x2={W} y1={goalY} y2={goalY} />
+              <line className="goal-line" x1={GUTTER} x2={w} y1={goalY} y2={goalY} />
               <text className="goal-label" x={GUTTER - 8} y={goalLabelY} textAnchor="end">{`Goal ${goal}`}</text>
             </g>
           ) : null}
@@ -181,7 +183,8 @@ export function WeeklyBars({ pace }: { pace: Pace }) {
             <rect key={r.key} className="mark-hit" x={GUTTER + slot * i} y={TOP - 6} width={slot} height={BASE - TOP + 12} {...bind(r.key, r.tip, r.label)} />
           ))}
         </svg>
-      )}
+        );
+      }}
     </ChartFrame>
   );
 }

@@ -24,7 +24,7 @@ export default function ResumePage(props: PageProps & { deps?: ResumeDeps }) {
   return props.params.id !== undefined ? <PrintView db={props.db} id={props.params.id} /> : <ResumeHome {...props} />;
 }
 
-function ResumeHome({ db, query, deps }: PageProps & { deps?: ResumeDeps }) {
+function ResumeHome({ db, query, navigate, deps }: PageProps & { deps?: ResumeDeps }) {
   const tab = query.get("tab");
   const view: ResumeView = tab === "cover" ? "cover" : tab === "tailored" ? "tailored" : "resumes";
   const data = useQuery(async () => ({
@@ -56,7 +56,7 @@ function ResumeHome({ db, query, deps }: PageProps & { deps?: ResumeDeps }) {
         <>
           {/* All three lists stay in the page, so what you typed and haven't saved is still there when you come back to it. */}
           <div className="resume-view" hidden={view !== "resumes"}>
-            <ResumeTab db={db} resumes={data.resumes} usage={usage} say={say} deps={deps} />
+            <ResumeTab db={db} resumes={data.resumes} usage={usage} say={say} navigate={navigate} deps={deps} />
           </div>
           <div className="resume-view" hidden={view !== "cover"}>
             <CoverLetters letters={data.docs.filter((d) => d.kind === "cover")} apps={apps} />

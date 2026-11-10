@@ -1,4 +1,5 @@
 // Read-side queries for the pages: the application list, counts, Needs review and the ignored list (jobtracker/web.py).
+import Dexie from "dexie";
 import type { AccountRow, ApplicationRow, DocumentRow, EmailRow, IgnoredMailRow, JobTrackerDB } from "../db/schema";
 import { STAGES, STAGE_FOR_EVENT, type Stage } from "../db/stages";
 import { SEARCH_MIN_CHARS } from "../db/limits";
@@ -83,23 +84,29 @@ const compareText = (a: string, b: string) => (a.toLowerCase() < b.toLowerCase()
 // Null sorts before everything when ascending (and so last when descending), as in the local edition, where SQLite does it.
 const nullable = (a: string | null, b: string | null) => (a === b ? 0 : a === null ? -1 : b === null ? 1 : a < b ? -1 : 1);
 
-export async function listApplications(db: JobTrackerDB, query: ListQuery = {}): Promise<ApplicationListRow[]> {
+/**
+ * The list. `live` is the live applications when the caller has already read them (the Applications page reads them once for the
+ * list, the stage counts and the suggestions); without it they are read here.
+ */
+export async function listApplications(db: JobTrackerDB, query: ListQuery = {}, live?: ApplicationRow[]): Promise<ApplicationListRow[]> {
   const sort: SortColumn = SORT_COLUMNS.includes(query.sort as SortColumn) ? (query.sort as SortColumn) : "lastActivity";
   const dir = query.dir === "asc" || query.dir === "desc" ? query.dir : DEFAULT_DIR[sort];
   const sign = dir === "asc" ? 1 : -1;
   const now = query.now ?? new Date();
 
-  const emails = await db.emails.toArray();
+  // No email body is read unless a search needs it: the counts come from the index keys alone, and only the interview mail
+  // (found by its `event`) is loaded for the interview days and rounds. Most of a mailbox is bare stubs and ordinary mail.
   const counts = new Map<number, number>();
+  for (const id of await db.emails.orderBy("applicationId").keys()) counts.set(id as number, (counts.get(id as number) ?? 0) + 1);
   const inAccount = new Set<number>();
-  for (const e of emails) {
-    if (e.applicationId == null) continue;
-    counts.set(e.applicationId, (counts.get(e.applicationId) ?? 0) + 1);
-    if (query.account && e.accountId === query.account) inAccount.add(e.applicationId);
+  if (query.account) {
+    for (const key of await db.emails.where("[accountId+applicationId]").between([query.account, Dexie.minKey], [query.account, Dexie.maxKey], true, true).keys()) {
+      inAccount.add((key as unknown as number[])[1]);
+    }
   }
-  const interviews = groupBy(emails.filter(isInterviewMail), (e) => e.applicationId);
+  const interviews = groupBy((await db.emails.where("event").equals("interview").toArray()).filter(isInterviewMail), (e) => e.applicationId);
   const needle = (query.q ?? "").trim().toLowerCase();
-  let early: EarlyRow[] = (await liveApplications(db)).map((a) => {
+  let early: EarlyRow[] = (live ?? await liveApplications(db)).map((a) => {
     const idleDays = idleDaysSince(a.lastActivity, now);
     return { ...a, nEmails: counts.get(a.id) ?? 0, idleDays, followUp: needsFollowUp(a.stage, idleDays), ghosted: isGhosted(a.stage, idleDays) };
   });
@@ -108,7 +115,7 @@ export async function listApplications(db: JobTrackerDB, query: ListQuery = {}):
   // The job posting and the cover letters are read the same way, and only for a search that long.
   const deep = needle.length >= SEARCH_MIN_CHARS;
   const hits = needle
-    ? searchApplications(early, emails, deep ? await db.activity.toArray() : [], needle, deep ? await coverLetters(db) : [])
+    ? searchApplications(early, deep ? await db.emails.where("applicationId").above(-1).toArray() : [], deep ? await db.activity.toArray() : [], needle, deep ? await coverLetters(db) : [])
     : null;
   if (hits) early = early.filter((a) => hits.has(a.id));
   if (query.account) early = early.filter((a) => inAccount.has(a.id));
@@ -163,9 +170,9 @@ async function coverLetters(db: JobTrackerDB): Promise<SearchCover[]> {
 }
 
 /** How many applications are at each stage. */
-export async function stageCounts(db: JobTrackerDB): Promise<Record<Stage, number>> {
+export async function stageCounts(db: JobTrackerDB, live?: ApplicationRow[]): Promise<Record<Stage, number>> {
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>;
-  for (const a of await liveApplications(db)) counts[a.stage]++;
+  for (const a of live ?? await liveApplications(db)) counts[a.stage]++;
   return counts;
 }
 
@@ -178,8 +185,8 @@ export interface Suggestion {
 }
 
 /** The companies and roles you actually have, newest activity first, for the search box. */
-export async function suggestions(db: JobTrackerDB): Promise<Suggestion[]> {
-  const apps = await liveApplications(db);
+export async function suggestions(db: JobTrackerDB, live?: ApplicationRow[]): Promise<Suggestion[]> {
+  const apps = live ?? await liveApplications(db);
   const out: Suggestion[] = [];
   for (const [kind, field] of [["Company", "company"], ["Role", "role"]] as const) {
     const keyField = `${field}Key` as "companyKey" | "roleKey";
@@ -219,7 +226,7 @@ export interface ReviewPage {
 export async function reviewPage(db: JobTrackerDB, now: Date = new Date()): Promise<ReviewPage> {
   const p = pipeline();
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
-  const waiting = (await db.emails.toArray()).filter((e) => e.needsReview && accounts.has(e.accountId))
+  const waiting = (await db.emails.where("review").equals(1).toArray()).filter((e) => e.needsReview && accounts.has(e.accountId))
     .sort((a, b) => byDesc<EmailRow>((e) => e.receivedAt)(a, b) || b.id - a.id);
   const emails: ReviewItem[] = waiting.map((e) => {
     const [company, role] = p.extractCompanyRole({
@@ -235,12 +242,18 @@ export async function reviewPage(db: JobTrackerDB, now: Date = new Date()): Prom
   });
   const apps = (await liveApplications(db)).map(({ id, company, role }) => ({ id, company, role }))
     .sort((a, b) => compareText(a.company, b.company));
-  const ignored = (await db.ignoredMail.toArray()).sort(byDesc((m) => m.receivedAt)).slice(0, IGNORED_LIST_LIMIT);
-  return { emails, apps, learned: await learn.activeRules(db), ignored };
+  return { emails, apps, ...(await mailRules(db)) };
 }
 
+/** What Settings' Mail rules card shows: the rules learned and the newest ignored mail. Needs none of the emails, so it never reads them. */
+export async function mailRules(db: JobTrackerDB): Promise<Pick<ReviewPage, "learned" | "ignored">> {
+  const ignored = (await db.ignoredMail.toArray()).sort(byDesc((m) => m.receivedAt)).slice(0, IGNORED_LIST_LIMIT);
+  return { learned: await learn.activeRules(db), ignored };
+}
+
+/** How many emails wait in Needs review. Counts the index, so no email is read. */
 export async function reviewCount(db: JobTrackerDB): Promise<number> {
-  return (await db.emails.toArray()).filter((e) => e.needsReview).length;
+  return db.emails.where("review").equals(1).count();
 }
 
 export interface ApplicationDetail {
@@ -261,6 +274,7 @@ export interface ApplicationDetail {
 
 /** The application page. Returns null when there is no such application. */
 export async function applicationDetail(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<ApplicationDetail | null> {
+  if (!Number.isSafeInteger(appId)) return null;   // a mangled address gives NaN, which IndexedDB rejects
   const application = await db.applications.get(appId);
   if (!application || application.deletedAt) return null;   // a deleted application is only in Recently deleted: see deletedApplication in trash.ts
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
@@ -280,9 +294,10 @@ export async function applicationDetail(db: JobTrackerDB, appId: number, now: Da
 
 /** Mailbox cards for Settings: each account with how many emails are stored for it. */
 export async function accountSummaries(db: JobTrackerDB): Promise<(AccountRow & { emailCount: number })[]> {
-  const counts = new Map<number, number>();
-  for (const e of await db.emails.toArray()) counts.set(e.accountId, (counts.get(e.accountId) ?? 0) + 1);
-  return (await db.accounts.orderBy("id").toArray()).map((a) => ({ ...a, emailCount: counts.get(a.id) ?? 0 }));
+  const accounts = await db.accounts.orderBy("id").toArray();
+  // Counted from the [accountId+providerMsgId] index, so no email is read.
+  const counts = await Promise.all(accounts.map((a) => db.emails.where("[accountId+providerMsgId]").between([a.id, Dexie.minKey], [a.id, Dexie.maxKey], true, true).count()));
+  return accounts.map((a, i) => ({ ...a, emailCount: counts[i] }));
 }
 
 /** The live tailored resumes of live applications, newest first, each with its application's name: the Resume page's Tailored tab. */

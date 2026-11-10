@@ -541,6 +541,16 @@ describe("enrichJobDraft, failures return the input unchanged", () => {
     await expectUnchanged(hang, { timeoutMs: 25 });
   });
 
+  it("the timeout covers the whole lookup, not each request", async () => {
+    const slow = (body: unknown) => new Promise<Response>((res) => setTimeout(() => res(json(body)), 60));
+    const f = ((u: string) => (u === GH_JOB ? slow({ id: 4012345005, title: "Engineer" }) : slow({ name: "Acme Board" }))) as unknown as typeof fetch;
+    const started = Date.now();
+    const out = await enrichJobDraft(draftOf("https://boards.greenhouse.io/acme/jobs/4012345005"), { fetch: f, timeoutMs: 90 });
+    expect(Date.now() - started).toBeLessThan(140);
+    expect(out.role).toBe("Engineer");
+    expect(out.company).not.toBe("Acme Board");
+  });
+
   it("timeout, with a fetch that ignores the signal", async () => {
     await expectUnchanged((() => new Promise<Response>(() => undefined)) as typeof fetch, { timeoutMs: 25 });
   });

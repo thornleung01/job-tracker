@@ -40,6 +40,7 @@ import { addApplication as realAddApplication, type AddApplicationInput } from "
 import { liveResumes } from "../../sync/documents";
 import { calendarEvents, calendarSteps, type CalendarEvent } from "../../sync/calendar";
 import { gridRange, parseMonth } from "../../sync/calendarGrid";
+import { liveApplications } from "../../sync/live";
 import { DEFAULT_DIR, SORT_COLUMNS, listApplications, stageCounts, suggestions, type SortColumn } from "../../sync/queries";
 import { COLUMNS, loadSettings, type ColumnId } from "../../sync/settings";
 import { AppRow } from "./AppRow";
@@ -140,6 +141,16 @@ export interface ApplicationsPageDeps extends Partial<JobLinkDeps> {
   addApplication?: typeof realAddApplication;
 }
 
+/** The six filters of the list, as the address holds them and as the filter form edits them. */
+interface Filters {
+  stage: string;
+  q: string;
+  account: number;
+  followUp: boolean;
+  ghosted: boolean;
+  resume: string;
+}
+
 export default function ApplicationsPage({ db, user, query, navigate, deps = {} }: PageProps & { deps?: ApplicationsPageDeps }) {
   const addApplication = deps.addApplication ?? realAddApplication;
   const local = isLocalUser(user);
@@ -151,17 +162,20 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   /** the calendar's place in the address: spread into every navigation, so no link or button can drop the view */
   const keep = { view, month: state.month, day };
   /** the filters in the address, for every link and navigation that must keep them */
-  const filters = { stage, q, account, followUp, ghosted, resume };
+  const filters: Filters = { stage, q, account, followUp, ghosted, resume };
   const sort = (state.sort || "lastActivity") as SortColumn;
   const dir = state.dir || DEFAULT_DIR[sort];
 
   const data = useQuery(async () => {
-    const rows = await listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir });
-    const counts = await stageCounts(db);
+    // The live applications are read once and shared, and the independent reads run together.
+    const live = await liveApplications(db);
+    const [rows, counts, accounts, settings, suggest, resumes] = await Promise.all([
+      listApplications(db, { stage, q, account, followUp, ghosted, resume, sort, dir }, live), stageCounts(db, live), listAccounts(db),
+      loadSettings(db), suggestions(db, live), liveResumes(db),
+    ]);
     return {
-      rows, counts, accounts: await listAccounts(db),
-      columns: (await loadSettings(db)).appearance.columns, suggestions: await suggestions(db),
-      resumes: (await liveResumes(db)).map(({ id, title, master }) => ({ id, title, master })),
+      rows, counts, accounts, columns: settings.appearance.columns, suggestions: suggest,
+      resumes: resumes.map(({ id, title, master }) => ({ id, title, master })),
     };
   }, [db, stage, q, account, followUp, ghosted, resume, sort, dir], { keepPrevious: true });   // a filter change keeps the old rows until the new ones arrive
 
@@ -169,23 +183,15 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const selection = useSelection(data?.rows, JSON.stringify([stage, q, account, followUp, ghosted, resume]));
 
   // The filter form edits drafts; Apply filters (or picking a suggestion) puts them in the address.
-  const [draftQ, setDraftQ] = useState(q);
-  const [draftStage, setDraftStage] = useState<string>(stage);
-  const [draftAccount, setDraftAccount] = useState(account);
-  const [draftFollowUp, setDraftFollowUp] = useState(followUp);
-  const [draftGhosted, setDraftGhosted] = useState(ghosted);
-  const [draftResume, setDraftResume] = useState(resume);
-  useEffect(() => setDraftQ(q), [q]);
-  useEffect(() => setDraftStage(stage), [stage]);
-  useEffect(() => setDraftAccount(account), [account]);
-  useEffect(() => setDraftFollowUp(followUp), [followUp]);
-  useEffect(() => setDraftGhosted(ghosted), [ghosted]);
-  useEffect(() => setDraftResume(resume), [resume]);
+  // One object, filled again from the address whenever a filter in it changes (Back, a link, Apply filters).
+  const [draft, setDraft] = useState<Filters>(filters);
+  const setField = <K extends keyof Filters>(field: K, value: Filters[K]) => setDraft((d) => ({ ...d, [field]: value }));
+  useEffect(() => setDraft({ stage, q, account, followUp, ghosted, resume }), [stage, q, account, followUp, ghosted, resume]);
 
   const sorting = { sort: state.sort, dir: state.dir };
   const apply = (e?: FormEvent) => {
     e?.preventDefault();
-    navigate(listUrl({ stage: draftStage, q: draftQ, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, ...sorting, ...keep }));
+    navigate(listUrl({ ...draft, ...sorting, ...keep }));
   };
   const setOpen = (ids: number[]) => navigate(listUrl({ ...filters, ...sorting, ...keep, open: ids }), { replace: true });
 
@@ -430,7 +436,7 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
   const thisAccount = accounts.find((a) => a.id === account);
   const resumeTitle = (id: string): string | undefined => allResumes.find((r) => String(r.id) === id)?.title;
   // "Save this view" is offered only when what the form shows (or the sort) differs from the plain list: there is nothing to save otherwise.
-  const differs = Boolean(draftStage || draftQ.trim() || draftAccount || draftFollowUp || draftGhosted || draftResume || state.sort || state.dir);
+  const differs = Boolean(draft.stage || draft.q.trim() || draft.account || draft.followUp || draft.ghosted || draft.resume || state.sort || state.dir);
 
   const sortHref = (c: ColumnId) =>
     "#" + listUrl({ ...filters, ...keep, sort: c, dir: sort === c ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[c] });
@@ -463,12 +469,12 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
         <form className="row filters" onSubmit={apply}>
           <div className="fgroup f-search">
             <label htmlFor="f-q">Search</label>
-            <Combobox id="f-q" value={draftQ} onChange={setDraftQ} suggestions={suggest} placeholder="Company, role, email, note or posting"
-                      onChoose={(text) => { setDraftQ(text); navigate(listUrl({ stage: draftStage, q: text, account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, ...sorting, ...keep })); }} />
+            <Combobox id="f-q" value={draft.q} onChange={(v) => setField("q", v)} suggestions={suggest} placeholder="Company, role, email, note or posting"
+                      onChoose={(text) => { setField("q", text); navigate(listUrl({ ...draft, q: text, ...sorting, ...keep })); }} />
           </div>
           <div className="fgroup">
             <label htmlFor="f-stage">Stage</label>
-            <select id="f-stage" name="stage" value={draftStage} onChange={(e) => setDraftStage(e.target.value)}>
+            <select id="f-stage" name="stage" value={draft.stage} onChange={(e) => setField("stage", e.target.value)}>
               <option value="">All stages</option>
               {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -476,28 +482,28 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
           {accounts.length > 1 ? (
             <div className="fgroup">
               <label htmlFor="f-account">Account</label>
-              <select id="f-account" name="account" value={draftAccount} onChange={(e) => setDraftAccount(Number(e.target.value))}>
+              <select id="f-account" name="account" value={draft.account} onChange={(e) => setField("account", Number(e.target.value))}>
                 <option value={0}>All accounts</option>
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.address}</option>)}
               </select>
             </div>
           ) : null}
-          {allResumes.length || draftResume ? (
+          {allResumes.length || draft.resume ? (
             <div className="fgroup">
               <label htmlFor="f-resume">Resume</label>
-              <select id="f-resume" name="resume" value={draftResume} onChange={(e) => setDraftResume(e.target.value)}>
+              <select id="f-resume" name="resume" value={draft.resume} onChange={(e) => setField("resume", e.target.value)}>
                 <option value="">Any resume</option>
                 {allResumes.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
                 <option value="none">No resume set</option>
-                {draftResume && draftResume !== "none" && !resumeTitle(draftResume) ? <option value={draftResume}>(deleted)</option> : null}
+                {draft.resume && draft.resume !== "none" && !resumeTitle(draft.resume) ? <option value={draft.resume}>(deleted)</option> : null}
               </select>
             </div>
           ) : null}
           <fieldset className="fgroup show-group">
             <legend>Show</legend>
             <div className="show-group-boxes">
-              <FollowUpToggle checked={draftFollowUp} onChange={setDraftFollowUp} />
-              <GhostedToggle checked={draftGhosted} onChange={setDraftGhosted} />
+              <FollowUpToggle checked={draft.followUp} onChange={(v) => setField("followUp", v)} />
+              <GhostedToggle checked={draft.ghosted} onChange={(v) => setField("ghosted", v)} />
             </div>
           </fieldset>
           {/* One primary per surface: the open add form owns it, so Apply filters steps down while the form is showing. */}
@@ -593,8 +599,8 @@ export default function ApplicationsPage({ db, user, query, navigate, deps = {} 
       </div>
       {saveOpen ? (
         <div id="save-view">
-          <SaveViewForm db={db} count={views?.length ?? 0} accountName={thisAccount?.address} resumeName={resumeTitle(draftResume)} onClose={closeSave}
-                        filters={{ stage: draftStage, q: draftQ.trim(), account: draftAccount, followUp: draftFollowUp, ghosted: draftGhosted, resume: draftResume, sort: state.sort, dir: state.dir }} />
+          <SaveViewForm db={db} count={views?.length ?? 0} accountName={thisAccount?.address} resumeName={resumeTitle(draft.resume)} onClose={closeSave}
+                        filters={{ ...draft, q: draft.q.trim(), sort: state.sort, dir: state.dir }} />
         </div>
       ) : null}
 

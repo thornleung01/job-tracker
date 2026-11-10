@@ -28,6 +28,6 @@ export interface EnrichOptions {
   /** Defaults to globalThis.fetch. Injectable for tests. */
   fetch?: typeof fetch;
   signal?: AbortSignal;
-  /** Default 6000. */
+  /** For the whole lookup, however many requests it makes. Default 6000. */
   timeoutMs?: number;
 }

@@ -123,22 +123,25 @@ function Multi({ fkey, field, value, label, placeholder, max, className, onValue
 interface ControlsProps {
   id: string;
   name: string;
-  first: boolean;
-  last: boolean;
-  onMove(by: -1 | 1): void;
+  /** the arrows are left out when the line cannot be moved (a contact line) */
+  move?: { first: boolean; last: boolean; onMove(by: -1 | 1): void };
   onRemove(): void;
 }
 
 /** A line's move and remove buttons. They show on hover and focus on a desktop, always on a phone, and never print. */
-function Controls({ id, name, first, last, onMove, onRemove }: ControlsProps) {
+function Controls({ id, name, move, onRemove }: ControlsProps) {
   return (
     <div className="pe-controls">
-      <button type="button" className="pe-ctl" data-pe-ctl={`${id}:up`} aria-label={`Move ${name} up`} disabled={first} onClick={() => onMove(-1)}>
-        <ArrowUp size={16} strokeWidth={3} aria-hidden="true" />
-      </button>
-      <button type="button" className="pe-ctl" data-pe-ctl={`${id}:down`} aria-label={`Move ${name} down`} disabled={last} onClick={() => onMove(1)}>
-        <ArrowDown size={16} strokeWidth={3} aria-hidden="true" />
-      </button>
+      {move ? (
+        <>
+          <button type="button" className="pe-ctl" data-pe-ctl={`${id}:up`} aria-label={`Move ${name} up`} disabled={move.first} onClick={() => move.onMove(-1)}>
+            <ArrowUp size={16} strokeWidth={3} aria-hidden="true" />
+          </button>
+          <button type="button" className="pe-ctl" data-pe-ctl={`${id}:down`} aria-label={`Move ${name} down`} disabled={move.last} onClick={() => move.onMove(1)}>
+            <ArrowDown size={16} strokeWidth={3} aria-hidden="true" />
+          </button>
+        </>
+      ) : null}
       <button type="button" className="pe-ctl" data-pe-ctl={`${id}:remove`} aria-label={`Remove ${name}`} onClick={onRemove}>
         <X size={16} strokeWidth={3} aria-hidden="true" />
       </button>
@@ -195,13 +198,17 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
   const setItem = (sid: string, id: string, change: (x: DocItem) => DocItem) =>
     setSection(sid, (s) => ({ ...s, items: s.items.map((x) => (x.id === id ? change(x) : x)) }));
 
+  /** Puts `items` in the header, which is made (at the top) when the resume has none. */
+  const writeHeaderItems = (items: DocItem[]) => {
+    if (header) onChange(sections.map((s) => (s === header ? { ...s, items } : s)));
+    else onChange([{ id: newItemId(), heading: HEADER_HEADING, items }, ...sections]);
+  };
   /** The name (item 0) or a contact line (item 1 and on) of the header, made on the first edit when the resume has none. */
   const setHeaderText = (index: number, text: string) => {
     const items = [...(header?.items ?? [])];
     while (items.length <= index) items.push({ id: newItemId(), text: "" });
     items[index] = { ...items[index], text };
-    if (header) onChange(sections.map((s) => (s === header ? { ...s, items } : s)));
-    else onChange([{ id: newItemId(), heading: HEADER_HEADING, items }, ...sections]);
+    writeHeaderItems(items);
   };
 
   /** Every field of the sheet, in reading order, as `data-pe` keys. */
@@ -223,8 +230,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     while (items.length < 2) items.push({ id: newItemId(), text: "" });
     const item: DocItem = { id: newItemId(), text: "" };
     items.push(item);
-    if (header) onChange(sections.map((s) => (s === header ? { ...s, items } : s)));
-    else onChange([{ id: newItemId(), heading: HEADER_HEADING, items }, ...sections]);
+    writeHeaderItems(items);
     setFocusKey(`${item.id}:text`);
   };
   const removeContact = (id: string) => {
@@ -292,10 +298,10 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     const where = s.heading || `section ${si + 1}`;
     const name = `${NOUN[legacy ? "" : item.kind ?? ""]} ${k + 1} of ${where}`;
     const kind = legacy ? undefined : item.kind;
-    const textField = () => (
+    const textField = (className = "pe-grow", onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void = lineKeys(s.id, item, k)) => (
       <Multi
         fkey={`${item.id}:text`} field={item.id} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
-        className="pe-grow" onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={lineKeys(s.id, item, k)}
+        className={className} onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={onKeyDown}
       />
     );
     const labelField = () => {
@@ -316,24 +322,21 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
     };
     const controls = (
       <Controls
-        id={item.id} name={name} first={k === 0} last={k === s.items.length - 1}
-        onMove={(by) => moveItem(s.id, k, by)} onRemove={() => removeItem(s.id, item.id)}
+        id={item.id} name={name} move={{ first: k === 0, last: k === s.items.length - 1, onMove: (by) => moveItem(s.id, k, by) }}
+        onRemove={() => removeItem(s.id, item.id)}
       />
     );
     switch (kind) {
       case "org":
       case "school":
       case "title": {
-        const title = kind === "title";
+        const isTitleLine = kind === "title";
         const right = rightName(kind)!;
-        const tone = title ? "pe-i" : "pe-b";
+        const tone = isTitleLine ? "pe-i" : "pe-b";
         return (
-          <div key={item.id} className={`pe-line ${title ? "doc-title" : "doc-org"}`}>
+          <div key={item.id} className={`pe-line ${isTitleLine ? "doc-title" : "doc-org"}`}>
             <div className="doc-row">
-              <Multi
-                fkey={`${item.id}:text`} field={item.id} value={item.text} label={capital(name)} placeholder={placeholderFor(s.heading, kind, "text", k)} max={MAX_DOC_ITEM_CHARS}
-                className={`pe-grow ${tone}`} onValue={(text) => setItem(s.id, item.id, (x) => ({ ...x, text }))} onKeyDown={enterMovesOn(`${item.id}:text`)}
-              />
+              {textField(`pe-grow ${tone}`, enterMovesOn(`${item.id}:text`))}
               <Single
                 fkey={`${item.id}:right`} value={item.right ?? ""} label={`${right} of ${name}`} placeholder={placeholderFor(s.heading, kind, "right", k)}
                 max={MAX_DOC_RIGHT_CHARS} className={`doc-right pe-right ${tone}`} onValue={(r) => setItem(s.id, item.id, (x) => ({ ...x, right: r }))}
@@ -415,13 +418,7 @@ export function PageEditor({ sections, onChange, label, title, measure = measure
                   placeholder={n === 0 ? PLACEHOLDERS.contact : ""} max={MAX_DOC_ITEM_CHARS} className="pe-center"
                   onValue={(t) => setHeaderText(n + 1, t)} onKeyDown={enterMovesOn(key)}
                 />
-                {n > 0 && item ? (
-                  <div className="pe-controls">
-                    <button type="button" className="pe-ctl" data-pe-ctl={`${item.id}:remove`} aria-label={`Remove contact line ${n + 1}`} onClick={() => removeContact(item.id)}>
-                      <X size={16} strokeWidth={3} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : null}
+                {n > 0 && item ? <Controls id={item.id} name={`contact line ${n + 1}`} onRemove={() => removeContact(item.id)} /> : null}
               </div>
             );
           })}

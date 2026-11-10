@@ -142,11 +142,14 @@ export async function setSetting(db: JobTrackerDB, key: string, value: unknown):
   await db.settings.put({ key, value });
 }
 
-/** Remembers what an email looked like and what you said about it. Call before its content is erased. */
+/**
+ * Remembers who an email came from and what you said about it, so the rules can keep learning. The subject is not kept: no rule uses it, and
+ * the correction outlives the email, which is erased. Call before the email's content is erased.
+ */
 export async function recordFeedback(
   db: JobTrackerDB,
   verdict: FeedbackRow["verdict"],
-  email: { sender: string | null; subject: string | null; reason?: string | null },
+  email: { sender: string | null; subject?: string | null; reason?: string | null },
   applicationId: number | null = null,
   now: Date = new Date(),
 ): Promise<void> {
@@ -156,7 +159,7 @@ export async function recordFeedback(
     verdict,
     senderEmail: address,
     senderDomain: address.slice(address.lastIndexOf("@") + 1),
-    subject: email.subject ?? "",
+    subject: "",
     reason: email.reason ?? "",
     applicationId,
   });

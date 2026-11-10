@@ -43,6 +43,10 @@ export interface MailLink {
 }
 
 export interface Pipeline {
+  /** Changes whenever the wording rules do (a new app version), so earlier judgements can be redone. */
+  rulesVersion(): string;
+  /** A short, non-secure fingerprint of a text. */
+  hashText(text: string): string;
   classify(msg: Message, learned?: LearnedView | null): Classification;
   /** [company, role]; "Unknown company" / "Unknown role" when nothing was found */
   extractCompanyRole(msg: Message): [string, string];

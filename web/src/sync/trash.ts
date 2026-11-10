@@ -9,6 +9,7 @@ import { tx, type ApplicationRow, type JobTrackerDB } from "../db/schema";
 import { TRASH_DAYS } from "../db/limits";
 import { DAY_MS, iso } from "../db/time";
 import type { Stage } from "../db/stages";
+import { purgeIgnoredMail } from "./decide";
 import { eraseDocument, listDeletedDocuments, purgeExpiredDocuments } from "./documents";
 import { removeApplicationRow } from "./recheck";
 
@@ -42,6 +43,18 @@ export async function restoreApplication(db: JobTrackerDB, appId: number): Promi
     if (!app.deletedAt) return false;
     await db.applications.update(appId, { deletedAt: undefined });
     return true;
+  });
+}
+
+/**
+ * Brings several deleted applications back in one transaction (all or none). Returns how many were deleted and are live again; throws
+ * MissingRecordError when one of them has been erased meanwhile, and then none is restored.
+ */
+export async function restoreApplications(db: JobTrackerDB, ids: readonly number[]): Promise<number> {
+  return tx(db, async () => {
+    let n = 0;
+    for (const id of ids) if (await restoreApplication(db, id)) n++;
+    return n;
   });
 }
 
@@ -114,6 +127,7 @@ export async function deleteDocumentForever(db: JobTrackerDB, id: number): Promi
 
 /** The deleted application with this id, or null when there is none (it is live, or already erased). The detail page uses it for the page of a deleted application. */
 export async function deletedApplication(db: JobTrackerDB, appId: number, now: Date = new Date()): Promise<TrashEntry | null> {
+  if (!Number.isSafeInteger(appId)) return null;   // a mangled address gives NaN, which IndexedDB rejects
   const app = await db.applications.get(appId);
   return app?.deletedAt ? toEntry({ ...app, deletedAt: app.deletedAt }, now) : null;
 }
@@ -163,7 +177,8 @@ export async function emptyTrash(db: JobTrackerDB): Promise<number> {
 const isInTheFuture = (deletedAt: string, now: Date): boolean => new Date(deletedAt).getTime() > now.getTime();
 
 /**
- * Erases the deleted applications and documents that have waited TRASH_DAYS. Returns how many went.
+ * Erases the deleted applications and documents that have waited TRASH_DAYS, and the ignored mail that has waited its 30 days. Returns how many
+ * applications and documents went.
  *
  * Each application is its own transaction, so one that can't be erased (it fails, or is changed by another tab at that moment)
  * never holds back the others, which would keep their email text past the 30 days: the rest are erased, and then the first
@@ -191,6 +206,14 @@ export async function purgeExpired(db: JobTrackerDB, now: Date = new Date()): Pr
   }
   try {
     erased += await purgeExpiredDocuments(db, now);
+  } catch (error) {
+    console.error(error);
+    failure ??= { error };
+  }
+  try {
+    await purgeIgnoredMail(db, now);
+    // Corrections made before the subject stopped being kept: the rules only ever used the sender and the reason.
+    await db.feedback.filter((f) => f.subject !== "").modify({ subject: "" });
   } catch (error) {
     console.error(error);
     failure ??= { error };

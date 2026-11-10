@@ -1,5 +1,5 @@
 import { forwardRef, memo, type FocusEvent, type ForwardedRef, type MouseEvent, type ReactNode } from "react";
-import { ICON_PATHS, ICON_SIZE, type NodeLayout, type SankeyLayout } from "./layout";
+import { ICON_PATHS, ICON_SIZE, strokeOf, type NodeLayout, type SankeyLayout } from "./layout";
 
 export const apps = (n: number) => `${n} application${n === 1 ? "" : "s"}`;
 export const nodeKey = (id: string) => `n:${id}`;
@@ -115,7 +115,7 @@ function ChartInner(props: Props, ref: ForwardedRef<SVGSVGElement>) {
       <g>
         {layout.nodes.map((n: NodeLayout) => (
           <g key={n.id} className="node" tabIndex={0} role="img" aria-label={`${n.id}: ${apps(n.value)}, ${n.pct}% of all`} {...bindProps(nodeKey(n.id), handlers)}>
-            <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={2} fill={n.color} />
+            <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={2} fill={n.color} stroke={strokeOf(n.id)} strokeWidth={1} />
           </g>
         ))}
       </g>

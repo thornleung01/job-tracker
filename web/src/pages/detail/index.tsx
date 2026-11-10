@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import type { PageProps } from "../../app/pageProps";
+import { routeId } from "../../app/routeId";
 import { useQuery } from "../../app/useQuery";
 import { ApplicationPanel } from "../../components/ApplicationPanel";
 import type { DocumentsDeps } from "../../components/documents/deps";
@@ -37,7 +38,7 @@ import { plural } from "../../sync/text";
 import "./detail.css";
 
 export default function DetailPage({ db, params, query, navigate, deps }: PageProps & { deps?: { documents?: Partial<DocumentsDeps> } }) {
-  const id = Number(params.id);
+  const id = routeId(params.id);
   const data = useQuery(() => applicationDetail(db, id), [db, id]);
   // A deleted application has no detail (it is hidden everywhere), but its page says so and offers Restore.
   const gone = useQuery(() => deletedApplication(db, id), [db, id]);

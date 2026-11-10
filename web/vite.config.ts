@@ -5,6 +5,19 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "/job-tracker/",
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // React and Dexie change rarely: in their own file they stay cached across releases of the app's own code.
+        manualChunks(id) {
+          if (!id.includes("/node_modules/")) return undefined;
+          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "react";
+          if (id.includes("/node_modules/dexie/")) return "dexie";
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     // Tests never see the committed site-config.json, so adding real IDs to it can't change them.
     // The regex matches the import in src/config.ts, and the replacement is relative to the project root. tests/config/site-config.test.ts checks the real file.

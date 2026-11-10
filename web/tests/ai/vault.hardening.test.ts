@@ -227,6 +227,40 @@ describe("races", () => {
   });
 });
 
+describe("a save that is still locking the key", () => {
+  function gatedSave() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const spy = spyCrypto({ before: async (name) => { if (name === "encrypt") await gate; } });
+    const storage = new MemoryStorage();
+    return { storage, release, vault: createVault({ storage: () => storage, crypto: spy.crypto, iterations: 1 }) };
+  }
+
+  it.each([
+    ["forget", (v: ReturnType<typeof testVault>) => v.forget("a")],
+    ["lock", (v: ReturnType<typeof testVault>) => v.lock("a")],
+    ["lockAll (log out)", (v: ReturnType<typeof testVault>) => v.lockAll()],
+  ])("writes nothing and unlocks nothing when %s happens meanwhile", async (_name, act) => {
+    const g = gatedSave();
+    const pending = g.vault.save("a", KEY, PASSPHRASE, "claude-sonnet-5-5").catch((e: unknown) => e);
+    act(g.vault);
+    g.release();
+    expect(await pending).toBeInstanceOf(ActionError);
+    expect(g.storage.length).toBe(0);
+    expect(g.vault.key("a")).toBeNull();
+    expect(g.vault.status("a")).toEqual({ state: "none" });
+  });
+
+  it("still saves when only another person's key was locked", async () => {
+    const g = gatedSave();
+    const pending = g.vault.save("a", KEY, PASSPHRASE, "claude-sonnet-5-5");
+    g.vault.lock("b");
+    g.release();
+    await pending;
+    expect(g.vault.key("a")).toBe(KEY);
+  });
+});
+
 describe("other behaviour that is kept on purpose", () => {
   it("reads an entry with another version as no key, and the next save replaces it", async () => {
     const storage = new MemoryStorage();

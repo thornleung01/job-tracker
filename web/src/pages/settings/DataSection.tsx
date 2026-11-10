@@ -14,7 +14,7 @@ import type { JobTrackerDB } from "../../db/schema";
 import { hasData, loadDemoData } from "../../demo/loadDemo";
 import { clearAll, exportAll, exportAllAsJson, ImportError } from "../../portability";
 import { csvFilename } from "../../portability/csv";
-import { describeImport, exportFilename, parseImportText, readFileText, runImport, type ParsedImport } from "./actions";
+import { describeImport, exportFilename, forgetConnections, parseImportText, readFileText, runImport, type ParsedImport } from "./actions";
 import type { SettingsDeps } from "./deps";
 import { exportApplicationsCsv } from "./exportCsv";
 import type { Reporter } from "./notice";
@@ -221,6 +221,8 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten, childre
         await clearAll(db);
         // The locked AI key belongs to the data that is gone too.
         deps.ai.vault.forget(db.name);
+        // The mailbox connections held in memory are gone with the accounts.
+        forgetConnections();
         onKeyForgotten?.();
         // The reminder times and the chosen file belong to the data that is gone. The file itself is left where it is.
         clearBackupState(db.name);
@@ -308,7 +310,7 @@ export function DataSection({ db, isLocal, deps, report, onKeyForgotten, childre
           onCancel={() => setConfirmDemo(false)}
         />
       )}
-      <section className="card danger-zone" id="danger" aria-labelledby="h-danger">
+      <section className="card" id="danger" aria-labelledby="h-danger">
         <h2 className="sec" id="h-danger" tabIndex={-1}>Delete everything</h2>
         <p className="help">Removes your applications, emails and settings from this device. Back up first if you may want them again.</p>
         <button ref={deleteButton} className="danger" onClick={() => setConfirmDelete(true)}>Delete all my data</button>

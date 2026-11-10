@@ -38,7 +38,7 @@ export function KeyForm({ db, vault, act, run, refresh, focusOnMount }: CardPart
         <input id="ai-passphrase" type="password" autoComplete="off" aria-describedby="ai-passphrase-help" value={passphraseInput} onChange={(e) => setPassphraseInput(e.target.value)} />
       </div>
       <ModelSelect value={model} onChange={setModel} />
-      <button type="submit" {...act.button("save")}>Save key</button>
+      <button type="submit" className="primary" {...act.button("save")}>Save key</button>
     </form>
   );
 }

@@ -186,6 +186,8 @@ describe("auto-acknowledgements are not rejections", () => {
       "Thank you for your interest. Unfortunately, we are unable to offer you the position at this time.",
       "We regret to inform you that you have not been selected for the Data Analyst role. We are unable to offer feedback, but we wish you luck.",
       "After careful review we have decided to move forward with other candidates.",
+      "We have decided not to move forward with your application and, due to volume, are unable to provide individual feedback.",
+      "We regret that your application was unsuccessful and we cannot give feedback.",
       "We will not be moving forward with your application. If you are interested in future roles, apply again.",
     ]) {
       const r = classify(mk("Update on your application", body, ats));
@@ -209,6 +211,14 @@ describe("company from a two-letter country domain", () => {
     ["Jobs <jobs@mail.bmo.ca>", "Bmo"],
     ["Jane Smith <jane@jobs.acme.co.uk>", "Acme"],
     ["Pat <pat@acme.com.au>", "Acme"],
+    ["Pat <pat@acme.ltd.uk>", "Acme"],
+    ["Pat <pat@acme.plc.uk>", "Acme"],
+    ["Pat <pat@acme.sch.uk>", "Acme"],
+    ["Pat <pat@acme.me.uk>", "Acme"],
+    ["Pat <pat@acme.ne.jp>", "Acme"],
+    ["Pat <pat@acme.or.jp>", "Acme"],
+    ["Pat <pat@acme.go.jp>", "Acme"],
+    ["Pat <pat@example.gc.ca>", "Example"],
     ["Pat <pat@uhn.on.ca>", "Uhn"],
     ["Pat <pat@shopify.ca>", "Shopify"],
   ])("%s", (sender, company) => {

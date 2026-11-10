@@ -11,6 +11,8 @@ export interface DeletedNoticeState {
   ids: number[];
   /** what was deleted, for the confirmation after Restore ("Acme", or "2 applications") */
   name: string;
+  /** "err" for a problem: it is read out at once and stays until dismissed, instead of going after a few seconds */
+  tone?: "info" | "err";
 }
 
 let current: DeletedNoticeState | null = null;
@@ -20,7 +22,7 @@ const listeners = new Set<() => void>();
 function set(next: DeletedNoticeState | null): void {
   clearTimeout(timer);
   current = next;
-  if (next) timer = setTimeout(() => set(null), UNDO_MS);
+  if (next && next.tone !== "err") timer = setTimeout(() => set(null), UNDO_MS);
   for (const l of [...listeners]) l();
 }
 
@@ -30,8 +32,8 @@ export function announceDeleted(name: string, ids: number[]): void {
 }
 
 /** A line with no button, like "Restored Acme." */
-export function announce(text: string): void {
-  set({ text, ids: [], name: "" });
+export function announce(text: string, tone: "info" | "err" = "info"): void {
+  set({ text, ids: [], name: "", tone });
 }
 
 export function dismissNotice(): void {

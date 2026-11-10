@@ -3,11 +3,13 @@ import { createElement as h } from "react";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { useSyncRun, progressFromEvent, type SyncRunner } from "../../../src/components/syncprogress/progress";
-import { ALREADY_RUNNING, describeBannerRun, isCleanReport, plural, reportProblems } from "../../../src/components/syncprogress/result";
+import { ALREADY_RUNNING, describeBannerRun, errorText, isCleanReport, plural, reportProblems } from "../../../src/components/syncprogress/result";
 import { SyncBar } from "../../../src/components/syncprogress/SyncBar";
+import { ActionError } from "../../../src/db/errors";
 import type { AccountRow } from "../../../src/db/schema";
 import type { SyncReport } from "../../../src/pages/settings/actions";
 import { isSyncing } from "../../../src/sync/syncLock";
+import { NotConnected } from "../../../src/types";
 import { cleanupRendered, q, render } from "../../app/helpers";
 
 afterEach(cleanupRendered);
@@ -150,5 +152,22 @@ describe("SyncBar", () => {
     await render(h(SyncBar, { percent: null }));
     expect(q(".bar")!.classList.contains("indet")).toBe(true);
     expect(q(".bar")!.hasAttribute("aria-valuenow")).toBe(false);
+  });
+});
+
+describe("errorText", () => {
+  it("passes on the app's own sentences and plain errors with a written message", () => {
+    expect(errorText(new ActionError("That didn't work."))).toBe("That didn't work.");
+    expect(errorText(new NotConnected("Google did not give access"))).toBe("Google did not give access");
+    expect(errorText(new Error("Login was cancelled."))).toBe("Login was cancelled.");
+  });
+
+  it("gives a plain sentence for an engine message, a DOMException, a thrown string or an empty error", () => {
+    const plain = "Something went wrong. Try again.";
+    expect(errorText(new TypeError("Failed to fetch"))).toBe(plain);
+    expect(errorText(new DOMException("The operation is insecure.", "SecurityError"))).toBe(plain);
+    expect(errorText("kaboom")).toBe(plain);
+    expect(errorText(new Error(""))).toBe(plain);
+    expect(errorText(undefined)).toBe(plain);
   });
 });

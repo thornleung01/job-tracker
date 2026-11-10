@@ -7,10 +7,10 @@ import { useAction } from "../../components/useAction";
 import { useNoticeFocus } from "../../components/useNoticeFocus";
 import type { JobTrackerDB } from "../../db/schema";
 import { ignoredIsReal, undoRule } from "../../sync/actions";
-import { reviewPage } from "../../sync/queries";
+import { mailRules } from "../../sync/queries";
 
 export function MailRulesSection({ db }: { db: JobTrackerDB }) {
-  const data = useQuery(() => reviewPage(db), [db]);
+  const data = useQuery(() => mailRules(db), [db]);
   const act = useAction();
   const [notice, setNotice] = useState<string | null>(null);
   const result = useNoticeFocus();

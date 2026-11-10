@@ -6,7 +6,7 @@ import type { AccountRow, JobTrackerDB } from "../db/schema";
 import type { createProvider as createProviderFn, getAddress as getAddressFn } from "../providers";
 import { NotConnected, type ProviderName, type TokenSource } from "../types";
 import { accountLabel } from "./accountLabel";
-import { syncAccount, syncFailureText, type Counts, type SyncProgress } from "./sync";
+import { isAbort, syncAccount, syncFailureText, type Counts, type SyncProgress } from "./sync";
 
 // -- which mailbox is connected in this tab ---------------------------------------------------
 // Tokens live in the auth module and only know the provider. We also remember which address the person
@@ -88,7 +88,7 @@ export interface SyncDeps extends Pick<MailDeps, "tokenSource" | "createProvider
   isConnected(account: AccountRow): boolean;
 }
 
-export interface SyncOptions {
+export interface RunSyncOptions {
   /** 0 or undefined: new mail since the last sync (or the lookback setting on a first sync) */
   days?: number;
   signal?: AbortSignal;
@@ -96,10 +96,8 @@ export interface SyncOptions {
   onProgress?(p: SyncProgress): void;
 }
 
-const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
-
 /** Syncs the active accounts one after another. One broken account does not stop the rest. */
-export async function runSync(db: JobTrackerDB, deps: SyncDeps, opts: SyncOptions = {}): Promise<SyncReport> {
+export async function runSync(db: JobTrackerDB, deps: SyncDeps, opts: RunSyncOptions = {}): Promise<SyncReport> {
   const report: SyncReport = { synced: [], needConnect: [], failed: [], stopped: false };
   for (const account of await listAccounts(db, { activeOnly: true })) {
     if (opts.signal?.aborted) {

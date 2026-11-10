@@ -4,7 +4,7 @@
 .people-search { margin-bottom: var(--gap); align-items: flex-end; }
 .people-search .f-search { flex: 1 1 240px; }
 .people-search .f-search input { width: 100%; }
-.clear-search { padding: 10px 4px; }
+.clear-search { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 4px; }
 .fold-row { margin-bottom: var(--gap); }
 
 .company-list { margin: 0 -16px var(--section); }

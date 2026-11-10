@@ -42,6 +42,7 @@ class Rules:
     reply_context: re.Pattern
     negated_offers: tuple[re.Pattern, ...]
     conditionals: tuple[re.Pattern, ...]
+    conditional_clauses: tuple[re.Pattern, ...]
     strong: dict[str, tuple[re.Pattern, ...]]
     weak: dict[str, tuple[re.Pattern, ...]]
 
@@ -63,6 +64,7 @@ def load_rules(path: Path = RULES_PATH) -> Rules:
         reply_context=re.compile(raw["reply_context"], re.I),
         negated_offers=_compile(raw["negated_offer_sentences"]),
         conditionals=_compile(raw["conditional_sentences"]),
+        conditional_clauses=_compile(raw.get("conditional_clauses")),
         strong={e: _compile(v.get("strong")) for e, v in events.items()},
         weak={e: _compile(v.get("weak")) for e, v in events.items()},
     )
@@ -80,8 +82,10 @@ def _drop_sentences(text: str, patterns: tuple[re.Pattern, ...]) -> str:
 
 
 def strip_conditionals(text: str, rules: Rules | None = None) -> str:
-    """Drop boilerplate conditional sentences ("we'll contact you if selected...")."""
+    """Drop boilerplate conditional sentences ("we'll contact you if selected...") and boilerplate clauses ("we can't give feedback")."""
     rules = rules or load_rules()
+    for p in rules.conditional_clauses:
+        text = p.sub(" ", text)
     return _drop_sentences(text, rules.conditionals)
 
 

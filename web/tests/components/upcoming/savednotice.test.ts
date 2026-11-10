@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const saves = vi.hoisted(() => ({ files: [] as string[] }));
-vi.mock("../../../src/pages/settings/actions", () => ({ downloadText: (name: string) => void saves.files.push(name) }));
+vi.mock("../../../src/app/download", () => ({ downloadText: (name: string) => void saves.files.push(name) }));
 
 import { CalendarExport } from "../../../src/components/calendar/CalendarExport";
 import { AddToCalendar } from "../../../src/components/upcoming/AddToCalendar";

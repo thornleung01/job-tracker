@@ -75,6 +75,25 @@ export const TRASH_DAYS = 30;
 
 /** The most characters of a resume's text that Convert will send. A longer one is refused with a plain message, not cut. */
 export const MAX_AI_INPUT_CHARS = 120_000;
+/**
+ * The most characters of a resume's text that Convert will send. Its reply is the whole resume again as JSON, with kind, text, label
+ * and right on every line (about CONVERT_LINE_OVERHEAD characters of JSON around each), and the reply budget is 8,000 tokens (about
+ * 3 characters each, so 24,000 characters). A typical resume line of 60 characters comes back as about 115, so 12,000 characters
+ * of text is about 23,000 of reply: just inside. A longer text, or one with many short lines (see convertTooLong), would be billed and then cut off.
+ */
+export const MAX_CONVERT_CHARS = 12_000;
+/** The JSON around each line of a Convert reply: {"kind":"bullet","text":"","label":"","right":""}, and the comma. */
+export const CONVERT_LINE_OVERHEAD = 55;
+/** What the reply budget (DEFAULT_MAX_TOKENS in ai/deps.ts, 8,000) holds, at a cautious 3 characters per token. */
+export const MAX_CONVERT_REPLY_CHARS = 24_000;
+
+/** True when Convert would refuse this text: over MAX_CONVERT_CHARS, or so many short lines that the JSON reply could not fit its budget. */
+export function convertTooLong(text: string): boolean {
+  if (text.length > MAX_CONVERT_CHARS) return true;
+  let reply = 0;
+  for (const line of text.split(/\r?\n/)) if (line.trim()) reply += line.trim().length + CONVERT_LINE_OVERHEAD;
+  return reply > MAX_CONVERT_REPLY_CHARS;
+}
 /** The most characters of a reply that are read. A longer one is treated as cut off. */
 export const MAX_AI_OUTPUT_CHARS = 60_000;
 /** The most characters of the person's own note ("stress my reporting work") that Tailor sends. */

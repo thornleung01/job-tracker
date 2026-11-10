@@ -188,9 +188,8 @@ export function createGoogleAuth(deps: GoogleDeps): GoogleAuth {
   async function tokenInfo(accessToken: string): Promise<TokenInfo> {
     const body = new URLSearchParams({ access_token: accessToken });
     try {
-      let res = await doFetch(TOKENINFO_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-      // Only a server that says it doesn't take a POST gets the token in the URL; a network failure is not retried that way.
-      if (res.status === 405 || res.status === 415) res = await doFetch(`${TOKENINFO_URL}?${body.toString()}`, { method: "GET" });
+      // Always a form POST: the token is never put in a URL, where it could end up in a log.
+      const res = await doFetch(TOKENINFO_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
       if (!res.ok) throw new Error(NOT_VERIFIED);
       const info: unknown = await res.json();
       if (typeof info !== "object" || info === null) throw new Error(NOT_VERIFIED);

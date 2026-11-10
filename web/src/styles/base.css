@@ -21,8 +21,7 @@
     --stage-interview: #eece2d;   --stage-interview-text: #736109;
     --stage-offer: #409652;       --stage-offer-text: #2f6e3c;
     --stage-rejected: #e22b18;    --stage-rejected-text: #be2414;
-    --applied: var(--stage-applied-text); --heard: var(--stage-heard-back-text); --assess: var(--stage-assessment-text);
-    --interview: var(--stage-interview-text); --offer: var(--stage-offer-text); --rejected: var(--stage-rejected-text);   /* short names for text uses outside the badges */
+    --offer: var(--stage-offer-text); --rejected: var(--stage-rejected-text);   /* short names for text uses outside the badges */
     --font-ui: "Wealthsimple Sans Display", "Figtree", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
     --r-pill: 999px; --r-lg: 20px; --r: 12px; --r-seg: 8px;
     --pad: 16px; --cell-y: 16px; --gap: 24px; --section: 32px;
@@ -172,7 +171,7 @@
     select:open::picker-icon { transform: rotate(180deg); color: var(--ink); }
     select::picker(select) { margin-top: 8px; padding: 8px; max-height: min(360px, 60vh); border: none; border-radius: var(--r);
                              background: var(--surface); color: var(--ink); box-shadow: var(--raise); }
-    select option { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 6px 16px; border-radius: var(--r-pill);
+    select option { display: flex; align-items: center; gap: 14px; min-height: var(--tap); padding: 6px 16px; border-radius: var(--r-pill);
                     font: inherit; color: var(--ink); cursor: pointer; }
     select option:hover, select option:focus-visible { background: var(--hover); outline: none; }
     select optgroup option { font-weight: 400; }

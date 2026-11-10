@@ -29,7 +29,8 @@ export async function extractText(file: Blob & { name?: string }): Promise<strin
     if (e instanceof ReadError) throw e;
     throw new ReadError(MESSAGES.unreadable);
   }
-  text = tidy(text);
+  // A 5 MB file can hold far more text than that once unzipped, so cap it before the per-line work, as pasted text is.
+  text = tidy(text.slice(0, MAX_FILE_BYTES));
   if (text.length < MIN_TEXT_CHARS) throw new ReadError(MESSAGES.scanned);
   return text;
 }

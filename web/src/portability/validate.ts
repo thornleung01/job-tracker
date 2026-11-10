@@ -24,6 +24,12 @@ type Rec = Record<string, unknown>;
 
 /** Most rows in one table. A real job search is a few thousand; a file claiming more is hostile or broken, and would be held in memory whole. */
 export const MAX_ROWS = 50_000;
+/**
+ * Most rows in `emails`. Every email the sync has seen has a row, most of them a small stub with no text, so a heavy mailbox
+ * keeps far more of these than of any other table. It must hold what Export can write, or the backup could not be restored.
+ * The file size cap (MAX_IMPORT_BYTES) is what bounds the memory.
+ */
+export const MAX_EMAIL_ROWS = 500_000;
 
 /**
  * The longest text each field may hold. What you can type is capped at the same lengths as saving (db/limits.ts: company,
@@ -47,13 +53,13 @@ class Check {
   }
 }
 
-function rowsOf(raw: unknown, name: string, check: Check): Rec[] {
+function rowsOf(raw: unknown, name: string, check: Check, max = MAX_ROWS): Rec[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
     check.fail(`"${name}" must be a list.`);
     return [];
   }
-  if (raw.length > MAX_ROWS) {
+  if (raw.length > max) {
     check.fail(`"${name}" has too many rows.`);
     return [];
   }
@@ -130,9 +136,9 @@ interface Known {
 /** Reads one row. Returns null when the row can't be kept (the reason is already in `check`). */
 type RowParser<T> = (r: Rec, check: Check, known: Known) => T | null;
 
-function parseTable<T>(raw: unknown, name: string, check: Check, known: Known, parseRow: RowParser<T>): T[] {
+function parseTable<T>(raw: unknown, name: string, check: Check, known: Known, parseRow: RowParser<T>, max = MAX_ROWS): T[] {
   const out: T[] = [];
-  rowsOf(raw, name, check).forEach((r, i) => {
+  rowsOf(raw, name, check, max).forEach((r, i) => {
     const row = parseRow(r, check.at(`${name} #${i + 1}: `), known);
     if (row) out.push(row);
   });
@@ -324,7 +330,7 @@ export function parseExportData(raw: unknown): ExportData {
   const accounts = parseTable(d.accounts, "accounts", check, { accountIds: new Set(), appIds: new Set() }, parseAccount);
   const applications = parseTable(d.applications, "applications", check, { accountIds: new Set(), appIds: new Set() }, parseApplication);
   const known: Known = { accountIds: new Set(accounts.map((a) => a.id)), appIds: new Set(applications.map((a) => a.id)) };
-  const emails = parseTable(d.emails, "emails", check, known, parseEmail);
+  const emails = parseTable(d.emails, "emails", check, known, parseEmail, MAX_EMAIL_ROWS);
   const activity = parseTable(d.activity, "activity", check, known, parseActivity);
   const feedback = parseTable(d.feedback, "feedback", check, known, parseFeedback);
   const ignoredMail = parseTable(d.ignoredMail, "ignoredMail", check, known, parseIgnoredMail);

@@ -1,4 +1,4 @@
 /* "No reply in 30 days" beside the last-activity text, and the "No reply" checkbox in the filter card. Same quiet look as the follow-up tag. */
 .ghosted-tag { display: inline-block; margin-left: 4px; padding: 1px 10px; background: var(--fog); color: var(--muted); border-radius: var(--r-pill); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
 .ghosted-field { justify-content: center; min-height: var(--tap); }
-.fgroup > label.ghosted-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; color: var(--ink); font-size: 1rem; font-weight: 500; cursor: pointer; }
+.fgroup > label.ghosted-toggle { display: inline-flex; align-items: center; min-height: var(--tap); gap: 8px; padding: 0 4px; color: var(--ink); font-size: 1rem; font-weight: 500; cursor: pointer; }

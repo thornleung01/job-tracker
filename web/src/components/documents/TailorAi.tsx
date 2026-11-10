@@ -91,15 +91,19 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }:
   };
 
   // Write is disabled while it runs, which drops focus: Stop takes it, and when the run ends or is stopped it goes back to Write.
-  const was = useRef(false);
+  const wasWorking = useRef(false);
   useEffect(() => {
-    if (working && !was.current) stopButton.current?.focus();
-    else if (!working && was.current) writeButton.current?.focus();
-    was.current = working;
+    if (working && !wasWorking.current) stopButton.current?.focus();
+    else if (!working && wasWorking.current) writeButton.current?.focus();
+    wasWorking.current = working;
   }, [working]);
+  // Write is disabled while the question shows, so "Keep my edits" hands focus back from here, once Write is enabled again in the DOM.
+  const wasAsking = useRef(false);
   useEffect(() => {
     if (asking) confirmButton.current?.focus();
-  }, [asking]);
+    else if (wasAsking.current && !working) writeButton.current?.focus();
+    wasAsking.current = asking;
+  }, [asking, working]);
 
   const ready = status.state === "unlocked";
   return (
@@ -137,7 +141,7 @@ export function TailorAi({ dbName, ai, run, edited, onClose, disabled = false }:
           <p className="inline-confirm-q">Replace your edits with a new draft?</p>
           <div className="row">
             <button type="button" ref={confirmButton} onClick={start} disabled={disabled}>Replace my edits</button>
-            <button type="button" onClick={() => { setAsking(false); writeButton.current?.focus(); }}>Keep my edits</button>
+            <button type="button" onClick={() => setAsking(false)}>Keep my edits</button>
           </div>
         </div>
       ) : null}

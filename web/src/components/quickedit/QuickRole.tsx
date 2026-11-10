@@ -43,7 +43,10 @@ export function QuickRole({ db, appId, company, role }: Props) {
     }
     void act.run("role", () => editApplication(db, appId, company, draft)).then((ok) => {
       if (ok) setEditing(false);
-      else done.current = false;      // stay open on a problem, so the text isn't lost
+      else {
+        done.current = false;         // stay open on a problem, so the text isn't lost
+        back.cancel();
+      }
     });
   };
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
