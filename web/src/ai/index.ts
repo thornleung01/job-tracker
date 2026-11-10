@@ -7,9 +7,12 @@ export * from "./deps";
 export * from "./errors";
 export { callClaude, realVault };
 export { lockAllVaults } from "./vault";
-export { convertRequest } from "./prompts";
-export { buildSections, checkAgainstSource, parseConvertReply } from "./verify";
-export type { ConvertFlag } from "./verify";
+export { TAILOR_TONES, convertRequest, tailorRequest } from "./prompts";
+export type { TailorInput, TailorTone } from "./prompts";
+export { isSummarySection, masterText, readMaster } from "./master";
+export type { MasterJob, MasterLine, TailorMaster } from "./master";
+export { buildSections, checkAgainstSource, checkTailored, parseConvertReply, parseTailorReply } from "./verify";
+export type { CheckedLine, CheckedTailor, ConvertFlag, TailorReply } from "./verify";
 
 /** The real vault and the real API call. Pages and use cases take `deps?: Partial<AiDeps>` and fall back to this, so tests pass fakes. */
 export const realAiDeps: AiDeps = { vault: realVault, complete: callClaude };
