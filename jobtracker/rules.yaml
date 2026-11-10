@@ -74,6 +74,9 @@ conditional_sentences:
   - '\bwill (?:only )?(?:contact|reach out|be in touch)[^.]*\bif\b'
   - '\bonly (?:those|candidates|applicants)[^.]*(?:selected|shortlisted|contacted)'
   - '\bshould (?:your|we)[^.]*(?:interview|selected|shortlisted)'
+  # Auto-acknowledgement boilerplate: "we can't give feedback on every application" and "if you are not selected, we keep your resume" are not rejections.
+  - '\bif (?:you(?:''re| are)|your \w+(?: \w+)?(?: is| are)?) not (?:been )?(?:selected|shortlisted|chosen|successful)'
+  - '\b(?:(?:unable|not able|won''?t be able) to|cannot|can''?t) (?:offer|give|provide) (?:you |every applicant |all applicants |applicants )?(?:individual |personali[sz]ed |specific |detailed )?feedback'
 
 # Event phrases, checked in priority order: offer > rejected > interview > assessment > applied.
 events:
@@ -107,6 +110,7 @@ events:
       - 'we(?:''ve| have) decided not to'
       - 'declin(?:e|ing) your application'
       - 'not a (?:good )?(?:match|fit) (?:for|at this)'
+      - '(?:was|has been|were|been) (?:not successful|unsuccessful)'
     # "unfortunately" alone is too common; it only counts with application wording.
     weak:
       - 'unfortunately[^.]{0,200}(?:your (?:application|candidacy)|the (?:position|role))'

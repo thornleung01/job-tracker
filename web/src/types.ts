@@ -48,4 +48,8 @@ export class NotConnected extends Error {
  * Supplies a currently valid access token for a provider, refreshing silently when it can.
  * Implemented by web/src/auth; consumed by web/src/providers. Must throw NotConnected when no token can be had.
  */
-export type TokenSource = (provider: ProviderName, signal?: AbortSignal) => Promise<string>;
+/**
+ * Gives the access token for a mailbox. `rejected` is passed when the provider answered 401 to `token`: the source must not hand that
+ * token out again (it asks for a fresh one), and with `final` (a fresh token was rejected too) it marks the mailbox disconnected.
+ */
+export type TokenSource = (provider: ProviderName, signal?: AbortSignal, rejected?: { token: string; final: boolean }) => Promise<string>;

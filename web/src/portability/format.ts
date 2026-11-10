@@ -45,6 +45,9 @@ export interface ExportEnvelope {
 export const PYTHON_FORMAT = "jobtracker-python-export";
 export const PYTHON_VERSION = 1;
 
+/** The biggest file Settings reads for an import. A real export is a few megabytes; the whole file is held in memory as text and again as objects. */
+export const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
+
 export class ImportError extends Error {
   readonly problems: string[];
   constructor(problems: string[]) {

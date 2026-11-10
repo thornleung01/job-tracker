@@ -71,7 +71,7 @@ export function messageFromRow(row: Pick<EmailRow, "providerMsgId" | "threadId" 
 export async function fillRole(db: JobTrackerDB, appId: number, role: string, rkey: string): Promise<void> {
   if (!rkey) return;
   const app = await db.applications.get(appId);
-  if (app && app.roleKey === "") await db.applications.update(appId, { role, roleKey: rkey });
+  if (app && !app.manual && app.roleKey === "") await db.applications.update(appId, { role, roleKey: rkey });
 }
 
 /** Finds or makes the application a job email belongs to. Returns the application id (or null) and whether a human should look. */

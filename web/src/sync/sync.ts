@@ -13,7 +13,7 @@ import { PROVIDER_LABEL } from "./accountLabel";
 import { alertSite } from "./alerts";
 import { byAsc } from "./compare";
 import { loadLearned } from "./learn";
-import type { LearnedView } from "./pipelineTypes";
+import type { Classification, LearnedView } from "./pipelineTypes";
 import { pipeline } from "./pipeline";
 import { settleReview } from "./recheck";
 import { loadSettings } from "./settings";
@@ -35,12 +35,21 @@ export async function processMessage(db: JobTrackerDB, accountId: number, msg: M
   if (await emailSeen(db, accountId, msg.id)) return "duplicate";
 
   const when = iso(msg.receivedAt);
-  if (alertSite(msg)) {
-    // A LinkedIn/Indeed job alert: the Jobs tab is not in the hosted edition, and it never becomes an application.
-    await tx(db, () => rememberUnrelated(db, accountId, msg.id, when));
-    return "job-alert";
+  const views = learned ?? (await loadLearned(db));
+  let cls: Classification | null; // null for a job alert
+  try {
+    cls = alertSite(msg) ? null : pipeline().classify(msg, views);
+  } catch (err) {
+    throw new UnreadableMessage(err);
   }
-  const cls = pipeline().classify(msg, learned ?? (await loadLearned(db)));
+  if (!cls) {
+    // A LinkedIn/Indeed job alert: the Jobs tab is not in the hosted edition, and it never becomes an application.
+    return tx(db, async (): Promise<Outcome> => {
+      if (await emailSeen(db, accountId, msg.id)) return "duplicate"; // a second tab can have saved it since the check above
+      await rememberUnrelated(db, accountId, msg.id, when);
+      return "job-alert";
+    });
+  }
 
   return tx(db, async (): Promise<Outcome> => {
     // Looked at again inside the transaction: a second tab can have saved this email since the check above.
@@ -73,10 +82,12 @@ export async function processMessage(db: JobTrackerDB, accountId: number, msg: M
   });
 }
 
-/** A temporary storage problem: the email is left unmarked so the next sync tries it again. */
-function isTransient(err: unknown): boolean {
-  const name = (err as { name?: string } | null)?.name ?? "";
-  return ["DatabaseClosedError", "QuotaExceededError", "TimeoutError", "AbortError", "TransactionInactiveError", "UnknownError"].includes(name);
+/** Reading the email itself (finding out whether it is an alert, judging it) threw: it would fail the same way every time. */
+class UnreadableMessage extends Error {
+  constructor(cause: unknown) {
+    super("This email could not be read.", { cause });
+    this.name = "UnreadableMessage";
+  }
 }
 
 /** Process oldest-first so stages progress in the order things happened. */
@@ -91,7 +102,9 @@ export async function processMessages(db: JobTrackerDB, accountId: number, messa
     try {
       result = await processMessage(db, accountId, msg, learned, now);
     } catch (err) {
-      if (isTransient(err)) {
+      if (!(err instanceof UnreadableMessage)) {
+        // Anything from storing it (full disk, a closed or busy database, a second tab, even a bug in how it was filed)
+        // may go away, and marking the email seen would blank it for good, so it is left for the next sync.
         result = "retry";
       } else {
         // A message that can't be read at all would fail every time, so mark it seen and move on.

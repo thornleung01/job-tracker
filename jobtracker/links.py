@@ -26,7 +26,14 @@ def mailbox_link(provider: str, address: str, thread_id: str | None, web_link: s
 
 NO_REPLY = re.compile(r"(?:^|[._-])(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|bounces?|notifications?)(?:[._-]|$)", re.I)
 ADDRESS = re.compile(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+")
-_CONSUMER_OUTLOOK = ("outlook.com", "hotmail.com", "live.com", "msn.com")
+_CONSUMER_OUTLOOK = ("outlook", "hotmail", "live", "msn")
+
+
+def _consumer_outlook(account: str) -> bool:
+    """A personal Microsoft address: outlook.com, hotmail.co.uk, live.ca ... The whole domain is compared, so olive.com is not live.com."""
+    labels = account.rpartition("@")[2].strip().lower().split(".")
+    rest = labels[1:]
+    return labels[0] in _CONSUMER_OUTLOOK and (len(rest) == 1 or (len(rest) == 2 and rest[0] in ("co", "com"))) and 2 <= len(rest[-1]) <= 3
 
 
 def recipient(sender: str | None) -> str | None:
@@ -58,7 +65,7 @@ def reply_link(provider: str, account: str, sender: str, subject: str | None, we
         return "Reply in Gmail", f"https://mail.google.com/mail/?authuser={quote(account)}&view=cm&fs=1&to={quote(to)}&su={quote(subject)}"
     if provider == "outlook":
         work = bool(web_link and web_link.startswith("https://outlook.office")) or (
-            "@" in (account or "") and not account.lower().endswith(_CONSUMER_OUTLOOK))
+            "@" in (account or "") and not _consumer_outlook(account))
         host = "outlook.office.com/mail" if work else "outlook.live.com/mail/0"
         return "Reply in Outlook", f"https://{host}/deeplink/compose?to={quote(to)}&subject={quote(subject)}"
     return None

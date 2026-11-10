@@ -440,6 +440,60 @@ describe("a silent refresh must belong to the mailbox that was connected", () =>
     await expect(auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
   });
 
+  it("a 401 on the cached token drops it, and a 401 on the fresh one too marks Gmail disconnected", async () => {
+    const { auth, google } = await connected();
+    await expect(auth.tokenSource("gmail")).resolves.toBe(SECRET_G); // still cached and unexpired
+    google.requestMailToken.mockResolvedValueOnce({ token: "fresh", expiresAt: NOW + 3600_000 });
+    await expect(auth.tokenSource("gmail", undefined, { token: SECRET_G, final: false })).resolves.toBe("fresh");
+    expect(auth.getSession().mail.gmail).toBe(true);
+    const err = await auth.tokenSource("gmail", undefined, { token: "fresh", final: true }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotConnected);
+    expect(auth.getSession().mail.gmail).toBe(false);
+    expect(auth.getSession().error).toMatch(/rejected the login/);
+    await expect(auth.tokenSource("gmail")).rejects.toThrow(/isn't connected/);
+  });
+
+  it("when the connect-time lookup failed, a refresh adopts only the account you signed in with", async () => {
+    const f = fakes();
+    f.google.signIn.mockResolvedValueOnce({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
+    f.google.mailboxAddress.mockRejectedValueOnce(new Error("offline")); // no address is recorded at sign-in
+    await f.auth.signIn("google");
+    f.clock.now += 3600_000;
+    f.google.requestMailToken.mockResolvedValueOnce(otherToken(f.clock));
+    f.google.mailboxAddress.mockImplementation(addressByToken({ "ya29.OTHER-MAILBOX": "someone-else@gmail.com" }));
+    await expect(f.auth.tokenSource("gmail")).rejects.toThrow(/different Google account/);
+    expect(f.google.revoke).toHaveBeenCalledWith("ya29.OTHER-MAILBOX");
+    expect(f.auth.getSession().mail.gmail).toBe(false);
+  });
+
+  it("when the connect-time lookup failed, the account you signed in with is adopted and checked from then on", async () => {
+    const f = fakes();
+    f.google.signIn.mockResolvedValueOnce({ user: ada, mail: { token: SECRET_G, expiresAt: NOW + 3600_000 } });
+    f.google.mailboxAddress.mockRejectedValueOnce(new Error("offline"));
+    await f.auth.signIn("google");
+    f.clock.now += 3600_000;
+    f.google.requestMailToken.mockResolvedValueOnce({ token: "mine", expiresAt: f.clock.now + 3600_000 });
+    f.google.mailboxAddress.mockResolvedValue("ada@example.com");
+    await expect(f.auth.tokenSource("gmail")).resolves.toBe("mine");
+    f.clock.now += 3600_000;
+    f.google.requestMailToken.mockResolvedValueOnce(otherToken(f.clock));
+    f.google.mailboxAddress.mockImplementation(addressByToken({ "ya29.OTHER-MAILBOX": "someone-else@gmail.com" }));
+    await expect(f.auth.tokenSource("gmail")).rejects.toBeInstanceOf(NotConnected);
+  });
+
+  it("revokes the new token when you sign out while connectMail is checking its address", async () => {
+    const { auth, google, clock } = await connected();
+    const lookup = deferred<string>();
+    google.requestMailToken.mockResolvedValueOnce(otherToken(clock));
+    google.mailboxAddress.mockImplementationOnce(() => lookup.promise);
+    const connecting = auth.connectMail("gmail").catch((e: unknown) => e);
+    await vi.waitFor(() => expect(google.mailboxAddress).toHaveBeenCalledWith("ya29.OTHER-MAILBOX"));
+    await auth.signOut();
+    lookup.resolve("bob@gmail.com");
+    expect(await connecting).toBeInstanceOf(NotConnected);
+    expect(google.revoke).toHaveBeenCalledWith("ya29.OTHER-MAILBOX");
+  });
+
   it("checks Gmail only: an Outlook refresh needs no lookup", async () => {
     const { auth, google, clock } = fakes();
     await auth.signIn("microsoft");

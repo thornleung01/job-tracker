@@ -40,7 +40,8 @@ describe("one length for a company and a role", () => {
 
   it("is the same for a person's name and title", async () => {
     const db = freshDb();
-    await saveEdit(db, "1|a@b.co", "N".repeat(150), "T".repeat(250));
+    const id = await addApplication(db, { company: "Acme", role: "Analyst" });
+    await saveEdit(db, `${id}|a@b.co`, "N".repeat(150), "T".repeat(250));
     const [edit] = await db.contactEdits.toArray();
     expect([edit.name!.length, edit.title!.length]).toEqual([MAX_NAME_CHARS, MAX_TITLE_CHARS]);
   });

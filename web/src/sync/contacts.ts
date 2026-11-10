@@ -9,7 +9,7 @@
 // to that application only. Nothing is stored except those corrections (contactEdits); the list is rebuilt from the saved
 // emails each time.
 import { isContactKey } from "../db/contactKey";
-import { ActionError } from "../db/errors";
+import { ActionError, MissingRecordError } from "../db/errors";
 import { MAX_NAME_CHARS, MAX_TITLE_CHARS } from "../db/limits";
 import { UNKNOWN_ROLE } from "../pipeline/extract";
 import type { ApplicationRow, ContactEditRow, EmailRow, JobTrackerDB } from "../db/schema";
@@ -329,11 +329,20 @@ export async function titles(db: JobTrackerDB, appId: number): Promise<Record<st
 
 const NOT_A_PERSON_KEY = "That isn't a person key.";
 
+/** A correction belongs to an application: refuse one for an application that is gone (erased in another tab), or it would sit in the database and in every export with nothing to attach to. */
+async function requireKeyedApplication(db: JobTrackerDB, key: string): Promise<void> {
+  const appId = Number(key.slice(0, key.indexOf("|")));
+  if (!(await db.applications.get(appId))) throw new MissingRecordError(`No application ${appId}`);
+}
+
 export async function saveEdit(db: JobTrackerDB, key: string, name: string, title: string): Promise<void> {
   if (!isContactKey(key)) throw new ActionError(NOT_A_PERSON_KEY);
   const cleanName = squeeze(name).slice(0, MAX_NAME_CHARS);
   const cleanTitle = squeeze(title).slice(0, MAX_TITLE_CHARS);
-  await tx(db, () => db.contactEdits.put({ key, name: cleanName || null, title: cleanTitle, hidden: false }));
+  await tx(db, async () => {
+    await requireKeyedApplication(db, key);
+    await db.contactEdits.put({ key, name: cleanName || null, title: cleanTitle, hidden: false });
+  });
 }
 
 const PEOPLE_SUGGESTION_LIMIT = 300;
@@ -375,6 +384,7 @@ export async function peopleSuggestions(db: JobTrackerDB): Promise<Suggestion[]>
 export async function hide(db: JobTrackerDB, key: string): Promise<void> {
   if (!isContactKey(key)) throw new ActionError(NOT_A_PERSON_KEY);
   await tx(db, async () => {
+    await requireKeyedApplication(db, key);
     const existing = await db.contactEdits.get(key);
     await db.contactEdits.put({ key, name: existing?.name ?? null, title: existing?.title ?? null, hidden: true });
   });

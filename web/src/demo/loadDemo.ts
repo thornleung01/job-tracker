@@ -1,6 +1,6 @@
 // "Load demo data": replaces what is in this browser with a bundled, seeded demo set (no real people or mail).
 // The JSON is loaded on demand so it stays out of the main bundle.
-import type { DocItemKind, JobTrackerDB } from "../db/schema";
+import { tx, type DocItemKind, type JobTrackerDB } from "../db/schema";
 import { iso, localToday, shiftDay } from "../db/time";
 import { importFromPythonExport, type ImportSummary } from "../portability";
 import { createVersion, saveCoverLetter, saveMaster } from "../sync/documents";
@@ -39,6 +39,8 @@ async function addDemoInterviews(db: JobTrackerDB, now: Date): Promise<void> {
   if (!account?.id) return;
   const apps = (await db.applications.where("stage").equals("Interview").toArray()).slice(0, DEMO_INTERVIEW_OFFSETS.length);
   const received = iso(new Date(now.getTime() - 3_600_000));
+  // the invitation is the latest thing that happened, so the list's Last activity says so too
+  for (const a of apps) await db.applications.update(a.id!, { lastActivity: received });
   await db.emails.bulkAdd(apps.map((a, i) => ({
     accountId: account.id!, providerMsgId: `demo-interview-${i}`, threadId: `demo-interview-${i}`, receivedAt: received,
     sender: `Demo recruiter <recruiter@${a.companyKey.replace(/\W/g, "") || "demo"}.example>`, subject: "Interview invitation (demo)",
@@ -68,7 +70,7 @@ const B = {
 /** The demo master resume: a made-up analyst's, laid out in the classic template (a header, then four sections). */
 const DEMO_RESUME: { heading: string; items: DemoLine[] }[] = [
   { heading: "Header", items: lines("JORDAN LEE", "Toronto, Ontario | (416) 555-0100 | LinkedIn | jordan.lee@example.com") },
-  { heading: "Professional summary", items: lines("Analyst with 5 years of experience turning messy data into decisions for finance and product teams. Comfortable owning a metric from the first query to the last slide.") },
+  { heading: "Professional summary", items: lines("Analyst with several years of experience turning messy data into decisions for finance and product teams. Comfortable owning a metric from the first query to the last slide.") },
   {
     heading: "Skills and qualifications",
     items: [skill("Analytics", "SQL, Python, Tableau, Excel"), skill("Methods", "Experiment design, forecasting, stakeholder reporting"), skill("Languages", "English (native), French (conversational)")],
@@ -123,7 +125,7 @@ async function addDemoDocuments(db: JobTrackerDB, now: Date): Promise<void> {
     heading: "",
     items: lines(
       `Dear hiring team at ${interview.company},`,
-      `I'm applying for the ${interview.role} role. For 5 years I've turned messy data into decisions that finance and product teams act on.`,
+      `I'm applying for the ${interview.role} role. For several years I've turned messy data into decisions that finance and product teams act on.`,
       "At Northfield Bank I built the weekly reporting model that cut month-end close by 2 days, and led a dashboard rollout used by 40 people.",
       "I'd enjoy bringing that to your team and would welcome a conversation.",
     ),
@@ -135,10 +137,13 @@ export async function loadDemoData(db: JobTrackerDB, now: Date = new Date()): Pr
   const demo = (await import("./demo-export.json")).default as { tables: unknown };
   const newest = newestTimestamp(demo.tables);
   const shifted = { ...demo, tables: shiftTimestamps(demo.tables, Number.isFinite(newest) ? now.getTime() - newest : 0) };
-  const before = await loadSettings(db);
-  const summary = await importFromPythonExport(db, shifted);
-  await saveSettings(db, "appearance", { ...before.appearance });
-  await addDemoInterviews(db, now);
-  await addDemoDocuments(db, now);
-  return summary;
+  // One transaction: if adding the interviews or documents fails, the import is undone too, so the demo is never half-loaded.
+  return tx(db, async () => {
+    const before = await loadSettings(db);
+    const summary = await importFromPythonExport(db, shifted);
+    await saveSettings(db, "appearance", { ...before.appearance });
+    await addDemoInterviews(db, now);
+    await addDemoDocuments(db, now);
+    return summary;
+  });
 }

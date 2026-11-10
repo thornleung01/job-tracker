@@ -56,7 +56,9 @@
     "\\b(?:can'?t|cannot|unable to|won'?t be able to|not able to) (?:reply|respond|contact|get back)",
     "\\bwill (?:only )?(?:contact|reach out|be in touch)[^.]*\\bif\\b",
     "\\bonly (?:those|candidates|applicants)[^.]*(?:selected|shortlisted|contacted)",
-    "\\bshould (?:your|we)[^.]*(?:interview|selected|shortlisted)"
+    "\\bshould (?:your|we)[^.]*(?:interview|selected|shortlisted)",
+    "\\bif (?:you(?:'re| are)|your \\w+(?: \\w+)?(?: is| are)?) not (?:been )?(?:selected|shortlisted|chosen|successful)",
+    "\\b(?:(?:unable|not able|won'?t be able) to|cannot|can'?t) (?:offer|give|provide) (?:you |every applicant |all applicants |applicants )?(?:individual |personali[sz]ed |specific |detailed )?feedback"
   ],
   "events": {
     "offer": {
@@ -90,7 +92,8 @@
         "(?:not|cannot|can'?t|won'?t) (?:be )?(?:able to |in a position to )?(?:extend|offer)(?:ing)?\\b",
         "we(?:'ve| have) decided not to",
         "declin(?:e|ing) your application",
-        "not a (?:good )?(?:match|fit) (?:for|at this)"
+        "not a (?:good )?(?:match|fit) (?:for|at this)",
+        "(?:was|has been|were|been) (?:not successful|unsuccessful)"
       ],
       "weak": [
         "unfortunately[^.]{0,200}(?:your (?:application|candidacy)|the (?:position|role))",

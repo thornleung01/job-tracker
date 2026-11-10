@@ -112,6 +112,10 @@ def extract_company_role(msg: Message) -> tuple[str, str]:
     return company or UNKNOWN_COMPANY, role or UNKNOWN_ROLE
 
 
+_SECOND_LEVEL = frozenset({"co", "com", "org", "net", "gov", "ac", "edu", "gob",
+                           "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt"})
+
+
 def _sender_company(msg: Message) -> str:
     raw_name = msg.sender_name or ""
     name = _clean(_NOISE_WORDS.sub(" ", raw_name))
@@ -128,7 +132,9 @@ def _sender_company(msg: Message) -> str:
         local = msg.sender_email.split("@")[0]
         return "" if re.fullmatch(r"(?:no-?reply|do-?not-?reply|jobs?|careers?|recruiting|notifications?|info|support|hr|talent)", local, re.I) else local.capitalize()
     parts = domain.split(".")
-    label = parts[-3] if len(parts) >= 3 and len(parts[-1]) == 2 and len(parts[-2]) <= 3 else parts[-2] if len(parts) >= 2 else ""
+    # Under a two-letter country domain the company is one label further left only when the second-last label is a registry
+    # label (acme.co.uk, acme.com.au, hospital.on.ca); jobs.rbc.ca is rbc under a subdomain, not "jobs".
+    label = parts[-3] if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in _SECOND_LEVEL else parts[-2] if len(parts) >= 2 else ""
     # A person's name ("Jane Smith <jane@acme.com>") isn't the company; the domain is.
     if name and label and _fold(label) in _fold(name):
         return name

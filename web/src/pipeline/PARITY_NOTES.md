@@ -65,7 +65,8 @@ The cases are built by `scripts/export_fixtures.py`, not written in the JSON. To
 2. **Empty iterations in nested quantifiers.** `re.search("(a*)*", "b")` gives group 1 = `""` in Python and `undefined` in
    ECMAScript. No pipeline pattern depends on this.
 3. **`re.I` inside a character class** only gets the Python "i" equivalences for a literal `i`/`I`, not for ranges that merely
-   contain it (`[a-z]` does not match U+0131). No pipeline pattern uses this.
+   contain it (`[a-z]` does not match U+0131). A range that starts at `i` (`[i-z]`) is not expanded either (it used to fail to
+   compile). No pipeline pattern uses this.
 4. **Python comment vs behaviour in `_fold`.** The comment says it "keeps kana/Hangul marks", but the combining marks are
    not letters or digits, so they are dropped (`ガ` and `カ` fold to the same key). The port reproduces the behaviour, not
    the comment, so keys match the Python database.
