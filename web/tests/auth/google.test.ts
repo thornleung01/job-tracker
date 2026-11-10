@@ -115,23 +115,13 @@ describe("google signIn (token client)", () => {
     expect(String(init?.body)).toBe("access_token=ya29.token");
   });
 
-  it("retries tokeninfo as a GET when the POST is not accepted", async () => {
+  it.each([405, 415])("never retries tokeninfo with the token in a URL when the POST answers %i", async (status) => {
     const { auth, fetchMock } = setup();
-    fetchMock.mockResolvedValueOnce(new Response("", { status: 405 }));
+    fetchMock.mockResolvedValueOnce(new Response("", { status }));
     await auth.prepare();
-    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const [url, init] = fetchMock.mock.calls[1];
-    expect(url).toBe(`${TOKENINFO_URL}?access_token=ya29.token`);
-    expect(init?.method).toBe("GET");
-  });
-
-  it("retries tokeninfo as a GET when the POST answers 415", async () => {
-    const { auth, fetchMock } = setup();
-    fetchMock.mockResolvedValueOnce(new Response("", { status: 415 }));
-    await auth.prepare();
-    await expect(auth.signIn()).resolves.toMatchObject({ user: { sub: "1098765432" } });
-    expect(fetchMock.mock.calls[1][1]?.method).toBe("GET");
+    await expect(auth.signIn()).rejects.toThrow(/couldn't be verified/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("access_token");
   });
 
   it("does not put the token in a URL when the POST fails to send: it is not verified", async () => {

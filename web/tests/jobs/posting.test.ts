@@ -181,4 +181,18 @@ describe("posting text from a paste", () => {
     const d = parsePastedText(`Data Analyst at Acme Corp\n${"word ".repeat(MAX_POSTING_CHARS)}`);
     expect(d!.description!.length).toBeLessThanOrEqual(MAX_POSTING_CHARS);
   });
+
+  it("reads unclosed tag openers in linear time", () => {
+    const started = Date.now();
+    for (const open of ["<a ", "<p ", "<b <i "]) {
+      postingText(open.repeat(Math.ceil(200_000 / open.length)));
+      postingText(`<p>Real</p>${open.repeat(Math.ceil(200_000 / open.length))}`);
+    }
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
+  it("still finds the same tags the old patterns did", () => {
+    expect(postingText("<b>one</b> <a href=x>two</a>")).toBe("one two");
+    expect(postingText("a < b and c > d")).toBe("a < b and c > d");
+  });
 });

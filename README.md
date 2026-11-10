@@ -10,7 +10,7 @@ There are two editions that share one visual system and one classifier.
 | Runs on | Your PC, bound to `127.0.0.1`. Made for Windows 10 or 11 | Your browser, no server |
 | Mail login | A desktop-app OAuth client you create ([SETUP.md](SETUP.md)) | Google or Microsoft login in the page ([web/README.md](web/README.md)) |
 | Data | `data\tracker.db`. Login tokens are encrypted with Windows DPAPI | IndexedDB in your browser, one database per logged-in user. Tokens are kept in memory only |
-| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters (resumes print in a one-page classic template), optional AI to convert an uploaded resume into your template with your own Anthropic key, bulk actions, Recently deleted, backups, CSV export, a guided setup page |
+| Extras | Jobs tab, replying from the app, profiles, hourly background sync | Coming up, a calendar view, follow-up nudges and drafts, offer details, resume and cover letters (resumes print in a one-page classic template), optional AI (with your own Anthropic key) to convert an uploaded resume into your template and to tailor a resume and cover letter to a job, bulk actions, Recently deleted, backups, CSV export, a guided setup page |
 | Docs | [SETUP.md](SETUP.md) | [web/README.md](web/README.md) and the [privacy page](web/public/privacy.html) |
 
 Product and design decisions for both are in [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md).
@@ -32,8 +32,8 @@ Everything below is in the hosted edition only. Each item says what you see. [we
 
 The hosted edition keeps everything in your browser, so the browser is the only copy. Three things protect it:
 
-- **Ask the browser to keep it.** Once there is data, the app asks the browser not to clear its storage when the device runs low on space. Chrome and Edge decide without asking, Firefox may show a prompt, and Safari may refuse. Settings, Your data says whether the browser will keep it and how much space it uses.
-- **Back up.** Settings, Your data, Export data saves a JSON file you can import again. Only this export counts as a backup: the CSV has no emails or notes and can't be imported. If your last backup is more than 14 days old, or you have none, the Applications page shows a quiet reminder. "Remind me in a week" hides it for 7 days. In Chrome and Edge you can also choose one backup file and use "Back up now" to overwrite it without a download each time.
+- **Ask the browser to keep it.** Once there is data, the app asks the browser not to clear its storage when the device runs low on space. Chrome and Edge decide without asking, Firefox may show a prompt, and Safari may refuse. Settings, Data says whether the browser will keep it and how much space it uses.
+- **Back up.** Settings, Data, Export data saves a JSON file you can import again. Only this export counts as a backup: the CSV has no emails or notes and can't be imported. If your last backup is more than 14 days old, or you have none, the Applications page shows a quiet reminder. "Remind me in a week" hides it for 7 days. In Chrome and Edge you can also choose one backup file and use "Back up now" to overwrite it without a download each time.
 - **Restore.** Import data replaces everything in that browser, after asking. A deleted application can come back from Settings, Recently deleted for 30 days. The JSON export and the backup file include applications, resumes and cover letters in Recently deleted until they are erased.
 
 You can install the site as an app from your browser's menu. It still needs the network to read mail, and it keeps no offline copy. Nothing is sent to a server run by the developer: see the [privacy page](web/public/privacy.html).
@@ -109,7 +109,7 @@ Changes to `web/site-config.json`, `web/src/auth/`, `web/src/config.ts`, `web/in
 
 ## Moving data between editions
 
-From the repository root, `python scripts/export_json.py data/tracker.db export.json` writes a file the hosted edition can import. Then, in the hosted app, choose Settings, Your data, Import data. The app asks before it replaces everything in that browser. The export leaves out your resume, job-search profile and login files.
+From the repository root, `python scripts/export_json.py data/tracker.db export.json` writes a file the hosted edition can import. Then, in the hosted app, choose Settings, Data, Import data. The app asks before it replaces everything in that browser. The export leaves out your resume, job-search profile and login files.
 
 ## Layout
 

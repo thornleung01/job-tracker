@@ -2,11 +2,20 @@
 // or a job board sends is turned into plain lines here and never kept as markup.
 import { MAX_POSTING_CHARS } from "../db/limits";
 import { htmlToText } from "../providers/htmlToText";
+import { replaceTags, stripScriptBlocks, stripTags } from "./markup";
 
-const LOOKS_LIKE_MARKUP = /<\/?[a-z][a-z0-9-]*(?:\s[^>]*)?\/?>/i;
+// A tag name, then a space (and a ">" somewhere later) or an immediate ">" or "/>". Scanned in one pass, see markup.ts.
+const TAG_START = /<\/?[a-z][a-z0-9-]*(?:(\s)|\/?>)/gi;
+function looksLikeMarkup(text: string): boolean {
+  const lastGt = text.lastIndexOf(">");
+  if (lastGt < 0) return false;
+  TAG_START.lastIndex = 0;
+  const m = TAG_START.exec(text);
+  return m !== null && (m[1] === undefined || lastGt >= m.index + m[0].length);
+}
 const HAS_ENTITY = /&(?:[a-z][a-z0-9]*|#\d+|#x[0-9a-f]+);/i;
-const needsReading = (text: string): boolean => LOOKS_LIKE_MARKUP.test(text) || HAS_ENTITY.test(text);
-const INLINE_TAGS = /<\/?(?:a|abbr|b|big|cite|code|em|font|i|mark|small|span|strong|sub|sup|u)\b[^>]*>/gi;
+const needsReading = (text: string): boolean => looksLikeMarkup(text) || HAS_ENTITY.test(text);
+const INLINE_TAGS = /<\/?(?:a|abbr|b|big|cite|code|em|font|i|mark|small|span|strong|sub|sup|u)\b/;
 
 const clean = (text: string): string =>
   text
@@ -19,8 +28,8 @@ const clean = (text: string): string =>
 
 /** One pass of HTML to text. Inline tags are dropped first so "<b>Python</b> and Java" stays one line. */
 function markupToText(html: string): string {
-  const flat = html.replace(/<br\s*\/?>/gi, "\n").replace(INLINE_TAGS, "");
-  if (typeof DOMParser === "undefined") return flat.replace(/<(?:script|style)[\s\S]*?<\/(?:script|style)>/gi, " ").replace(/<[^>]*>/g, "\n");
+  const flat = replaceTags(html.replace(/<br\s*\/?>/gi, "\n"), INLINE_TAGS, "");
+  if (typeof DOMParser === "undefined") return stripTags(stripScriptBlocks(flat, " "), "\n");
   return htmlToText(flat);
 }
 
@@ -33,7 +42,7 @@ export function postingText(raw: unknown): string {
   let text = raw.slice(0, MAX_POSTING_CHARS * 8);
   // Escaped markup decodes to markup on the first pass, so look again, but never more than three times.
   for (let pass = 0; pass < 3 && needsReading(text); pass++) text = markupToText(text);
-  if (LOOKS_LIKE_MARKUP.test(text)) text = text.replace(/<[^>]*>/g, " ");
+  if (looksLikeMarkup(text)) text = stripTags(text, " ");
   return clean(text).slice(0, MAX_POSTING_CHARS).trim();
 }
 

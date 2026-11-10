@@ -127,7 +127,8 @@ describe("feedback and helpers", () => {
     const db = freshDb();
     await recordFeedback(db, "not_job", { sender: "Coach <Hi@CoachCo.io>", subject: "Tips", reason: "body: x" });
     const fb = (await db.feedback.toArray())[0];
-    expect([fb.senderEmail, fb.senderDomain, fb.subject, fb.reason]).toEqual(["hi@coachco.io", "coachco.io", "Tips", "body: x"]);
+    // The subject is not kept: no rule uses it and the correction outlives the email.
+    expect([fb.senderEmail, fb.senderDomain, fb.subject, fb.reason]).toEqual(["hi@coachco.io", "coachco.io", "", "body: x"]);
     expect(senderAddress("plain@x.io")).toBe("plain@x.io");
   });
 

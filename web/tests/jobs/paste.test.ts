@@ -107,4 +107,11 @@ describe("parsePastedText", () => {
     const d = parsePastedText("Engineer \u2014 Acme\nRemote");
     for (const v of [d?.company, d?.role, d?.location]) expect(v ?? "").not.toMatch(/[<>\u2014]/);
   });
+
+  it("handles 200k characters of unclosed tag openers in well under a second", () => {
+    const started = Date.now();
+    parsePastedText("<p ".repeat(66_666));
+    parsePastedText(`<p>Data Analyst at Acme Corp</p>${"<p <script ".repeat(18_000)}`);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
 });

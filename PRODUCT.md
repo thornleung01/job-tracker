@@ -46,7 +46,7 @@ The styling comes from the `use-ws-styling` primer in the `product-design` plugi
 ## Product Principles
 1. Facts first: a status, a date, and a source email are always one click apart.
 2. Calm over clever: the user checks this while anxious about outcomes; nothing should shout.
-3. Private by construction: mail is read only by the user's own device (a local server on their PC, or their browser), read-only unless the user turns replying on, with no server of ours in the path and no external services beyond Google, Microsoft, Anthropic (only if the user adds their own key and presses Convert or Check key) and the sources the user adds.
+3. Private by construction: mail is read only by the user's own device (a local server on their PC, or their browser), read-only unless the user turns replying on, with no server of ours in the path and no external services beyond Google, Microsoft, Anthropic (only if the user adds their own key and presses Convert, Tailor or Check key) and the sources the user adds.
 4. Everything is reversible and visible: filters show, manual stages say they were set by the user.
 
 ## Accessibility & Inclusion

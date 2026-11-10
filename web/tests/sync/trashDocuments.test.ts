@@ -135,3 +135,19 @@ describe("deleteDocumentForever", () => {
     expect(await deleteDocumentForever(db, 9999)).toBe(false);
   });
 });
+
+describe("purgeExpired also keeps the other retention limits", () => {
+  it("erases ignored mail older than 30 days, and old feedback subjects, even when no mail is syncing", async () => {
+    const db = freshDb();
+    const row = { accountId: 1, threadId: "t", receivedAt: "2026-01-01T00:00:00Z", sender: "A <a@x.io>", subject: "S", body: "b", webLink: null, reason: "r", bulk: false };
+    await db.ignoredMail.bulkAdd([
+      { ...row, providerMsgId: "old", createdAt: "2026-10-01T00:00:00Z" },
+      { ...row, providerMsgId: "new", createdAt: "2026-11-01T00:00:00Z" },
+    ]);
+    await db.feedback.add({ createdAt: "2026-10-01T00:00:00Z", verdict: "not_job", senderEmail: "a@x.io", senderDomain: "x.io", subject: "Old subject", reason: "r", applicationId: null });
+    await purgeExpired(db, NOW);
+    expect((await db.ignoredMail.toArray()).map((r) => r.providerMsgId)).toEqual(["new"]);
+    const fb = (await db.feedback.toArray())[0];
+    expect(fb).toMatchObject({ subject: "", senderEmail: "a@x.io" });
+  });
+});

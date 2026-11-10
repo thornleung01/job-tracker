@@ -59,7 +59,7 @@ async function readCapped(res: Response, maxBytes: number): Promise<string | nul
   const reader = res.body?.getReader?.();
   if (!reader) {
     const text = await res.text();
-    return text.length > maxBytes ? null : text;
+    return new TextEncoder().encode(text).length > maxBytes ? null : text;
   }
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -286,7 +286,15 @@ export async function enrichJobDraft(draft: JobDraft, opts: EnrichOptions = {}):
     if (!fetchFn || typeof draft?.url !== "string") return draft;
     const ref = detectBoard(draft.url);
     if (!ref || !isSafeSlug(ref.slug) || !isSafeId(ref.id)) return draft;
-    const found = await LOOKUPS[ref.board](fetchFn, ref, opts);
+    // One deadline for the whole lookup: each request gets what is left of it, so two steps never wait twice as long.
+    const deadline = Date.now() + (opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    const budget: EnrichOptions = {
+      ...opts,
+      get timeoutMs() {
+        return Math.max(0, deadline - Date.now());
+      },
+    };
+    const found = await LOOKUPS[ref.board](fetchFn, ref, budget);
     return found ? merge(draft, ref, found) : draft;
   } catch {
     return draft;

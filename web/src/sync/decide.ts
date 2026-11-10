@@ -44,6 +44,11 @@ export async function rememberIgnored(
       webLink: safeWebLink(msg.webLink), reason, createdAt: iso(now), bulk: Boolean(msg.bulk),
     });
   }
+  await purgeIgnoredMail(db, now);
+}
+
+/** Erases ignored mail kept longer than IGNORED_KEEP_DAYS. Runs after each one is added and with the start-up purge, so a mailbox that stops syncing doesn't keep it. */
+export async function purgeIgnoredMail(db: JobTrackerDB, now: Date = new Date()): Promise<void> {
   const cutoff = iso(addDays(now, -IGNORED_KEEP_DAYS));
   await db.ignoredMail.where("createdAt").below(cutoff).delete();
 }

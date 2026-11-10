@@ -5,7 +5,7 @@ import {
   type AiDeps, type AiModel, type ConvertFlag, type VaultStatus,
 } from "../ai";
 import { ActionError } from "../db/errors";
-import { MAX_AI_INPUT_CHARS } from "../db/limits";
+import { MAX_CONVERT_CHARS } from "../db/limits";
 import type { DocSection } from "../db/schema";
 
 // The page imports the flag type from here.
@@ -34,8 +34,8 @@ export async function convertResume(
   text: string, deps: AiDeps, options: { db: string; model?: AiModel; signal?: AbortSignal },
 ): Promise<ConvertResult> {
   if (!text.trim()) throw new ActionError("There's no text to convert.");
-  // This is the check the person sees: the client's own limit is the backstop.
-  if (text.length > MAX_AI_INPUT_CHARS) throw new AiError("tooLong");
+  // This is the check the person sees, before anything is billed: the client's own limit is the backstop.
+  if (text.length > MAX_CONVERT_CHARS) throw new AiError("convertTooLong");
   const { db, signal } = options;
   const key = deps.vault.key(db);
   const status = deps.vault.status(db);

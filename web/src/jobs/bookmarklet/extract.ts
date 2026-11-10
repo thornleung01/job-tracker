@@ -176,6 +176,13 @@ export function extract(doc: Document, pageUrl: string): Extracted {
     }
   } catch (e) { /* use the address bar */ }
   url = clean(url || pageUrl, 2000);
+  // Keep a job-id parameter, drop the rest of the query and the fragment: they can carry a session or a token.
+  try {
+    const u = new URL(url), kept = new URLSearchParams();
+    u.searchParams.forEach((v, k) => { if (/^(?:gh_jid|jk|vjk|currentjobid|jobid|job_id)$/i.test(k) && /^[\w-]{1,40}$/.test(v)) kept.append(k, v); });
+    const q = kept.toString();
+    url = u.origin + u.pathname + (q ? "?" + q : "");
+  } catch (e) { /* leave it as it is */ }
   if (url.length > 500) url = url.split("?")[0];
   return { c: clean(company, 60), r: clean(role, 90), l: clean(place, 80), u: url.slice(0, 500), g: guessed };
 }
