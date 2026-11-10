@@ -284,7 +284,7 @@ const parseDocument: RowParser<DocumentRow> = (r, k, known) => {
   const kind = r.kind;
   if (kind === "cover" && applicationId === null) k.fail("a cover letter needs an application.");
   if (!id || (kind !== "resume" && kind !== "cover")) return null;
-  const source = r.source === "upload" || r.source === "paste" || r.source === "copy" || r.source === "ai" ? r.source : undefined;
+  const source = r.source === "upload" || r.source === "paste" || r.source === "copy" || r.source === "ai" || r.source === "template" ? r.source : undefined;
   const basedOn = typeof r.basedOn === "number" && Number.isInteger(r.basedOn) && r.basedOn > 0 ? r.basedOn : undefined;
   const deletedAt = typeof r.deletedAt === "string" && ISO_TIME.test(r.deletedAt) && !Number.isNaN(new Date(r.deletedAt).getTime()) ? iso(r.deletedAt) : undefined;
   return {
